@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
+import '../widgets/lakbay_image.dart';
 import 'trip_detail_screen.dart';
 
 class MyTripsScreen extends StatefulWidget {
@@ -227,14 +228,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      Image.asset(
-                        heroTrip.heroAsset,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                          decoration: const BoxDecoration(
-                            gradient: LakbayColors.deepTealGradient,
-                          ),
-                        ),
+                      LakbayNetworkOrAssetImage(
+                        networkUrl: heroTrip.remoteImageUrl,
+                        assetPath: heroTrip.heroAsset,
                       ),
                       Container(
                         decoration: const BoxDecoration(
@@ -411,6 +407,16 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                           TripDetailScreen(repo: widget.repo, trip: trip),
                     ),
                   ),
+                  onDelete: () {
+                    widget.repo.removeSavedTrip(trip.id);
+                    setState(() {});
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Removed "${trip.title}"'),
+                        backgroundColor: LakbayColors.tealDeep,
+                      ),
+                    );
+                  },
                 ),
           ],
         ),
@@ -422,12 +428,19 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
 class _TripListTile extends StatelessWidget {
   final ItineraryTrip trip;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
-  const _TripListTile({required this.trip, required this.onTap});
+  const _TripListTile({
+    required this.trip,
+    required this.onTap,
+    this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isPlanning = trip.id.startsWith('ai_trip_');
+    final isPlanning = trip.id.startsWith('ai_trip_') ||
+        trip.id.startsWith('ai_opt_') ||
+        trip.id.startsWith('multi_');
 
     return GestureDetector(
       onTap: onTap,
@@ -443,20 +456,11 @@ class _TripListTile extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: Image.asset(
-                trip.heroAsset,
+              child: LakbayNetworkOrAssetImage(
+                networkUrl: trip.remoteImageUrl,
+                assetPath: trip.heroAsset,
                 width: 58,
                 height: 58,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  width: 58,
-                  height: 58,
-                  color: LakbayColors.canvasBg,
-                  child: const Icon(
-                    Icons.map_outlined,
-                    color: LakbayColors.tealDeep,
-                  ),
-                ),
               ),
             ),
             const SizedBox(width: 14),
@@ -488,6 +492,16 @@ class _TripListTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (onDelete != null)
+              IconButton(
+                tooltip: 'Archive Trip',
+                onPressed: onDelete,
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: LakbayColors.textMuted,
+                  size: 20,
+                ),
+              ),
             const Icon(
               Icons.chevron_right_rounded,
               color: LakbayColors.textSecondary,

@@ -1,6 +1,7 @@
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.features.destinations.region import island_group_for
 from app.core.exceptions import LakbayAPIError
 from app.features.destinations.repository import DestinationRepository
 from app.features.destinations.schemas import (
@@ -48,6 +49,11 @@ class DestinationService:
         self,
         data: DestinationCreate,
     ) -> DestinationResponse:
+        if data.island_group is None:
+            # A place on Samal, Talikud, Kopiat, ... must route via a pier.
+            data = data.model_copy(update={
+                "island_group": island_group_for(data.lat, data.lng),
+            })
         destination = await self.destinations.create(data)
         await self.session.commit()
         await self.session.refresh(destination)

@@ -48,6 +48,7 @@ class CandidateUpdate(BaseModel):
     access_source_url: str | None = Field(default=None, max_length=2048)
     access_verified_at: datetime | None = None
     review_notes: str | None = None
+    island_group: str | None = Field(default=None, max_length=50)
 
     @field_validator("access_source_url")
     @classmethod
@@ -96,6 +97,9 @@ class CandidateResponse(BaseModel):
     access_policy: str | None
     access_source_url: str | None
     access_verified_at: datetime | None
+    island_group: str | None = None
+    # "inside", "near_boundary" or "outside" Region XI, from the coordinates.
+    region_status: str | None = None
     review_status: CandidateStatus
     review_notes: str | None
     destination_id: int | None
@@ -103,3 +107,11 @@ class CandidateResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def fill_region_status(self) -> "CandidateResponse":
+        from app.features.destinations.region import region_status
+
+        if self.region_status is None:
+            self.region_status = region_status(self.lat, self.lng)
+        return self

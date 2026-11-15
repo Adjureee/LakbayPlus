@@ -173,6 +173,7 @@ class RecommendationService:
         travel, warnings = await _travel_times(data, candidates, osrm_client)
 
         qualified: list[TopPlaceItem] = []
+        qualified_values: list[dict[str, float]] = []
         for candidate in candidates:
             destination = candidate.destination
             trip = travel[destination.destination_id]
@@ -184,6 +185,7 @@ class RecommendationService:
                 continue
             values = {**candidate.values, "travel": scoring.travel_score(trip.minutes, max_minutes)}
             points = scoring.weighted_points(values)
+            qualified_values.append(values)
             qualified.append(TopPlaceItem(
                 rank=0,
                 destination_id=destination.destination_id,
@@ -218,6 +220,13 @@ class RecommendationService:
                 travel_distance_km=trip.distance_km,
             ))
 
+        if data.ranking_method == "topsis" and qualified:
+            topsis_list = scoring.topsis_scores(qualified_values)
+            qualified = [
+                item.model_copy(update={"score": topsis_val})
+                for item, topsis_val in zip(qualified, topsis_list, strict=True)
+            ]
+
         # Verified road routes first, then approximate places; best score first in each.
         qualified.sort(key=lambda item: (
             not item.route_verified,
@@ -245,6 +254,7 @@ class RecommendationService:
         if save_preference:
             await self.session.commit()
         return TopPlacesResponse(
+            method=data.ranking_method,
             weights=scoring.WEIGHTS,
             max_travel_minutes=max_minutes,
             preference_signal_id=preference_signal_id,

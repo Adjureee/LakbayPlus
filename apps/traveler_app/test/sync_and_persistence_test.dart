@@ -6,10 +6,13 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:lakbay_travel/models/travel_models.dart';
 import 'package:lakbay_travel/screens/auth_screen.dart';
+import 'package:lakbay_travel/screens/explore_screen.dart';
 import 'package:lakbay_travel/services/google_auth_service.dart';
+import 'package:lakbay_travel/services/lakbay_ai_service.dart';
 import 'package:lakbay_travel/services/lakbay_api_catalog_service.dart';
 import 'package:lakbay_travel/services/location_service.dart';
 import 'package:lakbay_travel/services/travel_repository.dart';
+import 'package:lakbay_travel/widgets/lakbay_mapbox_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -19,7 +22,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('SharedPreferences round-trip persists profile, trips, bucket, bookings, and auth', () async {
+  test('SharedPreferences round-trip persists profile, trips, bucket, memories, preferences, and auth', () async {
     final repo1 = TravelRepository(
       apiCatalog: LakbayApiCatalogService(baseUrlOverride: ''),
     );
@@ -34,6 +37,8 @@ void main() {
       email: 'andrea@lakbay.ph',
     );
     repo1.setCurrency('USD');
+    repo1.setStrictBudgetFilter(true);
+    repo1.setPreferredTravelMode('public_transport');
     repo1.toggleBucketListCity('Mati City');
 
     final customTrip = repo1.generateCustomTrip(
@@ -42,18 +47,12 @@ void main() {
       vibe: 'Beach',
     );
     repo1.saveTripToMyTrips(customTrip);
-    repo1.addToBasket(
-      BasketItem(
-        id: 'stay_test_1',
-        title: 'Lane Beach Resort',
-        category: 'Stay',
-        subtitle: '2 nights • Mati',
-        priceUsd: 80,
-        imageAsset: 'assets/home_backdrops/04-thoddoo.jpg',
-        backendDestinationId: 42,
-      ),
+    await repo1.uploadAndAddMemory(
+      trip: customTrip,
+      localFilePath: 'assets/home_backdrops/01-samal-island.jpg',
+      caption: 'Morning waves at Dahican Beach',
+      locationTag: 'Mati City',
     );
-    await repo1.recordReservationCheckout(paymentMethod: 'GCash');
     await repo1.createTripFromAiPrompt('Plan 2 days in Samal Island');
     await Future<void>.delayed(Duration.zero);
 
@@ -67,11 +66,13 @@ void main() {
     expect(repo2.profile.lastName, equals('Reyes'));
     expect(repo2.profile.email, equals('andrea@lakbay.ph'));
     expect(repo2.currency, equals('USD'));
+    expect(repo2.strictBudgetFilter, isTrue);
+    expect(repo2.preferredTravelMode, equals('public_transport'));
     expect(repo2.bucketListCities, contains('Mati City'));
     expect(repo2.savedTrips.any((t) => t.title.contains('Dahican')), isTrue);
-    expect(repo2.bookings.length, equals(1));
-    expect(repo2.bookings.first.itemsSummary, contains('Lane Beach Resort'));
-    expect(repo2.bookings.first.paymentMethod, equals('GCash'));
+    expect(repo2.memories.length, equals(1));
+    expect(repo2.memories.first.caption, contains('Dahican Beach'));
+    expect(repo2.memories.first.locationTag, equals('Mati City'));
     expect(repo2.chatSessions, isNotEmpty);
   });
 
@@ -307,6 +308,49 @@ void main() {
           200,
         );
       }
+      if (path == '/api/v1/notifications') {
+        return http.Response(jsonEncode([]), 200);
+      }
+      if (path == '/api/v1/notifications/unread-count') {
+        return http.Response(jsonEncode({'user_id': 9, 'unread_count': 0}), 200);
+      }
+      if (path == '/api/v1/trips/501/memories/upload' &&
+          request.method == 'POST') {
+        return http.Response(
+          jsonEncode({
+            'image_url': 'https://res.cloudinary.com/bh2rda7z/image/upload/v1/lakbay/aliwagwag_mem.jpg',
+            'cloudinary_public_id': 'lakbay/aliwagwag_mem',
+          }),
+          200,
+        );
+      }
+      if (path == '/api/v1/trips/501/memories' && request.method == 'POST') {
+        final reqJson = jsonDecode(request.body) as Map<String, dynamic>;
+        postedBodies.add(reqJson);
+        return http.Response(
+          jsonEncode({
+            'trip_memory_id': 701,
+            'trip_id': 501,
+            'uploaded_by_full_name': 'Marco Santos',
+            'destination_id': reqJson['destination_id'],
+            'destination_name': 'Aliwagwag Falls',
+            'image_url': reqJson['image_url'],
+            'caption': reqJson['caption'],
+            'location_tag': reqJson['location_tag'],
+            'like_count': 0,
+            'comment_count': 0,
+            'created_at': '2026-11-15T12:00:00Z',
+          }),
+          201,
+        );
+      }
+      if (path == '/api/v1/trips/501/memories' && request.method == 'GET') {
+        return http.Response(jsonEncode([]), 200);
+      }
+      if (path == '/api/v1/trips/501/memories/701/likes' &&
+          request.method == 'POST') {
+        return http.Response(jsonEncode({'liked': true}), 200);
+      }
       return http.Response('{}', 404);
     });
 
@@ -345,22 +389,18 @@ void main() {
     expect(route.totalDistanceKm, closeTo(134.8, 0.1));
     expect(route.geometryPoints.length, equals(2));
 
-    // Checkout syncs reservation to POST /trips
-    repo.addToBasket(
-      BasketItem(
-        id: 'hotel_12',
-        title: 'Cateel Eco Lodge',
-        category: 'Stay',
-        subtitle: '1 night',
-        priceUsd: 60,
-        imageAsset: 'assets/home_backdrops/04-thoddoo.jpg',
-        backendDestinationId: 77,
-      ),
+    // Upload & create cloud memory + like action
+    await repo.uploadAndAddMemory(
+      trip: enriched,
+      localFilePath: 'assets/home_backdrops/01-samal-island.jpg',
+      caption: 'Aliwagwag Waterfall Mist',
+      locationTag: 'Cateel',
     );
-    final reservation = await repo.recordReservationCheckout(paymentMethod: 'Maya');
-    expect(reservation.syncedToCloud, isTrue);
-    expect(reservation.backendTripId, equals(888));
-    expect(postedBodies.single['destination_ids'], equals([77]));
+    expect(repo.memories.length, equals(1));
+    expect(repo.memories.first.tripMemoryId, equals(701));
+    expect(postedBodies.single['caption'], equals('Aliwagwag Waterfall Mist'));
+    await repo.likeMemory(repo.memories.first);
+    expect(repo.memories.first.likeCount, equals(1));
 
     // Backend AI chat proxy
     await repo.sendChatMessage('Give me a tip for Aliwagwag Falls');
@@ -528,15 +568,250 @@ void main() {
     expect(postedBody?['email'], equals('elena.cruz@lakbay.ph'));
     expect(postedBody?['confirm_password'], equals('Password123!'));
     expect(repo.isSignedIn, isTrue);
+    expect(repo.travelerId, equals('usr_21'));
     expect(authenticatedCount, equals(1));
 
-    // Continue with Google calls /auth/google
+    // Continue with Google calls /auth/google and replaces previous account profile
     await tester.ensureVisible(find.text('Continue with Google'));
     await tester.tap(find.text('Continue with Google'));
     await tester.pump();
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
     await tester.pump();
     expect(repo.authSession?.email, equals('sofia@gmail.com'));
+    expect(repo.profile.firstName, equals('Sofia'));
+    expect(repo.profile.email, equals('sofia@gmail.com'));
+    expect(repo.travelerId, equals('usr_22'));
     expect(authenticatedCount, equals(2));
+
+    // Signing out resets profile, travelerId, and session data cleanly
+    await tester.runAsync(() => repo.signOutBackend());
+    expect(repo.isSignedIn, isFalse);
+    expect(repo.profile.email, isEmpty);
+    expect(repo.profile.firstName, equals('Lakbay'));
+    expect(repo.travelerId, equals('guest'));
+    expect(repo.savedTrips, isEmpty);
+  });
+
+  test('UserProfile defaults empty location and autoDetectLocationOnShellEntry resolves GPS without clobbering consent', () async {
+    const emptyProfile = UserProfile();
+    expect(emptyProfile.location, isEmpty);
+
+    var shouldGrant = false;
+    final repo = TravelRepository(
+      apiCatalog: LakbayApiCatalogService(baseUrlOverride: ''),
+      locationService: LocationService(
+        customFetcher: () async {
+          if (!shouldGrant) {
+            return const LocationResult(
+              granted: false,
+              statusMessage: 'Denied cleanly',
+            );
+          }
+          return const LocationResult(
+            granted: true,
+            lat: 6.9551,
+            lng: 126.2166,
+            resolvedLabel: 'Mati City, Davao Oriental',
+            statusMessage: 'GPS fix acquired',
+          );
+        },
+      ),
+    );
+    await repo.initialize();
+    expect(repo.effectiveOriginLabel, equals('Current Location'));
+    expect(repo.locationSharingEnabled, isTrue);
+
+    // Denied auto-detect on shell entry preserves locationSharingEnabled
+    await repo.autoDetectLocationOnShellEntry();
+    expect(repo.hasUserLocation, isFalse);
+    expect(repo.locationSharingEnabled, isTrue);
+
+    // Calling again once granted (via refreshCurrentLocationSilently) updates origin & coordinates
+    shouldGrant = true;
+    final refreshed = await repo.refreshCurrentLocationSilently();
+    expect(refreshed, isTrue);
+    expect(repo.hasUserLocation, isTrue);
+    expect(repo.userLat, closeTo(6.9551, 0.0001));
+    expect(repo.effectiveOriginLabel, equals('Mati City, Davao Oriental'));
+  });
+
+  test('LakbayAiService.chatOrPlan asks the backend trip-draft endpoint (no AI key in the app)', () async {
+    Map<String, dynamic>? capturedRequest;
+    String? capturedAuth;
+    String? capturedPath;
+    final backendClient = MockClient((request) async {
+      capturedPath = request.url.path;
+      capturedAuth = request.headers['Authorization'];
+      capturedRequest = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          'model_id': 'openai/gpt-oss-120b',
+          'provider': 'groq',
+          'draft': {
+            'reply':
+                'Starting from Mati City, catch sunrise at Dahican before heading west toward Samal reefs.',
+            'should_create_itinerary': false,
+            'destination': 'Mati & Samal Coast',
+            'suggested_replies': [
+              'Add Sleeping Dinosaur ridge stop',
+              'Keep it slow for 3 days',
+            ],
+            'days': [],
+          },
+        }),
+        200,
+      );
+    });
+
+    final service = LakbayAiService(
+      backend: LakbayApiCatalogService(
+        client: backendClient,
+        baseUrlOverride: 'https://api.test/api/v1',
+      ),
+      accessToken: () => null, // guest
+    );
+    final result = await service.chatOrPlan(
+      userPrompt: 'Inspire me!',
+      history: const [
+        {'role': 'assistant', 'content': 'Hey there!'},
+      ],
+      currentLocation: 'Mati City, Davao Oriental',
+      userLat: 6.9551,
+      userLng: 126.2166,
+      preferredVibes: const {'beach', 'nature'},
+      strictBudget: true,
+    );
+
+    expect(capturedPath, '/api/v1/ai/trip-draft');
+    expect(capturedAuth, isNull);
+    expect(capturedRequest!['history'], [
+      {'role': 'assistant', 'content': 'Hey there!'},
+    ]);
+    expect(capturedRequest!['current_location'], 'Mati City, Davao Oriental');
+    expect((capturedRequest!['user_lat'] as num).toDouble(), closeTo(6.9551, 0.0001));
+    expect(capturedRequest!['strict_budget'], isTrue);
+    expect(result.suggestedReplies, contains('Add Sleeping Dinosaur ridge stop'));
+    expect(result.modelUsed, 'openai/gpt-oss-120b');
+  });
+
+  testWidgets('LakbayMapboxMap renders photo pinpoints without price tags and supports pinch-to-zoom', (tester) async {
+    final repo = TravelRepository(
+      apiCatalog: LakbayApiCatalogService(baseUrlOverride: ''),
+      locationService: LocationService(
+        customFetcher: () async => const LocationResult(
+          granted: true,
+          lat: 7.4478,
+          lng: 125.8078,
+          resolvedLabel: 'Tagum City, Philippines',
+          statusMessage: 'GPS fixed',
+        ),
+      ),
+    );
+    await tester.runAsync(() async {
+      await repo.initialize();
+      await repo.requestAndSaveCurrentLocation();
+    });
+
+    final mapKey = GlobalKey<LakbayMapboxMapState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 500,
+            child: LakbayMapboxMap(
+              key: mapKey,
+              repo: repo,
+              initialLat: repo.userLat!,
+              initialLng: repo.userLng!,
+              initialZoom: 9.0,
+              markers: [
+                LakbayMapMarker(
+                  id: 'user_gps',
+                  lat: repo.userLat!,
+                  lng: repo.userLng!,
+                  title: 'You (${repo.effectiveOriginLabel})',
+                  isUserLocation: true,
+                ),
+                const LakbayMapMarker(
+                  id: 'day_1',
+                  lat: 7.0742,
+                  lng: 125.7089,
+                  badgeText: 'D1',
+                  title: 'Samal Island',
+                  imageAsset: 'assets/home_backdrops/01-samal-island.jpg',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // User location marker & photo pinpoint label render cleanly without any currency prices
+    expect(find.text('You'), findsOneWidget);
+    expect(find.text('D1'), findsOneWidget);
+    expect(find.textContaining('₱'), findsNothing);
+    expect(find.textContaining('\$'), findsNothing);
+    expect(find.byType(Image), findsWidgets);
+
+    // Two-finger pinch-out increases map zoom cleanly
+    final initialZoom = mapKey.currentState!.currentZoom;
+    final box = tester.renderObject<RenderBox>(find.byType(LakbayMapboxMap));
+    final center = box.localToGlobal(box.size.center(Offset.zero));
+    final f1 = await tester.startGesture(center - const Offset(30, 0), pointer: 11);
+    final f2 = await tester.startGesture(center + const Offset(30, 0), pointer: 12);
+    await tester.pump();
+    await f1.moveBy(const Offset(-90, 0));
+    await f2.moveBy(const Offset(90, 0));
+    await tester.pump();
+    await f1.up();
+    await f2.up();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(mapKey.currentState!.currentZoom, greaterThan(initialZoom));
+  });
+
+  testWidgets('ExploreScreen map view renders photo pinpoint markers without prices and includes GPS marker', (tester) async {
+    final repo = TravelRepository(
+      apiCatalog: LakbayApiCatalogService(baseUrlOverride: ''),
+      locationService: LocationService(
+        customFetcher: () async => const LocationResult(
+          granted: true,
+          lat: 7.4478,
+          lng: 125.8078,
+          resolvedLabel: 'Tagum City, Philippines',
+          statusMessage: 'GPS fixed',
+        ),
+      ),
+    );
+    await tester.runAsync(() async {
+      await repo.initialize();
+      await repo.requestAndSaveCurrentLocation();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExploreScreen(repo: repo),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Mapbox'));
+    await tester.pump();
+
+    expect(find.byType(LakbayMapboxMap), findsOneWidget);
+    expect(find.text('You'), findsOneWidget);
+    final mapWidget = tester.widget<LakbayMapboxMap>(find.byType(LakbayMapboxMap));
+    expect(mapWidget.initialLat, closeTo(repo.userLat!, 0.0001));
+    expect(mapWidget.initialLng, closeTo(repo.userLng!, 0.0001));
+    final spotMarkers = mapWidget.markers.where((m) => !m.isUserLocation).toList();
+    expect(spotMarkers, isNotEmpty);
+    for (final marker in spotMarkers) {
+      expect(marker.badgeText, isNot(contains('₱')));
+      expect(marker.badgeText, isNot(contains('\$')));
+      expect(marker.imageAsset, isNotNull);
+    }
   });
 }

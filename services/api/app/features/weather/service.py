@@ -34,6 +34,9 @@ class WeatherService:
         lat: float,
         lng: float,
     ) -> CurrentWeatherResponse:
+        if not self.settings.openweather_api_key:
+            payload = await self._open_meteo_get(lat=lat, lng=lng, days=1)
+            return _open_meteo_current_response(payload, fallback_lat=lat, fallback_lng=lng)
         payload = await self._openweather_get(
             "/weather",
             lat=lat,
@@ -48,6 +51,16 @@ class WeatherService:
         lng: float,
         days: int = 5,
     ) -> WeatherForecastResponse:
+        if not self.settings.openweather_api_key:
+            payload = await self._open_meteo_get(lat=lat, lng=lng, days=days)
+            current = _open_meteo_current_response(payload, fallback_lat=lat, fallback_lng=lng)
+            return _open_meteo_forecast_response(
+                payload,
+                fallback_lat=lat,
+                fallback_lng=lng,
+                days=days,
+                current=current,
+            )
         current = await self.current_weather(lat=lat, lng=lng)
         payload = await self._openweather_get(
             "/forecast",
@@ -183,6 +196,78 @@ class WeatherService:
         ttl = (self.settings.openweather_current_cache_seconds if path == "/weather"
                else self.settings.openweather_forecast_cache_seconds)
         _weather_cache.put(cache_key, body, ttl_seconds=ttl)
+        return body
+
+    async def _open_meteo_get(
+        self,
+        *,
+        lat: float,
+        lng: float,
+        days: int,
+    ) -> dict[str, Any]:
+        forecast_days = max(1, min(days, 7))
+        cache_key = repr(("open-meteo", round(lat, 3), round(lng, 3), forecast_days))
+        cached = _weather_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        params = {
+            "latitude": lat,
+            "longitude": lng,
+            "current": (
+                "temperature_2m,relative_humidity_2m,apparent_temperature,"
+                "rain,weather_code,cloud_cover,wind_speed_10m"
+            ),
+            "daily": (
+                "weather_code,temperature_2m_max,temperature_2m_min,"
+                "precipitation_probability_max"
+            ),
+            "timezone": "Asia/Manila",
+            "forecast_days": forecast_days,
+            "wind_speed_unit": "ms",
+        }
+        try:
+            async with httpx.AsyncClient(
+                base_url="https://api.open-meteo.com",
+                timeout=self.settings.openweather_request_timeout_seconds,
+            ) as client:
+                response = await client.get("/v1/forecast", params=params)
+        except httpx.RequestError as exc:
+            raise LakbayAPIError(
+                "Weather provider request failed.",
+                code="open_meteo_request_failed",
+                status_code=status.HTTP_502_BAD_GATEWAY,
+            ) from exc
+
+        if response.status_code >= 400:
+            raise LakbayAPIError(
+                "Open-Meteo fallback rejected the request.",
+                code="open_meteo_error",
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                details={"status_code": response.status_code},
+            )
+
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise LakbayAPIError(
+                "Open-Meteo returned an invalid JSON response.",
+                code="open_meteo_invalid_response",
+                status_code=status.HTTP_502_BAD_GATEWAY,
+            ) from exc
+
+        if not isinstance(body, dict):
+            raise LakbayAPIError(
+                "Open-Meteo response shape was not recognized.",
+                code="open_meteo_invalid_response",
+                status_code=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        _weather_cache.put(
+            cache_key,
+            body,
+            ttl_seconds=self.settings.openweather_current_cache_seconds,
+        )
         return body
 
 
@@ -371,3 +456,124 @@ def _int_or_none(value: Any) -> int | None:
         except ValueError:
             return None
     return None
+
+
+def _wmo_condition(code: int | None) -> WeatherCondition:
+    if code == 0:
+        return WeatherCondition(code=code, main="Clear", description="clear sky", icon="01d")
+    if code in (1, 2):
+        return WeatherCondition(code=code, main="Clouds", description="partly cloudy", icon="02d")
+    if code == 3:
+        return WeatherCondition(code=code, main="Clouds", description="overcast clouds", icon="04d")
+    if code in (45, 48):
+        return WeatherCondition(code=code, main="Mist", description="misty highland fog", icon="50d")
+    if code in (51, 53, 55, 56, 57):
+        return WeatherCondition(code=code, main="Drizzle", description="light drizzle", icon="09d")
+    if code in (61, 80):
+        return WeatherCondition(code=code, main="Rain", description="light rain showers", icon="10d")
+    if code in (63, 81):
+        return WeatherCondition(code=code, main="Rain", description="moderate rain", icon="10d")
+    if code in (65, 66, 67, 82):
+        return WeatherCondition(code=code, main="Rain", description="heavy rain", icon="10d")
+    if code in (95, 96, 99):
+        return WeatherCondition(code=code, main="Thunderstorm", description="thunderstorm", icon="11d")
+    return WeatherCondition(code=code, main="Clouds", description="partly cloudy", icon="03d")
+
+
+def _open_meteo_current_response(
+    payload: dict[str, Any],
+    *,
+    fallback_lat: float,
+    fallback_lng: float,
+) -> CurrentWeatherResponse:
+    current = payload.get("current") if isinstance(payload.get("current"), dict) else {}
+    condition = _wmo_condition(_int_or_none(current.get("weather_code")))
+    temp_c = _float_or_none(current.get("temperature_2m"))
+    humidity = _int_or_none(current.get("relative_humidity_2m"))
+    wind_speed = _float_or_none(current.get("wind_speed_10m"))
+    rain_1h = _float_or_none(current.get("rain"))
+    observed_at = None
+    raw_time = current.get("time")
+    if isinstance(raw_time, str) and raw_time:
+        try:
+            observed_at = datetime.fromisoformat(raw_time)
+        except ValueError:
+            observed_at = None
+
+    return CurrentWeatherResponse(
+        provider="open-meteo",
+        location_name=None,
+        lat=_float(payload.get("latitude"), fallback=fallback_lat),
+        lng=_float(payload.get("longitude"), fallback=fallback_lng),
+        observed_at=observed_at,
+        temp_c=temp_c,
+        feels_like_c=_float_or_none(current.get("apparent_temperature")),
+        temp_min_c=None,
+        temp_max_c=None,
+        humidity_percent=humidity,
+        wind_speed_mps=wind_speed,
+        clouds_percent=_int_or_none(current.get("cloud_cover")),
+        rain_1h_mm=rain_1h,
+        condition=condition,
+        advisory=_advisory(condition.main, temp_c, humidity, wind_speed, rain_1h, None),
+    )
+
+
+def _open_meteo_forecast_response(
+    payload: dict[str, Any],
+    *,
+    fallback_lat: float,
+    fallback_lng: float,
+    days: int,
+    current: CurrentWeatherResponse | None,
+) -> WeatherForecastResponse:
+    daily = payload.get("daily") if isinstance(payload.get("daily"), dict) else {}
+    dates = daily.get("time") if isinstance(daily.get("time"), list) else []
+    codes = daily.get("weather_code") if isinstance(daily.get("weather_code"), list) else []
+    max_temps = daily.get("temperature_2m_max") if isinstance(daily.get("temperature_2m_max"), list) else []
+    min_temps = daily.get("temperature_2m_min") if isinstance(daily.get("temperature_2m_min"), list) else []
+    rain_probs = (
+        daily.get("precipitation_probability_max")
+        if isinstance(daily.get("precipitation_probability_max"), list)
+        else []
+    )
+
+    forecast_days: list[WeatherForecastDay] = []
+    for idx, raw_date in enumerate(dates[:days]):
+        if not isinstance(raw_date, str):
+            continue
+        try:
+            forecast_date = date.fromisoformat(raw_date)
+        except ValueError:
+            continue
+        code = _int_or_none(codes[idx]) if idx < len(codes) else None
+        condition = _wmo_condition(code)
+        temp_min = _float_or_none(min_temps[idx]) if idx < len(min_temps) else None
+        temp_max = _float_or_none(max_temps[idx]) if idx < len(max_temps) else None
+        temp_avg = (
+            round((temp_min + temp_max) / 2.0, 1)
+            if temp_min is not None and temp_max is not None
+            else (temp_max or temp_min)
+        )
+        raw_prob = _int_or_none(rain_probs[idx]) if idx < len(rain_probs) else None
+        rain_chance = max(0, min(100, raw_prob if raw_prob is not None else 0))
+        forecast_days.append(
+            WeatherForecastDay(
+                date=forecast_date,
+                temp_min_c=round(temp_min, 1) if temp_min is not None else None,
+                temp_max_c=round(temp_max, 1) if temp_max is not None else None,
+                temp_avg_c=temp_avg,
+                rain_chance_percent=rain_chance,
+                condition=condition,
+                advisory=_advisory(condition.main, temp_avg, None, None, None, rain_chance),
+            )
+        )
+
+    return WeatherForecastResponse(
+        provider="open-meteo",
+        location_name=None,
+        lat=_float(payload.get("latitude"), fallback=fallback_lat),
+        lng=_float(payload.get("longitude"), fallback=fallback_lng),
+        days=forecast_days,
+        current=current,
+    )

@@ -5,6 +5,7 @@ functions here are pure so the formula can be tested and checked by hand.
 """
 
 from decimal import Decimal
+import math
 
 # Interest, travel and budget match the Phase 15B group weights
 # (`geo_analytics/service.py`). Group fit combines child and group needs.
@@ -108,3 +109,50 @@ def weighted_points(values: dict[str, float]) -> dict[str, float]:
 def total_score(points: dict[str, float]) -> float:
     """The 0-100 score: the sum of the rounded points, so the breakdown always adds up."""
     return round(sum(points.values()), 2)
+
+
+def topsis_scores(
+    items_values: list[dict[str, float]],
+    weights: dict[str, float] | None = None,
+) -> list[float]:
+    """Rank alternatives on a 0-100 scale using TOPSIS closeness to the ideal."""
+    if not items_values:
+        return []
+    weight_map = weights or WEIGHTS
+    criteria = list(weight_map.keys())
+    if len(items_values) == 1:
+        item = items_values[0]
+        return [round(100.0 * sum(weight_map[key] * item.get(key, 0.0) for key in criteria), 2)]
+
+    norms = {
+        key: math.sqrt(sum((item.get(key, 0.0) ** 2) for item in items_values))
+        for key in criteria
+    }
+    weighted_matrix: list[dict[str, float]] = [
+        {
+            key: (weight_map[key] * (item.get(key, 0.0) / norms[key])) if norms[key] > 0 else 0.0
+            for key in criteria
+        }
+        for item in items_values
+    ]
+    ideal_best = {
+        key: max(row[key] for row in weighted_matrix)
+        for key in criteria
+    }
+    ideal_worst = {
+        key: min(row[key] for row in weighted_matrix)
+        for key in criteria
+    }
+
+    scores: list[float] = []
+    for item, row in zip(items_values, weighted_matrix, strict=True):
+        dist_best = math.sqrt(sum((row[key] - ideal_best[key]) ** 2 for key in criteria))
+        dist_worst = math.sqrt(sum((row[key] - ideal_worst[key]) ** 2 for key in criteria))
+        denom = dist_best + dist_worst
+        if denom == 0:
+            scores.append(
+                round(100.0 * sum(weight_map[key] * item.get(key, 0.0) for key in criteria), 2)
+            )
+        else:
+            scores.append(round(100.0 * (dist_worst / denom), 2))
+    return scores

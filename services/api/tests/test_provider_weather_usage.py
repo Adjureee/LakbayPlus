@@ -115,3 +115,50 @@ def test_rolling_30_day_weather_budget_blocks_provider_call(monkeypatch):
         asyncio.run(service.current_weather(lat=7.0731, lng=125.6128))
     assert error.value.status_code == 429
     assert len(calls) == 2
+
+
+def test_open_meteo_fallback_used_when_openweather_key_missing(monkeypatch):
+    calls = []
+
+    def handler(request):
+        calls.append((request.url.host, request.url.path))
+        return httpx.Response(
+            200,
+            json={
+                "latitude": 7.0731,
+                "longitude": 125.6128,
+                "current": {
+                    "time": "2026-11-15T14:00",
+                    "temperature_2m": 31.2,
+                    "relative_humidity_2m": 74,
+                    "apparent_temperature": 34.5,
+                    "rain": 0.0,
+                    "weather_code": 2,
+                    "cloud_cover": 35,
+                    "wind_speed_10m": 3.4,
+                },
+                "daily": {
+                    "time": ["2026-11-15", "2026-11-16"],
+                    "weather_code": [2, 61],
+                    "temperature_2m_max": [32.0, 29.5],
+                    "temperature_2m_min": [25.0, 24.0],
+                    "precipitation_probability_max": [20, 80],
+                },
+            },
+        )
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        "app.features.weather.service.httpx.AsyncClient",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs),
+    )
+    service = WeatherService(None, Settings(_env_file=None, openweather_api_key=None))
+
+    forecast = asyncio.run(service.forecast(lat=7.0731, lng=125.6128, days=2))
+    assert forecast.provider == "open-meteo"
+    assert forecast.current is not None
+    assert forecast.current.provider == "open-meteo"
+    assert forecast.current.temp_c == 31.2
+    assert len(forecast.days) == 2
+    assert forecast.days[1].rain_chance_percent == 80
+    assert calls == [("api.open-meteo.com", "/v1/forecast")]

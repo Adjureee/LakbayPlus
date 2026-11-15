@@ -4,6 +4,7 @@ from fastapi import status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.features.destinations.region import island_group_for, region_status
 from app.core.exceptions import LakbayAPIError
 from app.features.destinations.candidate_repository import CandidateRepository
 from app.features.destinations.candidate_schemas import CandidateCreate, CandidateResponse, CandidateUpdate
@@ -38,7 +39,11 @@ class CandidateService:
                 status_code=status.HTTP_409_CONFLICT,
                 details={"candidate_id": existing.candidate_id},
             )
-        candidate = DestinationCandidate(**data.model_dump(), review_status="staged")
+        candidate = DestinationCandidate(
+            **data.model_dump(),
+            island_group=island_group_for(data.lat, data.lng),
+            review_status="staged",
+        )
         self.session.add(candidate)
         try:
             await self.session.commit()
@@ -62,6 +67,10 @@ class CandidateService:
             raise LakbayAPIError("Name and coordinates cannot be cleared.", code="invalid_candidate_location")
         if {"access_policy", "access_source_url"}.intersection(values) and "access_verified_at" not in values:
             values["access_verified_at"] = None
+        if {"lat", "lng"}.intersection(values) and "island_group" not in values:
+            values["island_group"] = island_group_for(
+                values.get("lat", candidate.lat), values.get("lng", candidate.lng),
+            )
         for field, value in values.items():
             setattr(candidate, field, value)
         await self.session.commit()
@@ -103,6 +112,12 @@ class CandidateService:
             verified_at = verified_at.replace(tzinfo=timezone.utc)
         if verified_at > datetime.now(timezone.utc):
             raise LakbayAPIError("Use a past access verification time.", code="invalid_access_verification_time")
+        if region_status(candidate.lat, candidate.lng) == "outside":
+            raise LakbayAPIError(
+                "This place is outside the Davao Region (Region XI).",
+                code="candidate_outside_davao_region",
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
         duplicate = await self.candidates.nearby_same_name(candidate)
         if duplicate is not None:
             raise LakbayAPIError(
@@ -127,6 +142,8 @@ class CandidateService:
             overnight_fee=candidate.overnight_fee,
             operating_hours=candidate.operating_hours,
             route_ready=False,
+            island_group=candidate.island_group
+            or island_group_for(candidate.lat, candidate.lng),
         )
         destination = await DestinationRepository(self.session).create(data)
         candidate.destination_id = destination.destination_id

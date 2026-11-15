@@ -29,6 +29,8 @@ from app.features.ai.schemas import (
     AIItineraryGenerateRequest,
     AIItineraryGenerateResponse,
     AIModelRunResult,
+    AITripDraftRequest,
+    AITripDraftResponse,
 )
 from app.features.ai.validators import (
     AIItineraryCatalog,
@@ -42,6 +44,7 @@ from app.features.destinations.catalog_selection import (
     require_rates_belong_to_destinations,
 )
 from app.features.destinations.models import Destination
+from app.features.destinations.region import region_status
 from app.features.planning.schemas import PlanningOrigin, PlanningPreviewRequest, PlanningPreviewResponse, PlanningState
 from app.features.planning.service import PlanningService
 from app.features.recommendations.schemas import (
@@ -72,10 +75,17 @@ from app.integrations.groq.prompts import (
     build_chat_messages,
     build_geo_analytics_context,
     build_itinerary_messages,
+    build_trip_draft_messages,
+    TRIP_DRAFT_PROMPT_VERSION,
 )
 
 REQUEST_PURPOSE = "itinerary_generation"
 CHAT_REQUEST_PURPOSE = "travel_chat"
+GUEST_CHAT_REQUEST_PURPOSE = "guest_travel_chat"
+TRIP_DRAFT_REQUEST_PURPOSE = "trip_draft"
+GUEST_TRIP_DRAFT_REQUEST_PURPOSE = "guest_trip_draft"
+# Destination names sent to ground a draft; enough for variety, few tokens.
+TRIP_DRAFT_CATALOG_LIMIT = 80
 _ai_user_limiter = ProviderLimiter()
 _timing_log = logging.getLogger("app.ai.timing")
 
@@ -108,6 +118,37 @@ def _reserve_user_ai_call(
             window_seconds=86400,
             code="ai_user_daily_limit_exceeded",
             message="You have reached today's AI limit. Please try again tomorrow.",
+        )
+
+
+def _reserve_guest_ai_call(
+    guest_key: str,
+    settings: Settings,
+    *,
+    count_daily: bool = True,
+) -> None:
+    _ai_user_limiter.reserve(
+        f"groq:guest:{guest_key}",
+        limit=settings.guest_ai_requests_per_minute,
+        code="ai_guest_rate_limit_exceeded",
+        message="Too many AI requests. Please try again shortly.",
+    )
+    if count_daily:
+        _ai_user_limiter.reserve(
+            f"groq:guest:{guest_key}:day",
+            limit=settings.guest_ai_requests_per_day,
+            window_seconds=86400,
+            code="ai_guest_daily_limit_exceeded",
+            message=(
+                "You have reached today's guest AI limit. Sign in to keep chatting."
+            ),
+        )
+        _ai_user_limiter.reserve(
+            "groq:guest:all:day",
+            limit=settings.guest_ai_global_requests_per_day,
+            window_seconds=86400,
+            code="ai_guest_capacity_reached",
+            message="Guest chat is busy today. Sign in to keep chatting.",
         )
 
 
@@ -297,9 +338,13 @@ class AIItineraryService:
     async def chat(
         self,
         *,
-        user: User,
+        user: User | None,
         data: AIChatRequest,
+        guest_key: str | None = None,
     ) -> AIChatResponse:
+        """Chat for a signed-in user, or a guest identified by ``guest_key``."""
+        if user is None and not guest_key:
+            raise ValueError("Guest chat needs a guest_key.")
         chat_started = perf_counter()
         settings = get_settings()
         selections = self._select_chat_models(
@@ -330,12 +375,19 @@ class AIItineraryService:
         rate_limit_error: GroqRateLimitError | None = None
 
         for selection in selections:
-            _reserve_user_ai_call(
-                user.user_id, settings, count_daily=not selection.fallback_used
-            )
+            if user is not None:
+                _reserve_user_ai_call(
+                    user.user_id, settings, count_daily=not selection.fallback_used
+                )
+            else:
+                _reserve_guest_ai_call(
+                    guest_key, settings, count_daily=not selection.fallback_used
+                )
             run = await self.ai.create_generation_run(
-                user_id=user.user_id,
-                request_purpose=CHAT_REQUEST_PURPOSE,
+                user_id=user.user_id if user is not None else None,
+                request_purpose=(
+                    CHAT_REQUEST_PURPOSE if user is not None else GUEST_CHAT_REQUEST_PURPOSE
+                ),
                 model_role=selection.model_role,
                 model_id=selection.model_id,
                 prompt_version=CHAT_PROMPT_VERSION,
@@ -352,6 +404,7 @@ class AIItineraryService:
                     model=selection.model_id,
                     messages=messages,
                     provider=selection.provider,
+                    temperature=settings.groq_chat_temperature,
                 )
                 response_time_ms = _elapsed_ms(started_at)
                 _log_timing(
@@ -520,6 +573,95 @@ class AIItineraryService:
 
         return selections
 
+    async def trip_draft(
+        self,
+        *,
+        user: User | None,
+        data: AITripDraftRequest,
+        guest_key: str | None = None,
+    ) -> AITripDraftResponse:
+        """Quick structured trip draft for onboarding and prompt-to-trip flows."""
+        if user is None and not guest_key:
+            raise ValueError("A guest trip draft needs a guest_key.")
+        settings = get_settings()
+        selections = self._select_chat_models(
+            settings=settings, model_role="default", allow_fallback=True,
+        )
+        names = [name for _, name in await self.ai.list_active_destination_names()]
+        messages = build_trip_draft_messages(
+            request=data, catalog_names=names[:TRIP_DRAFT_CATALOG_LIMIT],
+        )
+        rate_limit_error: GroqRateLimitError | None = None
+        for selection in selections:
+            if user is not None:
+                _reserve_user_ai_call(
+                    user.user_id, settings, count_daily=not selection.fallback_used,
+                )
+            else:
+                _reserve_guest_ai_call(
+                    guest_key, settings, count_daily=not selection.fallback_used,
+                )
+            run = await self.ai.create_generation_run(
+                user_id=user.user_id if user is not None else None,
+                request_purpose=(
+                    TRIP_DRAFT_REQUEST_PURPOSE if user is not None
+                    else GUEST_TRIP_DRAFT_REQUEST_PURPOSE
+                ),
+                model_role=selection.model_role,
+                model_id=selection.model_id,
+                prompt_version=TRIP_DRAFT_PROMPT_VERSION,
+                input_summary={
+                    "message_length": len(data.message),
+                    "history_count": len(data.history),
+                    "has_coordinates": data.user_lat is not None,
+                },
+                fallback_used=selection.fallback_used,
+            )
+            await self.session.commit()
+            started_at = perf_counter()
+            try:
+                completion = await self.groq_client.create_chat_completion(
+                    model=selection.model_id,
+                    messages=messages,
+                    response_format={"type": "json_object"},
+                    provider=selection.provider,
+                    temperature=settings.groq_chat_temperature,
+                )
+            except GroqClientError as exc:
+                await self.ai.update_generation_run(
+                    run, status="failed", validation_status="not_run",
+                    response_time_ms=_elapsed_ms(started_at), error_message=exc.message,
+                )
+                await self.session.commit()
+                if isinstance(exc, GroqRateLimitError):
+                    rate_limit_error = exc
+                continue
+
+            draft = _parse_trip_draft(completion.content)
+            await self.ai.update_generation_run(
+                run,
+                status="succeeded" if draft is not None else "failed",
+                validation_status="valid" if draft is not None else "invalid",
+                response_time_ms=_elapsed_ms(started_at),
+                prompt_tokens=completion.prompt_tokens,
+                completion_tokens=completion.completion_tokens,
+                total_tokens=completion.total_tokens,
+                error_message=None if draft is not None else "Draft was not valid JSON.",
+            )
+            await self.session.commit()
+            if draft is not None:
+                return AITripDraftResponse(
+                    draft=draft, model_id=selection.model_id, provider=selection.provider,
+                )
+
+        if rate_limit_error is not None:
+            raise _groq_rate_limit_response(rate_limit_error) from rate_limit_error
+        raise LakbayAPIError(
+            "AI trip draft failed.",
+            code="ai_trip_draft_failed",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        )
+
     def _select_chat_models(
         self,
         *,
@@ -596,6 +738,11 @@ class AIItineraryService:
                 option.model_copy(update={"quality_warnings": list(quality_warnings or [])})
                 for option in options
             ]
+            if data.strict_budget_filter:
+                options = _apply_strict_budget_filter(
+                    options=options,
+                    total_budget=Decimal(data.total_budget),
+                )
             updated_run = await self.ai.update_generation_run(
                 run,
                 status="succeeded",
@@ -1079,6 +1226,8 @@ async def _build_planning_chat_result(
         chat_response,
         AIPlanningChatResult(
             input_revision=data.input_revision,
+            intent=output.intent if output is not None else None,
+            suggested_replies=output.suggested_replies if output is not None else [],
             state_updates=changes_json,
             update_status=update_status,
             preview=preview,
@@ -1088,6 +1237,40 @@ async def _build_planning_chat_result(
         ),
         validation_status,
     )
+
+
+def _parse_trip_draft(content: str) -> dict | None:
+    """The draft JSON, with off-region or unusable stop coordinates cleared."""
+    try:
+        draft = json.loads(_strip_json_fence(content))
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(draft, dict) or not str(draft.get("reply") or "").strip():
+        return None
+    days = draft.get("days")
+    if not isinstance(days, list):
+        draft["days"] = []
+        draft["should_create_itinerary"] = False
+        return draft
+    for day in days:
+        activities = day.get("activities") if isinstance(day, dict) else None
+        for activity in activities if isinstance(activities, list) else []:
+            if not isinstance(activity, dict):
+                continue
+            lat, lng = activity.get("lat"), activity.get("lng")
+            numeric = (
+                isinstance(lat, (int, float)) and isinstance(lng, (int, float))
+                and not isinstance(lat, bool) and not isinstance(lng, bool)
+            )
+            # The Region XI outline, not a rectangle: a box also covers parts
+            # of Cotabato, Bukidnon and Caraga.
+            inside = numeric and region_status(lat, lng) == "inside"
+            if not inside:
+                # The app places a stop without coordinates by name instead of
+                # pinning it somewhere wrong (or in the sea).
+                activity["lat"] = None
+                activity["lng"] = None
+    return draft
 
 
 def _restore_line_breaks(text: str) -> str:
@@ -1116,7 +1299,9 @@ def _parse_planning_chat_output(
         raw = json.loads(cleaned)
     except (TypeError, ValueError):
         return None, []
-    if not isinstance(raw, dict) or set(raw) != {"chat_response", "state_updates"}:
+    required = {"chat_response", "state_updates"}
+    optional = {"intent", "suggested_replies"}
+    if not isinstance(raw, dict) or not required <= set(raw) <= required | optional:
         return None, []
     updates = raw["state_updates"]
     if not isinstance(updates, dict):
@@ -1143,6 +1328,8 @@ def _parse_planning_chat_output(
         output = AIPlanningChatOutput.model_validate({
             "chat_response": raw["chat_response"],
             "state_updates": valid_updates,
+            "intent": raw.get("intent"),
+            "suggested_replies": raw.get("suggested_replies", []),
         })
     except ValidationError:
         return None, []
@@ -1250,10 +1437,9 @@ def _reject_unconfirmed_trip_details(
         rejected.append(field_name)
     if not rejected:
         return output, []
-    return AIPlanningChatOutput(
-        chat_response=output.chat_response,
-        state_updates=AIPlanningStateUpdates.model_validate(updates),
-    ), rejected
+    return output.model_copy(update={
+        "state_updates": AIPlanningStateUpdates.model_validate(updates),
+    }), rejected
 
 
 def _partial_planning_reply(rejected_fields: list[str]) -> str:
@@ -1293,6 +1479,34 @@ def _build_run_result(
         error_message=run.error_message,
         options=options,
     )
+
+
+def _apply_strict_budget_filter(
+    *,
+    options: list,
+    total_budget: Decimal,
+) -> list:
+    """Keep only within-budget AI options, or the cheapest fallback if all exceed budget."""
+    within_budget = [
+        option
+        for option in options
+        if not option.is_over_budget and Decimal(option.estimated_total_cost) <= total_budget
+    ]
+    if within_budget:
+        return sorted(within_budget, key=lambda option: option.option_number)
+
+    cheapest = min(
+        options,
+        key=lambda option: (Decimal(option.estimated_total_cost), option.option_number),
+    )
+    warning = (
+        f"All generated options exceeded the PHP {total_budget:.2f} budget; "
+        "showing the lowest-cost option for adjustment."
+    )
+    existing_warnings = list(cheapest.quality_warnings)
+    if warning not in existing_warnings:
+        existing_warnings.append(warning)
+    return [cheapest.model_copy(update={"quality_warnings": existing_warnings})]
 
 
 def _elapsed_ms(started_at: float) -> int:

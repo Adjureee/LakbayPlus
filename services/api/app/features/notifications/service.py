@@ -330,6 +330,50 @@ class NotificationService:
             message=f"{actor.full_name} voided an expense: {expense.title}.",
         )
 
+    async def notify_budget_threshold(
+        self,
+        *,
+        actor: User,
+        trip: Trip,
+        total_spent: Decimal,
+        percent_used: Decimal,
+    ) -> None:
+        if trip.total_budget <= 0 or percent_used < Decimal("80.00"):
+            return
+
+        exceeded = total_spent > trip.total_budget
+        alert_type = "budget_exceeded" if exceeded else "budget_threshold_80"
+        title = "Trip budget exceeded" if exceeded else "80% trip budget warning"
+        message = (
+            f"{trip.title} reached {percent_used:.0f}% of its "
+            f"PHP {trip.total_budget:.2f} budget (PHP {total_spent:.2f} spent)."
+        )
+        await self.create_many(
+            [
+                NotificationCreate(
+                    recipient_user_id=member.user_id,
+                    actor_user_id=actor.user_id,
+                    trip_id=trip.trip_id,
+                    event_type="trip_updated",
+                    title=title,
+                    message=message,
+                    entity_type="trip",
+                    entity_id=trip.trip_id,
+                    metadata=_notification_metadata(
+                        actor=actor,
+                        trip=trip,
+                        values={
+                            "alert_type": alert_type,
+                            "total_budget": _decimal_to_string(trip.total_budget),
+                            "total_spent": _decimal_to_string(total_spent),
+                            "percent_used": _decimal_to_string(percent_used),
+                        },
+                    ),
+                )
+                for member in _active_members(trip)
+            ]
+        )
+
     async def _notify_expense_event(
         self,
         *,

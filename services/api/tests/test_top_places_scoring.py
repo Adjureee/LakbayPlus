@@ -380,3 +380,39 @@ def test_osrm_table_response_must_match_the_request() -> None:
             {"durations": [[600.0]], "destinations": [{"distance": 1.0}]},
             expected_count=2,
         )
+
+
+def test_topsis_scores_ranks_ideal_candidate_highest() -> None:
+    scores = scoring.topsis_scores(
+        [
+            {"interest": 1.0, "travel": 0.9, "budget": 0.9, "group_fit": 1.0, "popularity": 0.8},
+            {"interest": 0.2, "travel": 0.3, "budget": 0.4, "group_fit": 0.5, "popularity": 0.1},
+        ]
+    )
+    assert len(scores) == 2
+    assert scores[0] > scores[1]
+    assert 0.0 <= scores[1] <= scores[0] <= 100.0
+
+
+def test_topsis_ranking_method_returns_topsis_scores(client, osrm) -> None:
+    admin = admin_headers(client)
+    place(client, admin, "Beach Great", category="beach", estimated_cost=100, popularity_score=90)
+    place(client, admin, "Beach Modest", category="beach", estimated_cost=450, popularity_score=20)
+
+    response = client.post(
+        PATH,
+        headers=user_headers(client),
+        json={
+            "interests": ["beach"],
+            "total_budget": "500.00",
+            "adult_count": 1,
+            "ranking_method": "topsis",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["method"] == "topsis"
+    assert len(body["items"]) == 2
+    assert body["items"][0]["name"] == "Beach Great"
+    assert body["items"][0]["score"] >= body["items"][1]["score"]

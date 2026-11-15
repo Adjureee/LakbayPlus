@@ -71,5 +71,5 @@ def test_google_auth_rejects_unverified_or_wrong_audience(client, monkeypatch) -
         assert res2.status_code == 401
         assert res2.json()["error"]["code"] == "invalid_google_token"
     finally:
-        monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_IDS", raising=False)
+        monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_IDS", "")
         get_settings.cache_clear()

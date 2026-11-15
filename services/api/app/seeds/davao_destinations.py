@@ -146,6 +146,7 @@ SEED_DESTINATIONS = [
     },
     {
         "name": "Samal Island Beach Area",
+        "island_group": "samal",
         "description": "Beach destination accessible from Davao City by ferry.",
         "district": "Davao del Norte",
         "location": "Island Garden City of Samal",
@@ -420,6 +421,7 @@ SEED_DESTINATIONS = [
     },
     {
         "name": "Balut Island",
+        "island_group": "balut",
         "description": "Remote island destination in Davao Occidental known for beaches, marine scenery, and volcanic landscapes.",
         "district": "Davao Occidental",
         "location": "Sarangani, Davao Occidental",
@@ -609,6 +611,7 @@ CURATED_VISITOR_DESTINATIONS = [
     },
     {
         "name": "Aqua Water Park",
+        "island_group": "samal",
         "description": "Day-tour water park within Costa Azalea on Samal Island; ferry access must be planned separately.",
         "district": "Davao del Norte",
         "location": "Limao, Island Garden City of Samal, Davao del Norte",
@@ -891,6 +894,50 @@ COVERAGE_COMPLETION_DESTINATIONS = [
     },
 ]
 
+CURATED_DESTINATION_IMAGE_URLS: dict[str, str] = {
+    "People's Park": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350058/lakbay/destinations/1/peoples_park-9d2874c9.jpg",
+    "Philippine Eagle Center": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350061/lakbay/destinations/2/philippine_eagle_center-db8d171d.jpg",
+    "Eden Nature Park": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350042/lakbay/destinations/3/eden_nature_park-8e3c86e1.jpg",
+    "Samal Island Beach Area": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723929/lakbay/destinations/4/samal_island_beach_area-0b3e955f.jpg",
+    "Mount Apo Trail Area": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350044/lakbay/destinations/5/mount_apo_trail_area-e533214c.jpg",
+    "Dahican Beach": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350034/lakbay/destinations/6/dahican_beach-0852ca2e.jpg",
+    "Panabo City Parks and Plaza": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723930/lakbay/destinations/7/panabo_city_parks_and_plaza-b840db78.jpg",
+    "Tagbibinta Falls": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723931/lakbay/destinations/8/tagbibinta_falls-fa0d8a8d.jpg",
+    "Mainit Hot Springs": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723933/lakbay/destinations/9/mainit_hot_springs-a7a5af66.jpg",
+    "Little Boracay Beach": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723934/lakbay/destinations/10/little_boracay_beach-4ac3f99a.jpg",
+    "Balut Island": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723935/lakbay/destinations/11/balut_island-0ff5ada7.jpg",
+    "Tudaya Falls": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723937/lakbay/destinations/12/tudaya_falls-6cf66a35.jpg",
+    "Aliwagwag Falls": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350017/lakbay/destinations/13/aliwagwag_falls-727a22dd.jpg",
+    "Museo Dabawenyo": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350051/lakbay/destinations/14/museo_dabawenyo-404d9b3d.jpg",
+    "National Museum of the Philippines - Davao": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350055/lakbay/destinations/15/national_museum_of_the_philippines_davao-49467369.jpg",
+    "Aqua Water Park": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723937/lakbay/destinations/16/aqua_water_park-2e2420e4.jpg",
+    "Camp Sabros Mountain Resort": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350024/lakbay/destinations/17/camp_sabros_mountain_resort-c706d7f2.jpg",
+    "Subangan Museum": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350063/lakbay/destinations/18/subangan_museum-960c7325.jpg",
+    "Panabo Mangrove Forest Park": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723938/lakbay/destinations/19/panabo_mangrove_forest_park-8191c7fb.jpg",
+    "Christ the King Cathedral Parish": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723939/lakbay/destinations/20/christ_the_king_cathedral_parish-f424f19d.jpg",
+    "Digos City Eco Park and Arboretum": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723940/lakbay/destinations/21/digos_city_eco_park_and_arboretum-2e000ec9.jpg",
+    "San Salvador del Mundo Church": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723941/lakbay/destinations/22/san_salvador_del_mundo_church-f2925d9d.jpg",
+    "Rizal Park Digos": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723942/lakbay/destinations/23/rizal_park_digos-4fb8884c.jpg",
+    "Cape San Agustin": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350031/lakbay/destinations/24/cape_san_agustin-7a07ea85.jpg",
+    "New Barili Heights and Sights": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723943/lakbay/destinations/25/new_barili_heights_and_sights-9d0d0fc8.jpg",
+    "Pyalitan Falls": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723944/lakbay/destinations/26/pyalitan_falls-704e20dd.jpg",
+    "Lake Leonard Eco-Tourism Park": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723946/lakbay/destinations/27/lake_leonard_eco_tourism_park-992b11dd.jpg",
+    "Christ the Redeemer, Jose Abad Santos": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723947/lakbay/destinations/28/christ_the_redeemer_jose_abad_santos-9a986ca3.jpg",
+    "DDG Beach Resort": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723947/lakbay/destinations/29/ddg_beach_resort-1921a5dd.jpg",
+    "Meskeen Resort (Malita Dives)": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723949/lakbay/destinations/30/meskeen_resort_malita_dives-8c8ee118.jpg",
+    "Malagos Garden Resort": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723950/lakbay/destinations/31/malagos_garden_resort-c6aabf23.jpg",
+    "Casas Con Vistas Resort": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723951/lakbay/destinations/32/casas_con_vistas_resort-2997256d.jpg",
+    "D' Bone Collector Museum": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723952/lakbay/destinations/33/d_bone_collector_museum-415f47ea.jpg",
+    "Monfort Bat Sanctuary": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723953/lakbay/destinations/34/monfort_bat_sanctuary-19c45124.jpg",
+    "Bukid Amara": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723954/lakbay/destinations/35/bukid_amara-0911ea9d.jpg",
+    "Calamba Farm Sea of Clouds": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723955/lakbay/destinations/36/calamba_farm_sea_of_clouds-b8645002.jpg",
+    "Mount Hamiguitan Range Wildlife Sanctuary": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723956/lakbay/destinations/37/mount_hamiguitan_range_wildlife_sanctuary-7be6a7df.jpg",
+    "Bemwa Farm": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723958/lakbay/destinations/38/bemwa_farm-d9f6ef8c.jpg",
+    "Dahican Surf Resort": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723959/lakbay/destinations/39/dahican_surf_resort-1d3a1653.jpg",
+    "Isla Reta Beach Resort": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723960/lakbay/destinations/40/isla_reta_beach_resort-1589aa95.jpg",
+    "Uraya's Peak Adventure Park": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723961/lakbay/destinations/41/uraya_s_peak_adventure_park-18f68434.jpg",
+}
+
 
 async def seed(destinations: list[dict] | None = None) -> None:
     sessionmaker = get_sessionmaker()
@@ -903,6 +950,10 @@ async def seed(destinations: list[dict] | None = None) -> None:
                 for key, value in item.items()
                 if key not in {"accommodations", "transportations"}
             }
+            if not destination_data.get("image_url"):
+                curated_url = CURATED_DESTINATION_IMAGE_URLS.get(item["name"])
+                if curated_url:
+                    destination_data["image_url"] = curated_url
             accommodations = item["accommodations"]
             transportations = item["transportations"]
 
@@ -921,6 +972,8 @@ async def seed(destinations: list[dict] | None = None) -> None:
                 )
                 session.add(destination)
                 await session.flush()
+            elif not destination.image_url and destination_data.get("image_url"):
+                destination.image_url = destination_data["image_url"]
 
             await _seed_accommodations(
                 session=session,

@@ -608,3 +608,44 @@ def test_archived_trip_rejects_expense_writes(client) -> None:
     assert void_response.status_code == 400
     assert void_response.json()["error"]["code"] == "trip_archived_read_only"
     assert summary_response.status_code == 200
+
+
+def test_expense_summary_age_weighted_split_and_80_percent_alert(client) -> None:
+    owner_headers = register_user(client, email="expense-owner-age@example.com")
+    trip = create_trip(client, owner_headers, total_budget="1000.00")
+    create_expense(
+        client,
+        headers=owner_headers,
+        trip_id=trip["trip_id"],
+        paid_by_trip_member_id=trip["members"][0]["trip_member_id"],
+        amount="850.00",
+    )
+
+    summary_response = client.get(
+        f"/api/v1/trips/{trip['trip_id']}/expenses/summary",
+        headers=owner_headers,
+        params={"adult_count": 2, "child_count": 1},
+    )
+    notifications_response = client.get(
+        "/api/v1/notifications",
+        headers=owner_headers,
+    )
+
+    assert summary_response.status_code == 200
+    summary = summary_response.json()
+    assert summary["percent_used"] == "85.00"
+    assert summary["budget_alert_level"] == "warning_80"
+    assert summary["adult_count"] == 2
+    assert summary["child_count"] == 1
+    assert summary["adult_share"] == "340.00"
+    assert summary["child_share"] == "170.00"
+
+    assert notifications_response.status_code == 200
+    alerts = [
+        item
+        for item in notifications_response.json()
+        if item["event_type"] == "trip_updated"
+        and item["metadata"].get("alert_type") == "budget_threshold_80"
+    ]
+    assert len(alerts) == 1
+    assert alerts[0]["metadata"]["percent_used"] == "85.00"

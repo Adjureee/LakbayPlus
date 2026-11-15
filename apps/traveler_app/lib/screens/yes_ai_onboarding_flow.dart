@@ -1,5 +1,7 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
+import '../services/lakbay_ai_service.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import 'trip_detail_screen.dart';
@@ -69,11 +71,12 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
   bool _isThinking = false;
   int _planningPercent = 76;
   ItineraryTrip? _generatedTrip;
+  AiPlanResult? _lastStructuredPlan;
 
   String _selectedDestination = 'Samal Island & Davao City';
   String _selectedVibe = 'Just exploring';
   String _selectedOriginAndParty = 'Solo trip';
-  String _selectedTiming = 'Next month (Dec 2026)';
+  String _selectedTiming = 'Next month';
   String? _selectedOptionText;
 
   final TextEditingController _inputController = TextEditingController();
@@ -88,7 +91,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
       dateLabel: 'Dec 14',
       tempLabel: '29°',
       priceLabel: '₱5,400',
-      imageAsset: 'assets/home_backdrops/04-thoddoo.jpg',
+      imageAsset: 'assets/home_backdrops/01-samal-island.jpg',
       blurb:
           'Samal Island (IGaCoS) is pure coral magic—blending giant clams, Taklobo sanctuaries, and white-sand coves just 15 minutes from Davao City.',
     ),
@@ -99,7 +102,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
       dateLabel: 'Dec 14',
       tempLabel: '30°',
       priceLabel: '₱6,200',
-      imageAsset: 'assets/home_backdrops/09-whitehaven-beach.jpg',
+      imageAsset: 'assets/home_backdrops/02-dahican-mati.jpg',
       blurb:
           'Mati & Dahican Beach bring Pacific skimboarding crescent shores, Sleeping Dinosaur vistas, and Aliwagwag Eco Park waterfalls.',
     ),
@@ -110,7 +113,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
       dateLabel: 'Dec 14',
       tempLabel: '21°',
       priceLabel: '₱4,800',
-      imageAsset: 'assets/home_backdrops/02-seceda.jpg',
+      imageAsset: 'assets/home_backdrops/09-marilog-bemwa.jpg',
       blurb:
           'Buda & Marilog serve crisp mountain air, sea-of-clouds sunrise ridges, A-frame pine cabins, and artisan highland coffee.',
     ),
@@ -119,15 +122,32 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
   @override
   void initState() {
     super.initState();
+    final origin = widget.repo.effectiveOriginLabel;
+    if (widget.repo.hasUserLocation) {
+      _selectedOriginAndParty = 'From $origin';
+    }
+    final rng = math.Random();
+    final greetings = [
+      'Hey there, Lakbay+ here! Where are we heading across the Davao Region from $origin? Tell me your vibe, crew, or favorite coastline.',
+      'Mabuhay from Lakbay+! Starting from $origin, would you rather island-hop Samal, surf Dahican, or climb misty Buda peaks?',
+      'Ready when you are! Share a mood, destination, or budget starting from $origin and we will build your route together.',
+    ];
+    final discoveryIdeas = [
+      if (widget.repo.hasUserLocation) 'Surprise getaway near $origin',
+      'What to do in Samal Island?',
+      '3-day Dahican surf & Aliwagwag Falls',
+      'Cool pine coffee route in Buda & Marilog',
+      'Wildcard Davao highlands & food trip',
+    ]..shuffle(rng);
+
     _turns.add(
-      const _OnboardingChatTurn(
+      _OnboardingChatTurn(
         isUser: false,
-        body:
-            "Hey there, Lakbay+ here! Excited to help you create your perfect Davao Region trip. Just tell me what you're thinking and let's do this together.",
+        body: greetings[rng.nextInt(greetings.length)],
         options: [
           'Inspire me!',
-          'What to do in Samal Island?',
-          'Plan a 4-day Davao Region trip...',
+          discoveryIdeas[0],
+          discoveryIdeas[1],
         ],
       ),
     );
@@ -169,9 +189,9 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
 
     final lower = text.toLowerCase();
 
-    // If user selected Looks perfect from Game Plan -> move to "Good so far?"
-    if (lower.contains('looks perfect')) {
-      await Future.delayed(const Duration(milliseconds: 350));
+    // Move forward to card finalization when traveler confirms the plan.
+    if (lower.contains('looks perfect') || lower.contains('build trip card')) {
+      await Future.delayed(const Duration(milliseconds: 300));
       if (!mounted) return;
       setState(() {
         _isThinking = false;
@@ -180,44 +200,98 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
       return;
     }
 
-    // If user typed custom text and Groq/Gemini AI is configured, run live AI brief turn
-    if (isFreeText && widget.repo.aiService.isConfigured) {
+    // Route BOTH starter chip taps and free-text prompts through live multi-turn AI.
+    if (widget.repo.aiService.isConfigured) {
       try {
+        final historyTurns = _turns
+            .where((t) => t.body.trim().isNotEmpty)
+            .take(_turns.length > 1 ? _turns.length - 1 : 0)
+            .map(
+              (t) => {
+                'role': t.isUser ? 'user' : 'assistant',
+                'content': t.body,
+              },
+            )
+            .toList();
+
         final aiResult = await widget.repo.aiService.chatOrPlan(
           userPrompt: text,
           availableDestinations:
               widget.repo.allTrips.map((t) => t.title).toList(),
+          history: historyTurns,
+          currentLocation: widget.repo.effectiveOriginLabel,
+          userLat: widget.repo.userLat,
+          userLng: widget.repo.userLng,
+          preferredVibes: widget.repo.selectedVibes,
+          strictBudget: widget.repo.strictBudgetFilter,
         );
         if (!mounted) return;
-        _selectedDestination = aiResult.destination ?? text;
+
+        if (aiResult.destination != null &&
+            aiResult.destination!.trim().isNotEmpty) {
+          _selectedDestination = aiResult.destination!.trim();
+        } else if (!lower.contains('inspire') &&
+            !lower.contains('wandering')) {
+          _selectedDestination = text;
+        }
         if (aiResult.daysCount != null) {
           _selectedTiming = '${aiResult.daysCount} days';
         }
-        if (aiResult.vibe != null) {
-          _selectedVibe = aiResult.vibe!;
+        if (aiResult.vibe != null && aiResult.vibe!.trim().isNotEmpty) {
+          _selectedVibe = aiResult.vibe!.trim();
         }
-        _chatStep = 5;
+
+        final isReadyPlan = aiResult.hasStructuredItinerary;
+        if (isReadyPlan) {
+          _lastStructuredPlan = aiResult;
+          _chatStep = 5;
+        } else {
+          _chatStep = math.min(4, _chatStep + 1);
+        }
+
+        final dynamicCarousel = (!isReadyPlan && lower.contains('inspire'))
+            ? (List<_OnboardingCarouselSpot>.from(_davaoSpots)
+              ..shuffle(math.Random()))
+            : const <_OnboardingCarouselSpot>[];
+
+        final nextOptions = aiResult.suggestedReplies.isNotEmpty
+            ? [
+                if (isReadyPlan) 'Looks perfect — build trip card ✨',
+                ...aiResult.suggestedReplies,
+              ]
+            : (isReadyPlan
+                ? const [
+                    'Looks perfect — build trip card ✨',
+                    'Swap destinations or pace',
+                    'Tighten budget',
+                  ]
+                : const [
+                    'Build a full multi-day plan ✨',
+                    'Show hidden local food & nature stops',
+                    'Keep it slow and coastal',
+                  ]);
+
         setState(() {
           _isThinking = false;
           _turns.add(
             _OnboardingChatTurn(
               isUser: false,
-              title: 'Ready to roll',
-              isGamePlan: true,
-              body:
-                  '${aiResult.replyText}\n\n• Itinerary: Davao City → $_selectedDestination\n• Duration: $_selectedTiming\n• Vibe: $_selectedVibe\n\nDoes this look good to you, or should we adjust anything before I build your trip card?',
-              options: const [
-                'Looks perfect',
-                'Change dates',
-                'Tweak it',
-              ],
+              title: isReadyPlan
+                  ? (aiResult.title?.isNotEmpty == true
+                      ? aiResult.title!
+                      : 'Custom Route Ready')
+                  : null,
+              isGamePlan: isReadyPlan,
+              carousel: dynamicCarousel,
+              body: aiResult.replyText,
+              options: nextOptions,
             ),
           );
         });
         _scrollToBottom();
         return;
       } catch (_) {
-        // Fall through cleanly to guided onboarding turns
+        // Fall back to guided offline concierge turns below if network/AI fails.
       }
     }
 
@@ -286,14 +360,14 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
       setState(() {
         _isThinking = false;
         _turns.add(
-          const _OnboardingChatTurn(
+          _OnboardingChatTurn(
             isUser: false,
             title: 'Wandering mode on',
             body:
                 'Wandering without a strict agenda is the best way to uncover Davao\'s hidden coves, local durian stalls, and highland cafes.\n\nWhere will you be setting off from, and who is joining you?',
             options: [
               'Flying to Davao (DVO)',
-              'From Davao City',
+              'From ${widget.repo.effectiveOriginLabel}',
               'Solo trip',
             ],
           ),
@@ -333,7 +407,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             title: 'Ready to roll',
             isGamePlan: true,
             body:
-                'Here is our game plan for your Davao Region escape:\n\n• Itinerary: Davao City → $_selectedDestination\n• Dates & Duration: $_selectedTiming\n• Travel Style & Party: $_selectedOriginAndParty ($_selectedVibe)\n\nDoes this look good to you, or should we adjust anything before I build your trip card?',
+                'Here is our game plan for your Davao Region escape:\n\n• Starting Point: ${widget.repo.effectiveOriginLabel} → $_selectedDestination\n• Dates & Duration: $_selectedTiming\n• Travel Style & Party: $_selectedOriginAndParty ($_selectedVibe)\n\nDoes this look good to you, or should we adjust anything before I build your trip card?',
             options: const [
               'Looks perfect',
               'Change dates',
@@ -353,8 +427,26 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
       _planningPercent = 76;
     });
 
+    if (_lastStructuredPlan != null &&
+        _lastStructuredPlan!.hasStructuredItinerary) {
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (mounted) setState(() => _planningPercent = 94);
+      final built = widget.repo.buildTripFromAiResult(_lastStructuredPlan!);
+      await Future.delayed(const Duration(milliseconds: 220));
+      if (!mounted) return;
+      setState(() {
+        _generatedTrip = built;
+        _planningPercent = 100;
+      });
+      return;
+    }
+
+    final userNotes = _turns
+        .where((t) => t.isUser && t.body.trim().isNotEmpty)
+        .map((t) => t.body.trim())
+        .join(' • ');
     final briefPrompt =
-        'Plan a $_selectedTiming trip to $_selectedDestination in Davao Region for $_selectedOriginAndParty, vibe: $_selectedVibe.';
+        'Origin: ${widget.repo.effectiveOriginLabel}. Preferences: $userNotes. Plan a $_selectedTiming trip to $_selectedDestination in Davao Region for $_selectedOriginAndParty, vibe: $_selectedVibe.';
 
     final tripFuture = widget.repo.createTripFromAiPrompt(briefPrompt);
 
