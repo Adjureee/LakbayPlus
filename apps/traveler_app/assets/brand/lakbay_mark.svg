@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Lakbay+ mark: an original eight-point compass rose, standing for
+  wayfinding across the Davao Region. Hand-authored for this project —
+  not copied or adapted from any existing logo or icon set.
+
+  This is a static design-reference file (for favicons, print, etc). The
+  in-app render is lib/widgets/brand/lakbay_compass_mark.dart, drawn with
+  the same geometry via CustomPainter so it can follow the app's theme.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <g>
+    <!-- Major (N/E/S/W) points -->
+    <path fill="#20878E" d="M32,32 L29.2,23.4 L32,4 L34.8,23.4 Z" />
+    <path fill="#20878E" d="M32,32 L40.6,29.2 L60,32 L40.6,34.8 Z" />
+    <path fill="#20878E" d="M32,32 L34.8,40.6 L32,60 L29.2,40.6 Z" />
+    <path fill="#20878E" d="M32,32 L23.4,34.8 L4,32 L23.4,29.2 Z" />
+    <!-- Minor (diagonal) points -->
+    <path fill="#8FC3C6" d="M32,32 L36.1,24.0 L44.7,19.3 L40.0,27.9 Z" />
+    <path fill="#8FC3C6" d="M32,32 L40.0,36.1 L44.7,44.7 L36.1,40.0 Z" />
+    <path fill="#8FC3C6" d="M32,32 L27.9,40.0 L19.3,44.7 L24.0,36.1 Z" />
+    <path fill="#8FC3C6" d="M32,32 L24.0,27.9 L19.3,19.3 L27.9,24.0 Z" />
+    <circle cx="32" cy="32" r="5" fill="#20878E" />
+  </g>
+</svg>

@@ -1,0 +1,122 @@
+[
+  {
+    "city": "Barangay San Pedro (Davao City)",
+    "country": "Davao City • Region XI",
+    "description": "Barangay San Pedro in the Philippines is a hidden gem that offers a unique blend of natural beauty, cultural heritage, and warm hospitality. Anchored by the historic San Pedro Cathedral, Museo Dabawenyo, Osmeña Park, and Roxas Night Market, it is the cultural heart of Davao City."
+  },
+  {
+    "city": "Tagum",
+    "country": "Davao del Norte • Region XI",
+    "description": "Tagum, Philippines is a hidden gem that offers a perfect blend of nature and culture. Known as the Palm City of the Philippines and the Music Capital of the South, Tagum features the grand New City Hall, Christ the King Cathedral, Nabintad River cruises, and easy access to Samal Island."
+  },
+  {
+    "city": "Carmen",
+    "country": "Davao del Norte • Region XI",
+    "description": "Carmen in Davao del Norte is a coastal and agricultural gateway between Davao City and Tagum, offering tranquil river estuaries, mango orchards, wetland birdwatching, and laid-back Mindanao countryside charm."
+  },
+  {
+    "city": "Island Garden City of Samal (IGaCoS)",
+    "country": "Davao del Norte • Region XI",
+    "description": "Just a 10-minute ferry across the Pakiputan Strait from Davao City, Samal Island boasts powdery white-sand coves, Pearl Farm overwater bungalows, Hagimit cascading waterfalls, the Guinness-listed Monfort Bat Sanctuary, and world-class coral wall diving."
+  },
+  {
+    "city": "Talikud Island & Coral Garden",
+    "country": "Samal (IGaCoS) • Region XI",
+    "description": "Located just southwest of main Samal Island, Talikud Island is famous for Isla Reta's shaded white beach, Babu Santa's turquoise shallows, giant clam sanctuaries, and the vibrant Coral Garden Marine Park."
+  },
+  {
+    "city": "Mati City & Dahican Beach",
+    "country": "Davao Oriental • Region XI",
+    "description": "Mati City is the sun-drenched capital of Davao Oriental, home to the 7-kilometer crescent of Dahican Beach—famous for Pacific surf and skimboarding, sea turtle hatcheries, the Sleeping Dinosaur peninsula viewpoint, and ultralight flying over Pujada Bay."
+  },
+  {
+    "city": "Pujada Bay & Waniban Island",
+    "country": "Davao Oriental • Region XI",
+    "description": "Recognized among the Most Beautiful Bays in the World, Pujada Bay in Mati shelters calm turquoise waters, the powdery sandbars of Oak and Puting Bato, and the palm-fringed shores of Waniban Island."
+  },
+  {
+    "city": "Eden Nature Park & Toril Highlands",
+    "country": "Davao City • Region XI",
+    "description": "Perched 3,000 feet above sea level on the cool slopes of Mt. Talomo in Toril, Davao City, Eden Nature Park offers 80 hectares of man-made pine forests, sky-cycling above mountain valleys, organic salad farms, and panoramic views of Davao Gulf."
+  },
+  {
+    "city": "Malagos & Philippine Eagle Center",
+    "country": "Davao City • Region XI",
+    "description": "Nestled in the cool Baguio District of Davao City, Malagos is the conservation home of the critically endangered Philippine Eagle, alongside the award-winning Malagos Chocolate Museum, orchid sanctuaries, and artisanal farmhouse cheese."
+  },
+  {
+    "city": "Buda (Marilog Pine Highlands)",
+    "country": "Davao City • Region XI",
+    "description": "Known as the 'Little Baguio of Davao,' the Bukidnon-Davao (Buda) highland corridor in Marilog District features misty pine ridges, A-frame mountain cabins, strawberry farms, indigenous Matigsalug cultural villages, and scenic highway cafes."
+  },
+  {
+    "city": "Cateel & Aliwagwag Falls",
+    "country": "Davao Oriental • Region XI",
+    "description": "Cateel in northern Davao Oriental is home to the majestic Aliwagwag Falls Eco-Park—the highest tiered waterfall in the Philippines—where 84 cascading rock steps plunge like a natural staircase through pristine dipterocarp rainforest."
+  },
+  {
+    "city": "Gobernador Generoso (Cape San Agustin)",
+    "country": "Davao Oriental • Region XI",
+    "description": "At the dramatic southern tip of Davao Oriental where the Davao Gulf meets the Celebes Sea, Cape San Agustin features three historic lighthouses, the pink-sand Parola Beach, and the rock-walled Altar structure overlooking crashing ocean swells."
+  },
+  {
+    "city": "Baganga & Carolina Lake",
+    "country": "Davao Oriental • Region XI",
+    "description": "Baganga along Davao Oriental's Pacific coast enchants travelers with the emerald brackish lagoon of Carolina Lake, the Curtain Falls, Sunrise Boulevard boardwalks, and offshore island-hopping across San Victor and Poo Sandbar."
+  },
+  {
+    "city": "Mt. Apo Natural Park & Lake Venado",
+    "country": "Davao del Sur / Davao City • Region XI",
+    "description": "Rising to 2,954 meters as the highest peak in the Philippines, Mount Apo is an ASEAN Heritage Park featuring mossy cloud forests, steaming sulfur vents, volcanic boulders, and the mirror-like alpine campsite of Lake Venado."
+  },
+  {
+    "city": "Kapatagan Highlands (Digos)",
+    "country": "Davao del Sur • Region XI",
+    "description": "Sitting at the foothills of Mount Apo in Digos City, Kapatagan is a cool highland retreat famous for Lake Mirror views of Mt. Apo's peak, Arabica coffee plantations, glamping domes, and misty sunrise viewpoints."
+  },
+  {
+    "city": "Digos City",
+    "country": "Davao del Sur • Region XI",
+    "description": "The capital of Davao del Sur, Digos City is renowned for its sweet carabao mangoes, crispy lechon street stalls, coastal boardwalks, and as the southern basecamp for Kapatagan and Mt. Apo expeditions."
+  },
+  {
+    "city": "Sta. Cruz & Passig Islet",
+    "country": "Davao del Sur • Region XI",
+    "description": "Sta. Cruz in Davao del Sur combines rugged Mt. Apo boulder trails with coastal relaxation at Passig Islet Aqua-Eco Park, a charming tidal island connected by a wooden boardwalk over clear waters."
+  },
+  {
+    "city": "Maragusan (San Mariano Highlands)",
+    "country": "Davao de Oro • Region XI",
+    "description": "Surrounded by the mountain ranges of Davao de Oro, the highland valley of Maragusan offers breathtaking Sea of Clouds sunrises at Haven's Peak, Tagbibinta and Pyalitan waterfalls, and cool botanical gardens."
+  },
+  {
+    "city": "Mabini & Kopiat Island",
+    "country": "Davao de Oro • Region XI",
+    "description": "Facing the calm waters of Davao Gulf in Davao de Oro, Mabini is the gateway to the flat, palm-fringed sanctuary of Kopiat Island and Lunod Island, prized for turtle sightings and luxury eco-resorts."
+  },
+  {
+    "city": "Monkayo & Awao Falls",
+    "country": "Davao de Oro • Region XI",
+    "description": "Monkayo in northern Davao de Oro is home to the multi-tiered curtain of Awao Falls, Mount Diwata ridge viewpoints, and lush river valleys ideal for eco-trekking."
+  },
+  {
+    "city": "Nabunturan & Mainit Hot Springs",
+    "country": "Davao de Oro • Region XI",
+    "description": "The capital of Davao de Oro, Nabunturan is famous for the therapeutic geothermal cascades of Toyozu and Mainit Hot Springs National Park alongside karst caves and waterfalls."
+  },
+  {
+    "city": "Panabo City",
+    "country": "Davao del Norte • Region XI",
+    "description": "Known as the Banana Capital of the Philippines, Panabo City in Davao del Norte features sprawling export plantations, the Japanese Tunnel historical site, coastal mangrove boardwalks, and floating seafood restaurants."
+  },
+  {
+    "city": "Kapalong Caves & Suaon",
+    "country": "Davao del Norte • Region XI",
+    "description": "Kapalong in Davao del Norte is Mindanao's caving capital, boasting dozens of limestone subterranean wonders including Okbot, Alcoba, and Underground River caves surrounded by primary forest."
+  },
+  {
+    "city": "Balut Island & Sarangani Island",
+    "country": "Davao Occidental • Region XI",
+    "description": "At the southernmost frontier of the Davao Region, volcanic Balut Island and neighboring Sarangani Island offer boiling coastal geothermal springs at Sabang, dramatic sea cliffs, and untouched white-sand coves."
+  }
+]
