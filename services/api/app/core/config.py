@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     groq_request_timeout_seconds: int = Field(default=60, ge=1, le=300)
     groq_max_retries: int = Field(default=1, ge=0, le=3)
     groq_temperature: float = Field(default=0.3, ge=0, le=2)
+    # Conversation needs more variety than validated itinerary JSON.
+    groq_chat_temperature: float = Field(default=0.5, ge=0, le=2)
+    # Signed-out chat through POST /ai/chat/guest. Limits are per client IP,
+    # plus a shared daily cap so guests cannot exhaust the provider quota.
+    guest_ai_chat_enabled: bool = True
+    guest_ai_requests_per_minute: int = Field(default=6, ge=1, le=60)
+    guest_ai_requests_per_day: int = Field(default=40, ge=1, le=1000)
+    guest_ai_global_requests_per_day: int = Field(default=1000, ge=1, le=100000)
     groq_max_tokens: int = Field(default=4096, ge=256, le=32768)
     groq_user_requests_per_minute: int = Field(default=20, ge=1, le=120)
     # Daily AI requests per user, so one account cannot use up the shared free quotas.
@@ -69,6 +77,13 @@ class Settings(BaseSettings):
     osrm_request_timeout_seconds: int = Field(default=30, ge=1, le=120)
     osrm_profile_driving: str = "driving"
     osrm_profile_walking: str = "walking"
+    # Mapbox Directions is the primary road router when a token is set; OSRM is
+    # the fallback. Use a server-side token (sk.*) limited to directions.
+    mapbox_directions_token: str | None = None
+    mapbox_directions_base_url: str = "https://api.mapbox.com"
+    # driving-traffic uses live traffic for previews; ordering always uses driving.
+    mapbox_directions_profile_driving: str = "driving-traffic"
+    mapbox_directions_timeout_seconds: int = Field(default=15, ge=1, le=60)
     route_max_destinations: int = Field(default=10, ge=1, le=25)
     route_requests_per_minute: int = Field(default=10, ge=1, le=120)
     geo_group_requests_per_minute: int = Field(default=10, ge=1, le=120)

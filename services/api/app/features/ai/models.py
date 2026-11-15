@@ -47,9 +47,11 @@ class AIGenerationRun(Base):
     )
 
     ai_generation_run_id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(
+    # NULL for signed-out (guest) chat; guests are rate limited per client.
+    user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.user_id", ondelete="CASCADE"),
         index=True,
+        nullable=True,
     )
     request_purpose: Mapped[str] = mapped_column(String(100), index=True)
     model_role: Mapped[str] = mapped_column(String(50), index=True)

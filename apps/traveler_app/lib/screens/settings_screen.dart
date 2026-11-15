@@ -74,7 +74,7 @@ class SettingsScreen extends StatelessWidget {
                         icon: Icons.link_rounded,
                         title: 'Connected apps',
                         trailingText: repo.aiService.isConfigured
-                            ? 'Groq + Mapbox'
+                            ? 'Lakbay AI + Mapbox'
                             : 'Not connected',
                         onTap: () => _showConnectedAppsSheet(context),
                       ),
@@ -300,7 +300,7 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            _StatusRow('Groq / Gemini AI', repo.aiService.isConfigured),
+            _StatusRow('Lakbay AI (server)', repo.aiService.isConfigured),
             _StatusRow('Mapbox Maps & Routes', repo.mapbox.hasValidToken),
             _StatusRow('Cloudinary Media', repo.cloudinary.isConfigured),
           ],

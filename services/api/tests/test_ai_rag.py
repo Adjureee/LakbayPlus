@@ -371,3 +371,21 @@ def test_region_wide_browsing_includes_destinations_from_distinct_districts(monk
         "Davao City", "Davao del Norte", "Davao Oriental", "Davao de Oro",
     }
     assert_linked_groups(matches)
+
+
+def test_region_xi_local_aliases_match_specific_destinations(monkeypatch):
+    places = [
+        destination(1, "Dahican Surf Beach", "Davao Oriental", location="Mati", category="beach"),
+        destination(2, "BuDa Highland Viewpoint", "Davao City", location="Marilog", category="mountain"),
+        destination(3, "Talikud Coral Garden", "Davao del Norte", location="Samal", category="island"),
+    ]
+    retriever = retriever_for(monkeypatch, [doc for place in places for doc in group(place)])
+
+    skim_matches = retrieve(retriever, "Where can I try skimboard waves?")
+    assert 1 in destination_ids(skim_matches)
+
+    cloud_matches = retrieve(retriever, "Suggest cool highland sea of clouds viewpoints")
+    assert 2 in destination_ids(cloud_matches)
+
+    reef_matches = retrieve(retriever, "Best coral reef snorkeling island spot")
+    assert 3 in destination_ids(reef_matches)

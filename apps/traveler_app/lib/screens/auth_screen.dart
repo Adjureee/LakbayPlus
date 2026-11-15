@@ -40,7 +40,7 @@ class _AuthScreenState extends State<AuthScreen> {
     super.initState();
     _isRegister = widget.initialRegisterMode;
     final savedEmail = widget.repo.profile.email.trim();
-    if (savedEmail.isNotEmpty && savedEmail != 'traveler@lakbay.ph') {
+    if (widget.repo.isSignedIn && savedEmail.isNotEmpty) {
       _emailCtrl.text = savedEmail;
     }
   }
@@ -239,7 +239,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         Text(
                           _isRegister
                               ? 'Keep your plan, and give your travel expert\na way to reach you.'
-                              : 'Restore your saved Davao Region trips,\nbucket list, and bookings.',
+                              : 'Restore your saved Davao Region trips,\nbucket list, and memories.',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 15,

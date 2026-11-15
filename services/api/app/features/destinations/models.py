@@ -69,6 +69,9 @@ class Destination(Base):
     arrival_source_url: Mapped[str | None] = mapped_column(String(2048))
     arrival_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     route_ready: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Island the destination is on ("samal", "talikud", ...); NULL is mainland.
+    # Trips between island groups are routed through piers (sea_links).
+    island_group: Mapped[str | None] = mapped_column(String(50), index=True)
     geom: Mapped[object | None] = mapped_column(
         Geography(geometry_type="POINT", srid=4326, spatial_index=False),
     )
@@ -152,6 +155,9 @@ class DestinationCandidate(Base):
     overnight_fee: Mapped[str | None] = mapped_column(String(255))
     operating_hours: Mapped[str | None] = mapped_column(String(255))
     access_policy: Mapped[str | None] = mapped_column(String(20))
+    # Island the place is on, from OSM island outlines; copied on publish so
+    # island destinations route through a pier. NULL is mainland.
+    island_group: Mapped[str | None] = mapped_column(String(50))
     access_source_url: Mapped[str | None] = mapped_column(String(2048))
     access_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     review_status: Mapped[str] = mapped_column(String(20), nullable=False, default="staged", server_default="staged")

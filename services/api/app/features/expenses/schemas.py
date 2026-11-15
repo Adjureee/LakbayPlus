@@ -108,5 +108,11 @@ class TripExpenseSummaryResponse(BaseModel):
     remaining_budget: Decimal
     over_budget_amount: Decimal
     is_over_budget: bool
+    percent_used: Decimal = Decimal("0.00")
+    budget_alert_level: Literal["ok", "warning_80", "exceeded"] = "ok"
+    adult_count: int = 1
+    child_count: int = 0
+    adult_share: Decimal = Decimal("0.00")
+    child_share: Decimal = Decimal("0.00")
     category_breakdown: list[TripExpenseCategoryBreakdown]
     member_balances: list[TripExpenseMemberBalance]

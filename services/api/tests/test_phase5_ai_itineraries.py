@@ -45,6 +45,7 @@ class FakeGroqClient:
         messages: list[dict[str, str]],
         response_format: dict | None = None,
         provider: str = "groq",
+        temperature: float | None = None,
     ) -> GroqChatCompletion:
         self.calls.append({
             "model": model,
@@ -780,3 +781,79 @@ def test_ai_model_comparison_can_run_multiple_models(client, monkeypatch) -> Non
         "compare-b-model",
         "compare-c-model",
     ]
+
+
+def test_ai_itinerary_strict_budget_filter_excludes_over_budget_and_falls_back(
+    client,
+    monkeypatch,
+) -> None:
+    from decimal import Decimal
+    from app.features.ai.schemas import AIItineraryOption
+    from app.features.ai.service import _apply_strict_budget_filter
+
+    configure_ai(monkeypatch)
+    destination = create_destination(client)
+    valid_payload = json.loads(valid_ai_response(destination_id=destination["destination_id"]))
+    fake_client = FakeGroqClient([json.dumps(valid_payload)])
+    client.app.dependency_overrides[get_groq_client] = lambda: fake_client
+
+    api_response = client.post(
+        "/api/v1/ai/itineraries/generate",
+        headers=user_headers(client),
+        json=itinerary_request(
+            destination["destination_id"],
+            total_budget="1000.00",
+            strict_budget_filter=True,
+        ),
+    )
+    assert api_response.status_code == 200
+    assert len(api_response.json()["options"]) == 5
+
+    base_opt = AIItineraryOption.model_validate(valid_payload["options"][0])
+    mixed = [
+        base_opt.model_copy(
+            update={
+                "option_number": 1,
+                "estimated_total_cost": Decimal("900.00"),
+                "is_over_budget": False,
+            }
+        ),
+        base_opt.model_copy(
+            update={
+                "option_number": 2,
+                "estimated_total_cost": Decimal("2500.00"),
+                "is_over_budget": True,
+            }
+        ),
+    ]
+    filtered = _apply_strict_budget_filter(
+        options=mixed,
+        total_budget=Decimal("1000.00"),
+    )
+    assert [opt.option_number for opt in filtered] == [1]
+
+    over_only = [
+        base_opt.model_copy(
+            update={
+                "option_number": 1,
+                "estimated_total_cost": Decimal("3200.00"),
+                "is_over_budget": True,
+            }
+        ),
+        base_opt.model_copy(
+            update={
+                "option_number": 2,
+                "estimated_total_cost": Decimal("2800.00"),
+                "is_over_budget": True,
+            }
+        ),
+    ]
+    fallback = _apply_strict_budget_filter(
+        options=over_only,
+        total_budget=Decimal("1000.00"),
+    )
+    assert [opt.option_number for opt in fallback] == [2]
+    assert any(
+        "lowest-cost option" in warning
+        for warning in fallback[0].quality_warnings
+    )

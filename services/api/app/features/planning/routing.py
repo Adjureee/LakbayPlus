@@ -45,6 +45,8 @@ _ROAD_CATALOG_MODES = {
 # operator drives it and its listed fare covers fuel.
 _HIRED_CAR_MODES = {"private_vehicle", "private vehicle", "private car", "car rental", "taxi"}
 # Admins may file a taxi under a shared mode such as public_transport.
+# Road routers whose distances are measured on real roads.
+_ROAD_ROUTE_PROVIDERS = {"osrm", "mapbox"}
 _TAXI_VEHICLE = re.compile(r"\btaxi(?:s|cabs?)?\b", re.IGNORECASE)
 
 
@@ -116,9 +118,13 @@ async def build_route_preview(
             "its connections must be reviewed before a road route can be shown."
         )
 
+    # Destinations tagged with an island group are routed through piers by the
+    # route service; only untagged boat/air access still needs manual review.
     non_road_destinations = [
         item for item in destinations
-        if item.destination_id in state.destination_ids and _has_non_road_access_hint(item)
+        if item.destination_id in state.destination_ids
+        and _has_non_road_access_hint(item)
+        and not item.island_group
     ]
     if non_road_destinations:
         review.append("non_road_connections")
@@ -170,6 +176,12 @@ async def build_route_preview(
             "The returned route did not preserve the origin, selected stops, or return preference; "
             "review the route instead of pricing an incomplete or changed journey."
         )
+        return route, _fuel_estimate(state, route)
+
+    if route.summary.unconnected_island_groups:
+        route.status = "needs_review"
+        route.missing_information.append("non_road_connections")
+        route.warnings.extend(route.summary.warnings)
         return route, _fuel_estimate(state, route)
 
     route.status = "calculated"
@@ -317,8 +329,9 @@ def _fuel_estimate(state: PlanningState, route: PlanningRoutePreview) -> Plannin
     leg_distance = sum((leg.distance_km for leg in summary.legs), Decimal("0.00"))
     # Individual legs and the provider total are rounded independently to cents.
     rounding_tolerance = Decimal("0.01") * (len(summary.legs) + 1)
+    road_provider = summary.route_provider.split("+", 1)[0]
     if (
-        summary.route_provider != "osrm" or summary.is_estimated
+        road_provider not in _ROAD_ROUTE_PROVIDERS or summary.is_estimated
         or summary.travel_mode != "driving" or any(leg.is_estimated for leg in summary.legs)
         or len(summary.legs) != expected_leg_count
         or abs(summary.total_distance_km - leg_distance) > rounding_tolerance
@@ -327,7 +340,8 @@ def _fuel_estimate(state: PlanningState, route: PlanningRoutePreview) -> Plannin
         fuel.missing_information.append("nonestimated_osrm_road_distance")
         return fuel
 
-    distance = summary.total_distance_km
+    # Boat crossings carry the car; they burn no fuel.
+    distance = summary.total_distance_km - summary.sea_distance_km
     unrounded_liters = (distance / assumptions.kilometers_per_liter) * assumptions.vehicle_count
     fuel.status = "calculated"
     fuel.distance_km = distance

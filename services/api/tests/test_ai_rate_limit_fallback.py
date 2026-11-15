@@ -26,7 +26,7 @@ class RateLimitedThenOkClient:
         self.calls: list[dict] = []
         self.fallback_fails = fallback_fails
 
-    async def create_chat_completion(self, *, model, messages, response_format=None, provider="groq"):
+    async def create_chat_completion(self, *, model, messages, response_format=None, provider="groq", temperature=None):
         self.calls.append({"model": model, "provider": provider})
         if provider == "groq" or self.fallback_fails:
             raise GroqRateLimitError("Groq rate limit reached.", retry_after_seconds=30)
@@ -190,7 +190,7 @@ def test_chat_prompt_keeps_recent_history_and_compact_json():
 
     history_messages = messages[1:-1]
     assert len(history_messages) == CHAT_HISTORY_MESSAGES
-    assert history_messages[0]["content"].startswith("m4")  # oldest 4 dropped
+    assert history_messages[0]["content"].startswith("m0")  # all 12 kept
     assert all(len(m["content"]) <= CHAT_HISTORY_MESSAGE_CHARS for m in history_messages)
     last = messages[-1]["content"]
     assert ", " not in last and ": " not in last  # compact separators

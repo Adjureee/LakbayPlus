@@ -97,6 +97,7 @@ class LakbayApiCatalogService {
     final operatingHours = (raw['operating_hours'] ?? '').toString().trim();
     final bestTime = (raw['best_time_to_visit'] ?? '').toString().trim();
     final travelNotes = (raw['travel_notes'] ?? '').toString().trim();
+    final whatToBring = (raw['what_to_bring'] ?? '').toString().trim();
     final stayDuration = (raw['stay_duration_type'] ?? '').toString().toLowerCase();
 
     final inferredDays = stayDuration.contains('overnight') ||
@@ -124,6 +125,7 @@ class LakbayApiCatalogService {
       operatingHours: operatingHours.isNotEmpty ? operatingHours : null,
       bestTimeToVisit: bestTime.isNotEmpty ? bestTime : null,
       travelNotes: travelNotes.isNotEmpty ? travelNotes : null,
+      whatToBring: whatToBring.isNotEmpty ? whatToBring : null,
     );
   }
 
@@ -133,7 +135,7 @@ class LakbayApiCatalogService {
       fetchDestinationMarketRates(
     int destinationId, {
     String city = 'Davao Region',
-    String fallbackImageAsset = 'assets/home_backdrops/04-thoddoo.jpg',
+    String fallbackImageAsset = 'assets/home_backdrops/01-samal-island.jpg',
     String? remoteImageUrl,
     double lat = 7.0731,
     double lng = 125.6128,
@@ -342,7 +344,7 @@ class LakbayApiCatalogService {
     required double estimatedTotalCostPhp,
     required List<int> destinationIds,
     String? notes,
-    Map<String, dynamic>? itineraryDays,
+    List<Map<String, dynamic>>? itineraryDays,
   }) async {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty || destinationIds.isEmpty) {
@@ -358,7 +360,8 @@ class LakbayApiCatalogService {
         'estimated_total_cost': estimatedTotalCostPhp.toStringAsFixed(2),
         'destination_ids': destinationIds.toSet().toList(),
         if (notes != null && notes.isNotEmpty) 'notes': notes,
-        'itinerary_days': ?itineraryDays,
+        if (itineraryDays != null && itineraryDays.isNotEmpty)
+          'itinerary_days': itineraryDays,
       };
       final res = await _client
           .post(
@@ -381,10 +384,126 @@ class LakbayApiCatalogService {
     }
   }
 
+  Future<Map<String, dynamic>?> getTripDetail(
+    String accessToken,
+    int tripId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    try {
+      final res = await _client
+          .get(
+            Uri.parse('$base/trips/$tripId'),
+            headers: {'Authorization': 'Bearer $accessToken'},
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) return null;
+      final decoded = _tryDecodeJson(res.body);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> updateTrip(
+    String accessToken,
+    int tripId, {
+    String? title,
+    String? description,
+    int? travelerCount,
+    double? totalBudgetPhp,
+    double? estimatedTotalCostPhp,
+    String? status,
+    String? notes,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return false;
+    final payload = <String, dynamic>{
+      if (title != null && title.trim().length >= 2) 'title': title.trim(),
+      'description': ?description,
+      if (travelerCount != null) 'traveler_count': travelerCount.clamp(1, 100),
+      if (totalBudgetPhp != null)
+        'total_budget': totalBudgetPhp.toStringAsFixed(2),
+      if (estimatedTotalCostPhp != null)
+        'estimated_total_cost': estimatedTotalCostPhp.toStringAsFixed(2),
+      'status': ?status,
+      'notes': ?notes,
+    };
+    if (payload.isEmpty) return true;
+    try {
+      final res = await _client
+          .patch(
+            Uri.parse('$base/trips/$tripId'),
+            headers: {
+              'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 10));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> deleteTrip(String accessToken, int tripId) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return false;
+    try {
+      final res = await _client
+          .delete(
+            Uri.parse('$base/trips/$tripId'),
+            headers: {'Authorization': 'Bearer $accessToken'},
+          )
+          .timeout(const Duration(seconds: 10));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<int?> createTripFromAiOption(
+    String accessToken, {
+    required int generationRunId,
+    required int optionNumber,
+    String? notes,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    try {
+      final res = await _client
+          .post(
+            Uri.parse('$base/trips/from-ai-option'),
+            headers: {
+              'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'generation_run_id': generationRunId,
+              'option_number': optionNumber,
+              if (notes != null && notes.isNotEmpty) 'notes': notes,
+            }),
+          )
+          .timeout(const Duration(seconds: 12));
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is Map<String, dynamic>) {
+        return (decoded['trip_id'] as num?)?.toInt();
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// [origin] is where the traveler starts (usually their GPS position); the
+  /// route then begins there instead of at the first stop.
   Future<BackendRouteResult?> previewRoute(
     String accessToken, {
     required List<int> destinationIds,
     String travelMode = 'driving',
+    GeoPoint? origin,
   }) {
     return _fetchRoute(
       path: '/routes/preview',
@@ -392,6 +511,7 @@ class LakbayApiCatalogService {
       body: {
         'destination_ids': destinationIds.toSet().toList(),
         'travel_mode': travelMode,
+        if (origin != null) 'origin': _routeOrigin(origin),
       },
     );
   }
@@ -400,6 +520,7 @@ class LakbayApiCatalogService {
     String accessToken, {
     required List<int> destinationIds,
     String travelMode = 'driving',
+    GeoPoint? origin,
   }) {
     return _fetchRoute(
       path: '/routes/optimize',
@@ -407,10 +528,22 @@ class LakbayApiCatalogService {
       body: {
         'destination_ids': destinationIds.toSet().toList(),
         'travel_mode': travelMode,
-        'preserve_first_destination': true,
+        // With an origin, the origin is the fixed start and every stop may move.
+        if (origin != null)
+          'origin': _routeOrigin(origin)
+        else
+          'preserve_first_destination': true,
       },
     );
   }
+
+  static Map<String, dynamic> _routeOrigin(GeoPoint origin) => {
+        'label': (origin.label ?? '').trim().isEmpty
+            ? 'My location'
+            : origin.label!.trim(),
+        'lat': origin.lat,
+        'lng': origin.lng,
+      };
 
   Future<BackendRouteResult?> _fetchRoute({
     required String path,
@@ -439,17 +572,12 @@ class LakbayApiCatalogService {
       final stops = (decoded['stops'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .toList();
-      final decodedPts = encodedPolyline.isNotEmpty
+      // Only provider road geometry counts as a route. Estimated responses
+      // (Haversine) have no polyline; joining their stops would draw a line
+      // straight across the sea, so leave the geometry empty instead.
+      final decodedPts = encodedPolyline.isNotEmpty && decoded['is_estimated'] != true
           ? decodePolyline5(encodedPolyline)
-          : stops
-              .map(
-                (s) => GeoPoint(
-                  lat: _toDouble(s['lat']) ?? 7.0731,
-                  lng: _toDouble(s['lng']) ?? 125.6128,
-                  label: s['name']?.toString(),
-                ),
-              )
-              .toList();
+          : const <GeoPoint>[];
 
       return BackendRouteResult(
         routeProvider: (decoded['route_provider'] ?? 'osrm').toString(),
@@ -465,35 +593,95 @@ class LakbayApiCatalogService {
             .map((s) => (s['destination_id'] as num?)?.toInt())
             .whereType<int>()
             .toList(),
+        segments: _parseRouteSegments(decoded['segments']),
+        seaCrossings: _parseSeaCrossings(decoded['sea_crossings']),
       );
     } catch (_) {
       return null;
     }
   }
 
-  Future<({String replyText, String modelId, List<Map<String, dynamic>> results})?>
-      aiChat(
-    String accessToken, {
+  static List<RouteSegmentGeometry> _parseRouteSegments(Object? raw) {
+    if (raw is! List) return const [];
+    final segments = <RouteSegmentGeometry>[];
+    for (final item in raw.whereType<Map<String, dynamic>>()) {
+      final encoded = item['polyline']?.toString() ?? '';
+      if (encoded.isEmpty) continue;
+      final points = decodePolyline5(encoded);
+      if (points.length < 2) continue;
+      segments.add(RouteSegmentGeometry(
+        mode: item['mode'] == 'sea' ? TransportMode.ferry : TransportMode.car,
+        points: points,
+        fromName: item['from_name']?.toString() ?? '',
+        toName: item['to_name']?.toString() ?? '',
+        isEstimated: item['is_estimated'] == true,
+      ));
+    }
+    return segments;
+  }
+
+  static List<SeaCrossingInfo> _parseSeaCrossings(Object? raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map((item) => SeaCrossingInfo(
+              vesselType: item['vessel_type']?.toString() ?? '',
+              boardPort: item['board_port']?.toString() ?? 'Pier',
+              landPort: item['land_port']?.toString() ?? 'Pier',
+              boardLat: _toDouble(item['board_lat']) ?? 0,
+              boardLng: _toDouble(item['board_lng']) ?? 0,
+              landLat: _toDouble(item['land_lat']) ?? 0,
+              landLng: _toDouble(item['land_lng']) ?? 0,
+              crossingMinutes: (item['crossing_minutes'] as num?)?.toInt() ?? 0,
+              typicalWaitMinutes:
+                  (item['typical_wait_minutes'] as num?)?.toInt() ?? 0,
+              allowsPrivateVehicle: item['allows_private_vehicle'] == true,
+              scheduleText: item['schedule_text']?.toString(),
+              farePassenger: _toDouble(item['fare_passenger']),
+              fareVehicle: _toDouble(item['fare_vehicle']),
+              verified: item['verified'] == true,
+            ))
+        .toList();
+  }
+
+  Future<({
+    String replyText,
+    String modelId,
+    List<Map<String, dynamic>> results,
+    List<Map<String, dynamic>> retrievedContext,
+    Map<String, dynamic>? planning,
+  })?> aiChat(
+    String? accessToken, {
     required String message,
     List<Map<String, String>> history = const [],
+    Map<String, dynamic>? planningState,
+    int inputRevision = 0,
+    String modelRole = 'default',
   }) async {
     final base = _base;
-    if (base.isEmpty || accessToken.isEmpty) return null;
+    if (base.isEmpty) return null;
+    // Signed out: the rate-limited guest endpoint (no AI key in the app).
+    final token = (accessToken ?? '').trim();
+    final path = token.isEmpty ? '/ai/chat/guest' : '/ai/chat';
     try {
+      final payload = <String, dynamic>{
+        'message': message,
+        'history': history,
+        'use_rag': true,
+        'model_role': modelRole,
+        'planning_state': ?planningState,
+        if (planningState != null) 'input_revision': inputRevision,
+      };
       final res = await _client
           .post(
-            Uri.parse('$base/ai/chat'),
+            Uri.parse('$base$path'),
             headers: {
-              'Authorization': 'Bearer $accessToken',
+              if (token.isNotEmpty) 'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
             },
-            body: jsonEncode({
-              'message': message,
-              'history': history,
-              'use_rag': true,
-            }),
+            body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 25));
+          .timeout(const Duration(seconds: 28));
       if (res.statusCode < 200 || res.statusCode >= 300) return null;
       final decoded = jsonDecode(res.body);
       if (decoded is! Map<String, dynamic>) return null;
@@ -505,6 +693,181 @@ class LakbayApiCatalogService {
         results: (decoded['results'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
             .toList(),
+        retrievedContext:
+            (decoded['retrieved_context'] as List<dynamic>? ?? const [])
+                .whereType<Map<String, dynamic>>()
+                .toList(),
+        planning: decoded['planning'] is Map<String, dynamic>
+            ? decoded['planning'] as Map<String, dynamic>
+            : null,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Quick structured trip draft from the backend (guest or signed in).
+  /// Returns the draft JSON plus the model that wrote it, or null on failure.
+  Future<({Map<String, dynamic> draft, String modelId, String provider})?>
+      aiTripDraft({
+    String? accessToken,
+    required String message,
+    List<Map<String, String>> history = const [],
+    String? currentLocation,
+    double? userLat,
+    double? userLng,
+    List<String> preferredVibes = const [],
+    bool strictBudget = false,
+    int defaultDays = 3,
+  }) async {
+    final base = _base;
+    if (base.isEmpty) return null;
+    final token = (accessToken ?? '').trim();
+    try {
+      final res = await _client
+          .post(
+            Uri.parse('$base/ai/trip-draft'),
+            headers: {
+              if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'message': message,
+              'history': history,
+              'current_location': ?currentLocation,
+              if (userLat != null && userLng != null) 'user_lat': userLat,
+              if (userLat != null && userLng != null) 'user_lng': userLng,
+              'preferred_vibes': preferredVibes.take(10).toList(),
+              'strict_budget': strictBudget,
+              'default_days': defaultDays.clamp(1, 14),
+            }),
+          )
+          .timeout(const Duration(seconds: 45));
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final draft = decoded['draft'];
+      if (draft is! Map<String, dynamic>) return null;
+      return (
+        draft: draft,
+        modelId: (decoded['model_id'] ?? 'lakbay-api').toString(),
+        provider: (decoded['provider'] ?? 'lakbay-api').toString(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<({
+    int? generationRunId,
+    List<Map<String, dynamic>> options,
+    Map<String, dynamic>? planningPreview,
+  })?> generateAiItineraries(
+    String accessToken, {
+    required double totalBudgetPhp,
+    required int travelerCount,
+    required int dayCount,
+    required List<int> destinationIds,
+    List<int> accommodationIds = const [],
+    List<int> transportationIds = const [],
+    List<String> interests = const [],
+    Map<String, dynamic>? planningState,
+    int inputRevision = 0,
+    String? travelStyle,
+    String? specialRequirements,
+    bool strictBudgetFilter = false,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty || destinationIds.isEmpty) {
+      return null;
+    }
+    try {
+      final payload = <String, dynamic>{
+        'total_budget': totalBudgetPhp.clamp(100, 9999999).toStringAsFixed(2),
+        'traveler_count': travelerCount.clamp(1, 100),
+        'day_count': dayCount.clamp(1, 30),
+        'destination_ids': destinationIds.toSet().take(10).toList(),
+        if (accommodationIds.isNotEmpty)
+          'accommodation_ids': accommodationIds.toSet().toList(),
+        if (transportationIds.isNotEmpty)
+          'transportation_ids': transportationIds.toSet().toList(),
+        if (interests.isNotEmpty) 'interests': interests.take(15).toList(),
+        if (travelStyle != null && travelStyle.isNotEmpty)
+          'travel_style': travelStyle,
+        if (specialRequirements != null && specialRequirements.isNotEmpty)
+          'special_requirements': specialRequirements,
+        'planning_state': ?planningState,
+        'input_revision': inputRevision,
+        'strict_budget_filter': strictBudgetFilter,
+      };
+      final res = await _client
+          .post(
+            Uri.parse('$base/ai/itineraries/generate'),
+            headers: {
+              'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 45));
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      return (
+        generationRunId:
+            (decoded['selected_generation_run_id'] as num?)?.toInt(),
+        options: (decoded['options'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList(),
+        planningPreview: decoded['planning_preview'] is Map<String, dynamic>
+            ? decoded['planning_preview'] as Map<String, dynamic>
+            : null,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<({
+    String status,
+    List<PlanningFeedbackFinding> findings,
+    Map<String, dynamic>? preview,
+  })?> evaluatePlanningFeedback(
+    String accessToken, {
+    required Map<String, dynamic> state,
+    bool? travelingWithChildren,
+    int inputRevision = 0,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    try {
+      final res = await _client
+          .post(
+            Uri.parse('$base/planning/feedback'),
+            headers: {
+              'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'input_revision': inputRevision,
+              'state': state,
+              'traveling_with_children': ?travelingWithChildren,
+            }),
+          )
+          .timeout(const Duration(seconds: 12));
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final findings = (decoded['findings'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(PlanningFeedbackFinding.fromJson)
+          .toList();
+      return (
+        status: (decoded['status'] ?? 'needs_review').toString(),
+        findings: findings,
+        preview: decoded['preview'] is Map<String, dynamic>
+            ? decoded['preview'] as Map<String, dynamic>
+            : null,
       );
     } catch (_) {
       return null;
@@ -640,5 +1003,691 @@ class LakbayApiCatalogService {
     if (value is num) return value.toDouble();
     if (value is String) return double.tryParse(value);
     return null;
+  }
+
+  Map<String, String> _authHeaders(String accessToken, {bool json = true}) => {
+        'Authorization': 'Bearer $accessToken',
+        if (json) 'Content-Type': 'application/json',
+      };
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+
+  Future<List<AppNotificationItem>> fetchNotifications(
+    String accessToken, {
+    bool unreadOnly = false,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return const [];
+    try {
+      final res = await _client
+          .get(
+            Uri.parse('$base/notifications?unread_only=$unreadOnly&limit=50'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return const [];
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(AppNotificationItem.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<int> getUnreadNotificationCount(String accessToken) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return 0;
+    try {
+      final res = await _client
+          .get(
+            Uri.parse('$base/notifications/unread-count'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode != 200) return 0;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is Map<String, dynamic>) {
+        return (decoded['unread_count'] as num?)?.toInt() ?? 0;
+      }
+      return 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<bool> markNotificationRead(
+    String accessToken,
+    int notificationId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return false;
+    try {
+      final res = await _client
+          .post(
+            Uri.parse('$base/notifications/$notificationId/read'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 6));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> markAllNotificationsRead(String accessToken) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return false;
+    try {
+      final res = await _client
+          .post(
+            Uri.parse('$base/notifications/read-all'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 6));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ── Trip Collaboration (Members & Tasks) ───────────────────────────────────
+
+  Future<List<TripMemberItem>> listTripMembers(
+    String accessToken,
+    int tripId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return const [];
+    try {
+      final res = await _client
+          .get(
+            Uri.parse('$base/trips/$tripId/members'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return const [];
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(TripMemberItem.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<TripMemberItem?> addTripMember(
+    String accessToken,
+    int tripId, {
+    required String email,
+    String role = 'member',
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    final res = await _client
+        .post(
+          Uri.parse('$base/trips/$tripId/members'),
+          headers: _authHeaders(accessToken),
+          body: jsonEncode({'email': email.trim(), 'role': role}),
+        )
+        .timeout(const Duration(seconds: 10));
+    final decoded = _tryDecodeJson(res.body);
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      if (decoded is Map<String, dynamic>) {
+        return TripMemberItem.fromJson(decoded);
+      }
+      return null;
+    }
+    throw LakbayApiException(
+      _extractErrorMessage(decoded, res.statusCode),
+      statusCode: res.statusCode,
+    );
+  }
+
+  Future<bool> removeTripMember(
+    String accessToken,
+    int tripId,
+    int tripMemberId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return false;
+    try {
+      final res = await _client
+          .delete(
+            Uri.parse('$base/trips/$tripId/members/$tripMemberId'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 8));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<TripTaskItem>> listTripTasks(
+    String accessToken,
+    int tripId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return const [];
+    try {
+      final res = await _client
+          .get(
+            Uri.parse('$base/trips/$tripId/tasks'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return const [];
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(TripTaskItem.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<TripTaskItem?> createTripTask(
+    String accessToken,
+    int tripId, {
+    required String title,
+    String? description,
+    int? assignedTripMemberId,
+    DateTime? dueDate,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    final res = await _client
+        .post(
+          Uri.parse('$base/trips/$tripId/tasks'),
+          headers: _authHeaders(accessToken),
+          body: jsonEncode({
+            'title': title.trim(),
+            if (description != null && description.trim().isNotEmpty)
+              'description': description.trim(),
+            'assigned_trip_member_id': ?assignedTripMemberId,
+            if (dueDate != null)
+              'due_date': dueDate.toIso8601String().split('T').first,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+    final decoded = _tryDecodeJson(res.body);
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      if (decoded is Map<String, dynamic>) {
+        return TripTaskItem.fromJson(decoded);
+      }
+      return null;
+    }
+    throw LakbayApiException(
+      _extractErrorMessage(decoded, res.statusCode),
+      statusCode: res.statusCode,
+    );
+  }
+
+  Future<TripTaskItem?> updateTripTaskStatus(
+    String accessToken,
+    int tripId,
+    int taskId, {
+    required String status,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    try {
+      final res = await _client
+          .patch(
+            Uri.parse('$base/trips/$tripId/tasks/$taskId'),
+            headers: _authHeaders(accessToken),
+            body: jsonEncode({'status': status}),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final decoded = _tryDecodeJson(res.body);
+        if (decoded is Map<String, dynamic>) {
+          return TripTaskItem.fromJson(decoded);
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── Expenses & Budget Tracking ─────────────────────────────────────────────
+
+  Future<List<TripExpenseItem>> listTripExpenses(
+    String accessToken,
+    int tripId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return const [];
+    try {
+      final res = await _client
+          .get(
+            Uri.parse('$base/trips/$tripId/expenses'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return const [];
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(TripExpenseItem.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<TripExpenseSummary?> getTripExpenseSummary(
+    String accessToken,
+    int tripId, {
+    int? adultCount,
+    int childCount = 0,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    try {
+      final qp = <String, String>{
+        if (adultCount != null) 'adult_count': '$adultCount',
+        'child_count': '$childCount',
+      };
+      final uri = Uri.parse('$base/trips/$tripId/expenses/summary')
+          .replace(queryParameters: qp);
+      final res = await _client
+          .get(uri, headers: _authHeaders(accessToken, json: false))
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is Map<String, dynamic>) {
+        return TripExpenseSummary.fromJson(decoded);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<TripExpenseItem?> createTripExpense(
+    String accessToken,
+    int tripId, {
+    required String title,
+    required String category,
+    required double amount,
+    required int paidByTripMemberId,
+    String? notes,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    final res = await _client
+        .post(
+          Uri.parse('$base/trips/$tripId/expenses'),
+          headers: _authHeaders(accessToken),
+          body: jsonEncode({
+            'title': title.trim(),
+            'category': category,
+            'amount': amount.toStringAsFixed(2),
+            'paid_by_trip_member_id': paidByTripMemberId,
+            if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+    final decoded = _tryDecodeJson(res.body);
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      if (decoded is Map<String, dynamic>) {
+        return TripExpenseItem.fromJson(decoded);
+      }
+      return null;
+    }
+    throw LakbayApiException(
+      _extractErrorMessage(decoded, res.statusCode),
+      statusCode: res.statusCode,
+    );
+  }
+
+  Future<bool> voidTripExpense(
+    String accessToken,
+    int tripId,
+    int expenseId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return false;
+    try {
+      final res = await _client
+          .delete(
+            Uri.parse('$base/trips/$tripId/expenses/$expenseId'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 8));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ── Trip Memories (Replaced Bookings) ──────────────────────────────────────
+
+  Future<List<TripMemoryItem>> listTripMemories(
+    String accessToken,
+    int tripId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return const [];
+    try {
+      final res = await _client
+          .get(
+            Uri.parse('$base/trips/$tripId/memories'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return const [];
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(TripMemoryItem.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<({String imageUrl, String? publicId})?> uploadTripMemoryPhoto(
+    String accessToken,
+    int tripId, {
+    required String filePath,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$base/trips/$tripId/memories/upload'),
+    );
+    req.headers['Authorization'] = 'Bearer $accessToken';
+    req.files.add(await http.MultipartFile.fromPath('file', filePath));
+    final streamed = await _client.send(req).timeout(const Duration(seconds: 30));
+    final body = await streamed.stream.bytesToString();
+    final decoded = _tryDecodeJson(body);
+    if (streamed.statusCode == 200 || streamed.statusCode == 201) {
+      if (decoded is Map<String, dynamic>) {
+        return (
+          imageUrl: (decoded['image_url'] ?? '').toString(),
+          publicId: decoded['cloudinary_public_id']?.toString(),
+        );
+      }
+      return null;
+    }
+    throw LakbayApiException(
+      _extractErrorMessage(decoded, streamed.statusCode),
+      statusCode: streamed.statusCode,
+    );
+  }
+
+  Future<TripMemoryItem?> createTripMemory(
+    String accessToken,
+    int tripId, {
+    required String imageUrl,
+    String? cloudinaryPublicId,
+    int? destinationId,
+    String? caption,
+    String? locationTag,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    final res = await _client
+        .post(
+          Uri.parse('$base/trips/$tripId/memories'),
+          headers: _authHeaders(accessToken),
+          body: jsonEncode({
+            'image_url': imageUrl,
+            'cloudinary_public_id': ?cloudinaryPublicId,
+            'destination_id': ?destinationId,
+            if (caption != null && caption.trim().isNotEmpty)
+              'caption': caption.trim(),
+            if (locationTag != null && locationTag.trim().isNotEmpty)
+              'location_tag': locationTag.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+    final decoded = _tryDecodeJson(res.body);
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      if (decoded is Map<String, dynamic>) {
+        return TripMemoryItem.fromJson(decoded);
+      }
+      return null;
+    }
+    throw LakbayApiException(
+      _extractErrorMessage(decoded, res.statusCode),
+      statusCode: res.statusCode,
+    );
+  }
+
+  Future<bool> likeTripMemory(
+    String accessToken,
+    int tripId,
+    int memoryId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return false;
+    try {
+      final res = await _client
+          .post(
+            Uri.parse('$base/trips/$tripId/memories/$memoryId/likes'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 6));
+      return res.statusCode == 200 || res.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> deleteTripMemory(
+    String accessToken,
+    int tripId,
+    int memoryId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return false;
+    try {
+      final res = await _client
+          .delete(
+            Uri.parse('$base/trips/$tripId/memories/$memoryId'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 8));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ── Reports, Reviews & ISO/IEC 25010 App Assessment ────────────────────────
+
+  Future<List<int>?> downloadTripReportPdf(
+    String accessToken,
+    int tripId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    try {
+      final res = await _client
+          .get(
+            Uri.parse('$base/trips/$tripId/reports/pdf'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 20));
+      if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+        return res.bodyBytes;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<TripReviewItem>> listTripReviews(
+    String accessToken,
+    int tripId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return const [];
+    try {
+      final res = await _client
+          .get(
+            Uri.parse('$base/trips/$tripId/reviews'),
+            headers: _authHeaders(accessToken, json: false),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return const [];
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(TripReviewItem.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<TripReviewItem?> submitTripReview(
+    String accessToken,
+    int tripId, {
+    int? destinationId,
+    required int postTripRating,
+    required int accuracyRating,
+    required int routeEfficiencyRating,
+    required int budgetAdherenceRating,
+    required int overallExperienceRating,
+    String? comments,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    final res = await _client
+        .post(
+          Uri.parse('$base/trips/$tripId/reviews'),
+          headers: _authHeaders(accessToken),
+          body: jsonEncode({
+            'destination_id': ?destinationId,
+            'post_trip_rating': postTripRating,
+            'accuracy_rating': accuracyRating,
+            'route_efficiency_rating': routeEfficiencyRating,
+            'budget_adherence_rating': budgetAdherenceRating,
+            'overall_experience_rating': overallExperienceRating,
+            if (comments != null && comments.trim().isNotEmpty)
+              'comments': comments.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+    final decoded = _tryDecodeJson(res.body);
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      if (decoded is Map<String, dynamic>) {
+        return TripReviewItem.fromJson(decoded);
+      }
+      return null;
+    }
+    throw LakbayApiException(
+      _extractErrorMessage(decoded, res.statusCode),
+      statusCode: res.statusCode,
+    );
+  }
+
+  Future<AppAssessmentData?> submitAppAssessment(
+    String accessToken,
+    int tripId, {
+    required int functionalSuitabilityRating,
+    required int informationAccuracyRating,
+    required int performanceRating,
+    required int interactionRating,
+    required int reliabilityRating,
+    required int sharingClarityRating,
+    String? comment,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    final res = await _client
+        .post(
+          Uri.parse('$base/trips/$tripId/app-assessment'),
+          headers: _authHeaders(accessToken),
+          body: jsonEncode({
+            'functional_suitability_rating': functionalSuitabilityRating,
+            'information_accuracy_rating': informationAccuracyRating,
+            'performance_rating': performanceRating,
+            'interaction_rating': interactionRating,
+            'reliability_rating': reliabilityRating,
+            'sharing_clarity_rating': sharingClarityRating,
+            if (comment != null && comment.trim().isNotEmpty)
+              'comment': comment.trim(),
+            'app_version': '1.0.0',
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+    final decoded = _tryDecodeJson(res.body);
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      if (decoded is Map<String, dynamic>) {
+        return AppAssessmentData.fromJson(decoded);
+      }
+      return null;
+    }
+    throw LakbayApiException(
+      _extractErrorMessage(decoded, res.statusCode),
+      statusCode: res.statusCode,
+    );
+  }
+
+  // ── Personalized Top-5 Recommendations (TOPSIS / SAW) ─────────────────────
+
+  Future<TopPlacesResult?> fetchTopPlaces(
+    String accessToken, {
+    List<String> interests = const [],
+    String travelMode = 'driving',
+    double? totalBudgetPhp,
+    int adultCount = 1,
+    List<int> childAges = const [],
+    int? dayCount,
+    double? originLat,
+    double? originLng,
+    String rankingMethod = 'topsis',
+    int limit = 5,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    try {
+      final res = await _client
+          .post(
+            Uri.parse('$base/recommendations/top-places'),
+            headers: _authHeaders(accessToken),
+            body: jsonEncode({
+              if (interests.isNotEmpty) 'interests': interests,
+              'travel_mode': travelMode,
+              if (totalBudgetPhp != null && totalBudgetPhp > 0)
+                'total_budget': totalBudgetPhp.toStringAsFixed(2),
+              'adult_count': adultCount,
+              if (childAges.isNotEmpty) 'child_ages': childAges,
+              'day_count': ?dayCount,
+              if (originLat != null && originLng != null)
+                'origin': {'lat': originLat, 'lng': originLng},
+              'ranking_method': rankingMethod,
+              'limit': limit,
+              'save_preference': false,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200 && res.statusCode != 201) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is Map<String, dynamic>) {
+        return TopPlacesResult.fromJson(decoded);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 }

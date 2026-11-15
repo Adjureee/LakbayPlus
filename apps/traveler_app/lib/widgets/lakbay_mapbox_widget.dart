@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
+import '../services/location_service.dart';
 import '../services/mapbox_service.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
@@ -12,21 +14,31 @@ class LakbayMapMarker {
   final String badgeText;
   final String title;
   final String? subtitle;
+  final String? imageUrl;
+  final String? imageAsset;
   final bool isPrimary;
   final bool isOrigin;
   final bool isDestination;
+  final bool isUserLocation;
 
   const LakbayMapMarker({
     required this.id,
     required this.lat,
     required this.lng,
-    required this.badgeText,
+    this.badgeText = '',
     required this.title,
     this.subtitle,
+    this.imageUrl,
+    this.imageAsset,
     this.isPrimary = false,
     this.isOrigin = false,
     this.isDestination = false,
+    this.isUserLocation = false,
   });
+
+  bool get hasThumbnail =>
+      (imageUrl != null && imageUrl!.trim().isNotEmpty) ||
+      (imageAsset != null && imageAsset!.trim().isNotEmpty);
 }
 
 class LakbayMapboxMap extends StatefulWidget {
@@ -36,7 +48,20 @@ class LakbayMapboxMap extends StatefulWidget {
   final double initialZoom;
   final List<GeoPoint> routePoints;
   final List<GeoPoint> roadGeometry;
+
+  /// Road/sea parts from a pier-aware route. When set, it replaces
+  /// [roadGeometry]: roads are solid, boat crossings dashed blue, and
+  /// estimated parts dashed grey with no vehicle on them.
+  final List<RouteSegmentGeometry> routeSegments;
   final List<LakbayMapMarker> markers;
+
+  /// Live GPS fix drawn as a moving dot with heading and accuracy circle.
+  final LivePosition? livePosition;
+
+  /// Keep the camera centered on [livePosition]. Panning the map turns it off
+  /// through [onFollowUserChanged].
+  final bool followUser;
+  final ValueChanged<bool>? onFollowUserChanged;
   final String? selectedMarkerId;
   final ValueChanged<LakbayMapMarker>? onMarkerTap;
   final bool showControls;
@@ -44,6 +69,7 @@ class LakbayMapboxMap extends StatefulWidget {
   final bool animateRoute;
   final bool clampToDavao;
   final double borderRadius;
+  final double controlsBottomOffset;
 
   const LakbayMapboxMap({
     super.key,
@@ -53,14 +79,19 @@ class LakbayMapboxMap extends StatefulWidget {
     this.initialZoom = 8.4,
     this.routePoints = const [],
     this.roadGeometry = const [],
+    this.routeSegments = const [],
     this.markers = const [],
+    this.livePosition,
+    this.followUser = false,
+    this.onFollowUserChanged,
     this.selectedMarkerId,
     this.onMarkerTap,
     this.showControls = true,
     this.interactive = true,
     this.animateRoute = true,
-    this.clampToDavao = true,
+    this.clampToDavao = false,
     this.borderRadius = 20,
+    this.controlsBottomOffset = 36,
   });
 
   @override
@@ -73,6 +104,10 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
   late double _centerLng;
   late double _zoom;
 
+  double get currentLat => _centerLat;
+  double get currentLng => _centerLng;
+  double get currentZoom => _zoom;
+
   late AnimationController _cameraAnimController;
   late AnimationController _routeAnimController;
   late AnimationController _pulseController;
@@ -83,6 +118,8 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
   double _targetLat = 0;
   double _targetLng = 0;
   double _targetZoom = 8.4;
+  double _gestureStartZoom = 8.4;
+  Offset _prevFocalPoint = Offset.zero;
 
   @override
   void initState() {
@@ -107,7 +144,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
       vsync: this,
       duration: const Duration(milliseconds: 4800),
     );
-    if (widget.animateRoute && widget.routePoints.length >= 2) {
+    if (widget.animateRoute && _hasRoutedGeometry) {
       _routeAnimController.repeat();
     }
 
@@ -129,12 +166,28 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
         flyTo(found.lat, found.lng, zoom: math.max(_zoom, 9.6));
       }
     }
-    if (widget.animateRoute &&
-        widget.routePoints.length >= 2 &&
-        !_routeAnimController.isAnimating) {
+    final live = widget.livePosition;
+    final followJustEnabled = widget.followUser && !oldWidget.followUser;
+    if (live != null &&
+        widget.followUser &&
+        (followJustEnabled ||
+            live.lat != oldWidget.livePosition?.lat ||
+            live.lng != oldWidget.livePosition?.lng)) {
+      flyTo(live.lat, live.lng,
+          zoom: followJustEnabled ? math.max(_zoom, 15.0) : _zoom);
+    }
+    final hasRoad = _hasRoutedGeometry;
+    if (widget.animateRoute && hasRoad && !_routeAnimController.isAnimating) {
       _routeAnimController.repeat();
+    } else if (!hasRoad && _routeAnimController.isAnimating) {
+      _routeAnimController.stop();
     }
   }
+
+  /// True only when every drawn part follows provider geometry.
+  bool get _hasRoutedGeometry => widget.routeSegments.isNotEmpty
+      ? widget.routeSegments.every((segment) => !segment.isEstimated)
+      : widget.roadGeometry.length >= 2;
 
   void flyTo(double lat, double lng, {double? zoom}) {
     _startLat = _centerLat;
@@ -149,7 +202,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
       _targetLat = lat.clamp(-84.0, 84.0);
       _targetLng = ((lng + 180.0) % 360.0) - 180.0;
     }
-    _targetZoom = (zoom ?? _zoom).clamp(6.8, 15.0);
+    _targetZoom = (zoom ?? _zoom).clamp(4.0, 17.5);
     _cameraAnimController.forward(from: 0);
   }
 
@@ -190,22 +243,45 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
     return Offset(dx, dy);
   }
 
-  void _handlePanUpdate(DragUpdateDetails details) {
+  void _handleScaleStart(ScaleStartDetails details) {
     if (!widget.interactive) return;
-    final int tileZ = _zoom.floor().clamp(1, 16);
-    final double scale = math.pow(2.0, _zoom - tileZ).toDouble();
-    final double tileSize = 256.0 * scale;
+    if (widget.followUser) widget.onFollowUserChanged?.call(false);
+    _cameraAnimController.stop();
+    _gestureStartZoom = _zoom;
+    _prevFocalPoint = details.localFocalPoint;
+  }
 
-    final (centerTileX, centerTileY) =
-        MapboxService.latLngToTileXY(_centerLat, _centerLng, tileZ.toDouble());
+  void _handleScaleUpdate(ScaleUpdateDetails details, Size viewportSize) {
+    if (!widget.interactive) return;
+    final panDelta = details.localFocalPoint - _prevFocalPoint;
+    _prevFocalPoint = details.localFocalPoint;
 
-    final newTileX = centerTileX - (details.delta.dx / tileSize);
-    final newTileY = centerTileY - (details.delta.dy / tileSize);
+    final (cX, cY) =
+        MapboxService.latLngToTileXY(_centerLat, _centerLng, _zoom);
+    var shiftedCenterX = cX - (panDelta.dx / 256.0);
+    var shiftedCenterY = cY - (panDelta.dy / 256.0);
+
+    final newZoom = (details.scale - 1.0).abs() > 0.0005
+        ? (_gestureStartZoom +
+                (math.log(details.scale.clamp(0.2, 5.0)) / math.ln2))
+            .clamp(4.0, 17.5)
+        : _zoom;
+
+    if ((newZoom - _zoom).abs() > 1e-4) {
+      final fx =
+          (details.localFocalPoint.dx - viewportSize.width / 2.0) / 256.0;
+      final fy =
+          (details.localFocalPoint.dy - viewportSize.height / 2.0) / 256.0;
+      final zoomRatio = math.pow(2.0, newZoom - _zoom).toDouble();
+      shiftedCenterX = (shiftedCenterX + fx) * zoomRatio - fx;
+      shiftedCenterY = (shiftedCenterY + fy) * zoomRatio - fy;
+    }
 
     final (newLat, newLng) =
-        MapboxService.tileXYToLatLng(newTileX, newTileY, tileZ.toDouble());
+        MapboxService.tileXYToLatLng(shiftedCenterX, shiftedCenterY, newZoom);
 
     setState(() {
+      _zoom = newZoom;
       if (widget.clampToDavao) {
         final (cLat, cLng) = MapboxService.clampToDavaoRegion(newLat, newLng);
         _centerLat = cLat;
@@ -214,6 +290,27 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
         _centerLat = newLat.clamp(-84.0, 84.0);
         _centerLng = ((newLng + 180.0) % 360.0) - 180.0;
       }
+    });
+  }
+
+  void _handlePointerScroll(PointerScrollEvent event, Size viewportSize) {
+    if (!widget.interactive || event.scrollDelta.dy == 0) return;
+    final zoomStep = event.scrollDelta.dy < 0 ? 0.55 : -0.55;
+    final newZoom = (_zoom + zoomStep).clamp(4.0, 17.5);
+    if ((newZoom - _zoom).abs() < 1e-4) return;
+    final (cX, cY) =
+        MapboxService.latLngToTileXY(_centerLat, _centerLng, _zoom);
+    final fx = (event.localPosition.dx - viewportSize.width / 2.0) / 256.0;
+    final fy = (event.localPosition.dy - viewportSize.height / 2.0) / 256.0;
+    final zoomRatio = math.pow(2.0, newZoom - _zoom).toDouble();
+    final nextX = (cX + fx) * zoomRatio - fx;
+    final nextY = (cY + fy) * zoomRatio - fy;
+    final (newLat, newLng) =
+        MapboxService.tileXYToLatLng(nextX, nextY, newZoom);
+    setState(() {
+      _zoom = newZoom;
+      _centerLat = newLat.clamp(-84.0, 84.0);
+      _centerLng = ((newLng + 180.0) % 360.0) - 180.0;
     });
   }
 
@@ -370,19 +467,41 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final size = Size(constraints.maxWidth, constraints.maxHeight);
-          final hasDetailedRoad = widget.roadGeometry.length >= 2;
+          final segments = widget.routeSegments;
+          final hasSegments = segments.isNotEmpty;
+          final hasDetailedRoad =
+              hasSegments ? _hasRoutedGeometry : widget.roadGeometry.length >= 2;
+          final projectedSegments = [
+            for (final segment in segments)
+              (
+                segment,
+                segment.points
+                    .map((p) => _latLngToViewportOffset(p.lat, p.lng, size))
+                    .toList(),
+              ),
+          ];
           final effectiveRoute =
               hasDetailedRoad ? widget.roadGeometry : widget.routePoints;
           final projectedRoute = effectiveRoute
               .map((p) => _latLngToViewportOffset(p.lat, p.lng, size))
               .toList();
 
-          return GestureDetector(
-            onPanUpdate: widget.interactive ? _handlePanUpdate : null,
-            onDoubleTap: widget.interactive
-                ? () => flyTo(_centerLat, _centerLng, zoom: _zoom + 1.1)
-                : null,
-            child: Stack(
+          return Listener(
+            onPointerSignal: (event) {
+              if (event is PointerScrollEvent) {
+                _handlePointerScroll(event, size);
+              }
+            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onScaleStart: widget.interactive ? _handleScaleStart : null,
+              onScaleUpdate: widget.interactive
+                  ? (details) => _handleScaleUpdate(details, size)
+                  : null,
+              onDoubleTap: widget.interactive
+                  ? () => flyTo(_centerLat, _centerLng, zoom: _zoom + 1.1)
+                  : null,
+              child: Stack(
               fit: StackFit.expand,
               children: [
                 // 1. Stylized Ocean/Topographic Base Layer
@@ -399,8 +518,57 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                 // 2. Web-Mercator Slippy Raster Tiles (Mapbox Styles API or Carto Fallback)
                 ..._buildSlippyTiles(size, style),
 
-                // 3. Animated Mapbox Route Line-Trim (lineTrimOffset + lineTrimFadeRange) & Moving Sprite
-                if (projectedRoute.length >= 2)
+                // 3a. No road geometry: never draw a vehicle crossing land or sea.
+                // Show only dashed stop-order connectors and say so.
+                if (!hasSegments && !hasDetailedRoad && projectedRoute.length >= 2) ...[
+                  CustomPaint(
+                    size: size,
+                    painter: _UnroutedConnectorPainter(
+                      points: projectedRoute,
+                      isDark: isDarkStyle,
+                    ),
+                  ),
+                  if (widget.interactive)
+                    Positioned(
+                      left: 12,
+                      right: 12,
+                      top: 12,
+                      child: IgnorePointer(child: _buildUnroutedNotice()),
+                    ),
+                ],
+
+                // 3c. Pier-aware route: road solid, sea dashed blue, estimates dashed grey.
+                if (hasSegments) ...[
+                  CustomPaint(
+                    size: size,
+                    painter: _SegmentedRoutePainter(
+                      segments: projectedSegments,
+                      isDark: isDarkStyle,
+                    ),
+                  ),
+                  if (!hasDetailedRoad && widget.interactive)
+                    Positioned(
+                      left: 12,
+                      right: 12,
+                      top: 12,
+                      child: IgnorePointer(
+                        child: _buildUnroutedNotice(
+                          'Part of this road route is unavailable — grey dashed lines are estimates.',
+                        ),
+                      ),
+                    ),
+                  if (hasDetailedRoad && widget.animateRoute)
+                    AnimatedBuilder(
+                      animation: _routeAnimController,
+                      builder: (context, _) => _buildSegmentSprite(
+                        projectedSegments,
+                        _routeAnimController.value,
+                      ),
+                    ),
+                ],
+
+                // 3b. Animated road route line-trim & moving sprite (road geometry only)
+                if (!hasSegments && hasDetailedRoad && projectedRoute.length >= 2)
                   AnimatedBuilder(
                     animation: _routeAnimController,
                     builder: (context, _) {
@@ -416,21 +584,9 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
 
                       final p0 = projectedRoute[segIdx];
                       final p2 = projectedRoute[segIdx + 1];
-                      final mid = Offset((p0.dx + p2.dx) / 2, (p0.dy + p2.dy) / 2);
-                      final dx = p2.dx - p0.dx;
-                      final dy = p2.dy - p0.dy;
-                      final p1 = hasDetailedRoad
-                          ? mid
-                          : Offset(mid.dx - dy * 0.16, mid.dy + dx * 0.16);
-
-                      final spritePos = hasDetailedRoad
-                          ? Offset.lerp(p0, p2, segT) ?? p0
-                          : MapboxService.evaluateQuadraticBezier(
-                              p0, p1, p2, segT);
-                      final spriteAngle = hasDetailedRoad
-                          ? math.atan2(dy, dx)
-                          : MapboxService.evaluateQuadraticBezierAngle(
-                              p0, p1, p2, segT);
+                      final spritePos = Offset.lerp(p0, p2, segT) ?? p0;
+                      final spriteAngle =
+                          math.atan2(p2.dy - p0.dy, p2.dx - p0.dx);
                       final wpIdx = widget.routePoints.isEmpty
                           ? 0
                           : ((segIdx + 1) *
@@ -450,7 +606,6 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                               points: projectedRoute,
                               progress: animVal,
                               isDark: isDarkStyle,
-                              isExactRoadPath: hasDetailedRoad,
                             ),
                           ),
                           if (widget.animateRoute)
@@ -507,8 +662,9 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                   final isSelected = widget.selectedMarkerId == marker.id;
                   return Positioned(
                     left: offset.dx - 55,
-                    top: offset.dy - 46,
+                    top: offset.dy - 74,
                     width: 110,
+                    height: 74,
                     child: Align(
                       alignment: Alignment.bottomCenter,
                       child: GestureDetector(
@@ -530,86 +686,95 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                     left: 12,
                     right: 12,
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        PopupMenuButton<MapboxStylePreset>(
-                          onSelected: (s) {
-                            widget.repo.setMapboxStyle(s);
-                            setState(() {});
-                          },
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          itemBuilder: (_) => MapboxStylePreset.values
-                              .map(
-                                (s) => PopupMenuItem(
-                                  value: s,
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        s == style
-                                            ? Icons.radio_button_checked_rounded
-                                            : Icons.layers_outlined,
-                                        size: 18,
-                                        color: LakbayColors.primary,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            s.title,
-                                            style: const TextStyle(
-                                              fontFamily: 'FigGrotesk',
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 13.5,
-                                            ),
-                                          ),
-                                          Text(
-                                            s.subtitle,
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              color: LakbayColors.textSecondary,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 7),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.72),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.25)),
+                        Flexible(
+                          child: PopupMenuButton<MapboxStylePreset>(
+                            onSelected: (s) {
+                              widget.repo.setMapboxStyle(s);
+                              setState(() {});
+                            },
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.layers_rounded,
-                                    color: LakbayColors.primary, size: 15),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Mapbox: ${style.title}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
+                            itemBuilder: (_) => MapboxStylePreset.values
+                                .map(
+                                  (s) => PopupMenuItem(
+                                    value: s,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          s == style
+                                              ? Icons.radio_button_checked_rounded
+                                              : Icons.layers_outlined,
+                                          size: 18,
+                                          color: LakbayColors.primary,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              s.title,
+                                              style: const TextStyle(
+                                                fontFamily: 'FigGrotesk',
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 13.5,
+                                              ),
+                                            ),
+                                            Text(
+                                              s.subtitle,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color:
+                                                    LakbayColors.textSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 4),
-                                const Icon(Icons.keyboard_arrow_down_rounded,
-                                    color: Colors.white70, size: 16),
-                              ],
+                                )
+                                .toList(),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.72),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                    color:
+                                        Colors.white.withValues(alpha: 0.25)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.layers_rounded,
+                                      color: LakbayColors.primary, size: 15),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      style.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.keyboard_arrow_down_rounded,
+                                      color: Colors.white70, size: 16),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                        const Spacer(),
+                        const SizedBox(width: 8),
                         InkWell(
                           onTap: _showMapboxConfigDialog,
                           borderRadius: BorderRadius.circular(20),
@@ -656,14 +821,46 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                     ),
                   ),
 
-                // 6. Right-Side Zoom & Fit-Route Controls
+                // 5b. Live GPS position: accuracy circle, dot, heading arrow.
+                if (widget.livePosition != null)
+                  _buildLivePositionLayer(widget.livePosition!, size),
+
+                // 6. Right-Side Location, Zoom & Fit-Route Controls
                 if (widget.showControls)
                   Positioned(
                     right: 12,
-                    bottom: 36,
+                    bottom: widget.controlsBottomOffset,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (widget.livePosition != null &&
+                            widget.onFollowUserChanged != null) ...[
+                          _buildMapIconButton(
+                            icon: widget.followUser
+                                ? Icons.navigation_rounded
+                                : Icons.navigation_outlined,
+                            tooltip: widget.followUser
+                                ? 'Stop Following Me'
+                                : 'Follow My Location',
+                            onTap: () => widget.onFollowUserChanged!
+                                .call(!widget.followUser),
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                        if (widget.repo.hasUserLocation) ...[
+                          _buildMapIconButton(
+                            icon: Icons.my_location_rounded,
+                            tooltip: 'Center on My Location',
+                            onTap: () {
+                              final lat = widget.repo.userLat;
+                              final lng = widget.repo.userLng;
+                              if (lat != null && lng != null) {
+                                flyTo(lat, lng, zoom: math.max(_zoom, 10.6));
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 6),
+                        ],
                         _buildMapIconButton(
                           icon: Icons.add_rounded,
                           tooltip: 'Zoom In',
@@ -680,7 +877,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                         const SizedBox(height: 6),
                         _buildMapIconButton(
                           icon: Icons.center_focus_strong_rounded,
-                          tooltip: 'Fit Davao Route',
+                          tooltip: 'Fit Route Stops',
                           onTap: fitBounds,
                         ),
                       ],
@@ -699,7 +896,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      '© Mapbox • Region XI (${_centerLat.toStringAsFixed(2)}°N, ${_centerLng.toStringAsFixed(2)}°E)',
+                      '© Mapbox • ${_centerLat.toStringAsFixed(2)}°N, ${_centerLng.toStringAsFixed(2)}°E',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 10,
@@ -710,8 +907,104 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                 ),
               ],
             ),
+            ),
           );
         },
+      ),
+    );
+  }
+
+  /// A vehicle sprite moving along routed segments: a car on roads, a boat on
+  /// sea crossings.
+  Widget _buildSegmentSprite(
+    List<(RouteSegmentGeometry, List<Offset>)> segments,
+    double progress,
+  ) {
+    final points = <Offset>[];
+    final modes = <TransportMode>[];
+    for (final (segment, projected) in segments) {
+      for (int i = 0; i < projected.length; i++) {
+        if (points.isNotEmpty && i == 0 && points.last == projected[i]) continue;
+        points.add(projected[i]);
+        modes.add(segment.mode);
+      }
+    }
+    if (points.length < 2) return const SizedBox.shrink();
+    final scaled = progress * (points.length - 1);
+    final index = scaled.floor().clamp(0, points.length - 2);
+    final t = (scaled - index).clamp(0.0, 1.0);
+    final a = points[index];
+    final b = points[index + 1];
+    final position = Offset.lerp(a, b, t) ?? a;
+    final angle = math.atan2(b.dy - a.dy, b.dx - a.dx);
+    final mode = modes[index + 1];
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned(
+          left: position.dx - 16,
+          top: position.dy - 16,
+          child: Transform.rotate(
+            angle: mode == TransportMode.ferry ? 0 : angle + (math.pi / 2),
+            child: Container(
+              width: 32,
+              height: 32,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: mode == TransportMode.ferry
+                      ? _seaRouteColor
+                      : LakbayColors.primary,
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.28),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: Image.asset(
+                _spriteForTransportMode(mode),
+                fit: BoxFit.contain,
+                errorBuilder: (_, _, _) => Icon(
+                  mode == TransportMode.ferry
+                      ? Icons.directions_boat_rounded
+                      : Icons.navigation_rounded,
+                  size: 16,
+                  color: LakbayColors.primary,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUnroutedNotice([
+    String message =
+        'Road route unavailable — dashed lines show stop order only.',
+  ]) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.68),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, size: 16, color: Colors.white),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -772,7 +1065,215 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
     return tiles;
   }
 
+  Widget _buildMarkerImageThumb(LakbayMapMarker marker) {
+    final url = marker.imageUrl?.trim() ?? '';
+    final asset = marker.imageAsset?.trim() ?? '';
+    if (url.isNotEmpty) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => asset.isNotEmpty
+            ? Image.asset(
+                asset,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const Icon(
+                  Icons.place_rounded,
+                  size: 18,
+                  color: LakbayColors.tealDeep,
+                ),
+              )
+            : const Icon(
+                Icons.place_rounded,
+                size: 18,
+                color: LakbayColors.tealDeep,
+              ),
+      );
+    }
+    if (asset.isNotEmpty) {
+      return Image.asset(
+        asset,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const Icon(
+          Icons.place_rounded,
+          size: 18,
+          color: LakbayColors.tealDeep,
+        ),
+      );
+    }
+    return const Icon(
+      Icons.place_rounded,
+      size: 18,
+      color: LakbayColors.tealDeep,
+    );
+  }
+
   Widget _buildMarkerWidget(LakbayMapMarker marker, bool isSelected) {
+    if (marker.isUserLocation) {
+      return Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          AnimatedBuilder(
+            animation: _pulseController,
+            builder: (_, _) {
+              final t = _pulseController.value;
+              return Transform.scale(
+                scale: 0.8 + (t * 1.1),
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF1A73E8)
+                        .withValues(alpha: (1.0 - t) * 0.45),
+                  ),
+                ),
+              );
+            },
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF1A73E8),
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 6,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 2),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: LakbayColors.tealDeep,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'You',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    if (marker.hasThumbnail) {
+      final ringColor = isSelected || marker.isPrimary
+          ? LakbayColors.primary
+          : LakbayColors.tealDeep;
+      final thumbSize = isSelected || marker.isPrimary ? 44.0 : 38.0;
+      return Stack(
+        alignment: Alignment.bottomCenter,
+        clipBehavior: Clip.none,
+        children: [
+          if (isSelected || marker.isPrimary)
+            Positioned(
+              bottom: 10,
+              child: AnimatedBuilder(
+                animation: _pulseController,
+                builder: (_, _) {
+                  final t = _pulseController.value;
+                  return Transform.scale(
+                    scale: 0.8 + (t * 0.65),
+                    child: Container(
+                      width: thumbSize + 6,
+                      height: thumbSize + 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: LakbayColors.primary
+                            .withValues(alpha: (1.0 - t) * 0.42),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          AnimatedScale(
+            scale: isSelected ? 1.1 : 1.0,
+            duration: const Duration(milliseconds: 200),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: thumbSize,
+                      height: thumbSize,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        border: Border.all(
+                          color: ringColor,
+                          width: isSelected ? 3.0 : 2.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.32),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(1.5),
+                      child: ClipOval(child: _buildMarkerImageThumb(marker)),
+                    ),
+                    if (marker.badgeText.isNotEmpty)
+                      Positioned(
+                        right: -6,
+                        bottom: -3,
+                        child: Container(
+                          constraints: const BoxConstraints(maxWidth: 68),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: ringColor,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white, width: 1.1),
+                          ),
+                          child: Text(
+                            marker.badgeText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'FigGrotesk',
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 9.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                CustomPaint(
+                  size: const Size(12, 7),
+                  painter: _PinTrianglePainter(color: ringColor),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
     final spritePath = marker.isOrigin
         ? 'assets/map_sprites/map_from.png'
         : (marker.isDestination
@@ -865,6 +1366,30 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
       );
   }
 
+  Widget _buildLivePositionLayer(LivePosition live, Size size) {
+    final center = _latLngToViewportOffset(live.lat, live.lng, size);
+    // Web-Mercator meters per screen pixel at this latitude and zoom (256px tiles).
+    final metersPerPixel = 156543.03392 *
+        math.cos(live.lat * math.pi / 180) /
+        math.pow(2, _zoom);
+    final accuracyRadius =
+        (live.accuracyMeters / metersPerPixel).clamp(0.0, 400.0);
+    const liveBlue = Color(0xFF1A73E8);
+    return IgnorePointer(
+      child: CustomPaint(
+        size: size,
+        painter: _LivePositionPainter(
+          center: center,
+          accuracyRadius: accuracyRadius,
+          headingRadians: live.headingDegrees == null
+              ? null
+              : live.headingDegrees! * math.pi / 180,
+          color: liveBlue,
+        ),
+      ),
+    );
+  }
+
   Widget _buildMapIconButton({
     required IconData icon,
     required String tooltip,
@@ -911,17 +1436,17 @@ class _PinTrianglePainter extends CustomPainter {
       oldDelegate.color != color;
 }
 
+/// Draws a road route from decoded road geometry. Callers must only pass
+/// provider road geometry (never raw stop coordinates).
 class _AnimatedRoutePolylinePainter extends CustomPainter {
   final List<Offset> points;
   final double progress;
   final bool isDark;
-  final bool isExactRoadPath;
 
   const _AnimatedRoutePolylinePainter({
     required this.points,
     required this.progress,
     required this.isDark,
-    this.isExactRoadPath = false,
   });
 
   @override
@@ -929,20 +1454,8 @@ class _AnimatedRoutePolylinePainter extends CustomPainter {
     if (points.length < 2) return;
 
     final fullPath = Path()..moveTo(points.first.dx, points.first.dy);
-    if (isExactRoadPath) {
-      for (int i = 1; i < points.length; i++) {
-        fullPath.lineTo(points[i].dx, points[i].dy);
-      }
-    } else {
-      for (int i = 1; i < points.length; i++) {
-        final prev = points[i - 1];
-        final curr = points[i];
-        final mid = Offset((prev.dx + curr.dx) / 2, (prev.dy + curr.dy) / 2);
-        final dx = curr.dx - prev.dx;
-        final dy = curr.dy - prev.dy;
-        final control = Offset(mid.dx - dy * 0.16, mid.dy + dx * 0.16);
-        fullPath.quadraticBezierTo(control.dx, control.dy, curr.dx, curr.dy);
-      }
+    for (int i = 1; i < points.length; i++) {
+      fullPath.lineTo(points[i].dx, points[i].dy);
     }
 
     // 1. Subtle ghost track for entire route
@@ -980,6 +1493,198 @@ class _AnimatedRoutePolylinePainter extends CustomPainter {
       );
     }
 
+  }
+
+  @override
+  bool shouldRepaint(covariant _AnimatedRoutePolylinePainter oldDelegate) =>
+      true;
+}
+
+const Color _seaRouteColor = Color(0xFF1E88E5);
+
+class _LivePositionPainter extends CustomPainter {
+  final Offset center;
+  final double accuracyRadius;
+  final double? headingRadians;
+  final Color color;
+
+  const _LivePositionPainter({
+    required this.center,
+    required this.accuracyRadius,
+    required this.headingRadians,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (accuracyRadius > 10) {
+      canvas.drawCircle(
+          center, accuracyRadius, Paint()..color = color.withValues(alpha: 0.12));
+      canvas.drawCircle(
+        center,
+        accuracyRadius,
+        Paint()
+          ..color = color.withValues(alpha: 0.35)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+    }
+    final heading = headingRadians;
+    if (heading != null) {
+      // Heading cone pointing the direction of travel (0 = north, clockwise).
+      final cone = Path()
+        ..moveTo(center.dx, center.dy)
+        ..arcTo(
+          Rect.fromCircle(center: center, radius: 30),
+          heading - math.pi / 2 - 0.45,
+          0.9,
+          false,
+        )
+        ..close();
+      canvas.drawPath(
+        cone,
+        Paint()
+          ..shader = RadialGradient(colors: [
+            color.withValues(alpha: 0.55),
+            color.withValues(alpha: 0.0),
+          ]).createShader(Rect.fromCircle(center: center, radius: 30)),
+      );
+    }
+    canvas.drawCircle(center, 11, Paint()..color = Colors.white);
+    canvas.drawCircle(center, 8, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _LivePositionPainter oldDelegate) =>
+      oldDelegate.center != center ||
+      oldDelegate.accuracyRadius != accuracyRadius ||
+      oldDelegate.headingRadians != headingRadians;
+}
+
+void _drawDashedPolyline(
+  Canvas canvas,
+  List<Offset> points,
+  Paint paint, {
+  double dash = 8,
+  double gap = 7,
+}) {
+  for (int i = 1; i < points.length; i++) {
+    final a = points[i - 1];
+    final b = points[i];
+    final length = (b - a).distance;
+    if (length <= 0) continue;
+    final dir = (b - a) / length;
+    for (double d = 0; d < length; d += dash + gap) {
+      canvas.drawLine(a + dir * d, a + dir * math.min(d + dash, length), paint);
+    }
+  }
+}
+
+/// Draws pier-aware routes part by part so a road never appears over water.
+class _SegmentedRoutePainter extends CustomPainter {
+  final List<(RouteSegmentGeometry, List<Offset>)> segments;
+  final bool isDark;
+
+  const _SegmentedRoutePainter({required this.segments, required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final (segment, points) in segments) {
+      if (points.length < 2) continue;
+      if (segment.isSea) {
+        _drawDashedPolyline(
+          canvas,
+          points,
+          Paint()
+            ..color = Colors.white.withValues(alpha: 0.85)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 6
+            ..strokeCap = StrokeCap.round,
+          dash: 10,
+          gap: 6,
+        );
+        _drawDashedPolyline(
+          canvas,
+          points,
+          Paint()
+            ..color = _seaRouteColor
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3.6
+            ..strokeCap = StrokeCap.round,
+          dash: 10,
+          gap: 6,
+        );
+      } else if (segment.isEstimated) {
+        _drawDashedPolyline(
+          canvas,
+          points,
+          Paint()
+            ..color = (isDark ? Colors.white : const Color(0xFF5B6770))
+                .withValues(alpha: 0.75)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.2
+            ..strokeCap = StrokeCap.round,
+        );
+      } else {
+        final path = Path()..moveTo(points.first.dx, points.first.dy);
+        for (final point in points.skip(1)) {
+          path.lineTo(point.dx, point.dy);
+        }
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = Colors.white.withValues(alpha: 0.88)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 6.5
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round,
+        );
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = LakbayColors.primary
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3.8
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SegmentedRoutePainter oldDelegate) => true;
+}
+
+/// Stop-order connectors shown when no road route is available. Thin, grey
+/// and dashed so they never read as a drivable path.
+class _UnroutedConnectorPainter extends CustomPainter {
+  final List<Offset> points;
+  final bool isDark;
+
+  const _UnroutedConnectorPainter({required this.points, required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = (isDark ? Colors.white : const Color(0xFF5B6770))
+          .withValues(alpha: 0.75)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round;
+    const dash = 8.0;
+    const gap = 7.0;
+    for (int i = 1; i < points.length; i++) {
+      final a = points[i - 1];
+      final b = points[i];
+      final length = (b - a).distance;
+      if (length <= 0) continue;
+      final dir = (b - a) / length;
+      for (double d = 0; d < length; d += dash + gap) {
+        final end = math.min(d + dash, length);
+        canvas.drawLine(a + dir * d, a + dir * end, paint);
+      }
+    }
     for (final pt in points) {
       canvas.drawCircle(pt, 4.5, Paint()..color = Colors.white);
       canvas.drawCircle(pt, 2.8, Paint()..color = LakbayColors.tealDeep);
@@ -987,8 +1692,8 @@ class _AnimatedRoutePolylinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _AnimatedRoutePolylinePainter oldDelegate) =>
-      true;
+  bool shouldRepaint(covariant _UnroutedConnectorPainter oldDelegate) =>
+      oldDelegate.points != points || oldDelegate.isDark != isDark;
 }
 
 class _MapGraticuleBackgroundPainter extends CustomPainter {
