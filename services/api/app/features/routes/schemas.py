@@ -9,13 +9,20 @@ TrafficLevel = Literal["unknown", "light", "moderate", "heavy", "severe"]
 # How the stop order was chosen: kept as requested, exact search over every
 # order with OSRM travel times, OSRM Trip's heuristic, or nearest neighbor
 # improved by 2-opt when OSRM is unavailable or the mode is estimated.
-OrderMethod = Literal["requested", "exact", "osrm_trip", "nearest_neighbor_2opt"]
+# "island_aware" orders stops that need boat crossings so each island's stops
+# are visited together.
+OrderMethod = Literal[
+    "requested", "exact", "osrm_trip", "nearest_neighbor_2opt", "island_aware",
+]
+SegmentMode = Literal["road", "sea"]
 
 
 class RouteCoordinate(BaseModel):
     label: str | None = Field(default=None, max_length=255)
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
+    # Island the origin is on (e.g. "samal"); omitted means the mainland.
+    island_group: str | None = Field(default=None, max_length=50)
 
 
 class RouteBaseRequest(BaseModel):
@@ -68,6 +75,43 @@ class RouteDirectionStep(BaseModel):
     duration_seconds: int = Field(ge=0)
 
 
+class RouteSeaCrossing(BaseModel):
+    """A boat ride between two piers, chosen by Lakbay's sea-link planner."""
+
+    order: int = Field(ge=1)
+    leg_order: int = Field(ge=1, description="The stop-to-stop leg this crossing belongs to.")
+    link_id: int
+    vessel_type: str
+    board_port: str
+    land_port: str
+    board_lat: float
+    board_lng: float
+    land_lat: float
+    land_lng: float
+    distance_km: DistanceKm
+    crossing_minutes: int = Field(ge=0)
+    typical_wait_minutes: int = Field(ge=0)
+    allows_private_vehicle: bool
+    schedule_text: str | None = None
+    fare_passenger: Decimal | None = None
+    fare_vehicle: Decimal | None = None
+    # False until an administrator verifies the piers, schedule and fares.
+    verified: bool = False
+
+
+class RouteSegment(BaseModel):
+    """A drawable part of the route: a road run or a boat crossing."""
+
+    order: int = Field(ge=1)
+    mode: SegmentMode
+    from_name: str
+    to_name: str
+    # Encoded polyline5. For an estimated road run (no road router answer) it
+    # is a straight stop-to-stop connector that must be drawn dashed, not as road.
+    polyline: str | None = None
+    is_estimated: bool = False
+
+
 class RouteLeg(BaseModel):
     order: int
     from_destination_id: int | None
@@ -81,6 +125,8 @@ class RouteLeg(BaseModel):
     traffic_delay_minutes: int | None = Field(default=None, ge=0)
     traffic_level: TrafficLevel | None = None
     steps: list[RouteDirectionStep] = Field(default_factory=list)
+    # Boat rides inside this leg; distance and duration include them.
+    sea_crossings: list[RouteSeaCrossing] = Field(default_factory=list)
 
 
 class RouteFerryCrossing(BaseModel):
@@ -122,3 +168,11 @@ class RouteSummaryResponse(BaseModel):
     # Boat parts of the route. The total time includes the crossing but not
     # waiting at the pier.
     ferry_crossings: list[RouteFerryCrossing] = Field(default_factory=list)
+    # Pier-to-pier boat rides planned by Lakbay. Total time includes the boat
+    # and typical pier waiting time; total distance includes sea_distance_km.
+    sea_crossings: list[RouteSeaCrossing] = Field(default_factory=list)
+    sea_distance_km: DistanceKm = Decimal("0.00")
+    # Road and sea parts in travel order, for drawing each with its own style.
+    segments: list[RouteSegment] = Field(default_factory=list)
+    # Island groups a stop is on that no active sea link reaches.
+    unconnected_island_groups: list[str] = Field(default_factory=list)

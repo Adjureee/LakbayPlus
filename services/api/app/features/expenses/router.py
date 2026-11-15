@@ -80,10 +80,14 @@ async def get_trip_expense_summary(
     trip_id: int,
     session: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User, Depends(get_current_user)],
+    adult_count: int | None = None,
+    child_count: int = 0,
 ) -> TripExpenseSummaryResponse:
     return await ExpenseService(session).get_summary(
         user=current_user,
         trip_id=trip_id,
+        adult_count=adult_count,
+        child_count=child_count,
     )
 
 

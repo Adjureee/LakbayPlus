@@ -20,6 +20,7 @@ class DestinationBase(BaseModel):
     arrival_source_url: str | None = Field(default=None, max_length=2048)
     arrival_verified_at: datetime | None = None
     route_ready: bool = False
+    island_group: str | None = Field(default=None, max_length=50)
     estimated_cost: Decimal | None = Field(
         default=None,
         ge=0,
@@ -87,6 +88,7 @@ class DestinationUpdate(BaseModel):
     arrival_source_url: str | None = Field(default=None, max_length=2048)
     arrival_verified_at: datetime | None = None
     route_ready: bool | None = None
+    island_group: str | None = Field(default=None, max_length=50)
     estimated_cost: Decimal | None = Field(
         default=None,
         ge=0,

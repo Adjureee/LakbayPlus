@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -11,6 +13,12 @@ import 'lakbay_api_catalog_service.dart';
 import 'location_service.dart';
 
 class TravelRepository extends ChangeNotifier {
+  @override
+  void dispose() {
+    _liveSubscription?.cancel();
+    super.dispose();
+  }
+
   TravelRepository({
     LakbayApiCatalogService? apiCatalog,
     LocationService? locationService,
@@ -20,7 +28,10 @@ class TravelRepository extends ChangeNotifier {
         googleAuthService = googleAuthService ?? GoogleAuthService();
 
   final MapboxService mapbox = MapboxService();
-  final LakbayAiService aiService = LakbayAiService();
+  late final LakbayAiService aiService = LakbayAiService(
+    backend: apiCatalog,
+    accessToken: () => _authSession?.accessToken,
+  );
   final CloudinaryService cloudinary = CloudinaryService();
   final LakbayApiCatalogService apiCatalog;
   final LocationService locationService;
@@ -81,7 +92,7 @@ class TravelRepository extends ChangeNotifier {
   BackdropItem get currentBackdrop => _backdrops.isNotEmpty
       ? _backdrops[_activeBackdropIndex % _backdrops.length]
       : const BackdropItem(
-          id: '04-thoddoo',
+          id: '01-samal-island',
           place: 'Samal Island',
           country: 'Davao Region',
           photographer: 'Lakbay+ Curated',
@@ -118,9 +129,56 @@ class TravelRepository extends ChangeNotifier {
   double? get userLat => _userLat;
   double? get userLng => _userLng;
   bool get hasUserLocation => _userLat != null && _userLng != null;
+
+  // ── Live location tracking ────────────────────────────────────────────────
+  LivePosition? _livePosition;
+  StreamSubscription<LivePosition>? _liveSubscription;
+  int _liveTrackingClients = 0;
+
+  /// Latest GPS fix while live tracking runs; null otherwise.
+  LivePosition? get livePosition => _livePosition;
+  bool get isLiveTracking => _liveSubscription != null;
+
+  /// Starts following the device position. Reference counted, so each screen
+  /// that calls this must call [stopLiveTracking] when it goes away. Returns
+  /// false when location sharing is off or permission is not granted.
+  Future<bool> startLiveTracking({bool navigation = false}) async {
+    if (!locationSharingEnabled) return false;
+    _liveTrackingClients++;
+    if (_liveSubscription != null) return true;
+    final allowed = await locationService.ensurePermission();
+    if (!allowed || _liveTrackingClients == 0) {
+      if (!allowed) _liveTrackingClients = math.max(0, _liveTrackingClients - 1);
+      return false;
+    }
+    _liveSubscription = locationService
+        .watchPosition(navigation: navigation)
+        .listen(_onLivePosition, onError: (_) {});
+    return true;
+  }
+
+  void stopLiveTracking() {
+    if (_liveTrackingClients > 0) _liveTrackingClients--;
+    if (_liveTrackingClients > 0) return;
+    _liveSubscription?.cancel();
+    _liveSubscription = null;
+    _livePosition = null;
+    notifyListeners();
+  }
+
+  void _onLivePosition(LivePosition position) {
+    if (!locationSharingEnabled) return;
+    _livePosition = position;
+    // Routing uses the freshest position as its origin. Not persisted per fix;
+    // the next regular save stores the last one.
+    _userLat = position.lat;
+    _userLng = position.lng;
+    notifyListeners();
+  }
   String temperatureUnit = 'C'; // 'C' or 'F'
   String preferredPaymentMethod = 'Set at checkout';
-  final String travelerId = 'lkb9K2mP7x0r12';
+  String get travelerId =>
+      _authSession != null ? 'usr_${_authSession!.userId}' : 'guest';
 
   // Saved Trips & Bucket List
   final List<ItineraryTrip> _savedTrips = [];
@@ -137,15 +195,68 @@ class TravelRepository extends ChangeNotifier {
   };
   Set<String> get bucketListCities => _bucketListCities;
 
-  // Booking Basket
-  final List<BasketItem> _basket = [];
-  List<BasketItem> get basket => List.unmodifiable(_basket);
+  // Explore Multi-Stop Trip Builder & Stateful AI Planning
+  final List<ExploreTrip> _tripBuilderStops = [];
+  List<ExploreTrip> get tripBuilderStops => List.unmodifiable(_tripBuilderStops);
+  Map<String, dynamic>? _planningState;
+  int _planningRevision = 0;
+
+  bool isInTripBuilder(String exploreTripId) =>
+      _tripBuilderStops.any((s) => s.id == exploreTripId);
+
+  void toggleTripBuilderStop(ExploreTrip stop) {
+    final idx = _tripBuilderStops.indexWhere((s) => s.id == stop.id);
+    if (idx >= 0) {
+      _tripBuilderStops.removeAt(idx);
+    } else if (_tripBuilderStops.length < 8) {
+      _tripBuilderStops.add(stop);
+    }
+    notifyListeners();
+  }
+
+  void clearTripBuilder() {
+    if (_tripBuilderStops.isEmpty) return;
+    _tripBuilderStops.clear();
+    notifyListeners();
+  }
+
+  void resetPlanningState() {
+    _planningState = null;
+    _planningRevision = 0;
+  }
+
+  // AI Strict Budget & Route Mode Preferences
+  bool strictBudgetFilter = false;
+  String preferredTravelMode = 'driving'; // driving | public_transport | walking
+
+  void setStrictBudgetFilter(bool value) {
+    if (strictBudgetFilter == value) return;
+    strictBudgetFilter = value;
+    _scheduleSaveState();
+    notifyListeners();
+  }
+
+  void setPreferredTravelMode(String mode) {
+    if (preferredTravelMode == mode) return;
+    preferredTravelMode = mode;
+    _scheduleSaveState();
+    notifyListeners();
+  }
+
+  // Trip Memories & Notifications (replacing deprecated Booking Basket)
+  final List<TripMemoryItem> _memories = [];
+  List<TripMemoryItem> get memories => List.unmodifiable(_memories);
+
+  final List<AppNotificationItem> _notifications = [];
+  List<AppNotificationItem> get notifications => List.unmodifiable(_notifications);
+  int _unreadNotificationCount = 0;
+  int get unreadNotificationCount => _unreadNotificationCount;
 
   // User Profile & Navigation State
   UserProfile _profile = const UserProfile();
   UserProfile get profile => _profile;
 
-  int _activeNavIndex = 2; // 0: Trips, 1: Discover, 2: Chat (center), 3: Bookings, 4: Profile
+  int _activeNavIndex = 2; // 0: Trips, 1: Discover, 2: Chat (center), 3: Memories, 4: Profile
   int get activeNavIndex => _activeNavIndex;
 
   void setActiveNavIndex(int index) {
@@ -189,9 +300,6 @@ class TravelRepository extends ChangeNotifier {
   bool get isSignedIn =>
       _authSession != null && _authSession!.accessToken.isNotEmpty;
 
-  final List<BookedReservation> _bookings = [];
-  List<BookedReservation> get bookings => List.unmodifiable(_bookings);
-
   bool _isSyncingCatalog = false;
   bool get isSyncingCatalog => _isSyncingCatalog;
   DateTime? _lastCatalogSyncAt;
@@ -223,8 +331,9 @@ class TravelRepository extends ChangeNotifier {
         'bucketListTripIds': _bucketListTripIds.toList(),
         'bucketListCities': _bucketListCities.toList(),
         'savedTrips': _savedTrips.map((t) => t.toJson()).toList(),
-        'basket': _basket.map((b) => b.toJson()).toList(),
-        'bookings': _bookings.map((r) => r.toJson()).toList(),
+        'memories': _memories.take(60).map((m) => m.toJson()).toList(),
+        'strictBudgetFilter': strictBudgetFilter,
+        'preferredTravelMode': preferredTravelMode,
         'chatSessions': _chatSessions.take(12).map((s) => s.toJson()).toList(),
         'activeChatId': _activeChatId,
         if (_authSession != null) 'authSession': _authSession!.toJson(),
@@ -292,25 +401,22 @@ class TravelRepository extends ChangeNotifier {
                 .map(ItineraryTrip.fromJson),
           );
       }
-      final basketList = map['basket'] as List<dynamic>?;
-      if (basketList != null) {
-        _basket
+      final memoriesList = map['memories'] as List<dynamic>?;
+      if (memoriesList != null) {
+        _memories
           ..clear()
           ..addAll(
-            basketList
+            memoriesList
                 .whereType<Map<String, dynamic>>()
-                .map(BasketItem.fromJson),
+                .map(TripMemoryItem.fromJson),
           );
       }
-      final bookingsList = map['bookings'] as List<dynamic>?;
-      if (bookingsList != null) {
-        _bookings
-          ..clear()
-          ..addAll(
-            bookingsList
-                .whereType<Map<String, dynamic>>()
-                .map(BookedReservation.fromJson),
-          );
+      strictBudgetFilter = map['strictBudgetFilter'] as bool? ?? false;
+      final savedMode = map['preferredTravelMode'] as String?;
+      if (savedMode == 'driving' ||
+          savedMode == 'public_transport' ||
+          savedMode == 'walking') {
+        preferredTravelMode = savedMode!;
       }
       final sessionsList = map['chatSessions'] as List<dynamic>?;
       if (sessionsList != null && sessionsList.isNotEmpty) {
@@ -355,6 +461,7 @@ class TravelRepository extends ChangeNotifier {
     _chatSessions.insert(0, session);
     _activeChatId = newId;
     _chatMessages.clear();
+    resetPlanningState();
     notifyListeners();
   }
 
@@ -365,6 +472,7 @@ class TravelRepository extends ChangeNotifier {
     _chatMessages
       ..clear()
       ..addAll(_chatSessions[idx].messages);
+    resetPlanningState();
     notifyListeners();
   }
 
@@ -395,6 +503,7 @@ class TravelRepository extends ChangeNotifier {
       }
     }
     refreshLiveFxRates();
+    refreshCurrentLocationSilently();
   }
 
   /// Syncs live active destinations from `/api/v1/destinations`: upserts active
@@ -512,7 +621,35 @@ class TravelRepository extends ChangeNotifier {
     await syncTripsFromBackend();
   }
 
+  void _clearUserSessionData() {
+    _profile = const UserProfile();
+    _savedTrips.clear();
+    _bucketListTripIds.clear();
+    _memories.clear();
+    _notifications.clear();
+    _unreadNotificationCount = 0;
+    _chatMessages.clear();
+    _chatSessions
+      ..clear()
+      ..add(
+        ChatSession(
+          id: 'chat_new',
+          title: 'New Trip',
+          groupLabel: 'Today',
+          isTrip: false,
+          createdAt: DateTime.now(),
+          messages: const [],
+        ),
+      );
+    _activeChatId = 'chat_new';
+  }
+
   void _applyAuthSession(LakbayAuthSession session) {
+    final switchingAccount =
+        _authSession == null || _authSession!.userId != session.userId;
+    if (switchingAccount) {
+      _clearUserSessionData();
+    }
     _authSession = session;
     final parts = session.fullName
         .trim()
@@ -520,7 +657,7 @@ class TravelRepository extends ChangeNotifier {
         .where((s) => s.isNotEmpty)
         .toList();
     _profile = _profile.copyWith(
-      firstName: parts.isNotEmpty ? parts.first : _profile.firstName,
+      firstName: parts.isNotEmpty ? parts.first : 'Lakbay',
       lastName: parts.length > 1 ? parts.sublist(1).join(' ') : '',
       email: session.email,
     );
@@ -531,8 +668,14 @@ class TravelRepository extends ChangeNotifier {
   Future<void> signOutBackend() async {
     final refreshToken = _authSession?.refreshToken ?? '';
     _authSession = null;
+    _clearUserSessionData();
+    await googleAuthService.signOut();
     if (refreshToken.isNotEmpty) {
-      await apiCatalog.logout(refreshToken);
+      try {
+        await apiCatalog.logout(refreshToken);
+      } catch (_) {
+        // Local sign-out still completes if the network request fails.
+      }
     }
     _scheduleSaveState();
     notifyListeners();
@@ -557,35 +700,67 @@ class TravelRepository extends ChangeNotifier {
           .whereType<num>()
           .map((n) => n.toInt())
           .toList();
+      ExploreTrip? matchedCatalog;
+      if (destIds.isNotEmpty) {
+        final primaryId = destIds.first;
+        for (final exp in _allTrips) {
+          if (exp.apiDestinationId == primaryId) {
+            matchedCatalog = exp;
+            break;
+          }
+        }
+      }
+      final detail = await apiCatalog.getTripDetail(
+        _authSession!.accessToken,
+        tripId,
+      );
+      final parsedDays = detail != null
+          ? _parseCloudItineraryDays(detail['itinerary_days'], phpRate)
+          : <ItineraryDay>[];
       final base = generateCustomTrip(
         id: 'cloud_$tripId',
         title: title,
-        destination: title,
-        daysCount: 3,
+        destination: row['description']?.toString() ?? title,
+        daysCount: parsedDays.isNotEmpty ? parsedDays.length : 3,
         vibe: 'Cloud Synced Trip',
+        heroAsset: matchedCatalog?.localAssetPath,
+        centerLat: matchedCatalog?.lat,
+        centerLng: matchedCatalog?.lng,
       );
       _savedTrips.add(
         ItineraryTrip(
           id: base.id,
           title: base.title,
           destination: row['description']?.toString() ?? base.destination,
-          daysCount: base.daysCount,
+          daysCount: parsedDays.isNotEmpty ? parsedDays.length : base.daysCount,
           adults: (row['traveler_count'] as num?)?.toInt() ?? 2,
           centerLat: base.centerLat,
           centerLng: base.centerLng,
           heroAsset: base.heroAsset,
+          remoteImageUrl: matchedCatalog?.hasRemoteThumbnail == true
+              ? matchedCatalog!.thumbnailUrl
+              : null,
           vibeTag: base.vibeTag,
           overviewText: row['notes']?.toString() ??
+              matchedCatalog?.description ??
               'Synced from your Lakbay+ cloud account (est. ₱${estCostPhp.toStringAsFixed(0)}, ~${(estCostPhp / phpRate).round()} USD).',
-          bestMonths: base.bestMonths,
+          bestMonths: matchedCatalog?.bestTimeToVisit ?? base.bestMonths,
           avgTemp: base.avgTemp,
           expertName: base.expertName,
-          expertTip: base.expertTip,
-          days: base.days,
-          flights: base.flights,
+          expertTip: matchedCatalog?.travelNotes ?? base.expertTip,
+          days: parsedDays.isNotEmpty ? parsedDays : base.days,
+          flights: const [],
           hotels: base.hotels,
           backendTripId: tripId,
+          backendDestinationId: destIds.isNotEmpty ? destIds.first : null,
           backendDestinationIds: destIds,
+          whatToBring: matchedCatalog?.whatToBring,
+          entranceFee: matchedCatalog?.entranceFee,
+          operatingHours: matchedCatalog?.operatingHours,
+          isLocalOnly: true,
+          backendEstimatedCostPhp: estCostPhp > 0 ? estCostPhp : null,
+          backendBudgetPhp:
+              double.tryParse((row['total_budget'] ?? '0').toString()),
         ),
       );
       updated = true;
@@ -594,6 +769,8 @@ class TravelRepository extends ChangeNotifier {
       _scheduleSaveState();
       notifyListeners();
     }
+    await refreshNotifications();
+    await refreshMemoriesForSavedTrips();
   }
 
   /// Fetches live accommodations, transport rates, and live weather for a trip's
@@ -631,10 +808,7 @@ class TravelRepository extends ChangeNotifier {
       _transportRatesByDestId[destId] = market.transports;
     }
 
-    final mergedHotels = <HotelOffer>[
-      ...market.hotels,
-      ...trip.hotels.where((h) => !h.id.startsWith('acc_')),
-    ];
+    final mergedHotels = market.hotels.isNotEmpty ? market.hotels : trip.hotels;
 
     final updatedDays = trip.days.map((d) {
       if (weather == null || d.dayNumber != 1) return d;
@@ -644,6 +818,41 @@ class TravelRepository extends ChangeNotifier {
       );
     }).toList();
 
+    ExploreTrip? matchedCatalog;
+    for (final exp in _allTrips) {
+      if (exp.apiDestinationId == destId) {
+        matchedCatalog = exp;
+        break;
+      }
+    }
+
+    final advisories = <String>[];
+    if (isSignedIn) {
+      final fb = await apiCatalog.evaluatePlanningFeedback(
+        _authSession!.accessToken,
+        state: {
+          'destination_ids': destIds.take(10).toList(),
+          'day_count': trip.daysCount.clamp(1, 30),
+          'traveler_count': (trip.adults + trip.children).clamp(1, 100),
+          if (trip.backendBudgetPhp != null && trip.backendBudgetPhp! > 0)
+            'total_budget': trip.backendBudgetPhp!.toStringAsFixed(2),
+          if (market.hotels.isNotEmpty &&
+              market.hotels.first.apiAccommodationId != null)
+            'selected_accommodation_ids': [
+              market.hotels.first.apiAccommodationId!,
+            ],
+        },
+        travelingWithChildren: trip.children > 0,
+      );
+      if (fb != null) {
+        advisories.addAll(
+          fb.findings
+              .map((f) => f.message.trim())
+              .where((m) => m.isNotEmpty),
+        );
+      }
+    }
+
     final enriched = trip.copyWith(
       hotels: mergedHotels,
       avgTemp: weather != null
@@ -651,6 +860,8 @@ class TravelRepository extends ChangeNotifier {
           : null,
       wmoWeatherCode: weather?.wmoCode,
       days: updatedDays,
+      whatToBring: trip.whatToBring ?? matchedCatalog?.whatToBring,
+      advisories: advisories.isNotEmpty ? advisories : trip.advisories,
     );
 
     final savedIdx = _savedTrips.indexWhere((t) => t.id == trip.id);
@@ -662,79 +873,251 @@ class TravelRepository extends ChangeNotifier {
     return enriched;
   }
 
+  /// [destinationIds] overrides the trip's stops, e.g. only the stops not yet
+  /// reached when rerouting from the traveler's live position.
   Future<BackendRouteResult?> fetchRoadRouteForTrip(
     ItineraryTrip trip, {
     bool optimize = false,
+    String? travelMode,
+    List<int>? destinationIds,
   }) async {
-    final destIds = trip.effectiveBackendDestinationIds;
+    final destIds = destinationIds ?? trip.effectiveBackendDestinationIds;
     if (!isSignedIn || destIds.isEmpty || !apiCatalog.isConfigured) {
       return null;
     }
+    final mode = travelMode ?? preferredTravelMode;
+    final origin = _routeOriginFromUserLocation();
     if (optimize && destIds.length >= 2) {
       return apiCatalog.optimizeRoute(
         _authSession!.accessToken,
         destinationIds: destIds,
+        travelMode: mode,
+        origin: origin,
       );
     }
     return apiCatalog.previewRoute(
       _authSession!.accessToken,
       destinationIds: destIds,
+      travelMode: mode,
+      origin: origin,
     );
   }
 
-  Future<BookedReservation> recordReservationCheckout({
-    required String paymentMethod,
+  /// The traveler's GPS position as the route start, only when it is inside
+  /// Region XI; a far-away origin cannot produce a meaningful Davao road route.
+  GeoPoint? _routeOriginFromUserLocation() {
+    final lat = _userLat;
+    final lng = _userLng;
+    if (lat == null || lng == null) return null;
+    final insideRegion = lat >= MapboxService.davaoMinLat &&
+        lat <= MapboxService.davaoMaxLat &&
+        lng >= MapboxService.davaoMinLng &&
+        lng <= MapboxService.davaoMaxLng;
+    if (!insideRegion) return null;
+    return GeoPoint(lat: lat, lng: lng, label: effectiveOriginLabel);
+  }
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+
+  Future<void> refreshNotifications() async {
+    if (!isSignedIn || !apiCatalog.isConfigured) return;
+    final items = await apiCatalog.fetchNotifications(_authSession!.accessToken);
+    final unread = await apiCatalog.getUnreadNotificationCount(
+      _authSession!.accessToken,
+    );
+    _notifications
+      ..clear()
+      ..addAll(items);
+    _unreadNotificationCount = unread;
+    notifyListeners();
+  }
+
+  Future<void> markNotificationRead(int notificationId) async {
+    if (!isSignedIn || !apiCatalog.isConfigured) return;
+    final ok = await apiCatalog.markNotificationRead(
+      _authSession!.accessToken,
+      notificationId,
+    );
+    if (!ok) return;
+    for (int i = 0; i < _notifications.length; i++) {
+      if (_notifications[i].notificationId == notificationId &&
+          !_notifications[i].isRead) {
+        _notifications[i] = _notifications[i].copyWith(isRead: true);
+        if (_unreadNotificationCount > 0) _unreadNotificationCount--;
+        break;
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    if (!isSignedIn || !apiCatalog.isConfigured) return;
+    final ok = await apiCatalog.markAllNotificationsRead(
+      _authSession!.accessToken,
+    );
+    if (!ok) return;
+    for (int i = 0; i < _notifications.length; i++) {
+      _notifications[i] = _notifications[i].copyWith(isRead: true);
+    }
+    _unreadNotificationCount = 0;
+    notifyListeners();
+  }
+
+  // ── Memories Album (Replaces Bookings) ─────────────────────────────────────
+
+  Future<void> refreshMemoriesForSavedTrips() async {
+    if (!isSignedIn || !apiCatalog.isConfigured) return;
+    final merged = <TripMemoryItem>[];
+    final seenIds = <int>{};
+    for (final trip in _savedTrips) {
+      final tid = trip.backendTripId;
+      if (tid == null) continue;
+      final list = await apiCatalog.listTripMemories(
+        _authSession!.accessToken,
+        tid,
+      );
+      for (final item in list) {
+        if (seenIds.add(item.tripMemoryId)) {
+          merged.add(item);
+        }
+      }
+    }
+    if (merged.isNotEmpty) {
+      merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _memories
+        ..clear()
+        ..addAll(merged);
+      _scheduleSaveState();
+      notifyListeners();
+    }
+  }
+
+  Future<List<TripMemoryItem>> loadMemoriesForTrip(int backendTripId) async {
+    if (!isSignedIn || !apiCatalog.isConfigured) {
+      return _memories.where((m) => m.tripId == backendTripId).toList();
+    }
+    final items = await apiCatalog.listTripMemories(
+      _authSession!.accessToken,
+      backendTripId,
+    );
+    _memories.removeWhere((m) => m.tripId == backendTripId);
+    _memories.insertAll(0, items);
+    _memories.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    _scheduleSaveState();
+    notifyListeners();
+    return items;
+  }
+
+  Future<TripMemoryItem?> uploadAndAddMemory({
+    required ItineraryTrip trip,
+    required String localFilePath,
+    String? caption,
+    String? locationTag,
   }) async {
-    final items = List<BasketItem>.from(_basket);
-    final totalUsd = basketTotalUsd;
-    final phpRate = _currencyRates['PHP'] ?? 57.0;
-    final destIds = items
-        .map((i) => i.backendDestinationId)
-        .whereType<int>()
-        .toSet()
-        .toList();
-    if (destIds.isEmpty) {
-      for (final saved in _savedTrips) {
-        destIds.addAll(saved.effectiveBackendDestinationIds);
+    var tripId = trip.backendTripId;
+    if (isSignedIn && tripId == null && apiCatalog.isConfigured) {
+      final destIds = trip.effectiveBackendDestinationIds;
+      if (destIds.isNotEmpty) {
+        final phpRate = _currencyRates['PHP'] ?? 57.0;
+        tripId = await apiCatalog.createTrip(
+          _authSession!.accessToken,
+          title: trip.title,
+          totalBudgetPhp:
+              (trip.totalEstimatedCostUsd * phpRate).clamp(500, 9999999),
+          estimatedTotalCostPhp:
+              (trip.totalEstimatedCostUsd * phpRate).clamp(0, 9999999),
+          destinationIds: destIds,
+        );
+        if (tripId != null) {
+          updateTripDetails(trip.copyWith(backendTripId: tripId));
+        }
       }
     }
 
-    int? cloudTripId;
-    var synced = false;
-    final summaryTitle = items.isNotEmpty
-        ? '${items.first.title}${items.length > 1 ? ' + ${items.length - 1} more' : ''}'
-        : 'Davao Region Reservation';
-
-    if (isSignedIn && destIds.isNotEmpty && apiCatalog.isConfigured) {
-      cloudTripId = await apiCatalog.createTrip(
+    if (isSignedIn && tripId != null && apiCatalog.isConfigured) {
+      final uploaded = await apiCatalog.uploadTripMemoryPhoto(
         _authSession!.accessToken,
-        title: summaryTitle,
-        totalBudgetPhp: (totalUsd * phpRate).clamp(500, 9999999),
-        estimatedTotalCostPhp: (totalUsd * phpRate).clamp(0, 9999999),
-        destinationIds: destIds.toSet().toList(),
-        notes: 'Reserved in Lakbay+ ($paymentMethod): '
-            '${items.map((i) => i.title).join(', ')}',
+        tripId,
+        filePath: localFilePath,
       );
-      synced = cloudTripId != null;
+      if (uploaded != null && uploaded.imageUrl.isNotEmpty) {
+        final created = await apiCatalog.createTripMemory(
+          _authSession!.accessToken,
+          tripId,
+          imageUrl: uploaded.imageUrl,
+          cloudinaryPublicId: uploaded.publicId,
+          destinationId: trip.backendDestinationId,
+          caption: caption,
+          locationTag: locationTag ?? trip.destination,
+        );
+        if (created != null) {
+          _memories.insert(0, created);
+          _scheduleSaveState();
+          notifyListeners();
+          return created;
+        }
+      }
     }
 
-    final record = BookedReservation(
-      id: 'res_${DateTime.now().millisecondsSinceEpoch}',
-      summaryTitle: summaryTitle,
-      itemsSummary: items.map((i) => '${i.category}: ${i.title}').join(' • '),
-      totalUsd: totalUsd,
-      paymentMethod: paymentMethod,
-      bookedAtIso: DateTime.now().toIso8601String(),
-      backendTripId: cloudTripId,
-      syncedToCloud: synced,
+    // Local device fallback when offline or guest
+    final localMemory = TripMemoryItem(
+      tripMemoryId: -DateTime.now().millisecondsSinceEpoch,
+      tripId: tripId ?? 0,
+      uploadedByFullName: _profile.fullName,
+      destinationId: trip.backendDestinationId,
+      destinationName: trip.title,
+      imageUrl: trip.remoteImageUrl ?? '',
+      localFilePath: localFilePath,
+      caption: caption,
+      locationTag: locationTag ?? trip.destination,
+      createdAt: DateTime.now(),
     );
-
-    preferredPaymentMethod = paymentMethod;
-    _bookings.insert(0, record);
-    _basket.clear();
+    _memories.insert(0, localMemory);
     _scheduleSaveState();
     notifyListeners();
-    return record;
+    return localMemory;
+  }
+
+  Future<void> likeMemory(TripMemoryItem memory) async {
+    final idx = _memories.indexWhere(
+      (m) => m.tripMemoryId == memory.tripMemoryId,
+    );
+    if (idx < 0) return;
+    _memories[idx] = TripMemoryItem(
+      tripMemoryId: memory.tripMemoryId,
+      tripId: memory.tripId,
+      uploadedByFullName: memory.uploadedByFullName,
+      destinationId: memory.destinationId,
+      destinationName: memory.destinationName,
+      imageUrl: memory.imageUrl,
+      localFilePath: memory.localFilePath,
+      caption: memory.caption,
+      locationTag: memory.locationTag,
+      likeCount: memory.likeCount + 1,
+      commentCount: memory.commentCount,
+      createdAt: memory.createdAt,
+    );
+    notifyListeners();
+    if (isSignedIn && memory.tripMemoryId > 0 && memory.tripId > 0) {
+      await apiCatalog.likeTripMemory(
+        _authSession!.accessToken,
+        memory.tripId,
+        memory.tripMemoryId,
+      );
+    }
+  }
+
+  Future<void> deleteMemory(TripMemoryItem memory) async {
+    _memories.removeWhere((m) => m.tripMemoryId == memory.tripMemoryId);
+    _scheduleSaveState();
+    notifyListeners();
+    if (isSignedIn && memory.tripMemoryId > 0 && memory.tripId > 0) {
+      await apiCatalog.deleteTripMemory(
+        _authSession!.accessToken,
+        memory.tripId,
+        memory.tripMemoryId,
+      );
+    }
   }
 
   String formatPrice(num usdAmount) {
@@ -807,6 +1190,10 @@ class TravelRepository extends ChangeNotifier {
     if (!enabled) {
       _userLat = null;
       _userLng = null;
+      _liveSubscription?.cancel();
+      _liveSubscription = null;
+      _liveTrackingClients = 0;
+      _livePosition = null;
     }
     _scheduleSaveState();
     notifyListeners();
@@ -853,12 +1240,9 @@ class TravelRepository extends ChangeNotifier {
   }
 
   void resetAccountData() {
-    _profile = const UserProfile();
-    _savedTrips.clear();
-    _basket.clear();
-    _bookings.clear();
-    _chatMessages.clear();
     _authSession = null;
+    _clearUserSessionData();
+    googleAuthService.signOut();
     _hasCompletedOnboarding = false;
     _activeNavIndex = 2;
     _prefs?.remove(_storageKey);
@@ -923,62 +1307,458 @@ class TravelRepository extends ChangeNotifier {
     _scheduleSaveState();
     notifyListeners();
 
-    if (isSignedIn &&
-        trip.backendTripId == null &&
-        trip.effectiveBackendDestinationIds.isNotEmpty) {
+    if (isSignedIn && trip.backendTripId == null) {
+      if (trip.aiGenerationRunId != null && trip.aiOptionNumber != null) {
+        apiCatalog
+            .createTripFromAiOption(
+              _authSession!.accessToken,
+              generationRunId: trip.aiGenerationRunId!,
+              optionNumber: trip.aiOptionNumber!,
+              notes: trip.overviewText,
+            )
+            .then((cloudId) {
+          if (cloudId == null) return;
+          final idx = _savedTrips.indexWhere((t) => t.id == trip.id);
+          if (idx >= 0) {
+            _savedTrips[idx] = _savedTrips[idx].copyWith(backendTripId: cloudId);
+            _scheduleSaveState();
+            notifyListeners();
+          }
+        });
+      } else if (trip.effectiveBackendDestinationIds.isNotEmpty) {
+        final phpRate = _currencyRates['PHP'] ?? 57.0;
+        final totalPhp =
+            trip.backendEstimatedCostPhp ??
+            (trip.totalEstimatedCostUsd * phpRate).clamp(100, 9999999).toDouble();
+        apiCatalog
+            .createTrip(
+              _authSession!.accessToken,
+              title: trip.title,
+              description: trip.destination,
+              travelerCount: trip.adults + trip.children,
+              totalBudgetPhp: trip.backendBudgetPhp ?? totalPhp,
+              estimatedTotalCostPhp: totalPhp,
+              destinationIds: trip.effectiveBackendDestinationIds,
+              notes: trip.overviewText,
+              itineraryDays: _serializeItineraryDays(trip.days, phpRate),
+            )
+            .then((cloudId) {
+          if (cloudId == null) return;
+          final idx = _savedTrips.indexWhere((t) => t.id == trip.id);
+          if (idx >= 0) {
+            _savedTrips[idx] = _savedTrips[idx].copyWith(backendTripId: cloudId);
+            _scheduleSaveState();
+            notifyListeners();
+          }
+        });
+      }
+    }
+  }
+
+  void updateTripDetails(ItineraryTrip updated) {
+    final idx = _savedTrips.indexWhere((t) => t.id == updated.id);
+    if (idx >= 0) {
+      _savedTrips[idx] = updated;
+      _scheduleSaveState();
+      notifyListeners();
+    }
+    if (isSignedIn && updated.backendTripId != null) {
       final phpRate = _currencyRates['PHP'] ?? 57.0;
-      final totalPhp = (trip.totalEstimatedCostUsd * phpRate).clamp(100, 9999999).toDouble();
-      apiCatalog
-          .createTrip(
-            _authSession!.accessToken,
-            title: trip.title,
-            description: trip.destination,
-            travelerCount: trip.adults + trip.children,
-            totalBudgetPhp: totalPhp,
-            estimatedTotalCostPhp: totalPhp,
-            destinationIds: trip.effectiveBackendDestinationIds,
-            notes: trip.overviewText,
-          )
-          .then((cloudId) {
-        if (cloudId == null) return;
-        final idx = _savedTrips.indexWhere((t) => t.id == trip.id);
-        if (idx >= 0) {
-          _savedTrips[idx] = _savedTrips[idx].copyWith(backendTripId: cloudId);
-          _scheduleSaveState();
-          notifyListeners();
-        }
-      });
+      apiCatalog.updateTrip(
+        _authSession!.accessToken,
+        updated.backendTripId!,
+        title: updated.title,
+        travelerCount: updated.adults + updated.children,
+        totalBudgetPhp:
+            updated.backendBudgetPhp ?? (updated.totalEstimatedCostUsd * phpRate),
+        estimatedTotalCostPhp:
+            updated.backendEstimatedCostPhp ??
+            (updated.totalEstimatedCostUsd * phpRate),
+        notes: updated.overviewText,
+      );
     }
   }
 
   void removeSavedTrip(String tripId) {
+    final idx = _savedTrips.indexWhere((t) => t.id == tripId);
+    final cloudId = idx >= 0 ? _savedTrips[idx].backendTripId : null;
     _savedTrips.removeWhere((t) => t.id == tripId);
     _scheduleSaveState();
     notifyListeners();
-  }
-
-  void addToBasket(BasketItem item) {
-    if (!_basket.any((b) => b.id == item.id)) {
-      _basket.add(item);
-      _scheduleSaveState();
-      notifyListeners();
+    if (isSignedIn && cloudId != null) {
+      apiCatalog.deleteTrip(_authSession!.accessToken, cloudId);
     }
   }
 
-  void removeFromBasket(String id) {
-    _basket.removeWhere((b) => b.id == id);
-    _scheduleSaveState();
-    notifyListeners();
+  Future<ItineraryTrip> optimizeStopsForTrip(
+    ItineraryTrip trip, {
+    String? travelMode,
+  }) async {
+    if (trip.days.length <= 2) return trip;
+    var reorderedDays = List<ItineraryDay>.from(trip.days);
+    final destIds = trip.effectiveBackendDestinationIds;
+    if (isSignedIn && destIds.length >= 2) {
+      final optimized = await fetchRoadRouteForTrip(
+        trip,
+        optimize: true,
+        travelMode: travelMode,
+      );
+      if (optimized != null && optimized.orderedDestinationIds.length >= 2) {
+        final orderIndex = <int, int>{
+          for (int i = 0; i < optimized.orderedDestinationIds.length; i++)
+            optimized.orderedDestinationIds[i]: i,
+        };
+        reorderedDays.sort((a, b) {
+          final ia = orderIndex[a.apiDestinationId] ?? a.dayNumber;
+          final ib = orderIndex[b.apiDestinationId] ?? b.dayNumber;
+          return ia.compareTo(ib);
+        });
+      }
+    } else {
+      // Nearest-neighbor Haversine route ordering from Day 1
+      final remaining = List<ItineraryDay>.from(reorderedDays);
+      final ordered = <ItineraryDay>[remaining.removeAt(0)];
+      while (remaining.isNotEmpty) {
+        final last = ordered.last;
+        var bestIdx = 0;
+        var bestDist = double.infinity;
+        for (int i = 0; i < remaining.length; i++) {
+          final d = _haversineKm(
+            last.lat,
+            last.lng,
+            remaining[i].lat,
+            remaining[i].lng,
+          );
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = i;
+          }
+        }
+        ordered.add(remaining.removeAt(bestIdx));
+      }
+      reorderedDays = ordered;
+    }
+    final normalized = [
+      for (int i = 0; i < reorderedDays.length; i++)
+        reorderedDays[i].copyWith(dayNumber: i + 1),
+    ];
+    final nextTrip = trip.copyWith(days: normalized, daysCount: normalized.length);
+    updateTripDetails(nextTrip);
+    return nextTrip;
   }
 
-  void clearBasket() {
-    _basket.clear();
-    _scheduleSaveState();
-    notifyListeners();
+  Future<ItineraryTrip?> refineTripWithAi(
+    ItineraryTrip trip,
+    String instruction,
+  ) async {
+    final destIds = trip.effectiveBackendDestinationIds;
+    final phpRate = _currencyRates['PHP'] ?? 57.0;
+    if (isSignedIn && destIds.isNotEmpty && apiCatalog.isConfigured) {
+      final generated = await apiCatalog.generateAiItineraries(
+        _authSession!.accessToken,
+        totalBudgetPhp:
+            trip.backendBudgetPhp ??
+            (trip.totalEstimatedCostUsd * phpRate).clamp(1500, 500000),
+        travelerCount: (trip.adults + trip.children).clamp(1, 100),
+        dayCount: trip.daysCount.clamp(1, 30),
+        destinationIds: destIds,
+        specialRequirements: instruction,
+        travelStyle: instruction,
+      );
+      if (generated != null && generated.options.isNotEmpty) {
+        final opt = _parseBackendAiOption(
+          generated.options.first,
+          generationRunId: generated.generationRunId,
+          fallbackTrip: trip,
+        );
+        updateTripDetails(opt.trip);
+        return opt.trip;
+      }
+    }
+    if (aiService.isConfigured) {
+      try {
+        final aiRes = await aiService.chatOrPlan(
+          userPrompt:
+              'Refine my ${trip.daysCount}-day ${trip.destination} trip: $instruction',
+          availableDestinations: _allTrips.map((e) => e.title).toList(),
+          currentLocation: effectiveOriginLabel,
+          userLat: _userLat,
+          userLng: _userLng,
+          preferredVibes: selectedVibes,
+          strictBudget: strictBudgetFilter,
+        );
+        if (aiRes.hasStructuredItinerary) {
+          final refined = _buildItineraryFromAi(aiRes).copyWith(
+            backendTripId: trip.backendTripId,
+            backendDestinationIds: trip.backendDestinationIds,
+          );
+          updateTripDetails(refined);
+          return refined;
+        }
+      } catch (_) {}
+    }
+    return null;
   }
 
-  int get basketTotalUsd =>
-      _basket.fold(0, (sum, item) => sum + item.priceUsd);
+  Future<ItineraryTrip> buildMultiStopExploreTrip({
+    int? daysCount,
+    double? budgetPhp,
+    int travelers = 2,
+  }) async {
+    final stops = List<ExploreTrip>.from(_tripBuilderStops);
+    if (stops.isEmpty) {
+      return generateCustomTrip(
+        destination: 'Davao Region Highlights',
+        daysCount: daysCount ?? 3,
+        vibe: 'Curated Multi-Stop',
+        includeFlights: false,
+      );
+    }
+    final count = (daysCount ?? stops.length.clamp(2, 7)).clamp(1, 14);
+    final destIds = stops
+        .map((s) => s.apiDestinationId)
+        .whereType<int>()
+        .toList();
+    final primary = stops.first;
+    final avgBudgetPhp = budgetPhp ?? (count * 3800.0 * travelers);
+
+    if (isSignedIn && destIds.isNotEmpty && apiCatalog.isConfigured) {
+      final generated = await apiCatalog.generateAiItineraries(
+        _authSession!.accessToken,
+        totalBudgetPhp: avgBudgetPhp,
+        travelerCount: travelers,
+        dayCount: count,
+        destinationIds: destIds,
+      );
+      if (generated != null && generated.options.isNotEmpty) {
+        final opt = _parseBackendAiOption(
+          generated.options.first,
+          generationRunId: generated.generationRunId,
+          preferredRemoteImageUrl:
+              primary.hasRemoteThumbnail ? primary.thumbnailUrl : null,
+          preferredHeroAsset: primary.localAssetPath,
+          fallbackDestinationIds: destIds,
+        );
+        clearTripBuilder();
+        return opt.trip;
+      }
+    }
+
+    // Offline / guest multi-stop nearest-neighbor builder
+    final ordered = <ExploreTrip>[stops.first];
+    final pool = stops.skip(1).toList();
+    while (pool.isNotEmpty) {
+      final last = ordered.last;
+      var bestIdx = 0;
+      var bestDist = double.infinity;
+      for (int i = 0; i < pool.length; i++) {
+        final d = _haversineKm(last.lat, last.lng, pool[i].lat, pool[i].lng);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      ordered.add(pool.removeAt(bestIdx));
+    }
+
+    final builtDays = <ItineraryDay>[];
+    for (int i = 0; i < count; i++) {
+      final stop = ordered[i % ordered.length];
+      final cleanTitle = stop.title.split('—').first.trim();
+      builtDays.add(
+        ItineraryDay(
+          dayNumber: i + 1,
+          cityTitle: cleanTitle,
+          summary: stop.description ??
+              'Explore $cleanTitle in ${stop.regionName} and local scenic stops.',
+          lat: stop.lat,
+          lng: stop.lng,
+          transportFromPrevious: i > 0 ? TransportMode.car : null,
+          transportDuration: i > 0 ? '45m - 1h 30m scenic drive' : null,
+          apiDestinationId: stop.apiDestinationId,
+          stops: [
+            ItineraryStop(
+              time: '08:00 AM',
+              title: 'Arrive & Explore $cleanTitle',
+              description: stop.activities ??
+                  stop.description ??
+                  'Guided sightseeing and nature exploration.',
+              category: stop.tag ?? 'Scenic',
+              costEstimateUsd: (stop.estimatedCostPhp ?? 600) / 57.0,
+              lat: stop.lat,
+              lng: stop.lng,
+            ),
+            ItineraryStop(
+              time: '12:30 PM',
+              title: 'Local Davao Lunch & Rest',
+              description:
+                  'Enjoy regional Mindanao flavors and midday shade before afternoon activities.',
+              category: 'Dining',
+              costEstimateUsd: 12,
+              lat: stop.lat + 0.004,
+              lng: stop.lng - 0.004,
+            ),
+            ItineraryStop(
+              time: '03:00 PM',
+              title: 'Golden Hour Photo & Leisure',
+              description:
+                  stop.bestTimeToVisit ??
+                  'Catch afternoon breeze before heading back or checking in nearby.',
+              category: 'Experience',
+              costEstimateUsd: 8,
+              lat: stop.lat - 0.003,
+              lng: stop.lng + 0.003,
+            ),
+          ],
+        ),
+      );
+    }
+
+    final tripTitle =
+        '$count-Day ${ordered.map((s) => s.title.split('—').first.trim()).take(3).join(' + ')}';
+    final result = ItineraryTrip(
+      id: 'multi_${DateTime.now().millisecondsSinceEpoch}',
+      title: tripTitle,
+      destination: ordered.map((s) => s.regionName).toSet().join(' • '),
+      daysCount: count,
+      adults: travelers,
+      centerLat: primary.lat,
+      centerLng: primary.lng,
+      heroAsset: primary.localAssetPath,
+      remoteImageUrl: primary.hasRemoteThumbnail ? primary.thumbnailUrl : null,
+      vibeTag: 'Multi-Stop Route',
+      overviewText:
+          'Custom $count-day Region XI route connecting ${ordered.map((s) => s.title.split('—').first.trim()).join(', ')}.',
+      bestMonths: 'Dec – May (Dry Season)',
+      avgTemp: '29°C',
+      expertName: 'Lakbay+ Route Builder',
+      expertTip: ordered
+          .map((s) => s.travelNotes)
+          .whereType<String>()
+          .where((n) => n.isNotEmpty)
+          .take(2)
+          .join(' '),
+      days: builtDays,
+      flights: const [],
+      hotels: _buildDavaoHotels(
+        'multi',
+        primary.regionName,
+        primary.localAssetPath,
+        primary.lat,
+        primary.lng,
+        remoteUrl: primary.hasRemoteThumbnail ? primary.thumbnailUrl : null,
+      ),
+      backendDestinationId: primary.apiDestinationId,
+      backendDestinationIds: destIds,
+      whatToBring: ordered
+          .map((s) => s.whatToBring)
+          .whereType<String>()
+          .where((w) => w.isNotEmpty)
+          .join(', '),
+      isLocalOnly: true,
+      backendBudgetPhp: avgBudgetPhp,
+    );
+    clearTripBuilder();
+    return result;
+  }
+
+  double _haversineKm(double lat1, double lng1, double lat2, double lng2) {
+    const r = 6371.0;
+    final dLat = (lat2 - lat1) * math.pi / 180.0;
+    final dLng = (lng2 - lng1) * math.pi / 180.0;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * math.pi / 180.0) *
+            math.cos(lat2 * math.pi / 180.0) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    return 2 * r * math.asin(math.sqrt(a));
+  }
+
+  List<Map<String, dynamic>> _serializeItineraryDays(
+    List<ItineraryDay> days,
+    double phpRate,
+  ) {
+    return [
+      for (final d in days)
+        {
+          'day_number': d.dayNumber,
+          'title': d.cityTitle,
+          'summary': d.summary,
+          'activities': [
+            for (int i = 0; i < d.stops.length; i++)
+              {
+                'activity_order': i + 1,
+                'time': d.stops[i].time,
+                'title': d.stops[i].title,
+                'description': d.stops[i].description,
+                if (d.apiDestinationId != null)
+                  'destination_id': d.apiDestinationId,
+                'estimated_cost':
+                    (d.stops[i].costEstimateUsd * phpRate).toStringAsFixed(2),
+              },
+          ],
+        },
+    ];
+  }
+
+  List<ItineraryDay> _parseCloudItineraryDays(dynamic raw, double phpRate) {
+    if (raw is! List) return const [];
+    final days = <ItineraryDay>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final dayNum = (item['day_number'] as num?)?.toInt() ?? (days.length + 1);
+      final title = (item['title'] ?? 'Day $dayNum').toString();
+      final summary = (item['summary'] ?? '').toString();
+      final rawActs = item['activities'] as List<dynamic>? ?? const [];
+      final stops = <ItineraryStop>[];
+      int? dayDestId;
+      double? dayLat;
+      double? dayLng;
+      for (final act in rawActs) {
+        if (act is! Map) continue;
+        final dId = (act['destination_id'] as num?)?.toInt();
+        dayDestId ??= dId;
+        ExploreTrip? match;
+        if (dId != null) {
+          for (final exp in _allTrips) {
+            if (exp.apiDestinationId == dId) {
+              match = exp;
+              break;
+            }
+          }
+        }
+        dayLat ??= match?.lat;
+        dayLng ??= match?.lng;
+        final costPhp =
+            double.tryParse((act['estimated_cost'] ?? '0').toString()) ?? 0.0;
+        stops.add(
+          ItineraryStop(
+            time: (act['time'] ?? '09:00 AM').toString(),
+            title: (act['title'] ?? 'Activity').toString(),
+            description: (act['description'] ?? '').toString(),
+            category: match?.tag ?? 'Activity',
+            costEstimateUsd: costPhp / phpRate,
+            lat: match?.lat ?? MapboxService.davaoCenterLat,
+            lng: match?.lng ?? MapboxService.davaoCenterLng,
+          ),
+        );
+      }
+      days.add(
+        ItineraryDay(
+          dayNumber: dayNum,
+          cityTitle: title,
+          summary: summary,
+          lat: dayLat ?? MapboxService.davaoCenterLat,
+          lng: dayLng ?? MapboxService.davaoCenterLng,
+          transportFromPrevious: dayNum > 1 ? TransportMode.car : null,
+          transportDuration: dayNum > 1 ? 'Scenic transfer' : null,
+          apiDestinationId: dayDestId,
+          stops: stops,
+        ),
+      );
+    }
+    return days;
+  }
 
   ExploreTrip? getTripById(String id) => _tripsById[id];
 
@@ -1142,8 +1922,25 @@ class TravelRepository extends ChangeNotifier {
   }
 
   void _seedInitialTripsAndChat() {
+    if (isSignedIn) {
+      if (_chatSessions.isEmpty) {
+        _chatSessions.add(
+          ChatSession(
+            id: 'chat_new',
+            title: 'New Trip',
+            groupLabel: 'Today',
+            isTrip: false,
+            createdAt: DateTime.now(),
+            messages: const [],
+          ),
+        );
+        _activeChatId = 'chat_new';
+      }
+      return;
+    }
+
     final sampleExplore = _allTrips.take(3).toList();
-    if (sampleExplore.isNotEmpty) {
+    if (_savedTrips.isEmpty && sampleExplore.isNotEmpty) {
       for (final exp in sampleExplore.take(2)) {
         _savedTrips.add(buildDetailedItineraryFromExplore(exp));
       }
@@ -1207,40 +2004,23 @@ class TravelRepository extends ChangeNotifier {
           groupLabel: 'Yesterday',
           isTrip: true,
           createdAt: DateTime.now().subtract(const Duration(days: 1, hours: 3)),
-          messages: [samalWelcomeMsg],
+          messages: [
+            ChatMessage(
+              id: 'welcome_mati',
+              isUser: false,
+              text:
+                  'Pacific surf & waterfall mode ready! Explore **Dahican Beach**, **Sleeping Dinosaur Viewdeck**, and **Aliwagwag Falls** across Davao Oriental.',
+              timestamp: DateTime.now().subtract(const Duration(days: 1, hours: 3)),
+              suggestedReplies: const [
+                'Plan sunrise surf at Dahican 🏄',
+                'Add Sleeping Dinosaur ridge stop 🌄',
+                'Suggest coastal resorts in Mati 🌴',
+              ],
+            ),
+          ],
         ),
       ]);
       _activeChatId = 'chat_new';
-    }
-
-    if (_basket.isEmpty &&
-        firstTrip.hotels.isNotEmpty &&
-        firstTrip.flights.isNotEmpty) {
-      _basket.add(
-        BasketItem(
-          id: 'flight_${firstTrip.id}',
-          title:
-              '${firstTrip.flights.first.originCode} → ${firstTrip.flights.first.destinationCode} Roundtrip',
-          subtitle:
-              '${firstTrip.flights.first.airline} • Direct (${firstTrip.flights.first.duration})',
-          category: 'Flight',
-          priceUsd:
-              firstTrip.flights.first.priceRoundtripUsd * firstTrip.adults,
-          imageAsset: firstTrip.heroAsset,
-        ),
-      );
-      _basket.add(
-        BasketItem(
-          id: 'hotel_${firstTrip.id}',
-          title: firstTrip.hotels.first.name,
-          subtitle:
-              '${firstTrip.daysCount - 1} nights • ${firstTrip.hotels.first.stars}★ Davao Stay',
-          category: 'Hotel',
-          priceUsd: firstTrip.hotels.first.pricePerNightUsd *
-              (firstTrip.daysCount - 1),
-          imageAsset: firstTrip.heroAsset,
-        ),
-      );
     }
   }
 
@@ -1261,6 +2041,17 @@ class TravelRepository extends ChangeNotifier {
     );
   }
 
+  /// Turns of history sent to the server chat (its limit is 12).
+  static const int _serverChatHistoryTurns = 12;
+
+  /// History text without UI footers, within the server's 2000-char limit.
+  static String _chatHistoryText(String text) {
+    final cleaned = text
+        .replaceAll(RegExp(r'\n*_Powered by Lakbay\+[^_]*_\s*$'), '')
+        .trim();
+    return cleaned.length > 2000 ? cleaned.substring(0, 2000) : cleaned;
+  }
+
   /// Sends a prompt to the Lakbay+ Davao AI Travel Planner and generates a contextual Region XI route.
   Future<void> sendChatMessage(String text) async {
     final trimmed = text.trim();
@@ -1275,46 +2066,174 @@ class TravelRepository extends ChangeNotifier {
       ),
     );
 
-    if (isSignedIn && apiCatalog.isConfigured) {
+    // Signed in or not, chat goes through the backend: guests use the
+    // rate-limited guest endpoint, so the app ships no AI provider key.
+    if (apiCatalog.isConfigured) {
       _isAiTyping = true;
       notifyListeners();
       try {
-        final history = _chatMessages
-            .take(_chatMessages.length > 1 ? _chatMessages.length - 1 : 0)
-            .take(6)
-            .map((m) => {'role': m.isUser ? 'user' : 'assistant', 'content': m.text})
+        // The most recent turns (not the first ones) before this message.
+        final earlier = _chatMessages.take(
+            _chatMessages.length > 1 ? _chatMessages.length - 1 : 0);
+        final history = earlier
+            .skip(math.max(0, earlier.length - _serverChatHistoryTurns))
+            .map((m) => {
+                  'role': m.isUser ? 'user' : 'assistant',
+                  'content': _chatHistoryText(m.text),
+                })
+            .where((m) => m['content']!.isNotEmpty)
             .toList();
+        // The backend planning schema names the coordinates lat/lng and rejects
+        // unknown keys, so "latitude"/"longitude" made every request fail.
+        _planningState ??= {
+          'origin': {
+          'label': effectiveOriginLabel,
+          if (_userLat != null && _userLng != null) 'lat': _userLat,
+          if (_userLat != null && _userLng != null) 'lng': _userLng,
+        },
+          'destination_ids': <int>[],
+          'traveler_count': 2,
+        };
         final serverAi = await apiCatalog.aiChat(
-          _authSession!.accessToken,
+          _authSession?.accessToken,
           message: trimmed,
           history: history,
+          planningState: _planningState,
+          inputRevision: _planningRevision,
         );
         if (serverAi != null) {
-          final attachPlan = RegExp(
-            r'\b(plan|itinerary|trip|route|days|samal|mati|buda|apo|maragusan|tagum|davao)\b',
-            caseSensitive: false,
-          ).hasMatch(trimmed);
-          final attachedTrip =
-              attachPlan ? _generateLocalFallbackTrip(trimmed) : null;
+          final planning = serverAi.planning;
+          if (planning != null) {
+            _planningRevision =
+                (planning['input_revision'] as num?)?.toInt() ??
+                (_planningRevision + 1);
+            final preview = planning['preview'];
+            if (preview is Map<String, dynamic> &&
+                preview['state'] is Map<String, dynamic>) {
+              _planningState = Map<String, dynamic>.from(
+                preview['state'] as Map<String, dynamic>,
+              );
+            }
+          }
+
+          final stateDestIds =
+              (_planningState?['destination_ids'] as List<dynamic>? ?? const [])
+                  .whereType<num>()
+                  .map((n) => n.toInt())
+                  .toList();
+          final ragDestIds = serverAi.retrievedContext
+              .where((r) => r['source'] == 'destination')
+              .map((r) => (r['source_id'] as num?)?.toInt())
+              .whereType<int>()
+              .toList();
+          final targetDestIds = stateDestIds.isNotEmpty
+              ? stateDestIds
+              : ragDestIds.take(4).toList();
+
+          // The model judges intent; keywords are only a fallback for replies
+          // without one (older backends or unparseable output).
+          final intent = planning?['intent']?.toString();
+          final wantsItinerary = intent != null
+              ? intent == 'plan_trip' || intent == 'modify_trip'
+              : RegExp(
+                  r'\b(plan|itinerary|trip|route|days?|generate|options?|weekend)\b',
+                  caseSensitive: false,
+                ).hasMatch(trimmed);
+          final modelReplies =
+              (planning?['suggested_replies'] as List<dynamic>? ?? const [])
+                  .map((e) => e.toString())
+                  .where((e) => e.trim().isNotEmpty)
+                  .toList();
+
+          var aiOptions = <AiItineraryOptionDraft>[];
+          ItineraryTrip? attachedTrip;
+
+          if (wantsItinerary && !isSignedIn) {
+            // Guests get a quick backend trip draft; validated catalog
+            // itineraries need an account.
+            try {
+              final draft = await aiService.chatOrPlan(
+                userPrompt: trimmed,
+                history: history,
+                currentLocation: effectiveOriginLabel,
+                userLat: _userLat,
+                userLng: _userLng,
+                preferredVibes: selectedVibes,
+                strictBudget: strictBudgetFilter,
+              );
+              if (draft.hasStructuredItinerary) {
+                attachedTrip = _buildItineraryFromAi(draft);
+              }
+            } catch (_) {}
+          } else if (wantsItinerary && targetDestIds.isNotEmpty) {
+            final daysCount =
+                (_planningState?['day_count'] as num?)?.toInt() ??
+                RegExp(r'(\d+)\s*-?\s*day', caseSensitive: false)
+                    .firstMatch(trimmed)
+                    ?.group(1)
+                    .letOrNull(int.tryParse) ??
+                3;
+            final travelerCount =
+                (_planningState?['traveler_count'] as num?)?.toInt() ?? 2;
+            final budgetRaw = _planningState?['total_budget'];
+            final budgetPhp =
+                double.tryParse((budgetRaw ?? '').toString()) ??
+                (daysCount.clamp(1, 14) * 3500.0 * travelerCount);
+
+            final generated = await apiCatalog.generateAiItineraries(
+              _authSession!.accessToken,
+              totalBudgetPhp: budgetPhp,
+              travelerCount: travelerCount,
+              dayCount: daysCount.clamp(1, 14),
+              destinationIds: targetDestIds,
+              planningState: _planningState,
+              inputRevision: _planningRevision,
+              specialRequirements: trimmed,
+              strictBudgetFilter: strictBudgetFilter,
+            );
+
+            if (generated != null && generated.options.isNotEmpty) {
+              aiOptions = [
+                for (final rawOpt in generated.options)
+                  _parseBackendAiOption(
+                    rawOpt,
+                    generationRunId: generated.generationRunId,
+                    fallbackDestinationIds: targetDestIds,
+                    includeFlights: _mentionsFlightOrigin(trimmed),
+                  ),
+              ];
+              attachedTrip = aiOptions.first.trip;
+            }
+          }
+
+          attachedTrip ??= wantsItinerary
+              ? _generateLocalFallbackTrip(
+                  trimmed,
+                  includeFlights: _mentionsFlightOrigin(trimmed),
+                )
+              : null;
+
           _chatMessages.add(
             ChatMessage(
               id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
               isUser: false,
-              text:
-                  '${serverAi.replyText}\n\n_Powered by Lakbay+ Server AI (${serverAi.modelId})_',
+              text: serverAi.replyText,
               timestamp: DateTime.now(),
-              attachedTrip: attachedTrip,
-              suggestedReplies: const [
-                'Show 2-day weekend version 🗓️',
-                'Add Samal ferry & boat transfers ⛴️',
-                'Include Malagos & Roxas Night Market 🍢',
-              ],
+              attachedTrip: aiOptions.length <= 1 ? attachedTrip : null,
+              aiOptions: aiOptions,
+              suggestedReplies: modelReplies.isNotEmpty
+                  ? modelReplies
+                  : const [
+                      'Make it 3 days within ₱8,000 budget 💸',
+                      'Compare Budget vs. Comfort options ✨',
+                      'Suggest family-friendly Davao stops 🌿',
+                    ],
             ),
           );
           _isAiTyping = false;
           _syncActiveSession(
             titleHint: attachedTrip?.title ?? trimmed,
-            hasTrip: attachedTrip != null,
+            hasTrip: attachedTrip != null || aiOptions.isNotEmpty,
           );
           _scheduleSaveState();
           notifyListeners();
@@ -1334,6 +2253,19 @@ class TravelRepository extends ChangeNotifier {
         final aiResult = await aiService.chatOrPlan(
           userPrompt: trimmed,
           availableDestinations: _allTrips.map((t) => t.title).toList(),
+          history: _chatMessages
+              .map(
+                (m) => {
+                  'role': m.isUser ? 'user' : 'assistant',
+                  'content': m.text,
+                },
+              )
+              .toList(),
+          currentLocation: effectiveOriginLabel,
+          userLat: _userLat,
+          userLng: _userLng,
+          preferredVibes: selectedVibes,
+          strictBudget: strictBudgetFilter,
         );
 
         ItineraryTrip? attachedTrip;
@@ -1349,11 +2281,13 @@ class TravelRepository extends ChangeNotifier {
                 '${aiResult.replyText}\n\n_Powered by ${aiResult.providerUsed} (${aiResult.modelUsed})_',
             timestamp: DateTime.now(),
             attachedTrip: attachedTrip,
-            suggestedReplies: const [
-              'Show 2-day weekend version 🗓️',
-              'Add Samal ferry & boat transfers ⛴️',
-              'Include Malagos & Roxas Night Market 🍢',
-            ],
+            suggestedReplies: aiResult.suggestedReplies.isNotEmpty
+                ? aiResult.suggestedReplies
+                : const [
+                    'Show 2-day weekend version 🗓️',
+                    'Adjust pacing or coastal stops 🌊',
+                    'Suggest food & night market gems 🍢',
+                  ],
           ),
         );
         _isAiTyping = false;
@@ -1403,6 +2337,11 @@ class TravelRepository extends ChangeNotifier {
         final aiResult = await aiService.chatOrPlan(
           userPrompt: prompt,
           availableDestinations: _allTrips.map((t) => t.title).toList(),
+          currentLocation: effectiveOriginLabel,
+          userLat: _userLat,
+          userLng: _userLng,
+          preferredVibes: selectedVibes,
+          strictBudget: strictBudgetFilter,
         );
         if (aiResult.hasStructuredItinerary) {
           return _buildItineraryFromAi(aiResult);
@@ -1414,7 +2353,185 @@ class TravelRepository extends ChangeNotifier {
     return _generateLocalFallbackTrip(prompt);
   }
 
-  ItineraryTrip _generateLocalFallbackTrip(String prompt) {
+  /// Exposes [_buildItineraryFromAi] when an onboarding/chat turn already produced
+  /// a structured multi-day itinerary.
+  ItineraryTrip buildTripFromAiResult(AiPlanResult ai) =>
+      _buildItineraryFromAi(ai);
+
+  bool _mentionsFlightOrigin(String prompt) => RegExp(
+        r'\b(from manila|from cebu|from clark|from iloilo|flight|fly in|airfare|mnl|ceb)\b',
+        caseSensitive: false,
+      ).hasMatch(prompt);
+
+  AiItineraryOptionDraft _parseBackendAiOption(
+    Map<String, dynamic> rawOpt, {
+    int? generationRunId,
+    ItineraryTrip? fallbackTrip,
+    String? preferredRemoteImageUrl,
+    String? preferredHeroAsset,
+    List<int> fallbackDestinationIds = const [],
+    bool includeFlights = false,
+  }) {
+    final optionNumber = (rawOpt['option_number'] as num?)?.toInt() ?? 1;
+    final optTitle =
+        (rawOpt['title'] ?? fallbackTrip?.title ?? 'Davao Region Option $optionNumber')
+            .toString()
+            .trim();
+    final summary = (rawOpt['summary'] ?? '').toString().trim();
+    final totalCostPhp =
+        double.tryParse((rawOpt['estimated_total_cost'] ?? '0').toString()) ??
+        0.0;
+    final isOverBudget = rawOpt['is_over_budget'] as bool? ?? false;
+    final phpRate = _currencyRates['PHP'] ?? 57.0;
+
+    final rawDays = rawOpt['days'] as List<dynamic>? ?? const [];
+    final parsedDays = <ItineraryDay>[];
+    final discoveredDestIds = <int>{...fallbackDestinationIds};
+    ExploreTrip? firstMatchedCatalog;
+
+    for (final dRaw in rawDays) {
+      if (dRaw is! Map) continue;
+      final dayNum = (dRaw['day'] as num?)?.toInt() ?? (parsedDays.length + 1);
+      final dayTitle = (dRaw['title'] ?? 'Day $dayNum').toString();
+      final daySummary = (dRaw['summary'] ?? '').toString();
+      final rawActs = dRaw['activities'] as List<dynamic>? ?? const [];
+
+      final stops = <ItineraryStop>[];
+      int? dayDestId;
+      double? dayLat;
+      double? dayLng;
+
+      for (final aRaw in rawActs) {
+        if (aRaw is! Map) continue;
+        final dId = (aRaw['destination_id'] as num?)?.toInt();
+        if (dId != null) {
+          discoveredDestIds.add(dId);
+          dayDestId ??= dId;
+          for (final exp in _allTrips) {
+            if (exp.apiDestinationId == dId) {
+              firstMatchedCatalog ??= exp;
+              dayLat ??= exp.lat;
+              dayLng ??= exp.lng;
+              break;
+            }
+          }
+        }
+        final actCostPhp =
+            double.tryParse((aRaw['estimated_cost'] ?? '0').toString()) ?? 0.0;
+        stops.add(
+          ItineraryStop(
+            time: (aRaw['time'] ?? '09:00').toString(),
+            title: (aRaw['title'] ?? 'Activity').toString(),
+            description: (aRaw['description'] ?? '').toString(),
+            category: firstMatchedCatalog?.tag ?? 'Scenic',
+            costEstimateUsd: actCostPhp / phpRate,
+            lat: dayLat ?? fallbackTrip?.centerLat ?? MapboxService.davaoCenterLat,
+            lng: dayLng ?? fallbackTrip?.centerLng ?? MapboxService.davaoCenterLng,
+          ),
+        );
+      }
+
+      parsedDays.add(
+        ItineraryDay(
+          dayNumber: dayNum,
+          cityTitle: dayTitle,
+          summary: daySummary,
+          lat: dayLat ?? fallbackTrip?.centerLat ?? MapboxService.davaoCenterLat,
+          lng: dayLng ?? fallbackTrip?.centerLng ?? MapboxService.davaoCenterLng,
+          transportFromPrevious: dayNum > 1 ? TransportMode.car : null,
+          transportDuration: dayNum > 1 ? '45m - 1h 30m scenic route' : null,
+          apiDestinationId: dayDestId,
+          stops: stops,
+        ),
+      );
+    }
+
+    final heroRemote = preferredRemoteImageUrl ??
+        fallbackTrip?.remoteImageUrl ??
+        (firstMatchedCatalog?.hasRemoteThumbnail == true
+            ? firstMatchedCatalog!.thumbnailUrl
+            : null);
+    final heroLocal = preferredHeroAsset ??
+        fallbackTrip?.heroAsset ??
+        firstMatchedCatalog?.localAssetPath ??
+        currentBackdrop.localAssetPath;
+    final destLabel = fallbackTrip?.destination ??
+        firstMatchedCatalog?.regionName ??
+        'Davao Region, Philippines';
+
+    final trip = ItineraryTrip(
+      id: fallbackTrip?.id ??
+          'ai_opt_${generationRunId ?? DateTime.now().millisecondsSinceEpoch}_$optionNumber',
+      title: optTitle,
+      destination: destLabel,
+      daysCount: parsedDays.isNotEmpty
+          ? parsedDays.length
+          : (fallbackTrip?.daysCount ?? 3),
+      adults: fallbackTrip?.adults ?? 2,
+      children: fallbackTrip?.children ?? 0,
+      centerLat:
+          firstMatchedCatalog?.lat ??
+          fallbackTrip?.centerLat ??
+          MapboxService.davaoCenterLat,
+      centerLng:
+          firstMatchedCatalog?.lng ??
+          fallbackTrip?.centerLng ??
+          MapboxService.davaoCenterLng,
+      heroAsset: heroLocal,
+      remoteImageUrl: heroRemote,
+      vibeTag: optionNumber == 1
+          ? 'Best Value'
+          : (optionNumber == 2 ? 'Balanced Pace' : 'Curated'),
+      overviewText: summary.isNotEmpty
+          ? summary
+          : (fallbackTrip?.overviewText ?? 'AI-curated Davao Region route.'),
+      bestMonths:
+          firstMatchedCatalog?.bestTimeToVisit ?? 'Dec - May (Dry Season)',
+      avgTemp: fallbackTrip?.avgTemp ?? '29°C',
+      expertName: 'Lakbay+ AI Planner',
+      expertTip: firstMatchedCatalog?.travelNotes ??
+          fallbackTrip?.expertTip ??
+          'Cluster nearby stops by corridor and depart early for falls or mountain ridges.',
+      days: parsedDays.isNotEmpty ? parsedDays : (fallbackTrip?.days ?? const []),
+      flights: includeFlights ? _defaultDavaoFlights() : const [],
+      hotels: fallbackTrip?.hotels ??
+          _buildDavaoHotels(
+            'ai_$optionNumber',
+            destLabel,
+            heroLocal,
+            firstMatchedCatalog?.lat ?? MapboxService.davaoCenterLat,
+            firstMatchedCatalog?.lng ?? MapboxService.davaoCenterLng,
+            remoteUrl: heroRemote,
+          ),
+      backendTripId: fallbackTrip?.backendTripId,
+      backendDestinationId:
+          discoveredDestIds.isNotEmpty ? discoveredDestIds.first : null,
+      backendDestinationIds: discoveredDestIds.toList(),
+      whatToBring:
+          firstMatchedCatalog?.whatToBring ?? fallbackTrip?.whatToBring,
+      entranceFee: firstMatchedCatalog?.entranceFee,
+      operatingHours: firstMatchedCatalog?.operatingHours,
+      isLocalOnly: !includeFlights,
+      backendEstimatedCostPhp: totalCostPhp > 0 ? totalCostPhp : null,
+      aiGenerationRunId: generationRunId,
+      aiOptionNumber: optionNumber,
+    );
+
+    return AiItineraryOptionDraft(
+      optionNumber: optionNumber,
+      title: optTitle,
+      summary: summary,
+      estimatedTotalCostPhp: totalCostPhp,
+      isOverBudget: isOverBudget,
+      generationRunId: generationRunId,
+      trip: trip,
+    );
+  }
+
+  ItineraryTrip _generateLocalFallbackTrip(
+    String prompt, {
+    bool includeFlights = false,
+  }) {
     final trimmed = prompt.trim();
     final lower = trimmed.toLowerCase();
     final matchedExplore = _allTrips.firstWhere(
@@ -1442,17 +2559,21 @@ class TravelRepository extends ChangeNotifier {
             .clamp(2, 14)
         : matchedExplore.days;
 
+    final remoteThumb = matchedExplore.hasRemoteThumbnail
+        ? matchedExplore.thumbnailUrl
+        : null;
     if (lower.contains('samal') ||
         lower.contains('talikud') ||
-        lower.contains('pearl farm') ||
         lower.contains('island')) {
       return generateCustomTrip(
         destination: 'Samal Island (IGaCoS) & Talikud Reefs',
         daysCount: requestedDays,
         vibe: 'Island Hopping & Coral Coves',
-        heroAsset: 'assets/home_backdrops/04-thoddoo.jpg',
+        heroAsset: 'assets/home_backdrops/01-samal-island.jpg',
+        remoteImageUrl: remoteThumb,
         centerLat: 7.0742,
         centerLng: 125.7089,
+        includeFlights: includeFlights,
       );
     } else if (lower.contains('mati') ||
         lower.contains('dahican') ||
@@ -1463,9 +2584,11 @@ class TravelRepository extends ChangeNotifier {
         destination: 'Mati Dahican, Pujada Bay & Aliwagwag Falls',
         daysCount: requestedDays,
         vibe: 'Pacific Surf & Waterfalls Loop',
-        heroAsset: 'assets/home_backdrops/09-whitehaven-beach.jpg',
+        heroAsset: 'assets/home_backdrops/02-dahican-mati.jpg',
+        remoteImageUrl: remoteThumb,
         centerLat: 6.9551,
         centerLng: 126.2185,
+        includeFlights: includeFlights,
       );
     } else if (lower.contains('buda') ||
         lower.contains('marilog') ||
@@ -1475,9 +2598,11 @@ class TravelRepository extends ChangeNotifier {
         destination: 'Buda & Marilog Pine Highlands, Davao City',
         daysCount: requestedDays,
         vibe: 'Misty Pine Cabins & Cafes',
-        heroAsset: 'assets/home_backdrops/02-seceda.jpg',
+        heroAsset: 'assets/home_backdrops/09-marilog-bemwa.jpg',
+        remoteImageUrl: remoteThumb,
         centerLat: 7.4561,
         centerLng: 125.2498,
+        includeFlights: includeFlights,
       );
     } else if (lower.contains('apo') ||
         lower.contains('kapatagan') ||
@@ -1487,9 +2612,11 @@ class TravelRepository extends ChangeNotifier {
         destination: 'Kapatagan Highlands & Mt. Apo, Davao del Sur',
         daysCount: requestedDays,
         vibe: 'Volcanic Peaks & Coffee Ridges',
-        heroAsset: 'assets/home_backdrops/10-lago-di-braies.jpg',
+        heroAsset: 'assets/home_backdrops/03-mount-apo.jpg',
+        remoteImageUrl: remoteThumb,
         centerLat: 6.9292,
         centerLng: 125.3315,
+        includeFlights: includeFlights,
       );
     } else if (lower.contains('maragusan') ||
         lower.contains('kopiat') ||
@@ -1499,14 +2626,17 @@ class TravelRepository extends ChangeNotifier {
         destination: 'Tagum, Kopiat Island & Maragusan Highlands',
         daysCount: requestedDays,
         vibe: 'Sea of Clouds & Gulf Islands',
-        heroAsset: 'assets/home_backdrops/03-lake-louise.jpg',
+        heroAsset: 'assets/home_backdrops/10-calamba-clouds.jpg',
+        remoteImageUrl: remoteThumb,
         centerLat: 7.3508,
         centerLng: 126.1536,
+        includeFlights: includeFlights,
       );
     } else {
       return buildDetailedItineraryFromExplore(
         matchedExplore,
         overrideDays: requestedDays,
+        includeFlights: includeFlights,
       );
     }
   }
@@ -1574,38 +2704,22 @@ class TravelRepository extends ChangeNotifier {
       expertTip:
           'Generated via ${ai.providerUsed} (${ai.modelUsed}) with Region XI coordinates.',
       days: days,
-      flights: const [
-        FlightOffer(
-          id: 'fl_dvo_ai',
-          airline: 'Philippine Airlines / Cebu Pacific',
-          originCode: 'MNL',
-          destinationCode: 'DVO',
-          duration: '1h 50m',
-          isDirect: true,
-          priceRoundtripUsd: 145,
-        ),
-      ],
-      hotels: [
-        HotelOffer(
-          id: 'ht_dvo_ai',
-          name: 'Davao Coastal & Highland Stay',
-          city: dest,
-          rating: 4.7,
-          stars: 4,
-          pricePerNightUsd: 78,
-          facilities: const ['Wi-Fi', 'Breakfast', 'Airport Transfer'],
-          partnerName: 'Lakbay+ Partner',
-          imageAsset: currentBackdrop.localAssetPath,
-          lat: fallbackCenter.$1,
-          lng: fallbackCenter.$2,
-        ),
-      ],
+      flights: const [],
+      hotels: _buildDavaoHotels(
+        'ai_dvo',
+        dest,
+        currentBackdrop.localAssetPath,
+        fallbackCenter.$1,
+        fallbackCenter.$2,
+      ),
+      isLocalOnly: true,
     );
   }
 
   ItineraryTrip buildDetailedItineraryFromExplore(
     ExploreTrip explore, {
     int? overrideDays,
+    bool includeFlights = false,
   }) {
     final count = overrideDays ?? explore.days;
     final base = generateCustomTrip(
@@ -1618,8 +2732,10 @@ class TravelRepository extends ChangeNotifier {
           ? '${explore.tag} • ${explore.regionName}'
           : '${explore.regionName} • Region XI',
       heroAsset: explore.localAssetPath,
+      remoteImageUrl: explore.hasRemoteThumbnail ? explore.thumbnailUrl : null,
       centerLat: explore.lat,
       centerLng: explore.lng,
+      includeFlights: includeFlights,
     );
     final destId = explore.apiDestinationId ??
         (explore.id.startsWith('api_')
@@ -1645,8 +2761,9 @@ class TravelRepository extends ChangeNotifier {
         explore.travelNotes!,
     ];
 
-    final cachedHotels =
-        destId != null ? (_hotelRatesByDestId[destId] ?? const []) : const [];
+    final cachedHotels = destId != null
+        ? (_hotelRatesByDestId[destId] ?? const <HotelOffer>[])
+        : const <HotelOffer>[];
 
     return ItineraryTrip(
       id: base.id,
@@ -1686,13 +2803,37 @@ class TravelRepository extends ChangeNotifier {
           ),
       ],
       flights: base.flights,
-      hotels: cachedHotels.isNotEmpty
-          ? [...cachedHotels, ...base.hotels]
-          : base.hotels,
+      hotels: cachedHotels.isNotEmpty ? cachedHotels : base.hotels,
       backendDestinationId: destId,
       backendDestinationIds: destId != null ? [destId] : const [],
+      whatToBring: explore.whatToBring,
+      entranceFee: explore.entranceFee,
+      operatingHours: explore.operatingHours,
+      isLocalOnly: !includeFlights,
+      backendEstimatedCostPhp: explore.estimatedCostPhp,
     );
   }
+
+  List<FlightOffer> _defaultDavaoFlights() => const [
+        FlightOffer(
+          id: 'fl_mnl_dvo',
+          airline: 'Philippine Airlines / Cebu Pacific',
+          originCode: 'MNL',
+          destinationCode: 'DVO',
+          duration: '1h 55m',
+          isDirect: true,
+          priceRoundtripUsd: 88,
+        ),
+        FlightOffer(
+          id: 'fl_ceb_dvo',
+          airline: 'Cebu Pacific • Visayas–Mindanao',
+          originCode: 'CEB',
+          destinationCode: 'DVO',
+          duration: '1h 10m',
+          isDirect: true,
+          priceRoundtripUsd: 54,
+        ),
+      ];
 
   ItineraryTrip generateCustomTrip({
     String? id,
@@ -1701,8 +2842,10 @@ class TravelRepository extends ChangeNotifier {
     required int daysCount,
     required String vibe,
     String? heroAsset,
+    String? remoteImageUrl,
     double? centerLat,
     double? centerLng,
+    bool includeFlights = false,
   }) {
     final tripId = id ?? 'davao_${DateTime.now().millisecondsSinceEpoch}';
     final effectiveHero = heroAsset ?? currentBackdrop.localAssetPath;
@@ -1714,27 +2857,15 @@ class TravelRepository extends ChangeNotifier {
     );
 
     final lower = destination.toLowerCase();
-    final hotels = _buildDavaoHotels(tripId, destination, effectiveHero, clampedLat, clampedLng);
-    final flights = <FlightOffer>[
-      const FlightOffer(
-        id: 'fl_mnl_dvo',
-        airline: 'Philippine Airlines / Cebu Pacific',
-        originCode: 'MNL',
-        destinationCode: 'DVO',
-        duration: '1h 55m',
-        isDirect: true,
-        priceRoundtripUsd: 88,
-      ),
-      const FlightOffer(
-        id: 'fl_ceb_dvo',
-        airline: 'Cebu Pacific • Visayas–Mindanao',
-        originCode: 'CEB',
-        destinationCode: 'DVO',
-        duration: '1h 10m',
-        isDirect: true,
-        priceRoundtripUsd: 54,
-      ),
-    ];
+    final hotels = _buildDavaoHotels(
+      tripId,
+      destination,
+      effectiveHero,
+      clampedLat,
+      clampedLng,
+      remoteUrl: remoteImageUrl,
+    );
+    final flights = includeFlights ? _defaultDavaoFlights() : const <FlightOffer>[];
 
     // Authentic Davao Region waypoint library
     final List<({String name, String summary, double lat, double lng, TransportMode mode, String transit, int wmo, int temp})> waypoints;
@@ -2020,6 +3151,8 @@ class TravelRepository extends ChangeNotifier {
       days: days,
       flights: flights,
       hotels: hotels,
+      remoteImageUrl: remoteImageUrl,
+      isLocalOnly: !includeFlights,
     );
   }
 
@@ -2028,63 +3161,175 @@ class TravelRepository extends ChangeNotifier {
     String destination,
     String effectiveHero,
     double lat,
-    double lng,
-  ) {
-    final city = destination.split(',').first;
+    double lng, {
+    String? remoteUrl,
+  }) {
+    final city = destination.split(',').first.split('(').first.trim();
     return [
       HotelOffer(
         id: 'ht_${tripId}_1',
-        name: 'Pearl Farm & Coastal Suites',
+        name: '$city Eco Lodge & Resort Stay',
         city: city,
-        rating: 9.5,
-        stars: 5,
-        pricePerNightUsd: 145,
+        rating: 9.2,
+        stars: 4,
+        pricePerNightUsd: 65,
         facilities: const [
-          'Private Cove',
-          'Breakfast Included',
-          'Infinity Pool',
-          'Boat Transfer',
+          'Breakfast Option',
+          'Air Conditioning',
+          'Wi-Fi',
+          'Near Attraction',
         ],
-        partnerName: 'Davao Direct Rate',
+        partnerName: 'Region XI Estimate',
         imageAsset: effectiveHero,
-        lat: lat + 0.02,
+        remoteImageUrl: remoteUrl,
+        lat: lat + 0.015,
         lng: lng - 0.01,
       ),
       HotelOffer(
         id: 'ht_${tripId}_2',
-        name: 'Discovery Samal / Mati Beachfront Villa',
+        name: '$city Budget Traveler Inn',
         city: city,
-        rating: 9.2,
-        stars: 4,
-        pricePerNightUsd: 95,
+        rating: 8.7,
+        stars: 3,
+        pricePerNightUsd: 35,
         facilities: const [
-          'Ocean View',
-          'Air Conditioning',
+          'Fan / AC Rooms',
+          'Local Transport Access',
           'Free Wi-Fi',
-          'Kayak Rental',
         ],
-        partnerName: 'Lakbay+ Partner',
-        imageAsset: 'assets/home_backdrops/04-thoddoo.jpg',
-        lat: lat - 0.03,
-        lng: lng + 0.03,
-      ),
-      HotelOffer(
-        id: 'ht_${tripId}_3',
-        name: 'DusitD2 / Buda Highland Pine Lodge',
-        city: city,
-        rating: 9.0,
-        stars: 4,
-        pricePerNightUsd: 78,
-        facilities: const [
-          'Mountain / City View',
-          'Local Coffee Bar',
-          'Airport Shuttle',
-        ],
-        partnerName: 'Eco Verified',
-        imageAsset: 'assets/home_backdrops/02-seceda.jpg',
-        lat: lat + 0.04,
-        lng: lng + 0.02,
+        partnerName: 'Value Estimate',
+        imageAsset: 'assets/home_backdrops/08-peoples-park.jpg',
+        remoteImageUrl: remoteUrl,
+        lat: lat - 0.018,
+        lng: lng + 0.012,
       ),
     ];
   }
+
+  /// Resolves the best origin label from the live GPS city or user profile.
+  String get effectiveOriginLabel {
+    final profileCity = _profile.location.trim();
+    if (profileCity.isNotEmpty) return profileCity;
+    if (hasUserLocation) return 'Current GPS Location';
+    return 'Current Location';
+  }
+
+  /// Great-circle distance in kilometers between the user GPS fix and `(lat, lng)`.
+  double distanceKmFromUser(double lat, double lng) {
+    if (!hasUserLocation) return 0;
+    const earthRadiusKm = 6371.0;
+    final dLat = (lat - _userLat!) * math.pi / 180.0;
+    final dLng = (lng - _userLng!) * math.pi / 180.0;
+    final lat1 = _userLat! * math.pi / 180.0;
+    final lat2 = lat * math.pi / 180.0;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    return 2 * earthRadiusKm * math.asin(math.min(1.0, math.sqrt(a)));
+  }
+
+  /// Resolves a destination photo thumbnail (`imageUrl` / `imageAsset`) for a day marker.
+  ({String? imageUrl, String imageAsset}) resolveDayMarkerMedia(
+    ItineraryTrip trip,
+    ItineraryDay day,
+  ) {
+    final candidates = allTrips;
+    final titleLower = day.cityTitle.toLowerCase();
+    ExploreTrip? matched;
+    if (day.apiDestinationId != null) {
+      for (final candidate in candidates) {
+        if (candidate.apiDestinationId == day.apiDestinationId) {
+          matched = candidate;
+          break;
+        }
+      }
+    }
+    matched ??= () {
+      ExploreTrip? best;
+      double bestDist = double.infinity;
+      for (final candidate in candidates) {
+        final candidateLower = candidate.title.toLowerCase();
+        if (titleLower.contains(candidateLower) ||
+            candidateLower.contains(titleLower.split('—').first.trim())) {
+          return candidate;
+        }
+        final dLat = candidate.lat - day.lat;
+        final dLng = candidate.lng - day.lng;
+        final distSq = dLat * dLat + dLng * dLng;
+        if (distSq < bestDist) {
+          bestDist = distSq;
+          best = candidate;
+        }
+      }
+      return bestDist < 0.08 ? best : null;
+    }();
+
+    final remote = (matched != null && matched.hasRemoteThumbnail)
+        ? matched.thumbnailUrl
+        : (trip.remoteImageUrl != null &&
+                (trip.remoteImageUrl!.startsWith('http://') ||
+                    trip.remoteImageUrl!.startsWith('https://'))
+            ? trip.remoteImageUrl
+            : null);
+    final asset = matched?.localAssetPath ??
+        (trip.heroAsset.isNotEmpty
+            ? trip.heroAsset
+            : currentBackdrop.localAssetPath);
+    return (imageUrl: remote, imageAsset: asset);
+  }
+
+  bool _didAutoDetectOnShellEntry = false;
+
+  /// Refreshes current GPS location silently on startup when permission is already granted.
+  Future<bool> refreshCurrentLocationSilently() async {
+    try {
+      final hasPermission = await locationService.hasGrantedPermission();
+      if (!hasPermission && locationService.customFetcher == null) {
+        return false;
+      }
+      if (!locationSharingEnabled) return false;
+      final res = await locationService.captureCurrentLocation();
+      if (!res.granted || res.lat == null || res.lng == null) {
+        return false;
+      }
+      _userLat = res.lat;
+      _userLng = res.lng;
+      if (res.resolvedLabel != null && res.resolvedLabel!.trim().isNotEmpty) {
+        _profile = _profile.copyWith(location: res.resolvedLabel!.trim());
+      }
+      _scheduleSaveState();
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Auto-detects GPS location once upon entering the main app shell when missing.
+  Future<void> autoDetectLocationOnShellEntry() async {
+    if (_didAutoDetectOnShellEntry) return;
+    _didAutoDetectOnShellEntry = true;
+    if (!locationSharingEnabled || hasUserLocation) return;
+    try {
+      final res = await locationService.captureCurrentLocation();
+      if (!res.granted || res.lat == null || res.lng == null) {
+        return;
+      }
+      _userLat = res.lat;
+      _userLng = res.lng;
+      if (res.resolvedLabel != null && res.resolvedLabel!.trim().isNotEmpty) {
+        _profile = _profile.copyWith(location: res.resolvedLabel!.trim());
+      }
+      _scheduleSaveState();
+      notifyListeners();
+    } catch (_) {
+      // Never block shell startup or clobber settings if platform GPS is unavailable.
+    }
+  }
+}
+
+extension _NullableLet<T> on T? {
+  R? letOrNull<R>(R? Function(T) fn) => this == null ? null : fn(this as T);
 }

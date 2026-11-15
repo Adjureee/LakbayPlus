@@ -41,6 +41,8 @@ class OSRMRouteResult:
     stop_order: list[int] | None = None
     polyline: str | None = None
     ferry_crossings: list[OSRMFerryCrossing] = field(default_factory=list)
+    # Which OSRM-compatible service answered: "osrm" or "mapbox".
+    provider: str = "osrm"
 
 
 @dataclass(frozen=True)

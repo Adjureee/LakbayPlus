@@ -14,6 +14,15 @@ class GoogleAuthService {
   final Future<String?> Function()? customTokenFetcher;
   static bool _initialized = false;
 
+  Future<void> signOut() async {
+    if (customTokenFetcher != null || !_initialized) return;
+    try {
+      await GoogleSignIn.instance.signOut();
+    } catch (_) {
+      // Best-effort clear so the next login shows the account picker.
+    }
+  }
+
   Future<String?> requestGoogleIdToken() async {
     if (customTokenFetcher != null) {
       return customTokenFetcher!();
@@ -30,12 +39,15 @@ class GoogleAuthService {
       if (!_initialized) {
         await GoogleSignIn.instance.initialize(
           clientId: kIsWeb ? clientId : null,
-          serverClientId: clientId,
+          serverClientId: kIsWeb ? null : clientId,
         );
         _initialized = true;
       }
 
       if (GoogleSignIn.instance.supportsAuthenticate()) {
+        // Clear any remembered Credential Manager selection so users can pick
+        // a different Google account when switching accounts.
+        await signOut();
         final account = await GoogleSignIn.instance.authenticate(
           scopeHint: const ['email', 'profile'],
         );
@@ -87,6 +99,17 @@ class GoogleAuthService {
       }
     } on LakbayApiException {
       rethrow;
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        throw LakbayApiException(
+          kIsWeb
+              ? 'Google Sign-In was blocked or dismissed by the browser. Confirm GOOGLE_OAUTH_CLIENT_ID is your Web Client ID with this localhost origin authorized (or test on Android).'
+              : 'Google Sign-In was canceled.',
+        );
+      }
+      throw LakbayApiException(
+        'Google Sign-In failed (${e.code.name})${e.description != null ? ': ${e.description}' : '.'}',
+      );
     } on TimeoutException {
       throw const LakbayApiException(
         'Google Sign-In prompt timed out or was dismissed. Please allow popups or use Email & Password.',

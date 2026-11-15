@@ -788,3 +788,26 @@ def test_route_limit_window_expires_without_sleep(monkeypatch) -> None:
     with pytest.raises(LakbayAPIError) as new_window_rejected:
         limiter.check(user_id=1)
     assert new_window_rejected.value.code == "planning_route_rate_limit_exceeded"
+
+
+def test_island_destination_with_pier_link_is_routed_and_fuel_skips_the_sea(client) -> None:
+    from tests.test_sea_routing import RoadFake, seed_sea_links
+
+    admin = register(client, admin=True)
+    destination = create_destination(
+        client, admin,
+        lat=7.0744, lng=125.7087, island_group="samal",
+        how_to_get_there="Take the RoRo barge from Sasa to Babak.",
+    )
+    seed_sea_links(client)
+    override_route_service(client, RoadFake())
+
+    body = post_preview(client, register(client), routing_request(destination["destination_id"]))
+
+    summary = body["route"]["summary"]
+    assert body["route"]["status"] == "calculated", body["route"]
+    assert summary["route_provider"] == "mapbox+sea_links"
+    assert [segment["mode"] for segment in summary["segments"]].count("sea") >= 1
+    road_km = Decimal(summary["total_distance_km"]) - Decimal(summary["sea_distance_km"])
+    assert body["fuel"]["status"] == "calculated"
+    assert Decimal(body["fuel"]["distance_km"]) == road_km

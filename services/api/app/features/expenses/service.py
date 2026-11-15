@@ -110,6 +110,7 @@ class ExpenseService:
             trip=trip,
             expense=expense,
         )
+        await self._notify_budget_threshold_if_needed(actor=user, trip=trip)
         await self.session.commit()
 
         created_expense = await self._require_expense(
@@ -182,6 +183,7 @@ class ExpenseService:
             expense=expense,
             changed_fields=list(values.keys()),
         )
+        await self._notify_budget_threshold_if_needed(actor=user, trip=trip)
         await self.session.commit()
         updated_expense = await self._require_expense(
             trip_id=trip_id,
@@ -226,6 +228,8 @@ class ExpenseService:
         *,
         user: User,
         trip_id: int,
+        adult_count: int | None = None,
+        child_count: int = 0,
     ) -> TripExpenseSummaryResponse:
         trip, _ = await self._require_active_member(user=user, trip_id=trip_id)
         expenses = await self.expenses.list_active_expenses_for_summary(trip_id=trip_id)
@@ -280,6 +284,31 @@ class ExpenseService:
 
         remaining_budget = _money(trip.total_budget - total_spent)
         over_budget_amount = _money(max(total_spent - trip.total_budget, Decimal("0.00")))
+        percent_used = (
+            _money((total_spent / trip.total_budget) * Decimal("100"))
+            if trip.total_budget > 0
+            else Decimal("0.00")
+        )
+        if trip.total_budget > 0 and total_spent > trip.total_budget:
+            budget_alert_level = "exceeded"
+        elif trip.total_budget > 0 and percent_used >= Decimal("80.00"):
+            budget_alert_level = "warning_80"
+        else:
+            budget_alert_level = "ok"
+
+        resolved_children = max(0, child_count)
+        default_adults = max(1, len(summary_members) or trip.traveler_count or 1)
+        resolved_adults = (
+            max(0, adult_count) if adult_count is not None else default_adults
+        )
+        if resolved_adults == 0 and resolved_children == 0:
+            resolved_adults = 1
+
+        adult_share, child_share = _age_weighted_shares(
+            total_spent=total_spent,
+            adult_count=resolved_adults,
+            child_count=resolved_children,
+        )
 
         return TripExpenseSummaryResponse(
             trip_id=trip.trip_id,
@@ -288,6 +317,12 @@ class ExpenseService:
             remaining_budget=remaining_budget,
             over_budget_amount=over_budget_amount,
             is_over_budget=total_spent > trip.total_budget,
+            percent_used=percent_used,
+            budget_alert_level=budget_alert_level,
+            adult_count=resolved_adults,
+            child_count=resolved_children,
+            adult_share=adult_share,
+            child_share=child_share,
             category_breakdown=[
                 TripExpenseCategoryBreakdown(category=category, total=total)
                 for category, total in category_totals.items()
@@ -309,6 +344,28 @@ class ExpenseService:
                 for member in summary_members
             ],
         )
+
+    async def _notify_budget_threshold_if_needed(
+        self,
+        *,
+        actor: User,
+        trip: Trip,
+    ) -> None:
+        if trip.total_budget <= 0:
+            return
+        await self.session.flush()
+        expenses = await self.expenses.list_active_expenses_for_summary(
+            trip_id=trip.trip_id,
+        )
+        total_spent = _money(sum((expense.amount for expense in expenses), Decimal("0.00")))
+        percent_used = _money((total_spent / trip.total_budget) * Decimal("100"))
+        if percent_used >= Decimal("80.00"):
+            await self.notifications.notify_budget_threshold(
+                actor=actor,
+                trip=trip,
+                total_spent=total_spent,
+                percent_used=percent_used,
+            )
 
     async def _require_active_member(
         self,
@@ -512,6 +569,30 @@ def _equal_split_amounts(
         _cents_to_money(base_cents + (1 if index < remainder else 0))
         for index, _member in enumerate(members)
     ]
+
+
+def _age_weighted_shares(
+    *,
+    total_spent: Decimal,
+    adult_count: int,
+    child_count: int,
+) -> tuple[Decimal, Decimal]:
+    """Compute adult and 50%-weighted child shares from total spent."""
+    weight_units = Decimal(adult_count * 2 + child_count)
+    if total_spent <= 0 or weight_units <= 0:
+        return Decimal("0.00"), Decimal("0.00")
+
+    adult_share = (
+        _money((total_spent * Decimal("2")) / weight_units)
+        if adult_count > 0
+        else Decimal("0.00")
+    )
+    child_share = (
+        _money(total_spent / weight_units)
+        if child_count > 0
+        else Decimal("0.00")
+    )
+    return adult_share, child_share
 
 
 def _cents_to_money(cents: int) -> Decimal:

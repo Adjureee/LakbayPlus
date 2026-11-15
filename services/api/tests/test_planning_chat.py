@@ -1147,3 +1147,45 @@ def test_double_escaped_line_breaks_in_the_reply_become_real_line_breaks(
 
     assert body["chat_response"] == "Great!\n- Where from?\n- How many travelers?"
     assert "\\n" not in body["chat_response"]
+
+
+@pytest.mark.parametrize(
+    "extra,expected_intent,expected_replies",
+    [
+        (
+            {"intent": "logistics",
+             "suggested_replies": ["  How much is the barge?  ", "", "x" * 120, "Any pump boats?",
+                                   "Best time to go?", "Fourth"]},
+            "logistics",
+            ["How much is the barge?", "Any pump boats?", "Best time to go?"],
+        ),
+        ({"intent": "teleport", "suggested_replies": "not a list"}, None, []),
+        ({}, None, []),
+    ],
+)
+def test_planning_chat_returns_model_intent_and_clean_suggested_replies(
+    client, monkeypatch, extra, expected_intent, expected_replies,
+) -> None:
+    configure_ai(monkeypatch)
+    client.app.dependency_overrides[get_groq_client] = lambda: FakeGroqClient([
+        json.dumps({
+            "chat_response": "Take the RoRo barge from Sasa Wharf; it runs often in daytime.",
+            "state_updates": {},
+            **extra,
+        }),
+    ])
+
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=user_headers(client),
+        json={
+            "message": "How do I bring my car to Samal?", "use_rag": False,
+            "planning_state": {"origin": {"label": "Davao City"}},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["chat_response"].startswith("Take the RoRo barge")
+    assert body["planning"]["intent"] == expected_intent
+    assert body["planning"]["suggested_replies"] == expected_replies

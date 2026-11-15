@@ -89,7 +89,7 @@ class BackdropItem {
 
   factory BackdropItem.fromJson(Map<String, dynamic> json) {
     return BackdropItem(
-      id: json['id'] as String? ?? '01-zakynthos',
+      id: json['id'] as String? ?? '01-samal-island',
       place: json['place'] as String? ?? 'Samal Island',
       country: json['country'] as String? ?? 'Davao Region',
       photographer: json['photographer'] as String? ?? 'Unsplash',
@@ -119,6 +119,7 @@ class ExploreTrip {
   final String? operatingHours;
   final String? bestTimeToVisit;
   final String? travelNotes;
+  final String? whatToBring;
 
   const ExploreTrip({
     required this.locale,
@@ -139,6 +140,7 @@ class ExploreTrip {
     this.operatingHours,
     this.bestTimeToVisit,
     this.travelNotes,
+    this.whatToBring,
   });
 
   bool get isApiBacked => apiDestinationId != null || id.startsWith('api_');
@@ -146,7 +148,37 @@ class ExploreTrip {
   bool get hasRemoteThumbnail =>
       thumbnailUrl.startsWith('http://') || thumbnailUrl.startsWith('https://');
 
-  String get localAssetPath => 'assets/explore/trip_images/$id.png';
+  String get localAssetPath {
+    final lower = '${title.toLowerCase()} ${(district ?? '').toLowerCase()}';
+    if (lower.contains('samal') || lower.contains('talikud') || lower.contains('vanishing') || lower.contains('coral')) {
+      return 'assets/home_backdrops/01-samal-island.jpg';
+    }
+    if (lower.contains('mati') || lower.contains('dahican') || lower.contains('pujada') || lower.contains('sleeping dinosaur')) {
+      return 'assets/home_backdrops/02-dahican-mati.jpg';
+    }
+    if (lower.contains('apo') || lower.contains('kapatagan') || lower.contains('digos') || lower.contains('bansalan')) {
+      return 'assets/home_backdrops/03-mount-apo.jpg';
+    }
+    if (lower.contains('eden') || lower.contains('toril') || lower.contains('nature park')) {
+      return 'assets/home_backdrops/04-eden-toril.jpg';
+    }
+    if (lower.contains('aliwagwag') || lower.contains('falls') || lower.contains('cateel') || lower.contains('hagimit')) {
+      return 'assets/home_backdrops/05-aliwagwag-falls.jpg';
+    }
+    if (lower.contains('cape san agustin') || lower.contains('gov. generoso') || lower.contains('san victor')) {
+      return 'assets/home_backdrops/06-cape-san-agustin.jpg';
+    }
+    if (lower.contains('eagle') || lower.contains('malagos') || lower.contains('calinan')) {
+      return 'assets/home_backdrops/07-malagos-eagle.jpg';
+    }
+    if (lower.contains('maragusan') || lower.contains('sea of clouds') || lower.contains('davao de oro') || lower.contains('monkayo')) {
+      return 'assets/home_backdrops/10-calamba-clouds.jpg';
+    }
+    if (lower.contains('marilog') || lower.contains('buda') || lower.contains('bemwa') || lower.contains('hills')) {
+      return 'assets/home_backdrops/09-marilog-bemwa.jpg';
+    }
+    return 'assets/home_backdrops/08-peoples-park.jpg';
+  }
 
   String get regionName {
     final lower = '${title.toLowerCase()} ${(district ?? '').toLowerCase()}';
@@ -510,7 +542,7 @@ class HotelOffer {
             .toList(),
         partnerName: json['partnerName'] as String? ?? 'Lakbay+ Partner',
         imageAsset:
-            json['imageAsset'] as String? ?? 'assets/home_backdrops/04-thoddoo.jpg',
+            json['imageAsset'] as String? ?? 'assets/home_backdrops/01-samal-island.jpg',
         remoteImageUrl: json['remoteImageUrl'] as String?,
         lat: (json['lat'] as num?)?.toDouble() ?? 7.0731,
         lng: (json['lng'] as num?)?.toDouble() ?? 125.6128,
@@ -724,6 +756,15 @@ class ItineraryTrip {
   final int? backendTripId;
   final int? backendDestinationId;
   final List<int> backendDestinationIds;
+  final String? whatToBring;
+  final String? entranceFee;
+  final String? operatingHours;
+  final bool isLocalOnly;
+  final List<String> advisories;
+  final double? backendEstimatedCostPhp;
+  final double? backendBudgetPhp;
+  final int? aiGenerationRunId;
+  final int? aiOptionNumber;
 
   const ItineraryTrip({
     required this.id,
@@ -750,15 +791,32 @@ class ItineraryTrip {
     this.backendTripId,
     this.backendDestinationId,
     this.backendDestinationIds = const [],
+    this.whatToBring,
+    this.entranceFee,
+    this.operatingHours,
+    this.isLocalOnly = true,
+    this.advisories = const [],
+    this.backendEstimatedCostPhp,
+    this.backendBudgetPhp,
+    this.aiGenerationRunId,
+    this.aiOptionNumber,
   });
 
   int get totalEstimatedCostUsd {
+    if (backendEstimatedCostPhp != null && backendEstimatedCostPhp! > 0) {
+      return (backendEstimatedCostPhp! / 57.0).round().clamp(1, 999999);
+    }
     final flightTotal =
-        flights.isNotEmpty ? flights.first.priceRoundtripUsd * adults : 160;
-    final hotelTotal = hotels.isNotEmpty
+        flights.isNotEmpty ? flights.first.priceRoundtripUsd * adults : 0;
+    final hotelTotal = hotels.isNotEmpty && daysCount > 1
         ? hotels.first.pricePerNightUsd * (daysCount - 1).clamp(1, 30)
-        : daysCount * 65;
-    return flightTotal + hotelTotal;
+        : 0;
+    final activityTotal = days
+        .expand((d) => d.stops)
+        .fold<double>(0.0, (sum, s) => sum + s.costEstimateUsd)
+        .round();
+    final combined = flightTotal + hotelTotal + activityTotal;
+    return combined > 0 ? combined : (daysCount * 45);
   }
 
   List<GeoPoint> get routeWaypoints => days
@@ -782,20 +840,31 @@ class ItineraryTrip {
   }
 
   ItineraryTrip copyWith({
+    String? title,
+    String? destination,
+    int? daysCount,
+    int? adults,
+    int? children,
     int? backendTripId,
+    List<int>? backendDestinationIds,
     List<HotelOffer>? hotels,
     List<FlightOffer>? flights,
     String? avgTemp,
     int? wmoWeatherCode,
     List<ItineraryDay>? days,
+    String? whatToBring,
+    bool? isLocalOnly,
+    List<String>? advisories,
+    double? backendEstimatedCostPhp,
+    double? backendBudgetPhp,
   }) {
     return ItineraryTrip(
       id: id,
-      title: title,
-      destination: destination,
-      daysCount: daysCount,
-      adults: adults,
-      children: children,
+      title: title ?? this.title,
+      destination: destination ?? this.destination,
+      daysCount: daysCount ?? this.daysCount,
+      adults: adults ?? this.adults,
+      children: children ?? this.children,
       centerLat: centerLat,
       centerLng: centerLng,
       heroAsset: heroAsset,
@@ -813,7 +882,18 @@ class ItineraryTrip {
       hotels: hotels ?? this.hotels,
       backendTripId: backendTripId ?? this.backendTripId,
       backendDestinationId: backendDestinationId,
-      backendDestinationIds: backendDestinationIds,
+      backendDestinationIds:
+          backendDestinationIds ?? this.backendDestinationIds,
+      whatToBring: whatToBring ?? this.whatToBring,
+      entranceFee: entranceFee,
+      operatingHours: operatingHours,
+      isLocalOnly: isLocalOnly ?? this.isLocalOnly,
+      advisories: advisories ?? this.advisories,
+      backendEstimatedCostPhp:
+          backendEstimatedCostPhp ?? this.backendEstimatedCostPhp,
+      backendBudgetPhp: backendBudgetPhp ?? this.backendBudgetPhp,
+      aiGenerationRunId: aiGenerationRunId,
+      aiOptionNumber: aiOptionNumber,
     );
   }
 
@@ -844,6 +924,16 @@ class ItineraryTrip {
           'backendDestinationId': backendDestinationId,
         if (backendDestinationIds.isNotEmpty)
           'backendDestinationIds': backendDestinationIds,
+        if (whatToBring != null) 'whatToBring': whatToBring,
+        if (entranceFee != null) 'entranceFee': entranceFee,
+        if (operatingHours != null) 'operatingHours': operatingHours,
+        'isLocalOnly': isLocalOnly,
+        if (advisories.isNotEmpty) 'advisories': advisories,
+        if (backendEstimatedCostPhp != null)
+          'backendEstimatedCostPhp': backendEstimatedCostPhp,
+        if (backendBudgetPhp != null) 'backendBudgetPhp': backendBudgetPhp,
+        if (aiGenerationRunId != null) 'aiGenerationRunId': aiGenerationRunId,
+        if (aiOptionNumber != null) 'aiOptionNumber': aiOptionNumber,
       };
 
   factory ItineraryTrip.fromJson(Map<String, dynamic> json) => ItineraryTrip(
@@ -856,7 +946,7 @@ class ItineraryTrip {
         centerLat: (json['centerLat'] as num?)?.toDouble() ?? 7.0731,
         centerLng: (json['centerLng'] as num?)?.toDouble() ?? 125.6128,
         heroAsset: json['heroAsset'] as String? ??
-            'assets/home_backdrops/04-thoddoo.jpg',
+            'assets/home_backdrops/01-samal-island.jpg',
         remoteImageUrl: json['remoteImageUrl'] as String?,
         vibeTag: json['vibeTag'] as String? ?? 'Davao Region',
         overviewText: json['overviewText'] as String? ?? '',
@@ -886,98 +976,84 @@ class ItineraryTrip {
                 .whereType<num>()
                 .map((n) => n.toInt())
                 .toList(),
+        whatToBring: json['whatToBring'] as String?,
+        entranceFee: json['entranceFee'] as String?,
+        operatingHours: json['operatingHours'] as String?,
+        isLocalOnly: json['isLocalOnly'] as bool? ?? true,
+        advisories: (json['advisories'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+        backendEstimatedCostPhp:
+            (json['backendEstimatedCostPhp'] as num?)?.toDouble(),
+        backendBudgetPhp: (json['backendBudgetPhp'] as num?)?.toDouble(),
+        aiGenerationRunId: (json['aiGenerationRunId'] as num?)?.toInt(),
+        aiOptionNumber: (json['aiOptionNumber'] as num?)?.toInt(),
       );
 }
 
-class BasketItem {
-  final String id;
+class AiItineraryOptionDraft {
+  final int optionNumber;
   final String title;
-  final String subtitle;
-  final String category; // 'Flight', 'Hotel', 'Experience', 'Car Rental'
-  final int priceUsd;
-  final String imageAsset;
-  final String? remoteImageUrl;
-  final int? backendDestinationId;
+  final String summary;
+  final double estimatedTotalCostPhp;
+  final bool isOverBudget;
+  final int? generationRunId;
+  final ItineraryTrip trip;
 
-  const BasketItem({
-    required this.id,
+  const AiItineraryOptionDraft({
+    required this.optionNumber,
     required this.title,
-    required this.subtitle,
-    required this.category,
-    required this.priceUsd,
-    required this.imageAsset,
-    this.remoteImageUrl,
-    this.backendDestinationId,
+    required this.summary,
+    required this.estimatedTotalCostPhp,
+    required this.isOverBudget,
+    this.generationRunId,
+    required this.trip,
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
+        'optionNumber': optionNumber,
         'title': title,
-        'subtitle': subtitle,
-        'category': category,
-        'priceUsd': priceUsd,
-        'imageAsset': imageAsset,
-        if (remoteImageUrl != null) 'remoteImageUrl': remoteImageUrl,
-        if (backendDestinationId != null)
-          'backendDestinationId': backendDestinationId,
+        'summary': summary,
+        'estimatedTotalCostPhp': estimatedTotalCostPhp,
+        'isOverBudget': isOverBudget,
+        if (generationRunId != null) 'generationRunId': generationRunId,
+        'trip': trip.toJson(),
       };
 
-  factory BasketItem.fromJson(Map<String, dynamic> json) => BasketItem(
-        id: json['id'] as String? ?? '',
-        title: json['title'] as String? ?? '',
-        subtitle: json['subtitle'] as String? ?? '',
-        category: json['category'] as String? ?? 'Experience',
-        priceUsd: (json['priceUsd'] as num?)?.toInt() ?? 0,
-        imageAsset:
-            json['imageAsset'] as String? ?? 'assets/home_backdrops/04-thoddoo.jpg',
-        remoteImageUrl: json['remoteImageUrl'] as String?,
-        backendDestinationId: (json['backendDestinationId'] as num?)?.toInt(),
+  factory AiItineraryOptionDraft.fromJson(Map<String, dynamic> json) =>
+      AiItineraryOptionDraft(
+        optionNumber: (json['optionNumber'] as num?)?.toInt() ?? 1,
+        title: json['title'] as String? ?? 'Davao Option',
+        summary: json['summary'] as String? ?? '',
+        estimatedTotalCostPhp:
+            (json['estimatedTotalCostPhp'] as num?)?.toDouble() ?? 0.0,
+        isOverBudget: json['isOverBudget'] as bool? ?? false,
+        generationRunId: (json['generationRunId'] as num?)?.toInt(),
+        trip: ItineraryTrip.fromJson(
+          (json['trip'] as Map<String, dynamic>? ?? const {}),
+        ),
       );
 }
 
-class BookedReservation {
-  final String id;
-  final String summaryTitle;
-  final String itemsSummary;
-  final int totalUsd;
-  final String paymentMethod;
-  final String bookedAtIso;
-  final int? backendTripId;
-  final bool syncedToCloud;
+class PlanningFeedbackFinding {
+  final String code;
+  final String category;
+  final String severity;
+  final String message;
 
-  const BookedReservation({
-    required this.id,
-    required this.summaryTitle,
-    required this.itemsSummary,
-    required this.totalUsd,
-    required this.paymentMethod,
-    required this.bookedAtIso,
-    this.backendTripId,
-    this.syncedToCloud = false,
+  const PlanningFeedbackFinding({
+    required this.code,
+    required this.category,
+    required this.severity,
+    required this.message,
   });
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'summaryTitle': summaryTitle,
-        'itemsSummary': itemsSummary,
-        'totalUsd': totalUsd,
-        'paymentMethod': paymentMethod,
-        'bookedAtIso': bookedAtIso,
-        if (backendTripId != null) 'backendTripId': backendTripId,
-        'syncedToCloud': syncedToCloud,
-      };
-
-  factory BookedReservation.fromJson(Map<String, dynamic> json) =>
-      BookedReservation(
-        id: json['id'] as String? ?? '',
-        summaryTitle: json['summaryTitle'] as String? ?? 'Davao Reservation',
-        itemsSummary: json['itemsSummary'] as String? ?? '',
-        totalUsd: (json['totalUsd'] as num?)?.toInt() ?? 0,
-        paymentMethod: json['paymentMethod'] as String? ?? 'shop_pay',
-        bookedAtIso:
-            json['bookedAtIso'] as String? ?? DateTime.now().toIso8601String(),
-        backendTripId: (json['backendTripId'] as num?)?.toInt(),
-        syncedToCloud: json['syncedToCloud'] as bool? ?? false,
+  factory PlanningFeedbackFinding.fromJson(Map<String, dynamic> json) =>
+      PlanningFeedbackFinding(
+        code: (json['code'] ?? '').toString(),
+        category: (json['category'] ?? 'info').toString(),
+        severity: (json['severity'] ?? 'info').toString(),
+        message: (json['message'] ?? '').toString(),
       );
 }
 
@@ -987,6 +1063,7 @@ class ChatMessage {
   final String text;
   final DateTime timestamp;
   final ItineraryTrip? attachedTrip;
+  final List<AiItineraryOptionDraft> aiOptions;
   final List<String> suggestedReplies;
 
   const ChatMessage({
@@ -995,6 +1072,7 @@ class ChatMessage {
     required this.text,
     required this.timestamp,
     this.attachedTrip,
+    this.aiOptions = const [],
     this.suggestedReplies = const [],
   });
 
@@ -1004,6 +1082,8 @@ class ChatMessage {
         'text': text,
         'timestamp': timestamp.toIso8601String(),
         if (attachedTrip != null) 'attachedTrip': attachedTrip!.toJson(),
+        if (aiOptions.isNotEmpty)
+          'aiOptions': aiOptions.map((o) => o.toJson()).toList(),
         if (suggestedReplies.isNotEmpty) 'suggestedReplies': suggestedReplies,
       };
 
@@ -1018,6 +1098,10 @@ class ChatMessage {
                 json['attachedTrip'] as Map<String, dynamic>,
               )
             : null,
+        aiOptions: (json['aiOptions'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(AiItineraryOptionDraft.fromJson)
+            .toList(),
         suggestedReplies:
             (json['suggestedReplies'] as List<dynamic>? ?? const [])
                 .map((e) => e.toString())
@@ -1033,12 +1117,14 @@ class UserProfile {
   final String email;
 
   const UserProfile({
-    this.firstName = 'John',
-    this.lastName = 'Lyold Lozada',
+    this.firstName = 'Lakbay',
+    this.lastName = 'Traveler',
     this.headline = '',
-    this.location = 'Davao City, Philippines',
-    this.email = 'traveler@lakbay.ph',
+    this.location = '',
+    this.email = '',
   });
+
+  String get fullName => '$firstName $lastName'.trim();
 
   String get initials {
     final parts = '$firstName $lastName'
@@ -1075,11 +1161,11 @@ class UserProfile {
       };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
-        firstName: json['firstName'] as String? ?? 'John',
-        lastName: json['lastName'] as String? ?? 'Lyold Lozada',
+        firstName: json['firstName'] as String? ?? 'Lakbay',
+        lastName: json['lastName'] as String? ?? 'Traveler',
         headline: json['headline'] as String? ?? '',
-        location: json['location'] as String? ?? 'Davao City, Philippines',
-        email: json['email'] as String? ?? 'traveler@lakbay.ph',
+        location: json['location'] as String? ?? '',
+        email: json['email'] as String? ?? '',
       );
 }
 
@@ -1169,6 +1255,10 @@ class BackendRouteResult {
   final List<String> warnings;
   final List<int> orderedDestinationIds;
 
+  /// Road and sea parts in travel order (present when the trip crosses water).
+  final List<RouteSegmentGeometry> segments;
+  final List<SeaCrossingInfo> seaCrossings;
+
   const BackendRouteResult({
     required this.routeProvider,
     required this.isEstimated,
@@ -1177,5 +1267,546 @@ class BackendRouteResult {
     required this.geometryPoints,
     this.warnings = const [],
     this.orderedDestinationIds = const [],
+    this.segments = const [],
+    this.seaCrossings = const [],
   });
+}
+
+/// A drawable part of a route. Road parts follow real roads unless
+/// [isEstimated]; estimated parts are straight connectors drawn dashed.
+class RouteSegmentGeometry {
+  final TransportMode mode;
+  final List<GeoPoint> points;
+  final String fromName;
+  final String toName;
+  final bool isEstimated;
+
+  const RouteSegmentGeometry({
+    required this.mode,
+    required this.points,
+    required this.fromName,
+    required this.toName,
+    this.isEstimated = false,
+  });
+
+  bool get isSea => mode == TransportMode.ferry;
+}
+
+/// A pier-to-pier boat ride (RoRo barge, passenger ferry or pump boat).
+class SeaCrossingInfo {
+  final String vesselType;
+  final String boardPort;
+  final String landPort;
+  final double boardLat;
+  final double boardLng;
+  final double landLat;
+  final double landLng;
+  final int crossingMinutes;
+  final int typicalWaitMinutes;
+  final bool allowsPrivateVehicle;
+  final String? scheduleText;
+  final double? farePassenger;
+  final double? fareVehicle;
+  final bool verified;
+
+  const SeaCrossingInfo({
+    required this.vesselType,
+    required this.boardPort,
+    required this.landPort,
+    required this.boardLat,
+    required this.boardLng,
+    required this.landLat,
+    required this.landLng,
+    required this.crossingMinutes,
+    required this.typicalWaitMinutes,
+    required this.allowsPrivateVehicle,
+    this.scheduleText,
+    this.farePassenger,
+    this.fareVehicle,
+    this.verified = false,
+  });
+
+  String get vesselLabel => switch (vesselType) {
+        'roro_barge' => 'RoRo barge',
+        'passenger_ferry' => 'Passenger ferry',
+        'pump_boat' => 'Pump boat',
+        _ => 'Boat',
+      };
+}
+
+class TripMemberItem {
+  final int tripMemberId;
+  final int tripId;
+  final int userId;
+  final String fullName;
+  final String email;
+  final String role;
+  final String status;
+
+  const TripMemberItem({
+    required this.tripMemberId,
+    required this.tripId,
+    required this.userId,
+    required this.fullName,
+    required this.email,
+    required this.role,
+    required this.status,
+  });
+
+  factory TripMemberItem.fromJson(Map<String, dynamic> json) => TripMemberItem(
+        tripMemberId: (json['trip_member_id'] as num?)?.toInt() ?? 0,
+        tripId: (json['trip_id'] as num?)?.toInt() ?? 0,
+        userId: (json['user_id'] as num?)?.toInt() ?? 0,
+        fullName: (json['full_name'] ?? '').toString(),
+        email: (json['email'] ?? '').toString(),
+        role: (json['role'] ?? 'member').toString(),
+        status: (json['status'] ?? 'active').toString(),
+      );
+}
+
+class TripTaskItem {
+  final int tripTaskId;
+  final int tripId;
+  final int? assignedTripMemberId;
+  final String title;
+  final String? description;
+  final String status; // pending | in_progress | completed
+  final DateTime? dueDate;
+
+  const TripTaskItem({
+    required this.tripTaskId,
+    required this.tripId,
+    this.assignedTripMemberId,
+    required this.title,
+    this.description,
+    required this.status,
+    this.dueDate,
+  });
+
+  factory TripTaskItem.fromJson(Map<String, dynamic> json) => TripTaskItem(
+        tripTaskId: (json['trip_task_id'] as num?)?.toInt() ?? 0,
+        tripId: (json['trip_id'] as num?)?.toInt() ?? 0,
+        assignedTripMemberId: (json['assigned_trip_member_id'] as num?)?.toInt(),
+        title: (json['title'] ?? '').toString(),
+        description: json['description']?.toString(),
+        status: (json['status'] ?? 'pending').toString(),
+        dueDate: DateTime.tryParse(json['due_date']?.toString() ?? ''),
+      );
+}
+
+class TripExpenseItem {
+  final int tripExpenseId;
+  final int tripId;
+  final int paidByTripMemberId;
+  final String paidByFullName;
+  final String category;
+  final String title;
+  final double amount;
+  final DateTime expenseDate;
+  final String? notes;
+  final String status;
+
+  const TripExpenseItem({
+    required this.tripExpenseId,
+    required this.tripId,
+    required this.paidByTripMemberId,
+    required this.paidByFullName,
+    required this.category,
+    required this.title,
+    required this.amount,
+    required this.expenseDate,
+    this.notes,
+    required this.status,
+  });
+
+  factory TripExpenseItem.fromJson(Map<String, dynamic> json) =>
+      TripExpenseItem(
+        tripExpenseId: (json['trip_expense_id'] as num?)?.toInt() ?? 0,
+        tripId: (json['trip_id'] as num?)?.toInt() ?? 0,
+        paidByTripMemberId:
+            (json['paid_by_trip_member_id'] as num?)?.toInt() ?? 0,
+        paidByFullName: (json['paid_by_full_name'] ?? 'Traveler').toString(),
+        category: (json['category'] ?? 'other').toString(),
+        title: (json['title'] ?? '').toString(),
+        amount: _parseDoubleModel(json['amount']),
+        expenseDate:
+            DateTime.tryParse(json['expense_date']?.toString() ?? '') ??
+                DateTime.now(),
+        notes: json['notes']?.toString(),
+        status: (json['status'] ?? 'active').toString(),
+      );
+}
+
+class TripExpenseCategoryTotal {
+  final String category;
+  final double total;
+
+  const TripExpenseCategoryTotal({
+    required this.category,
+    required this.total,
+  });
+
+  factory TripExpenseCategoryTotal.fromJson(Map<String, dynamic> json) =>
+      TripExpenseCategoryTotal(
+        category: (json['category'] ?? 'other').toString(),
+        total: _parseDoubleModel(json['total']),
+      );
+}
+
+class TripExpenseMemberBalance {
+  final int tripMemberId;
+  final int userId;
+  final String fullName;
+  final double paidTotal;
+  final double shareTotal;
+  final double netBalance;
+
+  const TripExpenseMemberBalance({
+    required this.tripMemberId,
+    required this.userId,
+    required this.fullName,
+    required this.paidTotal,
+    required this.shareTotal,
+    required this.netBalance,
+  });
+
+  factory TripExpenseMemberBalance.fromJson(Map<String, dynamic> json) =>
+      TripExpenseMemberBalance(
+        tripMemberId: (json['trip_member_id'] as num?)?.toInt() ?? 0,
+        userId: (json['user_id'] as num?)?.toInt() ?? 0,
+        fullName: (json['full_name'] ?? '').toString(),
+        paidTotal: _parseDoubleModel(json['paid_total']),
+        shareTotal: _parseDoubleModel(json['share_total']),
+        netBalance: _parseDoubleModel(json['net_balance']),
+      );
+}
+
+class TripExpenseSummary {
+  final int tripId;
+  final double totalBudget;
+  final double totalSpent;
+  final double remainingBudget;
+  final double overBudgetAmount;
+  final bool isOverBudget;
+  final double percentUsed;
+  final String budgetAlertLevel; // ok | warning_80 | exceeded
+  final int adultCount;
+  final int childCount;
+  final double adultShare;
+  final double childShare;
+  final List<TripExpenseCategoryTotal> categoryBreakdown;
+  final List<TripExpenseMemberBalance> memberBalances;
+
+  const TripExpenseSummary({
+    required this.tripId,
+    required this.totalBudget,
+    required this.totalSpent,
+    required this.remainingBudget,
+    required this.overBudgetAmount,
+    required this.isOverBudget,
+    required this.percentUsed,
+    required this.budgetAlertLevel,
+    required this.adultCount,
+    required this.childCount,
+    required this.adultShare,
+    required this.childShare,
+    required this.categoryBreakdown,
+    required this.memberBalances,
+  });
+
+  factory TripExpenseSummary.fromJson(Map<String, dynamic> json) =>
+      TripExpenseSummary(
+        tripId: (json['trip_id'] as num?)?.toInt() ?? 0,
+        totalBudget: _parseDoubleModel(json['total_budget']),
+        totalSpent: _parseDoubleModel(json['total_spent']),
+        remainingBudget: _parseDoubleModel(json['remaining_budget']),
+        overBudgetAmount: _parseDoubleModel(json['over_budget_amount']),
+        isOverBudget: json['is_over_budget'] == true,
+        percentUsed: _parseDoubleModel(json['percent_used']),
+        budgetAlertLevel: (json['budget_alert_level'] ?? 'ok').toString(),
+        adultCount: (json['adult_count'] as num?)?.toInt() ?? 1,
+        childCount: (json['child_count'] as num?)?.toInt() ?? 0,
+        adultShare: _parseDoubleModel(json['adult_share']),
+        childShare: _parseDoubleModel(json['child_share']),
+        categoryBreakdown:
+            (json['category_breakdown'] as List<dynamic>? ?? const [])
+                .whereType<Map<String, dynamic>>()
+                .map(TripExpenseCategoryTotal.fromJson)
+                .toList(),
+        memberBalances:
+            (json['member_balances'] as List<dynamic>? ?? const [])
+                .whereType<Map<String, dynamic>>()
+                .map(TripExpenseMemberBalance.fromJson)
+                .toList(),
+      );
+}
+
+class TripMemoryItem {
+  final int tripMemoryId;
+  final int tripId;
+  final String uploadedByFullName;
+  final int? destinationId;
+  final String? destinationName;
+  final String imageUrl;
+  final String? localFilePath;
+  final String? caption;
+  final String? locationTag;
+  final int likeCount;
+  final int commentCount;
+  final DateTime createdAt;
+
+  const TripMemoryItem({
+    required this.tripMemoryId,
+    required this.tripId,
+    required this.uploadedByFullName,
+    this.destinationId,
+    this.destinationName,
+    required this.imageUrl,
+    this.localFilePath,
+    this.caption,
+    this.locationTag,
+    this.likeCount = 0,
+    this.commentCount = 0,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'trip_memory_id': tripMemoryId,
+        'trip_id': tripId,
+        'uploaded_by_full_name': uploadedByFullName,
+        if (destinationId != null) 'destination_id': destinationId,
+        if (destinationName != null) 'destination_name': destinationName,
+        'image_url': imageUrl,
+        if (localFilePath != null) 'local_file_path': localFilePath,
+        if (caption != null) 'caption': caption,
+        if (locationTag != null) 'location_tag': locationTag,
+        'like_count': likeCount,
+        'comment_count': commentCount,
+        'created_at': createdAt.toIso8601String(),
+      };
+
+  factory TripMemoryItem.fromJson(Map<String, dynamic> json) => TripMemoryItem(
+        tripMemoryId: (json['trip_memory_id'] as num?)?.toInt() ?? 0,
+        tripId: (json['trip_id'] as num?)?.toInt() ?? 0,
+        uploadedByFullName:
+            (json['uploaded_by_full_name'] ?? 'Traveler').toString(),
+        destinationId: (json['destination_id'] as num?)?.toInt(),
+        destinationName: json['destination_name']?.toString(),
+        imageUrl: (json['image_url'] ?? '').toString(),
+        localFilePath: json['local_file_path']?.toString(),
+        caption: json['caption']?.toString(),
+        locationTag: json['location_tag']?.toString(),
+        likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
+        commentCount: (json['comment_count'] as num?)?.toInt() ?? 0,
+        createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+            DateTime.now(),
+      );
+}
+
+class AppNotificationItem {
+  final int notificationId;
+  final int? tripId;
+  final String? tripTitle;
+  final String eventType;
+  final String title;
+  final String message;
+  final bool isRead;
+  final DateTime createdAt;
+
+  const AppNotificationItem({
+    required this.notificationId,
+    this.tripId,
+    this.tripTitle,
+    required this.eventType,
+    required this.title,
+    required this.message,
+    required this.isRead,
+    required this.createdAt,
+  });
+
+  AppNotificationItem copyWith({bool? isRead}) => AppNotificationItem(
+        notificationId: notificationId,
+        tripId: tripId,
+        tripTitle: tripTitle,
+        eventType: eventType,
+        title: title,
+        message: message,
+        isRead: isRead ?? this.isRead,
+        createdAt: createdAt,
+      );
+
+  factory AppNotificationItem.fromJson(Map<String, dynamic> json) =>
+      AppNotificationItem(
+        notificationId: (json['notification_id'] as num?)?.toInt() ?? 0,
+        tripId: (json['trip_id'] as num?)?.toInt(),
+        tripTitle: json['trip_title']?.toString(),
+        eventType: (json['event_type'] ?? '').toString(),
+        title: (json['title'] ?? '').toString(),
+        message: (json['message'] ?? '').toString(),
+        isRead: json['is_read'] == true,
+        createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+            DateTime.now(),
+      );
+}
+
+class TripReviewItem {
+  final int tripReviewId;
+  final int tripId;
+  final String fullName;
+  final int postTripRating;
+  final int accuracyRating;
+  final int routeEfficiencyRating;
+  final int budgetAdherenceRating;
+  final int overallExperienceRating;
+  final String? comments;
+  final DateTime createdAt;
+
+  const TripReviewItem({
+    required this.tripReviewId,
+    required this.tripId,
+    required this.fullName,
+    required this.postTripRating,
+    required this.accuracyRating,
+    required this.routeEfficiencyRating,
+    required this.budgetAdherenceRating,
+    required this.overallExperienceRating,
+    this.comments,
+    required this.createdAt,
+  });
+
+  factory TripReviewItem.fromJson(Map<String, dynamic> json) => TripReviewItem(
+        tripReviewId: (json['trip_review_id'] as num?)?.toInt() ?? 0,
+        tripId: (json['trip_id'] as num?)?.toInt() ?? 0,
+        fullName: (json['full_name'] ?? 'Traveler').toString(),
+        postTripRating: (json['post_trip_rating'] as num?)?.toInt() ?? 5,
+        accuracyRating: (json['accuracy_rating'] as num?)?.toInt() ?? 5,
+        routeEfficiencyRating:
+            (json['route_efficiency_rating'] as num?)?.toInt() ?? 5,
+        budgetAdherenceRating:
+            (json['budget_adherence_rating'] as num?)?.toInt() ?? 5,
+        overallExperienceRating:
+            (json['overall_experience_rating'] as num?)?.toInt() ?? 5,
+        comments: json['comments']?.toString(),
+        createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+            DateTime.now(),
+      );
+}
+
+class AppAssessmentData {
+  final int? functionalSuitabilityRating;
+  final int? informationAccuracyRating;
+  final int? performanceRating;
+  final int? interactionRating;
+  final int? reliabilityRating;
+  final int? sharingClarityRating;
+  final String? comment;
+
+  const AppAssessmentData({
+    this.functionalSuitabilityRating,
+    this.informationAccuracyRating,
+    this.performanceRating,
+    this.interactionRating,
+    this.reliabilityRating,
+    this.sharingClarityRating,
+    this.comment,
+  });
+
+  factory AppAssessmentData.fromJson(Map<String, dynamic> json) =>
+      AppAssessmentData(
+        functionalSuitabilityRating:
+            (json['functional_suitability_rating'] as num?)?.toInt(),
+        informationAccuracyRating:
+            (json['information_accuracy_rating'] as num?)?.toInt(),
+        performanceRating: (json['performance_rating'] as num?)?.toInt(),
+        interactionRating: (json['interaction_rating'] as num?)?.toInt(),
+        reliabilityRating: (json['reliability_rating'] as num?)?.toInt(),
+        sharingClarityRating:
+            (json['sharing_clarity_rating'] as num?)?.toInt(),
+        comment: json['comment']?.toString(),
+      );
+}
+
+class TopPlaceRecommendation {
+  final int rank;
+  final int destinationId;
+  final String name;
+  final String? district;
+  final String? category;
+  final String? imageUrl;
+  final double? estimatedCost;
+  final double score;
+  final List<String> reasons;
+  final bool routeVerified;
+  final String travelMode;
+  final int? travelMinutes;
+  final double? travelDistanceKm;
+
+  const TopPlaceRecommendation({
+    required this.rank,
+    required this.destinationId,
+    required this.name,
+    this.district,
+    this.category,
+    this.imageUrl,
+    this.estimatedCost,
+    required this.score,
+    this.reasons = const [],
+    required this.routeVerified,
+    required this.travelMode,
+    this.travelMinutes,
+    this.travelDistanceKm,
+  });
+
+  factory TopPlaceRecommendation.fromJson(Map<String, dynamic> json) =>
+      TopPlaceRecommendation(
+        rank: (json['rank'] as num?)?.toInt() ?? 0,
+        destinationId: (json['destination_id'] as num?)?.toInt() ?? 0,
+        name: (json['name'] ?? '').toString(),
+        district: json['district']?.toString(),
+        category: json['category']?.toString(),
+        imageUrl: json['image_url']?.toString(),
+        estimatedCost: json['estimated_cost'] == null
+            ? null
+            : _parseDoubleModel(json['estimated_cost']),
+        score: _parseDoubleModel(json['score']),
+        reasons: (json['reasons'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+        routeVerified: json['route_verified'] == true,
+        travelMode: (json['travel_mode'] ?? 'driving').toString(),
+        travelMinutes: (json['travel_minutes'] as num?)?.toInt(),
+        travelDistanceKm: json['travel_distance_km'] == null
+            ? null
+            : _parseDoubleModel(json['travel_distance_km']),
+      );
+}
+
+class TopPlacesResult {
+  final String method;
+  final List<TopPlaceRecommendation> items;
+  final List<String> warnings;
+
+  const TopPlacesResult({
+    required this.method,
+    required this.items,
+    this.warnings = const [],
+  });
+
+  factory TopPlacesResult.fromJson(Map<String, dynamic> json) =>
+      TopPlacesResult(
+        method: (json['method'] ?? 'topsis').toString(),
+        items: (json['items'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(TopPlaceRecommendation.fromJson)
+            .toList(),
+        warnings: (json['warnings'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+      );
+}
+
+double _parseDoubleModel(dynamic value) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? 0.0;
+  return 0.0;
 }

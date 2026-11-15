@@ -1,3 +1,4 @@
+from dataclasses import replace
 from math import isfinite
 
 import httpx
@@ -27,8 +28,30 @@ USER_AGENT = "Lakbay-API (Davao Region trip planner; https://lakbay-api-sg.onren
 
 
 class OSRMClient:
+    # Reported as RouteSummaryResponse.route_provider.
+    provider_name = "osrm"
+
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
+
+    # Subclasses for OSRM-compatible providers (Mapbox) override these hooks.
+    def _route_path(self, profile: str, coordinates: list[RouteCoordinate]) -> str:
+        return f"/route/v1/{profile}/{_coordinates_path(coordinates)}"
+
+    def _trip_path(self, profile: str, coordinates: list[RouteCoordinate]) -> str:
+        return f"/trip/v1/{profile}/{_coordinates_path(coordinates)}"
+
+    def _table_path(self, profile: str, coordinates: list[RouteCoordinate]) -> str:
+        return f"/table/v1/{profile}/{_coordinates_path(coordinates)}"
+
+    def _request_params(self) -> dict[str, str]:
+        return {}
+
+    def _request_timeout(self) -> float:
+        return self.settings.osrm_request_timeout_seconds
+
+    def _tag(self, result: OSRMRouteResult) -> OSRMRouteResult:
+        return replace(result, provider=self.provider_name)
 
     async def preview_route(
         self,
@@ -39,7 +62,7 @@ class OSRMClient:
         profile = self._profile_for_mode(travel_mode)
         base_url = self._base_url_for_mode(travel_mode)
         body = await self._get_json(
-            f"/route/v1/{profile}/{_coordinates_path(coordinates)}",
+            self._route_path(profile, coordinates),
             # Full geometry follows the road at street zoom; simplified lines
             # cut corners by up to about 100 m on longer routes.
             params={"overview": "full", "steps": "true", "geometries": "polyline"},
@@ -48,7 +71,7 @@ class OSRMClient:
 
         _require_near_route_waypoints(body, len(coordinates))
 
-        return _parse_route_response(body)
+        return self._tag(_parse_route_response(body))
 
     async def optimize_route(
         self,
@@ -69,7 +92,7 @@ class OSRMClient:
             source = "first"
 
         body = await self._get_json(
-            f"/trip/v1/{profile}/{_coordinates_path(coordinates)}",
+            self._trip_path(profile, coordinates),
             params={
                 "overview": "full",
                 "steps": "true",
@@ -81,7 +104,7 @@ class OSRMClient:
             base_url=base_url,
         )
 
-        return _parse_trip_response(body, expected_count=len(coordinates))
+        return self._tag(_parse_trip_response(body, expected_count=len(coordinates)))
 
     async def table(
         self,
@@ -97,7 +120,7 @@ class OSRMClient:
         base_url = self._base_url_for_mode(travel_mode)
         coordinates = [origin, *destinations]
         body = await self._get_json(
-            f"/table/v1/{profile}/{_coordinates_path(coordinates)}",
+            self._table_path(profile, coordinates),
             params={
                 "sources": "0",
                 "destinations": ";".join(str(index) for index in range(1, len(coordinates))),
@@ -117,7 +140,7 @@ class OSRMClient:
         profile = self._profile_for_mode(travel_mode)
         base_url = self._base_url_for_mode(travel_mode)
         body = await self._get_json(
-            f"/table/v1/{profile}/{_coordinates_path(coordinates)}",
+            self._table_path(profile, coordinates),
             params={"annotations": "duration,distance"},
             base_url=base_url,
         )
@@ -128,13 +151,15 @@ class OSRMClient:
     ) -> dict:
         async with httpx.AsyncClient(
             base_url=base_url.rstrip("/"),
-            timeout=self.settings.osrm_request_timeout_seconds,
+            timeout=self._request_timeout(),
             headers={"User-Agent": USER_AGENT},
         ) as client:
             try:
-                response = await client.get(path, params=params)
+                response = await client.get(
+                    path, params={**params, **self._request_params()},
+                )
             except httpx.RequestError as exc:
-                raise OSRMClientError("OSRM request failed.") from exc
+                raise OSRMClientError(f"{self.provider_name} request failed.") from exc
 
         if response.status_code >= 500:
             raise OSRMClientError(
@@ -199,7 +224,20 @@ class OSRMClient:
 
 
 def get_osrm_client() -> OSRMClient:
-    return OSRMClient()
+    """Road router: Mapbox first when a server token is set, then OSRM."""
+    settings = get_settings()
+    if getattr(settings, "mapbox_directions_token", None):
+        # Imported here to avoid a circular import; Mapbox subclasses OSRMClient.
+        from app.integrations.mapbox_directions.client import (
+            ChainedRoutingClient,
+            MapboxDirectionsClient,
+        )
+
+        clients: list[OSRMClient] = [MapboxDirectionsClient(settings)]
+        if settings.osrm_base_url:
+            clients.append(OSRMClient(settings))
+        return ChainedRoutingClient(clients, settings)
+    return OSRMClient(settings)
 
 
 def _coordinates_path(coordinates: list[RouteCoordinate]) -> str:

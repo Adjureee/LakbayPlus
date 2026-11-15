@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'screens/basket_checkout_screen.dart';
 import 'screens/explore_screen.dart';
 import 'screens/home_chat_screen.dart';
+import 'screens/memories_screen.dart';
 import 'screens/my_trips_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/profile_screen.dart';
@@ -90,17 +90,24 @@ class MainNavigationShell extends StatefulWidget {
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.repo.autoDetectLocationOnShellEntry();
+    });
+  }
+  @override
   Widget build(BuildContext context) {
     final pages = [
       MyTripsScreen(repo: widget.repo),
       ExploreScreen(repo: widget.repo),
       HomeChatScreen(repo: widget.repo),
-      BasketCheckoutScreen(repo: widget.repo),
+      MemoriesScreen(repo: widget.repo),
       ProfileScreen(repo: widget.repo),
     ];
 
     final selectedIndex = widget.repo.activeNavIndex;
-    final basketCount = widget.repo.basket.length;
+    final memoriesCount = widget.repo.memories.length;
     final initials = widget.repo.profile.initials;
 
     return Scaffold(
@@ -149,9 +156,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     // Spacer for center elevated S✦ Chat button
                     const SizedBox(width: 62),
                     _NavItem(
-                      icon: Icons.confirmation_number_outlined,
-                      label: 'Bookings',
-                      badgeCount: basketCount,
+                      icon: Icons.photo_library_outlined,
+                      label: 'Memories',
+                      badgeCount: memoriesCount,
                       selected: selectedIndex == 3,
                       onTap: () => widget.repo.setActiveNavIndex(3),
                     ),

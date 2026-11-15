@@ -22,7 +22,7 @@ class AIItineraryRepository(CatalogSelectionQueries):
     async def create_generation_run(
         self,
         *,
-        user_id: int,
+        user_id: int | None,
         request_purpose: str,
         model_role: str,
         model_id: str,

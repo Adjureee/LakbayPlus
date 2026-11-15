@@ -54,6 +54,7 @@ def client(monkeypatch) -> Generator[TestClient, None, None]:
     monkeypatch.setenv("JWT_SECRET_KEY", "test-secret-key")
     monkeypatch.setenv("ADMIN_REGISTRATION_CODE", "admin-test-code")
     monkeypatch.setenv("CLOUDINARY_CLOUD_NAME", "demo")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_IDS", "")
     get_settings.cache_clear()
     import_model_modules()
 
