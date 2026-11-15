@@ -531,8 +531,11 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                   if (widget.interactive)
                     Positioned(
                       left: 12,
-                      right: 12,
-                      top: 12,
+                      right: widget.showControls ? 68 : 12,
+                      bottom: widget.showControls
+                          ? widget.controlsBottomOffset + 4
+                          : null,
+                      top: widget.showControls ? null : 12,
                       child: IgnorePointer(child: _buildUnroutedNotice()),
                     ),
                 ],
@@ -549,8 +552,11 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                   if (!hasDetailedRoad && widget.interactive)
                     Positioned(
                       left: 12,
-                      right: 12,
-                      top: 12,
+                      right: widget.showControls ? 68 : 12,
+                      bottom: widget.showControls
+                          ? widget.controlsBottomOffset + 4
+                          : null,
+                      top: widget.showControls ? null : 12,
                       child: IgnorePointer(
                         child: _buildUnroutedNotice(
                           'Part of this road route is unavailable — grey dashed lines are estimates.',
@@ -651,8 +657,15 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
 
                 // 4. Interactive Pin Markers + Pulsing CircleAnnotation Halo + APK Pin Sprites
                 ...widget.markers.map((marker) {
-                  final offset =
-                      _latLngToViewportOffset(marker.lat, marker.lng, size);
+                  // When a live GPS layer is active, anchor the "You" badge neatly
+                  // below the live dot instead of drawing a second blue dot.
+                  final lat = (marker.isUserLocation && widget.livePosition != null)
+                      ? widget.livePosition!.lat
+                      : marker.lat;
+                  final lng = (marker.isUserLocation && widget.livePosition != null)
+                      ? widget.livePosition!.lng
+                      : marker.lng;
+                  final offset = _latLngToViewportOffset(lat, lng, size);
                   if (offset.dx < -60 ||
                       offset.dx > size.width + 60 ||
                       offset.dy < -60 ||
@@ -662,18 +675,28 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                   final isSelected = widget.selectedMarkerId == marker.id;
                   return Positioned(
                     left: offset.dx - 55,
-                    top: offset.dy - 74,
+                    top: (marker.isUserLocation && widget.livePosition != null)
+                        ? offset.dy + 12
+                        : offset.dy - 74,
                     width: 110,
-                    height: 74,
+                    height: (marker.isUserLocation && widget.livePosition != null)
+                        ? 24
+                        : 74,
                     child: Align(
-                      alignment: Alignment.bottomCenter,
+                      alignment:
+                          (marker.isUserLocation && widget.livePosition != null)
+                              ? Alignment.topCenter
+                              : Alignment.bottomCenter,
                       child: GestureDetector(
                         onTap: () {
-                          flyTo(marker.lat, marker.lng,
-                              zoom: math.max(_zoom, 9.6));
+                          flyTo(lat, lng, zoom: math.max(_zoom, 9.6));
                           widget.onMarkerTap?.call(marker);
                         },
-                        child: _buildMarkerWidget(marker, isSelected),
+                        child: _buildMarkerWidget(
+                          marker,
+                          isSelected,
+                          showUserDot: widget.livePosition == null,
+                        ),
                       ),
                     ),
                   );
@@ -1107,8 +1130,29 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
     );
   }
 
-  Widget _buildMarkerWidget(LakbayMapMarker marker, bool isSelected) {
+  Widget _buildMarkerWidget(
+    LakbayMapMarker marker,
+    bool isSelected, {
+    bool showUserDot = true,
+  }) {
     if (marker.isUserLocation) {
+      if (!showUserDot) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+          decoration: BoxDecoration(
+            color: LakbayColors.tealDeep,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Text(
+            'You',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        );
+      }
       return Stack(
         alignment: Alignment.center,
         clipBehavior: Clip.none,
