@@ -1,0 +1,126 @@
+import 'package:flutter/services.dart' show rootBundle;
+
+/// Loads API keys and service settings from `.env` (bundled as an asset)
+/// with `--dart-define` compile-time overrides.
+class EnvConfig {
+  EnvConfig._();
+
+  static final Map<String, String> _values = {};
+  static bool _loaded = false;
+
+  static bool get isLoaded => _loaded;
+
+  /// Loads `.env` from the Flutter asset bundle. Safe to call multiple times.
+  static Future<void> load({String assetPath = '.env'}) async {
+    try {
+      final raw = await rootBundle.loadString(assetPath);
+      loadFromString(raw);
+    } catch (_) {
+      _loaded = true;
+    }
+  }
+
+  /// Parses raw `.env` key=value lines into memory (also useful for unit tests).
+  static void loadFromString(String raw) {
+    _values.clear();
+    for (final rawLine in raw.split(RegExp(r'\r?\n'))) {
+      final line = rawLine.trim();
+      if (line.isEmpty || line.startsWith('#')) continue;
+      final eqIndex = line.indexOf('=');
+      if (eqIndex <= 0) continue;
+      final key = line.substring(0, eqIndex).trim();
+      var value = line.substring(eqIndex + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))) {
+        if (value.length >= 2) {
+          value = value.substring(1, value.length - 1);
+        }
+      }
+      if (key.isNotEmpty) {
+        _values[key] = value;
+      }
+    }
+    _loaded = true;
+  }
+
+  static String get(String key, {String fallback = ''}) {
+    final v = _values[key];
+    if (v != null && v.isNotEmpty) return v;
+    return fallback;
+  }
+
+  // Compile-time --dart-define overrides take precedence if non-empty.
+  static const String _defineMapbox =
+      String.fromEnvironment('MAPBOX_ACCESS_TOKEN', defaultValue: '');
+  static const String _defineGroqKey =
+      String.fromEnvironment('GROQ_API_KEY', defaultValue: '');
+  static const String _defineFallbackKey =
+      String.fromEnvironment('FALLBACK_LLM_API_KEY', defaultValue: '');
+  static const String _defineCloudName =
+      String.fromEnvironment('CLOUDINARY_CLOUD_NAME', defaultValue: '');
+  static const String _definelakbayApiBaseUrl =
+      String.fromEnvironment('LAKBAY_API_BASE_URL', defaultValue: '');
+  static const String _defineGoogleClientId =
+      String.fromEnvironment('GOOGLE_OAUTH_CLIENT_ID', defaultValue: '');
+
+  static String get mapboxAccessToken =>
+      _defineMapbox.isNotEmpty ? _defineMapbox : get('MAPBOX_ACCESS_TOKEN');
+
+  // Groq Primary AI
+  static String get groqApiKey =>
+      _defineGroqKey.isNotEmpty ? _defineGroqKey : get('GROQ_API_KEY');
+  static String get groqBaseUrl => get(
+        'GROQ_BASE_URL',
+        fallback: 'https://api.groq.com/openai/v1',
+      );
+  static String get groqModelDefault =>
+      get('GROQ_MODEL_DEFAULT', fallback: 'openai/gpt-oss-120b');
+  static String get groqModelFast =>
+      get('GROQ_MODEL_FAST', fallback: groqModelDefault);
+  static String get groqModelQuality =>
+      get('GROQ_MODEL_QUALITY', fallback: groqModelDefault);
+  static String get groqModelFallback =>
+      get('GROQ_MODEL_FALLBACK', fallback: groqModelDefault);
+  static double get groqTemperature =>
+      double.tryParse(get('GROQ_TEMPERATURE', fallback: '0.30')) ?? 0.30;
+  static int get groqMaxTokens =>
+      int.tryParse(get('GROQ_MAX_TOKENS', fallback: '4096')) ?? 4096;
+
+  // Fallback OpenAI-compatible AI (e.g. Gemini)
+  static String get fallbackLlmApiKey => _defineFallbackKey.isNotEmpty
+      ? _defineFallbackKey
+      : get('FALLBACK_LLM_API_KEY');
+  static String get fallbackLlmModel =>
+      get('FALLBACK_LLM_MODEL', fallback: 'gemini-2.5-flash');
+  static String get fallbackLlmBaseUrl => get(
+        'FALLBACK_LLM_BASE_URL',
+        fallback: 'https://generativelanguage.googleapis.com/v1beta/openai',
+      );
+
+  // Cloudinary
+  static String get cloudinaryCloudName => _defineCloudName.isNotEmpty
+      ? _defineCloudName
+      : get('CLOUDINARY_CLOUD_NAME');
+  static String get cloudinaryApiKey => get('CLOUDINARY_API_KEY');
+  static String get cloudinaryApiSecret => get('CLOUDINARY_API_SECRET');
+  static String get cloudinaryUploadPreset => get('CLOUDINARY_UPLOAD_PRESET');
+
+  // Optional OpenWeather & Lakbay+ Backend API
+  static String get openWeatherApiKey => get('OPENWEATHER_API_KEY');
+  static String get lakbayApiBaseUrl => _definelakbayApiBaseUrl.isNotEmpty
+      ? _definelakbayApiBaseUrl
+      : get('LAKBAY_API_BASE_URL');
+  static String get googleOAuthClientId => _defineGoogleClientId.isNotEmpty
+      ? _defineGoogleClientId
+      : get('GOOGLE_OAUTH_CLIENT_ID');
+  static bool get hasLakbayApi => lakbayApiBaseUrl.trim().isNotEmpty;
+  static bool get hasGoogleOAuth => googleOAuthClientId.trim().isNotEmpty;
+
+  static bool get hasGroqKey => groqApiKey.trim().isNotEmpty;
+  static bool get hasFallbackLlmKey => fallbackLlmApiKey.trim().isNotEmpty;
+  static bool get hasAnyAiKey => hasGroqKey || hasFallbackLlmKey;
+  static bool get hasCloudinaryConfig =>
+      cloudinaryCloudName.trim().isNotEmpty &&
+      (cloudinaryUploadPreset.trim().isNotEmpty ||
+          cloudinaryApiKey.trim().isNotEmpty);
+}
