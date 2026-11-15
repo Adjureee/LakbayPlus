@@ -1,7 +1,7 @@
 """Add piers, boat links and destination island groups for sea-aware routing.
 
 Revision ID: 2026_11_15_1000
-Revises: 2026_11_11_1000
+Revises: 2026_11_11_1200
 
 Seeds starter Davao City <-> Samal and Talikud links. Their pier coordinates,
 schedules and fares are approximate planning data: verified_at stays NULL and
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 
 
 revision: str = "2026_11_15_1000"
-down_revision: str | Sequence[str] | None = "2026_11_11_1000"
+down_revision: str | Sequence[str] | None = "2026_11_11_1200"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

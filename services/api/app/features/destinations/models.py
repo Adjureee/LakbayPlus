@@ -97,6 +97,11 @@ class Destination(Base):
     stay_duration_type: Mapped[str | None] = mapped_column(String(50))
     transport_accessibility: Mapped[str | None] = mapped_column(String(100))
     image_url: Mapped[str | None] = mapped_column(Text)
+    # Photo attribution (migration 2026_11_11_1200).
+    image_public_id: Mapped[str | None] = mapped_column(String(255))
+    image_credit: Mapped[str | None] = mapped_column(String(500))
+    image_license: Mapped[str | None] = mapped_column(String(100))
+    image_source_url: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
