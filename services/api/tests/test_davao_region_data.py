@@ -206,3 +206,39 @@ def test_trip_draft_clears_stops_outside_the_region_outline() -> None:
     first, second = draft["days"][0]["activities"]
     assert (first["lat"], first["lng"]) == (7.0870, 125.6670)
     assert (second["lat"], second["lng"]) == (None, None)
+
+
+def test_refresh_staged_fills_only_empty_fields(client, tmp_path, monkeypatch) -> None:
+    source = tmp_path / "review.jsonl"
+    source.write_text(json.dumps(_row(21, 7.0870, 125.6670, "beach", "Samal Sands")), encoding="utf-8")
+
+    async def setup():
+        async for session in client.app.dependency_overrides[get_db_session]():
+            session.add(DestinationCandidate(
+                osm_type="node", osm_id=21, osm_url="https://www.openstreetmap.org/node/21",
+                source_area="Davao Del Norte", source_tag="natural=beach", name="Samal Sands",
+                lat=7.0870, lng=125.6670, suggested_category="beach",
+                district="Island Garden City of Samal",  # admin value: keep it
+            ))
+            await session.commit()
+            return session.bind
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    engine = asyncio.run(setup())
+    monkeypatch.setattr(importer, "get_sessionmaker", lambda: async_sessionmaker(engine))
+
+    dry = asyncio.run(importer.refresh_staged(source, apply=False))
+    applied = asyncio.run(importer.refresh_staged(source, apply=True))
+    again = asyncio.run(importer.refresh_staged(source, apply=True))
+
+    assert dry == applied
+    assert applied["island_group"] == 1 and "district" not in applied
+    assert again == {"staged_rows": 1}
+    item = client.get(
+        "/api/v1/admin/destination-candidates", headers=admin_headers(client),
+    ).json()
+    item = (item["items"] if isinstance(item, dict) else item)[0]
+    assert item["district"] == "Island Garden City of Samal"
+    assert item["island_group"] == "samal"
+    assert item["category"] == "beach"

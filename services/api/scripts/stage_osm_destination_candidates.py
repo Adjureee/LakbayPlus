@@ -3,6 +3,8 @@
 Preview: python -m scripts.stage_osm_destination_candidates
 Apply after migration: python -m scripts.stage_osm_destination_candidates --apply
 Options: --limit 120 (stage the highest-priority rows first), --skip-resorts
+Refresh rows staged earlier (fills only empty fields, never overwrites):
+         python -m scripts.stage_osm_destination_candidates --refresh-staged [--apply]
 
 Each staged row is prefilled so admins only confirm and publish:
 - district from the Region XI province outline (rows outside the region are skipped),
@@ -170,6 +172,52 @@ async def stage(
         return added, skipped
 
 
+PREFILL_FIELDS = ("district", "category", "vibes", "activities", "island_group")
+PREFILL_NOTE = "Prefilled by the staging script"
+
+
+async def refresh_staged(path: Path, *, apply: bool) -> dict[str, int]:
+    """Fill empty prefill fields on candidates that are still staged.
+
+    Admin-entered values are never replaced; published and rejected rows are
+    left alone. Returns how many rows gained each field.
+    """
+    import_model_modules()
+    by_identity = {(row["osm_type"], int(row["osm_id"])): row for row in load_candidates(path)}
+    filled = Counter()
+    async with get_sessionmaker()() as session:
+        staged = (await session.execute(
+            select(DestinationCandidate).where(DestinationCandidate.review_status == "staged")
+        )).scalars().all()
+        for candidate in staged:
+            row = by_identity.get((candidate.osm_type, candidate.osm_id)) or {
+                "latitude": candidate.lat, "longitude": candidate.lng,
+                "suggested_category": candidate.suggested_category,
+            }
+            # The pin may have been moved by an admin: use the stored point.
+            fields = prefill({**row, "latitude": candidate.lat, "longitude": candidate.lng})
+            changed = False
+            for field in PREFILL_FIELDS:
+                if getattr(candidate, field) in (None, "") and fields[field]:
+                    filled[field] += 1
+                    changed = True
+                    if apply:
+                        setattr(candidate, field, fields[field])
+            if changed and PREFILL_NOTE not in (candidate.review_notes or ""):
+                filled["notes"] += 1
+                if apply:
+                    note = _review_notes(row, fields)
+                    candidate.review_notes = (
+                        f"{candidate.review_notes} {note}" if candidate.review_notes else note
+                    )
+        filled["staged_rows"] = len(staged)
+        if apply:
+            await session.commit()
+        else:
+            await session.rollback()
+    return dict(filled)
+
+
 def preview(path: Path, *, limit: int | None, skip_resorts: bool) -> None:
     rows = prioritized(load_candidates(path), skip_resorts=skip_resorts)
     fields = [(row, prefill(row)) for row in rows]
@@ -192,7 +240,18 @@ def main() -> None:
     parser.add_argument("--apply", action="store_true", help="Write staged rows to the configured database")
     parser.add_argument("--limit", type=int, default=None, help="Stage at most this many new rows")
     parser.add_argument("--skip-resorts", action="store_true", help="Leave private resorts out")
+    parser.add_argument(
+        "--refresh-staged", action="store_true",
+        help="Fill empty district/category/vibes/activities/island on already staged rows",
+    )
     args = parser.parse_args()
+    if args.refresh_staged:
+        result = asyncio.run(refresh_staged(args.input, apply=args.apply))
+        verb = "Filled" if args.apply else "Would fill"
+        print(f"{verb} on {result.pop('staged_rows', 0)} staged rows: {result}")
+        if not args.apply:
+            print("No database changes made. Add --apply to write.")
+        return
     if not args.apply:
         preview(args.input, limit=args.limit, skip_resorts=args.skip_resorts)
         return
