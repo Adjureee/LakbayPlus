@@ -2868,16 +2868,25 @@ class TravelRepository extends ChangeNotifier {
     final flights = includeFlights ? _defaultDavaoFlights() : const <FlightOffer>[];
 
     // Authentic Davao Region waypoint library
+    final departureLabel = effectiveOriginLabel == 'Current Location'
+        ? 'your location'
+        : effectiveOriginLabel;
     final List<({String name, String summary, double lat, double lng, TransportMode mode, String transit, int wmo, int temp})> waypoints;
     if (lower.contains('samal') || lower.contains('talikud') || lower.contains('pearl')) {
       waypoints = [
         (
-          name: 'Davao City (DVO) & Sasa Wharf',
-          summary: 'Arrive at Francisco Bangoy Airport, grab durian coffee, and board the barge across Pakiputan Strait.',
+          name: includeFlights
+              ? 'Davao City (DVO) & Sasa Wharf'
+              : 'Davao Coast & Sasa Wharf',
+          summary: includeFlights
+              ? 'Arrive at Francisco Bangoy Airport, grab durian coffee, and board the barge across Pakiputan Strait.'
+              : 'Depart from $departureLabel, grab durian coffee, and board the ferry across Pakiputan Strait.',
           lat: 7.1255,
           lng: 125.6458,
-          mode: TransportMode.flight,
-          transit: 'Flight to DVO Airport • 1h 55m',
+          mode: includeFlights ? TransportMode.flight : TransportMode.car,
+          transit: includeFlights
+              ? 'Flight to DVO Airport • 1h 55m'
+              : 'Drive from $departureLabel to Sasa Wharf • 25m',
           wmo: 1,
           temp: 31,
         ),
@@ -2972,8 +2981,10 @@ class TravelRepository extends ChangeNotifier {
           summary: 'Visit San Pedro Cathedral, Museo Dabawenyo, and feast on tuna panga at Roxas Night Market.',
           lat: 7.0644,
           lng: 125.6088,
-          mode: TransportMode.flight,
-          transit: 'Arrive DVO Airport • 20m to Poblacion',
+          mode: includeFlights ? TransportMode.flight : TransportMode.car,
+          transit: includeFlights
+              ? 'Arrive DVO Airport • 20m to Poblacion'
+              : 'Road transfer from $departureLabel • 35m',
           wmo: 2,
           temp: 30,
         ),
@@ -3015,8 +3026,10 @@ class TravelRepository extends ChangeNotifier {
           summary: 'Historic San Pedro Cathedral, Jack’s Ridge sunset dining, and Roxas Avenue Night Market.',
           lat: 7.0644,
           lng: 125.6088,
-          mode: TransportMode.flight,
-          transit: 'Arrive DVO Airport • 20m transfer',
+          mode: includeFlights ? TransportMode.flight : TransportMode.car,
+          transit: includeFlights
+              ? 'Arrive DVO Airport • 20m transfer'
+              : 'Road transfer from $departureLabel • 30m',
           wmo: 1,
           temp: 31,
         ),

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show Uint8List, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -564,12 +565,24 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
         });
         return;
       }
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/lakbay-trip-$tripId-report.pdf');
-      await file.writeAsBytes(bytes, flush: true);
+      final List<XFile> shareFiles;
+      if (kIsWeb) {
+        shareFiles = [
+          XFile.fromData(
+            Uint8List.fromList(bytes),
+            mimeType: 'application/pdf',
+            name: 'lakbay-trip-$tripId-report.pdf',
+          ),
+        ];
+      } else {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/lakbay-trip-$tripId-report.pdf');
+        await file.writeAsBytes(bytes, flush: true);
+        shareFiles = [XFile(file.path)];
+      }
       await SharePlus.instance.share(
         ShareParams(
-          files: [XFile(file.path)],
+          files: shareFiles,
           text: '${widget.trip.title} — Lakbay+ Itinerary & Expense PDF Report',
         ),
       );

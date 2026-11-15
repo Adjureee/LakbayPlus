@@ -629,16 +629,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                       child: Stack(
                                         fit: StackFit.expand,
                                         children: [
-                                          Image.asset(
-                                            trip.localAssetPath,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, _, _) =>
-                                                Container(
-                                              decoration: const BoxDecoration(
-                                                gradient:
-                                                    LakbayColors.deepTealGradient,
-                                              ),
-                                            ),
+                                          LakbayNetworkOrAssetImage(
+                                            networkUrl: trip.hasRemoteThumbnail
+                                                ? trip.thumbnailUrl
+                                                : null,
+                                            assetPath: trip.localAssetPath,
+                                            fallbackAsset: widget
+                                                .repo.currentBackdrop.localAssetPath,
                                           ),
                                           Container(
                                             decoration: const BoxDecoration(
@@ -900,15 +897,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: Image.asset(
-                          activeTrip.localAssetPath,
+                        child: SizedBox(
                           width: 72,
                           height: 72,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            width: 72,
-                            height: 72,
-                            color: LakbayColors.tealAccent,
+                          child: LakbayNetworkOrAssetImage(
+                            networkUrl: activeTrip.hasRemoteThumbnail
+                                ? activeTrip.thumbnailUrl
+                                : null,
+                            assetPath: activeTrip.localAssetPath,
+                            fallbackAsset:
+                                widget.repo.currentBackdrop.localAssetPath,
                           ),
                         ),
                       ),

@@ -814,4 +814,31 @@ void main() {
       expect(marker.imageAsset, isNotNull);
     }
   });
+
+  test('Local Buda & Samal trips avoid fabricated DVO Airport flights when includeFlights is false', () async {
+    final repo = TravelRepository(
+      apiCatalog: LakbayApiCatalogService(baseUrlOverride: ''),
+    );
+    await repo.initialize();
+
+    final buda = repo.generateCustomTrip(
+      destination: 'Buda & Marilog Pine Highlands',
+      daysCount: 2,
+      vibe: 'Misty Pine Cabins & Cafes',
+      includeFlights: false,
+    );
+    expect(buda.flights, isEmpty);
+    expect(buda.days.first.transportDuration, isNot(contains('DVO Airport')));
+    expect(buda.days.first.transportFromPrevious, isNot(TransportMode.flight));
+
+    final samal = repo.generateCustomTrip(
+      destination: 'Samal Island',
+      daysCount: 3,
+      vibe: 'Beach & Reefs',
+      includeFlights: false,
+    );
+    expect(samal.flights, isEmpty);
+    expect(samal.days.first.transportDuration, isNot(contains('DVO Airport')));
+    expect(samal.days.first.transportFromPrevious, isNot(TransportMode.flight));
+  });
 }

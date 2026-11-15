@@ -1005,23 +1005,29 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                           Positioned(
                             top: 8,
                             left: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: opt.isOverBudget
-                                    ? Colors.red.shade700
-                                    : LakbayColors.tealDeep,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                'Option ${opt.optionNumber} • ${trip.vibeTag}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
+                            right: 8,
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: opt.isOverBudget
+                                      ? Colors.red.shade700
+                                      : LakbayColors.tealDeep,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'Option ${opt.optionNumber} • ${trip.vibeTag}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1172,19 +1178,25 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                   Positioned(
                     top: 10,
                     left: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: LakbayColors.primary,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${trip.daysCount} DAYS • ${trip.vibeTag.toUpperCase()}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
+                    right: 10,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: LakbayColors.primary,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${trip.daysCount} DAYS • ${trip.vibeTag.toUpperCase()}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),

@@ -319,9 +319,16 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
         );
       });
     } else if (_chatStep <= 1) {
-      if (lower.contains('mati') || lower.contains('dahican')) {
+      if (lower.contains('mati') ||
+          lower.contains('dahican') ||
+          lower.contains('aliwagwag') ||
+          lower.contains('waterfall') ||
+          lower.contains('falls')) {
         _selectedDestination = 'Mati Dahican & Aliwagwag Falls';
-      } else if (lower.contains('buda') || lower.contains('marilog')) {
+      } else if (lower.contains('buda') ||
+          lower.contains('marilog') ||
+          lower.contains('pine') ||
+          lower.contains('coffee')) {
         _selectedDestination = 'Buda & Marilog Pine Highlands';
       } else if (lower.contains('apo') || lower.contains('kapatagan')) {
         _selectedDestination = 'Kapatagan Highlands & Mt. Apo';
@@ -381,7 +388,9 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
         _turns.add(
           _OnboardingChatTurn(
             isUser: false,
-            title: '$_selectedOriginAndParty adventures',
+            title: lower.startsWith('from ')
+                ? 'Route departure confirmed'
+                : '$_selectedOriginAndParty adventures',
             body:
                 'Traveling through Davao Region is super welcoming, scenic, and easy to customize.\n\nWhen are you thinking of going and for how many days?',
             options: const [
@@ -1192,7 +1201,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   icon: Icons.auto_awesome,
                   filled: isReady,
                   title: 'Your expert',
-                  subtitle: 'Checks and books',
+                  subtitle: 'Reviews stays, route & memories',
                 ),
                 _TimelineRow(
                   icon: Icons.location_on_outlined,

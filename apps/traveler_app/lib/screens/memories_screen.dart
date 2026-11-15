@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -179,12 +180,19 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                       const SizedBox(height: 10),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: Image.file(
-                          File(pickedFile!.path),
-                          height: 160,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
+                        child: kIsWeb
+                            ? Image.network(
+                                pickedFile!.path,
+                                height: 160,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              )
+                            : Image.file(
+                                File(pickedFile!.path),
+                                height: 160,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
                       ),
                     ],
                     const SizedBox(height: 12),
@@ -477,7 +485,14 @@ class _MemoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasLocalFile =
-        memory.localFilePath != null && File(memory.localFilePath!).existsSync();
+        !kIsWeb &&
+        memory.localFilePath != null &&
+        File(memory.localFilePath!).existsSync();
+    final webBlobUrl = kIsWeb &&
+            memory.imageUrl.isEmpty &&
+            (memory.localFilePath ?? '').startsWith('blob:')
+        ? memory.localFilePath!
+        : '';
 
     return Container(
       decoration: BoxDecoration(
@@ -503,9 +518,11 @@ class _MemoryCard extends StatelessWidget {
                     File(memory.localFilePath!),
                     fit: BoxFit.cover,
                   )
-                : (memory.imageUrl.isNotEmpty
+                : ((memory.imageUrl.isNotEmpty || webBlobUrl.isNotEmpty)
                     ? Image.network(
-                        memory.imageUrl,
+                        memory.imageUrl.isNotEmpty
+                            ? memory.imageUrl
+                            : webBlobUrl,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => _fallbackTile(),
                       )
