@@ -28,6 +28,7 @@ class GroqClient:
         messages: list[dict[str, str]],
         response_format: dict | None = None,
         provider: str = "groq",
+        temperature: float | None = None,
     ) -> GroqChatCompletion:
         if provider == "fallback_llm":
             api_key = self.settings.fallback_llm_api_key
@@ -47,7 +48,9 @@ class GroqClient:
         payload = {
             "model": model,
             "messages": messages,
-            "temperature": self.settings.groq_temperature,
+            "temperature": (
+                self.settings.groq_temperature if temperature is None else temperature
+            ),
             "max_tokens": self.settings.groq_max_tokens,
         }
         if response_format is not None:

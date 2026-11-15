@@ -2,7 +2,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, StringConstraints
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 
 from app.features.planning.schemas import (
     PlanningPreviewResponse,
@@ -43,6 +43,7 @@ class AIItineraryGenerateRequest(BaseModel):
     allow_fallback: bool = True
     planning_state: PlanningState | None = None
     input_revision: int = Field(default=0, ge=0)
+    strict_budget_filter: bool = False
 
     @model_validator(mode="after")
     def validate_unique_ids(self) -> "AIItineraryGenerateRequest":
@@ -153,15 +154,45 @@ class AIPlanningStateUpdates(BaseModel):
         return self
 
 
+ChatIntent = Literal[
+    "question", "brainstorm", "plan_trip", "modify_trip", "logistics", "smalltalk",
+]
+
+
 class AIPlanningChatOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     chat_response: str = Field(min_length=1, max_length=2000)
     state_updates: AIPlanningStateUpdates = Field(default_factory=AIPlanningStateUpdates)
+    # What the traveler wants this turn, judged by the model; the app uses it
+    # instead of keyword matching to decide whether to build itineraries.
+    intent: ChatIntent | None = None
+    suggested_replies: list[str] = Field(default_factory=list)
+
+    @field_validator("suggested_replies", mode="before")
+    @classmethod
+    def clean_suggested_replies(cls, value):
+        # Advisory UI chips: keep at most three short strings, drop the rest,
+        # never reject the whole reply over them.
+        if not isinstance(value, list):
+            return []
+        cleaned = []
+        for item in value:
+            if isinstance(item, str) and item.strip() and len(item.strip()) <= 80:
+                cleaned.append(item.strip())
+        return cleaned[:3]
+
+    @field_validator("intent", mode="before")
+    @classmethod
+    def unknown_intent_is_none(cls, value):
+        allowed = {"question", "brainstorm", "plan_trip", "modify_trip", "logistics", "smalltalk"}
+        return value if value in allowed else None
 
 
 class AIPlanningChatResult(BaseModel):
     input_revision: int
+    intent: ChatIntent | None = None
+    suggested_replies: list[str] = Field(default_factory=list)
     state_updates: dict[str, Any] = Field(default_factory=dict)
     update_status: Literal[
         "applied", "no_changes", "needs_clarification", "invalid_output",
@@ -192,3 +223,31 @@ class AIChatResponse(BaseModel):
 def _require_unique_ids(field_name: str, values: list[int]) -> None:
     if len(values) != len(set(values)):
         raise ValueError(f"{field_name} must not contain duplicate IDs")
+
+
+class AITripDraftRequest(BaseModel):
+    """Free-text trip request turned into a quick structured draft.
+
+    Used by the app's onboarding and "create trip from prompt" flows, for
+    guests and signed-in travelers. Drafts are suggestions, not validated
+    catalog itineraries (see /ai/itineraries/generate for those).
+    """
+
+    message: str = Field(min_length=1, max_length=2000)
+    history: list[AIChatMessage] = Field(default_factory=list, max_length=12)
+    current_location: str | None = Field(default=None, max_length=255)
+    user_lat: float | None = Field(default=None, ge=-90, le=90)
+    user_lng: float | None = Field(default=None, ge=-180, le=180)
+    preferred_vibes: list[Annotated[str, StringConstraints(max_length=40)]] = Field(
+        default_factory=list, max_length=10,
+    )
+    strict_budget: bool = False
+    default_days: int = Field(default=3, ge=1, le=14)
+
+
+class AITripDraftResponse(BaseModel):
+    # The model's JSON: reply, should_create_itinerary, title, destination,
+    # vibe, days_count, center_lat/lng, suggested_replies, days[].activities[].
+    draft: dict[str, Any]
+    model_id: str
+    provider: str

@@ -3,7 +3,9 @@ import '../models/travel_models.dart';
 import '../services/mapbox_service.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
+import '../widgets/lakbay_image.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
+import '../widgets/trip_management_sheets.dart';
 import 'trip_route_map_screen.dart';
 
 class TripDetailScreen extends StatefulWidget {
@@ -25,8 +27,174 @@ class _TripDetailScreenState extends State<TripDetailScreen>
   late TabController _tabController;
   ItineraryTrip? _liveTrip;
   bool _loadingLive = false;
+  bool _isRefining = false;
+  String _selectedTravelMode = 'driving';
+  List<String> _routeWarnings = const [];
+  final Set<String> _packedItems = {};
 
   ItineraryTrip get _activeTrip => _liveTrip ?? widget.trip;
+
+  List<String> _derivePackingChecklist(ItineraryTrip trip) {
+    final items = <String>{};
+    if (trip.whatToBring != null && trip.whatToBring!.trim().isNotEmpty) {
+      for (final raw in trip.whatToBring!.split(RegExp(r'[,;\n]'))) {
+        final clean = raw.trim();
+        if (clean.isNotEmpty) items.add(clean);
+      }
+    }
+    if (trip.wmoWeatherCode >= 51 ||
+        trip.avgTemp.toLowerCase().contains('rain') ||
+        trip.avgTemp.toLowerCase().contains('shower')) {
+      items.addAll(['Compact Umbrella / Rain Poncho', 'Dry Bag for Electronics']);
+    } else {
+      items.addAll(['SPF50+ Sunscreen & Shades', 'Refillable Water Bottle']);
+    }
+    if (items.isEmpty) {
+      items.addAll([
+        'Valid ID & Cash (₱ Small Bills)',
+        'Comfortable Walking Shoes',
+        'Powerbank & Light Jacket',
+      ]);
+    }
+    return items.take(8).toList();
+  }
+
+  Future<void> _handleOptimizeRoute() async {
+    setState(() => _isRefining = true);
+    final updated = await widget.repo.optimizeStopsForTrip(
+      _activeTrip,
+      travelMode: _selectedTravelMode,
+    );
+    final routeRes = await widget.repo.fetchRoadRouteForTrip(
+      updated,
+      optimize: true,
+      travelMode: _selectedTravelMode,
+    );
+    if (!mounted) return;
+    setState(() {
+      _liveTrip = updated;
+      if (routeRes != null) _routeWarnings = routeRes.warnings;
+      _isRefining = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Route order optimized across Davao Region stops!'),
+        backgroundColor: LakbayColors.tealDeep,
+      ),
+    );
+  }
+
+  Future<void> _changeTravelMode(String mode) async {
+    setState(() {
+      _selectedTravelMode = mode;
+      _isRefining = true;
+    });
+    widget.repo.setPreferredTravelMode(mode);
+    final routeRes = await widget.repo.fetchRoadRouteForTrip(
+      _activeTrip,
+      travelMode: mode,
+    );
+    if (!mounted) return;
+    setState(() {
+      _routeWarnings = routeRes?.warnings ?? const [];
+      _isRefining = false;
+    });
+  }
+
+  Future<void> _handleAiRefine(String instruction) async {
+    setState(() => _isRefining = true);
+    final refined = await widget.repo.refineTripWithAi(_activeTrip, instruction);
+    if (!mounted) return;
+    setState(() {
+      if (refined != null) _liveTrip = refined;
+      _isRefining = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          refined != null
+              ? 'Updated itinerary: "$instruction"'
+              : 'AI refinement saved locally — inspect or customize stops below.',
+        ),
+        backgroundColor: LakbayColors.tealDeep,
+      ),
+    );
+  }
+
+  Future<void> _showAddStopDialog(int dayIndex) async {
+    final timeCtrl = TextEditingController(text: '02:00 PM');
+    final titleCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final added = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Add Stop to Day ${dayIndex + 1}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: timeCtrl,
+              decoration: const InputDecoration(labelText: 'Time (e.g. 02:00 PM)'),
+            ),
+            TextField(
+              controller: titleCtrl,
+              decoration: const InputDecoration(labelText: 'Stop Name'),
+            ),
+            TextField(
+              controller: descCtrl,
+              decoration: const InputDecoration(labelText: 'Notes / Activity'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Add Stop'),
+          ),
+        ],
+      ),
+    );
+    if (added == true && titleCtrl.text.trim().isNotEmpty) {
+      final days = List<ItineraryDay>.from(_activeTrip.days);
+      final day = days[dayIndex];
+      final updatedStops = List<ItineraryStop>.from(day.stops)
+        ..add(
+          ItineraryStop(
+            time: timeCtrl.text.trim().isNotEmpty ? timeCtrl.text.trim() : '02:00 PM',
+            title: titleCtrl.text.trim(),
+            description: descCtrl.text.trim().isNotEmpty
+                ? descCtrl.text.trim()
+                : 'Custom Davao Region stop added by traveler.',
+            category: 'Custom',
+            costEstimateUsd: 8,
+            lat: day.lat,
+            lng: day.lng,
+          ),
+        );
+      days[dayIndex] = day.copyWith(stops: updatedStops);
+      final nextTrip = _activeTrip.copyWith(days: days);
+      setState(() => _liveTrip = nextTrip);
+      widget.repo.updateTripDetails(nextTrip);
+    }
+    timeCtrl.dispose();
+    titleCtrl.dispose();
+    descCtrl.dispose();
+  }
+
+  void _removeStop(int dayIndex, int stopIndex) {
+    final days = List<ItineraryDay>.from(_activeTrip.days);
+    final day = days[dayIndex];
+    if (day.stops.length <= 1) return;
+    final updatedStops = List<ItineraryStop>.from(day.stops)..removeAt(stopIndex);
+    days[dayIndex] = day.copyWith(stops: updatedStops);
+    final nextTrip = _activeTrip.copyWith(days: days);
+    setState(() => _liveTrip = nextTrip);
+    widget.repo.updateTripDetails(nextTrip);
+  }
 
   @override
   void initState() {
@@ -82,7 +250,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    final trip = widget.trip;
+    final trip = _activeTrip;
     final isSaved = widget.repo.savedTrips.any((t) => t.id == trip.id);
     final isBucketed = widget.repo.isTripInBucketList(trip.id);
 
@@ -137,28 +305,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _activeTrip.remoteImageUrl != null &&
-                          _activeTrip.remoteImageUrl!.isNotEmpty
-                      ? Image.network(
-                          _activeTrip.remoteImageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Image.asset(
-                            _activeTrip.heroAsset,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
-                              decoration: const BoxDecoration(
-                                  gradient: LakbayColors.deepTealGradient),
-                            ),
-                          ),
-                        )
-                      : Image.asset(
-                          _activeTrip.heroAsset,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            decoration: const BoxDecoration(
-                                gradient: LakbayColors.deepTealGradient),
-                          ),
-                        ),
+                  LakbayNetworkOrAssetImage(
+                    networkUrl: _activeTrip.remoteImageUrl,
+                    assetPath: _activeTrip.heroAsset,
+                  ),
                   Container(
                     decoration: const BoxDecoration(
                       gradient: LakbayColors.darkOverlayGradient,
@@ -171,7 +321,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -182,6 +334,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                               ),
                               child: Text(
                                 '${trip.daysCount} DAYS • ${trip.vibeTag.toUpperCase()}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 11,
@@ -189,7 +343,6 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 4),
@@ -231,15 +384,16 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               indicatorWeight: 3,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 6),
               labelStyle: const TextStyle(
                 fontFamily: 'FigGrotesk',
                 fontWeight: FontWeight.w700,
-                fontSize: 14,
+                fontSize: 13,
               ),
               tabs: const [
-                Tab(text: 'Overview & Map'),
+                Tab(text: 'Overview'),
                 Tab(text: 'Day-by-Day'),
-                Tab(text: 'Stays & Flights'),
+                Tab(text: 'Stays & Transit'),
               ],
             ),
           ),
@@ -268,76 +422,62 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           ),
           child: Row(
             children: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Total Package Estimate',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: LakbayColors.textSecondary,
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Est. Total',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: LakbayColors.textSecondary,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${widget.repo.formatPrice(trip.totalEstimatedCostUsd)} (${trip.adults} Adults)',
-                    style: const TextStyle(
-                      fontFamily: 'FigGrotesk',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 17.5,
-                      color: LakbayColors.tealDeep,
+                    Text(
+                      '${widget.repo.formatPrice(trip.totalEstimatedCostUsd)} • ${trip.adults + trip.children} pax',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'FigGrotesk',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: LakbayColors.tealDeep,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                tooltip: 'Collaborate (Members & Tasks)',
+                onPressed: () => showTripCollaborationSheet(
+                  context,
+                  repo: widget.repo,
+                  trip: trip,
+                ),
+                icon: const Icon(Icons.group_add_outlined),
+              ),
+              const SizedBox(width: 6),
               ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                ),
                 onPressed: () {
                   widget.repo.saveTripToMyTrips(trip);
-                  if (_activeTrip.flights.isNotEmpty) {
-                    widget.repo.addToBasket(
-                      BasketItem(
-                        id: 'flight_${_activeTrip.id}',
-                        title:
-                            '${_activeTrip.flights.first.originCode} → ${_activeTrip.flights.first.destinationCode} Roundtrip',
-                        subtitle:
-                            '${_activeTrip.flights.first.airline} • ${_activeTrip.flights.first.duration}',
-                        category: 'Flight',
-                        priceUsd: _activeTrip.flights.first.priceRoundtripUsd *
-                            _activeTrip.adults,
-                        imageAsset: _activeTrip.heroAsset,
-                        remoteImageUrl: _activeTrip.remoteImageUrl,
-                        backendDestinationId: _activeTrip.backendDestinationId,
-                      ),
-                    );
-                  }
-                  if (_activeTrip.hotels.isNotEmpty) {
-                    widget.repo.addToBasket(
-                      BasketItem(
-                        id: 'hotel_${_activeTrip.id}',
-                        title: _activeTrip.hotels.first.name,
-                        subtitle:
-                            '${_activeTrip.daysCount - 1} nights • ${_activeTrip.hotels.first.stars}★ Davao Stay',
-                        category: 'Hotel',
-                        priceUsd: _activeTrip.hotels.first.pricePerNightUsd *
-                            (_activeTrip.daysCount - 1).clamp(1, 30),
-                        imageAsset: _activeTrip.heroAsset,
-                        remoteImageUrl: _activeTrip.hotels.first.remoteImageUrl ??
-                            _activeTrip.remoteImageUrl,
-                        backendDestinationId: _activeTrip.backendDestinationId,
-                      ),
-                    );
-                  }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content:
-                          Text('Added flights & stays to your Booking Basket!'),
-                      backgroundColor: LakbayColors.primary,
-                    ),
+                  showTripBudgetAndPdfSheet(
+                    context,
+                    repo: widget.repo,
+                    trip: trip,
                   );
                 },
-                icon: const Icon(Icons.shopping_bag_outlined, size: 18),
-                label: const Text('Add All to Basket'),
+                icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
+                label: const Text('Budget & PDF'),
               ),
             ],
           ),
@@ -351,15 +491,29 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     final totalKm = MapboxService.calculateRouteDistanceKm(waypoints);
     final markers = [
       for (int i = 0; i < trip.days.length; i++)
+        () {
+          final day = trip.days[i];
+          final media = widget.repo.resolveDayMarkerMedia(trip, day);
+          return LakbayMapMarker(
+            id: 'day_${day.dayNumber}',
+            lat: day.lat,
+            lng: day.lng,
+            badgeText: 'D${day.dayNumber}',
+            title: day.cityTitle,
+            imageUrl: media.imageUrl,
+            imageAsset: media.imageAsset,
+            isPrimary: i == 0,
+            isOrigin: i == 0,
+            isDestination: i == trip.days.length - 1,
+          );
+        }(),
+      if (widget.repo.hasUserLocation)
         LakbayMapMarker(
-          id: 'day_${trip.days[i].dayNumber}',
-          lat: trip.days[i].lat,
-          lng: trip.days[i].lng,
-          badgeText: 'D${trip.days[i].dayNumber}',
-          title: trip.days[i].cityTitle,
-          isPrimary: i == 0,
-          isOrigin: i == 0,
-          isDestination: i == trip.days.length - 1,
+          id: 'user_gps',
+          lat: widget.repo.userLat!,
+          lng: widget.repo.userLng!,
+          title: 'You (${widget.repo.effectiveOriginLabel})',
+          isUserLocation: true,
         ),
     ];
 
@@ -397,25 +551,116 @@ class _TripDetailScreenState extends State<TripDetailScreen>
         ),
         const SizedBox(height: 20),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            const Text(
-              'Animated Mapbox Route',
-              style: TextStyle(
-                fontFamily: 'FigGrotesk',
-                fontWeight: FontWeight.w700,
-                fontSize: 20,
+            ChoiceChip(
+              avatar: const Icon(Icons.directions_car_outlined, size: 16),
+              label: const Text('Private Car'),
+              selected: _selectedTravelMode == 'driving',
+              onSelected: (_) => _changeTravelMode('driving'),
+            ),
+            ChoiceChip(
+              avatar: const Icon(Icons.directions_bus_outlined, size: 16),
+              label: const Text('Public Transit'),
+              selected: _selectedTravelMode == 'public_transport',
+              onSelected: (_) => _changeTravelMode('public_transport'),
+            ),
+            ChoiceChip(
+              avatar: const Icon(Icons.directions_walk_outlined, size: 16),
+              label: const Text('Walking'),
+              selected: _selectedTravelMode == 'walking',
+              onSelected: (_) => _changeTravelMode('walking'),
+            ),
+          ],
+        ),
+        if (_routeWarnings.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.shade300),
+            ),
+            child: Text(
+              _routeWarnings.join('\n'),
+              style: const TextStyle(fontSize: 12.5, color: LakbayColors.tealDeep),
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Animated Route',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'FigGrotesk',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             FilledButton.tonalIcon(
               onPressed: _openFullRouteMap,
               style: FilledButton.styleFrom(
                 backgroundColor: LakbayColors.primaryLight,
                 foregroundColor: LakbayColors.primaryDark,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
               icon: const Icon(Icons.play_arrow_rounded, size: 18),
               label: const Text('Play Tour'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ActionChip(
+              avatar: const Icon(Icons.group_add_outlined, size: 17),
+              label: const Text('Collaborate'),
+              onPressed: () => showTripCollaborationSheet(
+                context,
+                repo: widget.repo,
+                trip: trip,
+              ),
+            ),
+            ActionChip(
+              avatar: const Icon(Icons.pie_chart_outline_rounded, size: 17),
+              label: const Text('Budget & Split'),
+              onPressed: () => showTripBudgetAndPdfSheet(
+                context,
+                repo: widget.repo,
+                trip: trip,
+              ),
+            ),
+            ActionChip(
+              avatar: const Icon(Icons.photo_library_outlined, size: 17),
+              label: const Text('Memories'),
+              onPressed: () {
+                widget.repo.setActiveNavIndex(3);
+                Navigator.of(context).popUntil((r) => r.isFirst);
+              },
+            ),
+            ActionChip(
+              avatar: const Icon(Icons.rate_review_outlined, size: 17),
+              label: const Text('Review & Survey'),
+              onPressed: () => showTripReviewAndAssessmentSheet(
+                context,
+                repo: widget.repo,
+                trip: trip,
+              ),
             ),
           ],
         ),
@@ -446,6 +691,139 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             fontSize: 20,
           ),
         ),
+        const SizedBox(height: 10),
+        if (trip.overviewText.isNotEmpty) ...[
+          Text(
+            trip.overviewText,
+            style: const TextStyle(
+              fontSize: 13.5,
+              height: 1.45,
+              color: LakbayColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (trip.advisories.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.amber.shade300),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.health_and_safety_rounded,
+                        color: Colors.deepOrange, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Smart Planning Advisories',
+                      style: TextStyle(
+                        fontFamily: 'FigGrotesk',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.5,
+                        color: LakbayColors.tealDeep,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                for (final adv in trip.advisories.take(4))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• $adv',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: LakbayColors.textPrimary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        const Text(
+          'Refine with Lakbay+ AI',
+          style: TextStyle(
+            fontFamily: 'FigGrotesk',
+            fontWeight: FontWeight.w700,
+            fontSize: 17,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ActionChip(
+              avatar: const Icon(Icons.savings_outlined, size: 16),
+              label: const Text('More budget-friendly'),
+              onPressed: _isRefining
+                  ? null
+                  : () => _handleAiRefine('Optimize for a tighter budget'),
+            ),
+            ActionChip(
+              avatar: const Icon(Icons.child_care_rounded, size: 16),
+              label: const Text('Kid-friendly pace'),
+              onPressed: _isRefining
+                  ? null
+                  : () => _handleAiRefine('Make pace kid-friendly and relaxed'),
+            ),
+            ActionChip(
+              avatar: const Icon(Icons.beach_access_rounded, size: 16),
+              label: const Text('Add chill scenic stop'),
+              onPressed: _isRefining
+                  ? null
+                  : () => _handleAiRefine('Include chill coastal or viewpoint stop'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        const Text(
+          'What to Bring & Weather Packing Checklist',
+          style: TextStyle(
+            fontFamily: 'FigGrotesk',
+            fontWeight: FontWeight.w700,
+            fontSize: 17,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: LakbayColors.cardBorder),
+          ),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: _derivePackingChecklist(trip)
+                .map(
+                  (item) => FilterChip(
+                    label: Text(item, style: const TextStyle(fontSize: 12)),
+                    selected: _packedItems.contains(item),
+                    selectedColor: LakbayColors.primaryLight,
+                    onSelected: (checked) {
+                      setState(() {
+                        if (checked) {
+                          _packedItems.add(item);
+                        } else {
+                          _packedItems.remove(item);
+                        }
+                      });
+                    },
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+        const SizedBox(height: 18),
         const SizedBox(height: 8),
         Text(
           trip.overviewText,
@@ -593,8 +971,42 @@ class _TripDetailScreenState extends State<TripDetailScreen>
   Widget _buildDayByDayTab(ItineraryTrip trip) {
     return ListView.builder(
       padding: const EdgeInsets.all(20),
-      itemCount: trip.days.length,
-      itemBuilder: (context, index) {
+      itemCount: trip.days.length + 1,
+      itemBuilder: (context, idx) {
+        if (idx == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Customize Daily Stops',
+                    style: TextStyle(
+                      fontFamily: 'FigGrotesk',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 17,
+                      color: LakbayColors.tealDeep,
+                    ),
+                  ),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: trip.days.length >= 2 && !_isRefining
+                      ? _handleOptimizeRoute
+                      : null,
+                  icon: _isRefining
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.alt_route_rounded, size: 17),
+                  label: const Text('Optimize Route'),
+                ),
+              ],
+            ),
+          );
+        }
+        final index = idx - 1;
         final day = trip.days[index];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -707,8 +1119,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     ),
                   ),
                   const Divider(height: 22),
-                  ...day.stops.map(
-                    (stop) => Padding(
+                  for (int sIdx = 0; sIdx < day.stops.length; sIdx++) ...[
+                    Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -716,7 +1128,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                           SizedBox(
                             width: 68,
                             child: Text(
-                              stop.time,
+                              day.stops[sIdx].time,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 12,
@@ -729,7 +1141,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  stop.title,
+                                  day.stops[sIdx].title,
                                   style: const TextStyle(
                                     fontFamily: 'FigGrotesk',
                                     fontWeight: FontWeight.w600,
@@ -738,7 +1150,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  stop.description,
+                                  day.stops[sIdx].description,
                                   style: const TextStyle(
                                     fontSize: 12.5,
                                     color: LakbayColors.textSecondary,
@@ -747,8 +1159,29 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                               ],
                             ),
                           ),
+                          if (day.stops.length > 1)
+                            IconButton(
+                              tooltip: 'Remove stop',
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _removeStop(index, sIdx),
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                size: 17,
+                                color: LakbayColors.textMuted,
+                              ),
+                            ),
                         ],
                       ),
+                    ),
+                  ],
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => _showAddStopDialog(index),
+                      icon: const Icon(Icons.add_rounded, size: 17),
+                      label: const Text('Add Stop'),
                     ),
                   ),
                 ],
@@ -764,51 +1197,114 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const Text(
-          'Flights to Davao International (DVO)',
-          style: TextStyle(
-            fontFamily: 'FigGrotesk',
-            fontWeight: FontWeight.w700,
-            fontSize: 19,
+        if (trip.flights.isNotEmpty) ...[
+          const Text(
+            'Flights to Davao International (DVO)',
+            style: TextStyle(
+              fontFamily: 'FigGrotesk',
+              fontWeight: FontWeight.w700,
+              fontSize: 19,
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        ...trip.flights.map(
-          (f) => Container(
-            margin: const EdgeInsets.only(bottom: 12),
+          const SizedBox(height: 12),
+          ...trip.flights.map(
+            (f) => Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: LakbayColors.cardBorder),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: LakbayColors.primaryLight,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.flight_takeoff_rounded,
+                        color: LakbayColors.primary),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${f.originCode} ↔ ${f.destinationCode} • ${f.duration}',
+                          style: const TextStyle(
+                            fontFamily: 'FigGrotesk',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          '${f.airline} (${f.isDirect ? "Direct" : "1 Stop"})',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: LakbayColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        widget.repo.formatPrice(f.priceRoundtripUsd),
+                        style: const TextStyle(
+                          fontFamily: 'FigGrotesk',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 17,
+                          color: LakbayColors.tealDeep,
+                        ),
+                      ),
+                      const Text(
+                        'per traveler',
+                        style:
+                            TextStyle(fontSize: 11, color: LakbayColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+        ] else ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 18),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: LakbayColors.cardBorder),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: LakbayColors.primaryLight,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.flight_takeoff_rounded,
-                      color: LakbayColors.primary),
-                ),
-                const SizedBox(width: 14),
+                Icon(Icons.directions_bus_rounded,
+                    color: LakbayColors.tealAccent, size: 26),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${f.originCode} ↔ ${f.destinationCode} • ${f.duration}',
-                        style: const TextStyle(
+                        'Regional Land & Ferry Transit',
+                        style: TextStyle(
                           fontFamily: 'FigGrotesk',
                           fontWeight: FontWeight.w700,
-                          fontSize: 16,
+                          fontSize: 15.5,
+                          color: LakbayColors.tealDeep,
                         ),
                       ),
+                      SizedBox(height: 3),
                       Text(
-                        '${f.airline} (${f.isDirect ? "Direct" : "1 Stop"})',
-                        style: const TextStyle(
+                        'Departing within Davao Region — no domestic airfare needed. Use buses, L300 vans, ferries (Sasa/Sta. Ana Wharf), or private car.',
+                        style: TextStyle(
                           fontSize: 12.5,
                           color: LakbayColors.textSecondary,
                         ),
@@ -816,30 +1312,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     ],
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      widget.repo.formatPrice(f.priceRoundtripUsd),
-                      style: const TextStyle(
-                        fontFamily: 'FigGrotesk',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 17,
-                        color: LakbayColors.tealDeep,
-                      ),
-                    ),
-                    const Text(
-                      'per traveler',
-                      style:
-                          TextStyle(fontSize: 11, color: LakbayColors.textMuted),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 18),
+        ],
         const Text(
           'Handpicked Davao Region Stays',
           style: TextStyle(
@@ -861,6 +1337,18 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    height: 120,
+                    width: double.infinity,
+                    child: LakbayNetworkOrAssetImage(
+                      networkUrl: h.remoteImageUrl ?? trip.remoteImageUrl,
+                      assetPath: h.imageAsset,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -939,30 +1427,16 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     ),
                     OutlinedButton.icon(
                       onPressed: () {
-                        widget.repo.addToBasket(
-                          BasketItem(
-                            id: h.id,
-                            title: h.name,
-                            subtitle:
-                                '${trip.daysCount - 1} nights • ${h.city}',
-                            category: 'Hotel',
-                            priceUsd: h.pricePerNightUsd *
-                                (trip.daysCount - 1).clamp(1, 30),
-                            imageAsset: h.imageAsset,
-                            remoteImageUrl: h.remoteImageUrl,
-                            backendDestinationId: trip.backendDestinationId,
-                          ),
-                        );
+                        widget.repo.saveTripToMyTrips(trip);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Added ${h.name} to Basket!'),
+                            content: Text('Pinned ${h.name} reference to "${trip.title}"!'),
                             backgroundColor: LakbayColors.tealAccent,
                           ),
                         );
                       },
-                      icon: const Icon(Icons.add_shopping_cart_rounded,
-                          size: 16),
-                      label: const Text('Select Stay'),
+                      icon: const Icon(Icons.bookmark_added_outlined, size: 16),
+                      label: const Text('Pin Stay'),
                     ),
                   ],
                 ),

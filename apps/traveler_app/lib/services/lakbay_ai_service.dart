@@ -1,20 +1,6 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'env_config.dart';
-
-class AiModelCandidate {
-  final String provider;
-  final String baseUrl;
-  final String apiKey;
-  final String modelId;
-
-  const AiModelCandidate({
-    required this.provider,
-    required this.baseUrl,
-    required this.apiKey,
-    required this.modelId,
-  });
-}
+import 'dart:math' as math;
+import 'lakbay_api_catalog_service.dart';
 
 class AiGeneratedActivity {
   final String time;
@@ -61,6 +47,7 @@ class AiPlanResult {
   final double? centerLat;
   final double? centerLng;
   final List<AiGeneratedDay> days;
+  final List<String> suggestedReplies;
 
   const AiPlanResult({
     required this.replyText,
@@ -73,214 +60,82 @@ class AiPlanResult {
     this.centerLat,
     this.centerLng,
     this.days = const [],
+    this.suggestedReplies = const [],
   });
 
   bool get hasStructuredItinerary => days.isNotEmpty;
 }
 
-/// Ported from Lakbay's `app/integrations/groq` (`client.py`, `model_selector.py`, `prompts.py`).
-/// Calls Groq's OpenAI-compatible `/chat/completions` endpoint first, then falls back
-/// to `GROQ_MODEL_FALLBACK` and `FALLBACK_LLM_*` (e.g., Gemini OpenAI-compatible API).
+/// Lakbay AI trip drafts, served by the Lakbay backend (`POST /ai/trip-draft`).
+///
+/// The app never holds an AI provider key: the backend chooses the model,
+/// applies rate limits (per user, or per device for guests), and grounds the
+/// draft in Lakbay's destination catalog.
 class LakbayAiService {
-  final http.Client _httpClient;
+  LakbayAiService({this.backend, this.accessToken});
 
-  LakbayAiService({http.Client? httpClient})
-      : _httpClient = httpClient ?? http.Client();
+  final LakbayApiCatalogService? backend;
 
-  bool get isConfigured => EnvConfig.hasAnyAiKey;
+  /// The signed-in access token, or null for guest requests.
+  final String? Function()? accessToken;
 
-  /// Builds the ordered fallback chain matching Lakbay's `select_primary_model` +
-  /// `select_fallback_models`.
-  List<AiModelCandidate> buildModelChain({String role = 'default'}) {
-    final chain = <AiModelCandidate>[];
-    final seen = <String>{};
+  bool get isConfigured => backend?.isConfigured ?? false;
 
-    if (EnvConfig.hasGroqKey) {
-      final primaryModel = switch (role) {
-        'fast' => EnvConfig.groqModelFast,
-        'quality' => EnvConfig.groqModelQuality,
-        _ => EnvConfig.groqModelDefault,
-      };
-      if (primaryModel.isNotEmpty) {
-        seen.add('groq:$primaryModel');
-        chain.add(
-          AiModelCandidate(
-            provider: 'groq',
-            baseUrl: EnvConfig.groqBaseUrl,
-            apiKey: EnvConfig.groqApiKey,
-            modelId: primaryModel,
-          ),
-        );
-      }
-
-      final groqFallback = EnvConfig.groqModelFallback;
-      if (groqFallback.isNotEmpty && !seen.contains('groq:$groqFallback')) {
-        seen.add('groq:$groqFallback');
-        chain.add(
-          AiModelCandidate(
-            provider: 'groq',
-            baseUrl: EnvConfig.groqBaseUrl,
-            apiKey: EnvConfig.groqApiKey,
-            modelId: groqFallback,
-          ),
-        );
-      }
-    }
-
-    if (EnvConfig.hasFallbackLlmKey && EnvConfig.fallbackLlmModel.isNotEmpty) {
-      for (final rawModel in EnvConfig.fallbackLlmModel.split(',')) {
-        final modelId = rawModel.trim();
-        if (modelId.isEmpty || seen.contains('fallback_llm:$modelId')) {
-          continue;
-        }
-        seen.add('fallback_llm:$modelId');
-        chain.add(
-          AiModelCandidate(
-            provider: 'fallback_llm',
-            baseUrl: EnvConfig.fallbackLlmBaseUrl,
-            apiKey: EnvConfig.fallbackLlmApiKey,
-            modelId: modelId,
-          ),
-        );
-      }
-    }
-
-    return chain;
-  }
-
-  /// Sends a Davao Region travel query or itinerary request using Lakbay's
-  /// structured JSON prompt pattern.
+  /// Answers a Davao Region travel query and, when the traveler is ready,
+  /// drafts a structured multi-day itinerary.
   Future<AiPlanResult> chatOrPlan({
     required String userPrompt,
-    required List<String> availableDestinations,
+    List<String> availableDestinations = const [],
     int defaultDays = 3,
+    List<Map<String, String>> history = const [],
+    String? currentLocation,
+    double? userLat,
+    double? userLng,
+    Set<String> preferredVibes = const {},
+    bool strictBudget = false,
   }) async {
-    final chain = buildModelChain(role: 'default');
-    if (chain.isEmpty) {
-      throw StateError(
-        'No AI API key configured. Add GROQ_API_KEY or FALLBACK_LLM_API_KEY to .env.',
-      );
+    final backend = this.backend;
+    if (backend == null || !backend.isConfigured) {
+      throw StateError('LAKBAY_API_BASE_URL is not configured.');
     }
-
-    final systemPrompt = '''
-You are Lakbay+, a high-grade AI travel planner strictly scoped to the Davao Region (Region XI, Philippines): Davao City, Samal Island (IGaCoS) & Talikud, Davao Oriental (Mati Dahican, Pujada Bay, Aliwagwag Falls), Davao del Sur (Mt. Apo, Kapatagan, Sta. Cruz), Davao del Norte (Tagum, Talaingod), Davao de Oro (Maragusan, Kopiat Island), and Davao Occidental.
-
-Return ONLY valid JSON (no markdown fences) matching this schema:
-{
-  "reply": "Friendly, practical 2-4 sentence response for the traveler in PHP currency.",
-  "should_create_itinerary": true,
-  "title": "Short trip title",
-  "destination": "Primary Davao Region destination",
-  "vibe": "2-4 word trip vibe",
-  "days_count": $defaultDays,
-  "center_lat": 7.0731,
-  "center_lng": 125.6128,
-  "days": [
-    {
-      "day": 1,
-      "title": "Day title",
-      "summary": "1 sentence day summary",
-      "activities": [
+    final recent = history
+        .where((turn) => (turn['content'] ?? '').trim().isNotEmpty)
+        .toList();
+    final trimmedHistory = [
+      for (final turn in recent.skip(math.max(0, recent.length - 12)))
         {
-          "time": "08:30 AM",
-          "title": "Stop or activity name",
-          "description": "Concise logistics & local tip",
-          "lat": 7.0742,
-          "lng": 125.7089,
-          "estimated_cost_php": 450,
-          "category": "sightseeing"
-        }
-      ]
+          'role': turn['role'] == 'assistant' ? 'assistant' : 'user',
+          'content': _limit(turn['content']!.trim(), 2000),
+        },
+    ];
+    final result = await backend.aiTripDraft(
+      accessToken: accessToken?.call(),
+      message: _limit(userPrompt, 2000),
+      history: trimmedHistory,
+      currentLocation: currentLocation,
+      userLat: userLat,
+      userLng: userLng,
+      preferredVibes: preferredVibes.toList(),
+      strictBudget: strictBudget,
+      defaultDays: defaultDays,
+    );
+    if (result == null) {
+      throw StateError('Lakbay AI is unavailable right now.');
     }
-  ]
-}
-
-Rules:
-- Keep all coordinates strictly inside Davao Region (lat 5.20..8.15, lng 124.95..126.85).
-- Use realistic PHP estimates. Do not invent places outside Region XI.
-- If the user asks a general question (not asking for a trip plan), set "should_create_itinerary": false and "days": [].
-''';
-
-    final userMessage = jsonEncode({
-      'query': userPrompt,
-      'known_davao_destinations': availableDestinations.take(16).toList(),
-    });
-
-    Object? lastError;
-    for (final candidate in chain) {
-      try {
-        final rawJson = await _callChatCompletions(
-          candidate: candidate,
-          messages: [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userMessage},
-          ],
-          jsonMode: true,
-        );
-        return _parseStructuredResponse(
-          rawJson: rawJson,
-          candidate: candidate,
-        );
-      } catch (e) {
-        lastError = e;
-      }
-    }
-
-    throw StateError('All AI providers failed. Last error: $lastError');
+    return _parseStructuredResponse(
+      rawJson: jsonEncode(result.draft),
+      provider: result.provider,
+      modelId: result.modelId,
+    );
   }
 
-  Future<String> _callChatCompletions({
-    required AiModelCandidate candidate,
-    required List<Map<String, String>> messages,
-    bool jsonMode = false,
-  }) async {
-    final cleanBase = candidate.baseUrl.endsWith('/')
-        ? candidate.baseUrl.substring(0, candidate.baseUrl.length - 1)
-        : candidate.baseUrl;
-    final uri = Uri.parse('$cleanBase/chat/completions');
-
-    final body = <String, dynamic>{
-      'model': candidate.modelId,
-      'messages': messages,
-      'temperature': EnvConfig.groqTemperature,
-      'max_tokens': EnvConfig.groqMaxTokens,
-      if (jsonMode) 'response_format': {'type': 'json_object'},
-    };
-
-    final response = await _httpClient
-        .post(
-          uri,
-          headers: {
-            'Authorization': 'Bearer ${candidate.apiKey}',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 45));
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw StateError(
-        '${candidate.provider} (${candidate.modelId}) HTTP ${response.statusCode}: ${response.body}',
-      );
-    }
-
-    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-    final choices = decoded['choices'] as List<dynamic>? ?? const [];
-    if (choices.isEmpty) {
-      throw StateError('${candidate.provider} returned empty choices.');
-    }
-    final first = choices.first as Map<String, dynamic>;
-    final message = first['message'] as Map<String, dynamic>? ?? const {};
-    final content = (message['content'] ?? '').toString().trim();
-    if (content.isEmpty) {
-      throw StateError('${candidate.provider} returned empty content.');
-    }
-    return content;
-  }
+  static String _limit(String text, int max) =>
+      text.length > max ? text.substring(0, max) : text;
 
   AiPlanResult _parseStructuredResponse({
     required String rawJson,
-    required AiModelCandidate candidate,
+    required String provider,
+    required String modelId,
   }) {
     var cleaned = rawJson.trim();
     if (cleaned.startsWith('```')) {
@@ -325,12 +180,19 @@ Rules:
       }
     }
 
+    final rawReplies = decoded['suggested_replies'] as List<dynamic>? ?? const [];
+    final suggestedReplies = rawReplies
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .take(4)
+        .toList();
+
     return AiPlanResult(
       replyText: reply.isNotEmpty
           ? reply
           : 'Here is your Davao Region travel update.',
-      providerUsed: candidate.provider,
-      modelUsed: candidate.modelId,
+      providerUsed: provider,
+      modelUsed: modelId,
       title: decoded['title']?.toString(),
       destination: decoded['destination']?.toString(),
       vibe: decoded['vibe']?.toString(),
@@ -338,6 +200,7 @@ Rules:
       centerLat: (decoded['center_lat'] as num?)?.toDouble(),
       centerLng: (decoded['center_lng'] as num?)?.toDouble(),
       days: parsedDays,
+      suggestedReplies: suggestedReplies,
     );
   }
 }

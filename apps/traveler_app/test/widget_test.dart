@@ -101,7 +101,7 @@ void main() {
     expect(csvLines.length, equals(21)); // header + 20 Davao Region trips
   });
 
-  test('EnvConfig parses API keys and configures LakbayAiService & CloudinaryService', () {
+  test('EnvConfig parses API keys and ignores AI keys & configures CloudinaryService', () {
     EnvConfig.loadFromString('''
 MAPBOX_ACCESS_TOKEN=pk.test_mapbox_123
 GROQ_API_KEY=gsk_test_groq_123
@@ -114,19 +114,11 @@ CLOUDINARY_UPLOAD_PRESET=lakbay_unsigned
 ''');
 
     expect(EnvConfig.mapboxAccessToken, equals('pk.test_mapbox_123'));
-    expect(EnvConfig.hasGroqKey, isTrue);
-    expect(EnvConfig.hasFallbackLlmKey, isTrue);
     expect(EnvConfig.hasCloudinaryConfig, isTrue);
 
-    final ai = LakbayAiService();
-    final chain = ai.buildModelChain();
-    expect(chain.length, equals(4));
-    expect(chain[0].provider, equals('groq'));
-    expect(chain[0].modelId, equals('openai/gpt-oss-120b'));
-    expect(chain[1].modelId, equals('qwen/qwen3-32b'));
-    expect(chain[2].provider, equals('fallback_llm'));
-    expect(chain[2].modelId, equals('gemini-2.5-flash'));
-    expect(chain[3].modelId, equals('gemini-2.5-flash-lite'));
+    // AI keys in .env are ignored: AI runs only on the Lakbay backend, so an
+    // app without a backend URL has no AI even if a key was left in .env.
+    expect(LakbayAiService().isConfigured, isFalse);
 
     final cloudinary = CloudinaryService();
     expect(cloudinary.isConfigured, isTrue);

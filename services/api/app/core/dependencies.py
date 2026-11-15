@@ -84,3 +84,20 @@ async def require_admin(
         )
 
     return current_user
+
+
+async def get_optional_current_user(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(bearer_scheme),
+    ],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> User | None:
+    """The signed-in user, or None when no token is sent (guest endpoints).
+
+    A token that is sent but invalid or expired still fails, so the app
+    refreshes it instead of silently being treated as a guest.
+    """
+    if credentials is None:
+        return None
+    return await get_current_user(credentials, session)

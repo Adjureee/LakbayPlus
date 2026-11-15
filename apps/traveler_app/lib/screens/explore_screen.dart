@@ -3,6 +3,7 @@ import '../models/travel_models.dart';
 import '../services/mapbox_service.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
+import '../widgets/lakbay_image.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
 import 'trip_detail_screen.dart';
 
@@ -38,6 +39,185 @@ class _ExploreScreenState extends State<ExploreScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TripDetailScreen(trip: detailedTrip, repo: widget.repo),
+      ),
+    );
+  }
+
+  void _openMultiStopBuilderSheet() {
+    var days = widget.repo.tripBuilderStops.length.clamp(2, 7);
+    var travelers = 2;
+    var budgetPhp = days * 3500.0 * travelers;
+    var isGenerating = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final stops = widget.repo.tripBuilderStops;
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 22,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.route_rounded, color: LakbayColors.primary),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Multi-Stop Davao Builder',
+                        style: TextStyle(
+                          fontFamily: 'FigGrotesk',
+                          fontWeight: FontWeight.w800,
+                          fontSize: 20,
+                          color: LakbayColors.tealDeep,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        widget.repo.clearTripBuilder();
+                        Navigator.of(ctx).pop();
+                        setState(() {});
+                      },
+                      child: const Text('Clear'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: stops
+                      .map(
+                        (s) => Chip(
+                          label: Text(
+                            s.title.split('—').first.trim(),
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          onDeleted: () {
+                            widget.repo.toggleTripBuilderStop(s);
+                            setSheetState(() {});
+                            setState(() {});
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Days: $days',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: days > 1
+                          ? () => setSheetState(() => days--)
+                          : null,
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                    IconButton(
+                      onPressed: days < 14
+                          ? () => setSheetState(() => days++)
+                          : null,
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Travelers: $travelers',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: travelers > 1
+                          ? () => setSheetState(() => travelers--)
+                          : null,
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                    IconButton(
+                      onPressed: travelers < 15
+                          ? () => setSheetState(() => travelers++)
+                          : null,
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Target Budget: ₱${budgetPhp.toStringAsFixed(0)}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Slider(
+                  value: budgetPhp.clamp(2000, 60000),
+                  min: 2000,
+                  max: 60000,
+                  divisions: 58,
+                  activeColor: LakbayColors.primary,
+                  onChanged: (v) => setSheetState(() => budgetPhp = v),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton.icon(
+                  onPressed: isGenerating || stops.isEmpty
+                      ? null
+                      : () async {
+                          setSheetState(() => isGenerating = true);
+                          final built =
+                              await widget.repo.buildMultiStopExploreTrip(
+                            daysCount: days,
+                            budgetPhp: budgetPhp,
+                            travelers: travelers,
+                          );
+                          if (!ctx.mounted) return;
+                          Navigator.of(ctx).pop();
+                          if (!mounted) return;
+                          setState(() {});
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => TripDetailScreen(
+                                trip: built,
+                                repo: widget.repo,
+                              ),
+                            ),
+                          );
+                        },
+                  icon: isGenerating
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.auto_awesome_rounded),
+                  label: Text(
+                    isGenerating
+                        ? 'Building Route...'
+                        : 'Generate $days-Day Davao Route',
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -159,6 +339,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
       }
       return true;
     }).toList();
+    if (widget.repo.hasUserLocation) {
+      filtered.sort(
+        (a, b) => widget.repo
+            .distanceKmFromUser(a.lat, a.lng)
+            .compareTo(widget.repo.distanceKmFromUser(b.lat, b.lng)),
+      );
+    }
     return filtered;
   }
 
@@ -181,31 +368,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   Row(
                     children: [
                       const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Discover',
-                              style: TextStyle(
-                                fontFamily: 'FigGrotesk',
-                                fontWeight: FontWeight.w800,
-                                fontSize: 28,
-                                color: LakbayColors.tealDeep,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Region XI routes, Mapbox pins & local destination guides',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: LakbayColors.textSecondary,
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          'Discover',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'FigGrotesk',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 28,
+                            color: LakbayColors.tealDeep,
+                          ),
                         ),
                       ),
                       IconButton(
                         tooltip: 'Sync Live Catalog',
+                        visualDensity: VisualDensity.compact,
                         onPressed: widget.repo.isSyncingCatalog
                             ? null
                             : () async {
@@ -232,12 +409,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               )
                             : const Icon(Icons.sync_rounded),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 2),
                       FilledButton.tonalIcon(
                         onPressed: () {
                           setState(() {
                             _isMapView = !_isMapView;
-                            if (_isMapView && _selectedMapTrip == null) {
+                            if (_isMapView &&
+                                _selectedMapTrip == null &&
+                                !widget.repo.hasUserLocation) {
                               final list = _filteredMapTrips();
                               if (list.isNotEmpty) {
                                 _selectedMapTrip = list.first;
@@ -246,6 +425,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           });
                         },
                         style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          visualDensity: VisualDensity.compact,
                           backgroundColor: _isMapView
                               ? LakbayColors.tealDeep
                               : LakbayColors.primaryLight,
@@ -257,18 +441,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           _isMapView
                               ? Icons.view_agenda_rounded
                               : Icons.map_rounded,
-                          size: 17,
+                          size: 16,
                         ),
                         label: Text(
                           _isMapView ? 'List View' : 'Mapbox',
                           style: const TextStyle(
                             fontFamily: 'FigGrotesk',
                             fontWeight: FontWeight.w700,
-                            fontSize: 13,
+                            fontSize: 12.5,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       PopupMenuButton<String>(
                         onSelected: (curr) {
                           widget.repo.setCurrency(curr);
@@ -300,6 +484,38 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             ),
                           ),
                         ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Region XI routes, Mapbox pins & local destination guides',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: LakbayColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ActionChip(
+                        avatar: const Icon(
+                          Icons.auto_graph_rounded,
+                          size: 15,
+                          color: LakbayColors.primary,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        label: const Text(
+                          'Top-5 Match',
+                          style: TextStyle(
+                            fontFamily: 'FigGrotesk',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                        onPressed: _openTopPlacesSheet,
                       ),
                     ],
                   ),
@@ -525,6 +741,77 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ],
         ),
       ),
+      bottomNavigationBar: widget.repo.tripBuilderStops.isEmpty
+          ? null
+          : SafeArea(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: LakbayColors.tealDeep,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: LakbayColors.tealDeep.withValues(alpha: 0.28),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: LakbayColors.primary,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        '${widget.repo.tripBuilderStops.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Multi-Stop Davao Builder ready',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => widget.repo.clearTripBuilder()),
+                      child: const Text(
+                        'Clear',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: _openMultiStopBuilderSheet,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: LakbayColors.primary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                      ),
+                      child: const Text('Build Trip'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 
@@ -532,19 +819,41 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final trips = _filteredMapTrips();
     final activeTrip =
         _selectedMapTrip ?? (trips.isNotEmpty ? trips.first : null);
-    final markers = trips
-        .map(
-          (t) => LakbayMapMarker(
-            id: t.id,
-            lat: t.lat,
-            lng: t.lng,
-            badgeText: '${t.days}d • ${widget.repo.formatPrice(t.estimatedPriceUsd)}',
-            title: t.title,
-            subtitle: t.regionName,
-            isPrimary: activeTrip?.id == t.id,
-          ),
-        )
-        .toList();
+    final markers = [
+      ...trips.map(
+        (t) => LakbayMapMarker(
+          id: t.id,
+          lat: t.lat,
+          lng: t.lng,
+          badgeText: '${t.days}d',
+          title: t.title,
+          subtitle: t.regionName,
+          imageUrl: t.hasRemoteThumbnail ? t.thumbnailUrl : null,
+          imageAsset: t.localAssetPath,
+          isPrimary: activeTrip?.id == t.id,
+        ),
+      ),
+      if (widget.repo.hasUserLocation)
+        LakbayMapMarker(
+          id: 'user_gps',
+          lat: widget.repo.userLat!,
+          lng: widget.repo.userLng!,
+          title: 'You (${widget.repo.effectiveOriginLabel})',
+          subtitle: 'Current GPS location',
+          isUserLocation: true,
+        ),
+    ];
+
+    final startLat = _selectedMapTrip?.lat ??
+        (widget.repo.hasUserLocation
+            ? widget.repo.userLat!
+            : (activeTrip?.lat ?? MapboxService.davaoCenterLat));
+    final startLng = _selectedMapTrip?.lng ??
+        (widget.repo.hasUserLocation
+            ? widget.repo.userLng!
+            : (activeTrip?.lng ?? MapboxService.davaoCenterLng));
+    final startZoom =
+        _selectedMapTrip == null && widget.repo.hasUserLocation ? 10.5 : 8.3;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -552,11 +861,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
         children: [
           LakbayMapboxMap(
             repo: widget.repo,
-            initialLat: activeTrip?.lat ?? MapboxService.davaoCenterLat,
-            initialLng: activeTrip?.lng ?? MapboxService.davaoCenterLng,
-            initialZoom: 8.3,
+            initialLat: startLat,
+            initialLng: startLng,
+            initialZoom: startZoom,
             markers: markers,
             selectedMarkerId: activeTrip?.id,
+            controlsBottomOffset: activeTrip != null ? 132 : 24,
             animateRoute: false,
             onMarkerTap: (m) {
               final found = trips.where((t) => t.id == m.id).firstOrNull;
@@ -677,27 +987,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            trip.hasRemoteThumbnail
-                ? Image.network(
-                    trip.thumbnailUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Image.asset(
-                      trip.localAssetPath,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Image.asset(
-                        widget.repo.currentBackdrop.localAssetPath,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  )
-                : Image.asset(
-                    trip.localAssetPath,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Image.asset(
-                      widget.repo.currentBackdrop.localAssetPath,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
+            LakbayNetworkOrAssetImage(
+              networkUrl: trip.hasRemoteThumbnail ? trip.thumbnailUrl : null,
+              assetPath: trip.localAssetPath,
+              fallbackAsset: widget.repo.currentBackdrop.localAssetPath,
+            ),
             Container(
               decoration: const BoxDecoration(
                 gradient: LakbayColors.darkOverlayGradient,
@@ -763,15 +1057,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Text(
-                        '${trip.days} Days • Region XI • Est. ${widget.repo.formatPrice(trip.estimatedPriceUsd)}',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                      Expanded(
+                        child: Text(
+                          '${trip.days} Days • Region XI • Est. ${widget.repo.formatPrice(trip.estimatedPriceUsd)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
@@ -863,27 +1161,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              trip.hasRemoteThumbnail
-                                  ? Image.network(
-                                      trip.thumbnailUrl,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => Image.asset(
-                                        trip.localAssetPath,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, _, _) => Image.asset(
-                                          'assets/home_backdrops/04-thoddoo.jpg',
-                                          fit: BoxFit.cover,
-                                        ),
-                                      ),
-                                    )
-                                  : Image.asset(
-                                      trip.localAssetPath,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => Image.asset(
-                                        'assets/home_backdrops/04-thoddoo.jpg',
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
+                              LakbayNetworkOrAssetImage(
+                                networkUrl: trip.hasRemoteThumbnail
+                                    ? trip.thumbnailUrl
+                                    : null,
+                                assetPath: trip.localAssetPath,
+                              ),
                               Positioned(
                                 top: 8,
                                 left: 8,
@@ -907,20 +1190,50 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               Positioned(
                                 top: 4,
                                 right: 4,
-                                child: IconButton(
-                                  onPressed: () {
-                                    widget.repo.toggleBucketListTrip(trip.id);
-                                    setState(() {});
-                                  },
-                                  icon: Icon(
-                                    isBucketed
-                                        ? Icons.favorite_rounded
-                                        : Icons.favorite_border_rounded,
-                                    color: isBucketed
-                                        ? LakbayColors.primary
-                                        : Colors.white,
-                                    size: 20,
-                                  ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: widget.repo.isInTripBuilder(trip.id)
+                                          ? 'Remove from Trip Builder'
+                                          : 'Add to Multi-Stop Route',
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: widget.repo
+                                                .isInTripBuilder(trip.id)
+                                            ? LakbayColors.primary
+                                            : Colors.black.withValues(alpha: 0.45),
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(30, 30),
+                                      ),
+                                      onPressed: () {
+                                        widget.repo.toggleTripBuilderStop(trip);
+                                        setState(() {});
+                                      },
+                                      icon: Icon(
+                                        widget.repo.isInTripBuilder(trip.id)
+                                            ? Icons.check_rounded
+                                            : Icons.add_rounded,
+                                        color: Colors.white,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 2),
+                                    IconButton(
+                                      onPressed: () {
+                                        widget.repo.toggleBucketListTrip(trip.id);
+                                        setState(() {});
+                                      },
+                                      icon: Icon(
+                                        isBucketed
+                                            ? Icons.favorite_rounded
+                                            : Icons.favorite_border_rounded,
+                                        color: isBucketed
+                                            ? LakbayColors.primary
+                                            : Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -1055,16 +1368,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
               contentPadding: const EdgeInsets.all(10),
               leading: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  trip.localAssetPath,
+                child: LakbayNetworkOrAssetImage(
+                  networkUrl: trip.hasRemoteThumbnail ? trip.thumbnailUrl : null,
+                  assetPath: trip.localAssetPath,
                   width: 64,
                   height: 64,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
-                    width: 64,
-                    height: 64,
-                    color: LakbayColors.tealAccent,
-                  ),
                 ),
               ),
               title: Text(
@@ -1249,6 +1557,232 @@ class _ExploreScreenState extends State<ExploreScreen> {
           );
         },
       ),
+    );
+  }
+
+  void _openTopPlacesSheet() {
+    var rankingMethod = 'topsis';
+    final selectedInterests = <String>{'beach', 'nature'};
+    final budgetCtrl = TextEditingController(text: '5000');
+    bool loading = false;
+    TopPlacesResult? result;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) {
+            Future<void> runMatch() async {
+              setSheetState(() => loading = true);
+              final budget = double.tryParse(budgetCtrl.text.trim()) ?? 5000.0;
+              TopPlacesResult? live;
+              if (widget.repo.isSignedIn &&
+                  widget.repo.apiCatalog.isConfigured) {
+                live = await widget.repo.apiCatalog.fetchTopPlaces(
+                  widget.repo.authSession!.accessToken,
+                  interests: selectedInterests.toList(),
+                  travelMode: widget.repo.preferredTravelMode,
+                  totalBudgetPhp: budget,
+                  rankingMethod: rankingMethod,
+                  originLat: widget.repo.userLat,
+                  originLng: widget.repo.userLng,
+                );
+              }
+              if (live == null) {
+                final ranked = widget.repo.allTrips
+                    .take(5)
+                    .toList()
+                    .asMap()
+                    .entries
+                    .map(
+                      (e) => TopPlaceRecommendation(
+                        rank: e.key + 1,
+                        destinationId: e.value.apiDestinationId ?? (e.key + 1),
+                        name: e.value.title,
+                        district: e.value.district ?? 'Region XI',
+                        category: e.value.tag,
+                        imageUrl: e.value.thumbnailUrl,
+                        estimatedCost: e.value.estimatedCostPhp,
+                        score: 92.0 - (e.key * 4.5),
+                        reasons: ['Matches your ${selectedInterests.join(", ")} preferences'],
+                        routeVerified: true,
+                        travelMode: widget.repo.preferredTravelMode,
+                      ),
+                    )
+                    .toList();
+                live = TopPlacesResult(method: rankingMethod, items: ranked);
+              }
+              if (!sheetCtx.mounted) return;
+              setSheetState(() {
+                result = live;
+                loading = false;
+              });
+            }
+
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.82,
+              maxChildSize: 0.94,
+              builder: (_, scrollCtrl) => ListView(
+                controller: scrollCtrl,
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  16,
+                  20,
+                  MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+                ),
+                children: [
+                  const Text(
+                    'Personalized Top-5 Match',
+                    style: TextStyle(
+                      fontFamily: 'FigGrotesk',
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                      color: LakbayColors.tealDeep,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Rank Region XI destinations by TOPSIS closeness to ideal or Weighted SAW.',
+                    style: TextStyle(fontSize: 13, color: LakbayColors.textSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('TOPSIS Ranking'),
+                        selected: rankingMethod == 'topsis',
+                        onSelected: (_) =>
+                            setSheetState(() => rankingMethod = 'topsis'),
+                      ),
+                      ChoiceChip(
+                        label: const Text('Weighted SAW'),
+                        selected: rankingMethod == 'simple_additive_weighting',
+                        onSelected: (_) => setSheetState(
+                          () => rankingMethod = 'simple_additive_weighting',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final interest in const [
+                        'beach',
+                        'nature',
+                        'mountain',
+                        'waterfalls',
+                        'culture',
+                        'food',
+                      ])
+                        FilterChip(
+                          label: Text(interest),
+                          selected: selectedInterests.contains(interest),
+                          onSelected: (sel) => setSheetState(() {
+                            if (sel) {
+                              selectedInterests.add(interest);
+                            } else if (selectedInterests.length > 1) {
+                              selectedInterests.remove(interest);
+                            }
+                          }),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: budgetCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'Budget (PHP)',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      ElevatedButton.icon(
+                        onPressed: loading ? null : runMatch,
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                        label: const Text('Rank Top 5'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  if (loading)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (result != null) ...[
+                    Text(
+                      'Method: ${result!.method.toUpperCase()}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: LakbayColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    for (final item in result!.items)
+                      Card(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: LakbayColors.tealDeep,
+                            foregroundColor: Colors.white,
+                            child: Text('#${item.rank}'),
+                          ),
+                          title: Text(item.name),
+                          subtitle: Text(
+                            '${item.district ?? "Region XI"} • Score ${item.score.toStringAsFixed(1)}/100'
+                            '${item.reasons.isNotEmpty ? "\n${item.reasons.first}" : ""}',
+                          ),
+                          isThreeLine: item.reasons.isNotEmpty,
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            final generated = widget.repo.generateCustomTrip(
+                              destination:
+                                  '${item.name}, ${item.district ?? "Region XI"}',
+                              daysCount: 3,
+                              vibe: item.category ?? 'Recommended',
+                            );
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => TripDetailScreen(
+                                  trip: generated,
+                                  repo: widget.repo,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

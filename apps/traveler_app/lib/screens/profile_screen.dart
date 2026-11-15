@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
+import '../widgets/lakbay_image.dart';
 import 'auth_screen.dart';
 import 'settings_screen.dart';
 import 'trip_detail_screen.dart';
@@ -18,7 +19,7 @@ class ProfileScreen extends StatelessWidget {
     final previewTrips = trips.take(2).toList();
     final coverAsset = trips.isNotEmpty
         ? trips.first.heroAsset
-        : 'assets/home_backdrops/04-thoddoo.jpg';
+        : 'assets/home_backdrops/01-samal-island.jpg';
 
     return Scaffold(
       backgroundColor: LakbayColors.canvasBg,
@@ -143,7 +144,7 @@ class ProfileScreen extends StatelessWidget {
                         Text(
                           profile.headline.isNotEmpty
                               ? profile.headline
-                              : '${profile.location} • ${repo.travelCompanion} Traveler',
+                              : '${profile.location.trim().isNotEmpty ? profile.location.trim() : "Detecting location…"} • ${repo.travelCompanion} Traveler',
                           style: const TextStyle(
                             fontSize: 13,
                             color: LakbayColors.textSecondary,
@@ -292,7 +293,7 @@ class ProfileScreen extends StatelessWidget {
                   : (repo.apiCatalog.isConfigured
                       ? 'Tap to sign in'
                       : (repo.aiService.isConfigured
-                          ? 'Groq + Mapbox'
+                          ? 'Lakbay AI + Mapbox'
                           : 'Offline mode')),
               onTap: () => _showConnectedAppsSheet(context),
             ),
@@ -557,7 +558,7 @@ class ProfileScreen extends StatelessWidget {
               repo.apiCatalog.isConfigured,
             ),
             _StatusTile('Lakbay+ Cloud Account', repo.isSignedIn),
-            _StatusTile('Groq / Fallback AI', repo.aiService.isConfigured),
+            _StatusTile('Lakbay AI (server)', repo.aiService.isConfigured),
             _StatusTile('Mapbox Maps', repo.mapbox.hasValidToken),
             _StatusTile('Cloudinary Media', repo.cloudinary.isConfigured),
             if (repo.apiCatalog.isConfigured) ...[
@@ -730,18 +731,11 @@ class _ProfileTripTile extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                trip.heroAsset,
+              child: LakbayNetworkOrAssetImage(
+                networkUrl: trip.remoteImageUrl,
+                assetPath: trip.heroAsset,
                 width: 52,
                 height: 52,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  width: 52,
-                  height: 52,
-                  color: LakbayColors.tealWash,
-                  child: const Icon(Icons.map_outlined,
-                      color: LakbayColors.tealDeep),
-                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -827,8 +821,11 @@ class _SettingsRowCard extends StatelessWidget {
               Icon(icon, color: LakbayColors.tealDeep, size: 22),
               const SizedBox(width: 14),
               Expanded(
+                flex: 3,
                 child: Text(
                   title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
@@ -837,13 +834,19 @@ class _SettingsRowCard extends StatelessWidget {
                 ),
               ),
               if (trailingText != null)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: Text(
-                    trailingText!,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: LakbayColors.textSecondary,
+                Flexible(
+                  flex: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8, right: 6),
+                    child: Text(
+                      trailingText!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: LakbayColors.textSecondary,
+                      ),
                     ),
                   ),
                 ),

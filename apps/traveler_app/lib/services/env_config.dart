@@ -10,6 +10,14 @@ class EnvConfig {
 
   static bool get isLoaded => _loaded;
 
+  /// Seeds environment values cleanly inside unit/widget tests.
+  static void seedForTesting(Map<String, String> values) {
+    _values
+      ..clear()
+      ..addAll(values);
+    _loaded = true;
+  }
+
   /// Loads `.env` from the Flutter asset bundle. Safe to call multiple times.
   static Future<void> load({String assetPath = '.env'}) async {
     try {
@@ -52,10 +60,6 @@ class EnvConfig {
   // Compile-time --dart-define overrides take precedence if non-empty.
   static const String _defineMapbox =
       String.fromEnvironment('MAPBOX_ACCESS_TOKEN', defaultValue: '');
-  static const String _defineGroqKey =
-      String.fromEnvironment('GROQ_API_KEY', defaultValue: '');
-  static const String _defineFallbackKey =
-      String.fromEnvironment('FALLBACK_LLM_API_KEY', defaultValue: '');
   static const String _defineCloudName =
       String.fromEnvironment('CLOUDINARY_CLOUD_NAME', defaultValue: '');
   static const String _definelakbayApiBaseUrl =
@@ -66,36 +70,9 @@ class EnvConfig {
   static String get mapboxAccessToken =>
       _defineMapbox.isNotEmpty ? _defineMapbox : get('MAPBOX_ACCESS_TOKEN');
 
-  // Groq Primary AI
-  static String get groqApiKey =>
-      _defineGroqKey.isNotEmpty ? _defineGroqKey : get('GROQ_API_KEY');
-  static String get groqBaseUrl => get(
-        'GROQ_BASE_URL',
-        fallback: 'https://api.groq.com/openai/v1',
-      );
-  static String get groqModelDefault =>
-      get('GROQ_MODEL_DEFAULT', fallback: 'openai/gpt-oss-120b');
-  static String get groqModelFast =>
-      get('GROQ_MODEL_FAST', fallback: groqModelDefault);
-  static String get groqModelQuality =>
-      get('GROQ_MODEL_QUALITY', fallback: groqModelDefault);
-  static String get groqModelFallback =>
-      get('GROQ_MODEL_FALLBACK', fallback: groqModelDefault);
-  static double get groqTemperature =>
-      double.tryParse(get('GROQ_TEMPERATURE', fallback: '0.30')) ?? 0.30;
-  static int get groqMaxTokens =>
-      int.tryParse(get('GROQ_MAX_TOKENS', fallback: '4096')) ?? 4096;
-
-  // Fallback OpenAI-compatible AI (e.g. Gemini)
-  static String get fallbackLlmApiKey => _defineFallbackKey.isNotEmpty
-      ? _defineFallbackKey
-      : get('FALLBACK_LLM_API_KEY');
-  static String get fallbackLlmModel =>
-      get('FALLBACK_LLM_MODEL', fallback: 'gemini-2.5-flash');
-  static String get fallbackLlmBaseUrl => get(
-        'FALLBACK_LLM_BASE_URL',
-        fallback: 'https://generativelanguage.googleapis.com/v1beta/openai',
-      );
+  // AI runs on the Lakbay backend (POST /ai/chat, /ai/chat/guest,
+  // /ai/trip-draft). Never put an AI provider key in this file: .env is
+  // bundled into the app and anyone can read it from the APK.
 
   // Cloudinary
   static String get cloudinaryCloudName => _defineCloudName.isNotEmpty
@@ -116,9 +93,6 @@ class EnvConfig {
   static bool get hasLakbayApi => lakbayApiBaseUrl.trim().isNotEmpty;
   static bool get hasGoogleOAuth => googleOAuthClientId.trim().isNotEmpty;
 
-  static bool get hasGroqKey => groqApiKey.trim().isNotEmpty;
-  static bool get hasFallbackLlmKey => fallbackLlmApiKey.trim().isNotEmpty;
-  static bool get hasAnyAiKey => hasGroqKey || hasFallbackLlmKey;
   static bool get hasCloudinaryConfig =>
       cloudinaryCloudName.trim().isNotEmpty &&
       (cloudinaryUploadPreset.trim().isNotEmpty ||

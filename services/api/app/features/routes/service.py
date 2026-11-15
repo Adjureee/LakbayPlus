@@ -15,7 +15,14 @@ from app.features.routes.ordering import (
     exact_order,
     nearest_neighbor_two_opt,
 )
+from app.features.routes.multimodal import (
+    build_multimodal_response,
+    network_from_links,
+    planner_point,
+    spans_island_groups,
+)
 from app.features.routes.repository import RouteRepository
+from app.features.sea_links.repository import SeaLinkRepository
 from app.features.routes.schemas import (
     OrderMethod,
     RouteCoordinate,
@@ -61,6 +68,8 @@ class RoutePlanStop:
     lng: float
     is_origin: bool = False
     coordinate_basis: Literal["origin", "verified_arrival", "attraction"] = "attraction"
+    # None means the mainland; see app.features.sea_links.
+    island_group: str | None = None
 
     @property
     def coordinate(self) -> RouteCoordinate:
@@ -75,6 +84,7 @@ class RouteService:
         google_routes_client: GoogleRoutesClient | None = None,
     ) -> None:
         self.routes = RouteRepository(session)
+        self.sea_links = SeaLinkRepository(session)
         self.osrm_client = osrm_client
         self.google_routes_client = google_routes_client
 
@@ -91,6 +101,9 @@ class RouteService:
         stops: list[RoutePlanStop],
     ) -> RouteSummaryResponse:
         route_stops = _append_return_stop(stops, data.return_to_origin)
+
+        if spans_island_groups(route_stops):
+            return await self._multimodal_route(data, route_stops)
 
         if data.travel_mode == "public_transport":
             return _estimated_response(
@@ -150,6 +163,11 @@ class RouteService:
         stops = await self._build_stops(data)
 
         preserve_first = data.origin is not None or data.preserve_first_destination
+
+        if spans_island_groups(stops):
+            return await self._island_aware_optimize(
+                data, stops, preserve_first=preserve_first,
+            )
 
         if data.travel_mode == "public_transport":
             ordered_stops = _heuristic_order(
@@ -258,6 +276,77 @@ class RouteService:
         if live_traffic_warning:
             osrm_response.warnings.insert(0, live_traffic_warning)
         return _with_order_method(osrm_response, "osrm_trip")
+
+    async def _sea_network(self):
+        return network_from_links(await self.sea_links.list_active_links())
+
+    async def _multimodal_route(
+        self,
+        data: RoutePreviewRequest | RouteOptimizeRequest,
+        route_stops: list[RoutePlanStop],
+        *,
+        network=None,
+    ) -> RouteSummaryResponse:
+        """Drive to a pier, cross by boat, drive on; roads never cross water."""
+        network = network if network is not None else await self._sea_network()
+        warnings = []
+        if data.use_live_traffic:
+            warnings.append(
+                "Live traffic is not applied to routes with boat crossings."
+            )
+        verified = _arrival_points_verified(route_stops)
+        return await build_multimodal_response(
+            road_client=self.osrm_client,
+            travel_mode=data.travel_mode,
+            stops=route_stops,
+            network=network,
+            port_stop_factory=_port_stop,
+            base_warnings=warnings,
+            estimated_leg_factory=lambda mode, start, end: _estimated_legs(
+                travel_mode=mode, stops=[start, end],
+            )[0],
+            road_leg_factory=lambda start, end, leg: _route_leg_from_osrm(
+                order=1, start=start, end=end, leg=leg, show_steps=verified,
+            ),
+            estimated_response_factory=lambda stops, extra: _estimated_response(
+                travel_mode=data.travel_mode,
+                stops=stops,
+                route_provider="haversine",
+                warnings=extra,
+            ),
+        )
+
+    async def _island_aware_optimize(
+        self,
+        data: RouteOptimizeRequest,
+        stops: list[RoutePlanStop],
+        *,
+        preserve_first: bool,
+    ) -> RouteSummaryResponse:
+        """Order stops so each island is visited in one go, then route via piers."""
+        network = await self._sea_network()
+        costs = network.order_costs(
+            [planner_point(stop) for stop in stops],
+            driving=data.travel_mode == "driving",
+        )
+        if len(stops) <= EXACT_ORDER_MAX_STOPS:
+            order = exact_order(
+                costs, fixed_start=preserve_first, roundtrip=data.return_to_origin,
+            )
+        else:
+            order = nearest_neighbor_two_opt(
+                costs, fixed_start=preserve_first, roundtrip=data.return_to_origin,
+            )
+        route_stops = _append_return_stop(
+            [stops[index] for index in order], data.return_to_origin,
+        )
+        response = await self._multimodal_route(data, route_stops, network=network)
+        response.warnings.insert(
+            0,
+            "Stops are ordered to keep each island's stops together and limit boat "
+            "crossings, using straight-line estimates for the road parts.",
+        )
+        return _with_order_method(response, "island_aware")
 
     async def _exact_order_route(
         self,
@@ -391,6 +480,7 @@ class RouteService:
                     lng=data.origin.lng,
                     is_origin=True,
                     coordinate_basis="origin",
+                    island_group=data.origin.island_group,
                 )
             )
 
@@ -434,6 +524,19 @@ def _destination_to_stop(destination: Destination) -> RoutePlanStop:
         lat=destination.arrival_lat if has_verified_arrival else destination.lat,
         lng=destination.arrival_lng if has_verified_arrival else destination.lng,
         coordinate_basis="verified_arrival" if has_verified_arrival else "attraction",
+        island_group=destination.island_group,
+    )
+
+
+def _port_stop(port) -> RoutePlanStop:
+    """A pier as an intermediate road waypoint (not a visited destination)."""
+    return RoutePlanStop(
+        destination_id=None,
+        name=port.name,
+        lat=port.lat,
+        lng=port.lng,
+        coordinate_basis="verified_arrival" if port.verified else "attraction",
+        island_group=port.island_group,
     )
 
 
@@ -496,7 +599,7 @@ def _osrm_response(
 
     return RouteSummaryResponse(
         travel_mode=travel_mode,
-        route_provider="osrm",
+        route_provider=osrm_result.provider,
         is_estimated=False,
         total_distance_km=_distance_km(osrm_result.total_distance_meters / 1000),
         total_duration_minutes=_duration_minutes(osrm_result.total_duration_seconds),

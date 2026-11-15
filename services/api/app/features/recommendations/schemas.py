@@ -113,6 +113,9 @@ class TopPlacesRequest(BaseModel):
     requires_pet_friendly: bool = False
     requires_elderly_friendly: bool = False
     limit: int = Field(default=5, ge=1, le=10)
+    ranking_method: Literal["simple_additive_weighting", "topsis"] = (
+        "simple_additive_weighting"
+    )
 
     @model_validator(mode="after")
     def validate_child_ages(self) -> "TopPlacesRequest":
@@ -176,7 +179,7 @@ class TopPlacesSkipped(BaseModel):
 
 
 class TopPlacesResponse(BaseModel):
-    method: Literal["simple_additive_weighting"] = "simple_additive_weighting"
+    method: Literal["simple_additive_weighting", "topsis"] = "simple_additive_weighting"
     weights: dict[str, float]
     max_travel_minutes: int
     preference_signal_id: int | None

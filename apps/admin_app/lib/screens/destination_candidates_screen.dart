@@ -42,6 +42,8 @@ class _DestinationCandidatesScreenState
       'lng',
       'district',
       'category',
+      'vibes',
+      'island_group',
       'visitor_purpose',
       'description',
       'location',
@@ -164,6 +166,9 @@ class _DestinationCandidatesScreenState
       'lng': lng,
       'district': _optional('district'),
       'category': _optional('category'),
+      'vibes': _optional('vibes'),
+      // Blank means mainland; an island routes through a pier.
+      'island_group': _optional('island_group'),
       'visitor_purpose': _optional('visitor_purpose'),
       'description': _optional('description'),
       'location': _optional('location'),
@@ -333,6 +338,16 @@ class _DestinationCandidatesScreenState
                 'Suggested category: ${candidate['suggested_category'] ?? 'None'}',
               ),
               SelectableText(candidate['osm_url']?.toString() ?? ''),
+              if (candidate['region_status'] == 'outside')
+                const Text(
+                  'Outside the Davao Region (Region XI): this cannot be published.',
+                  style: TextStyle(color: Colors.redAccent),
+                )
+              else if (candidate['region_status'] == 'near_boundary')
+                const Text(
+                  'Near the Region XI boundary: confirm the place is in the Davao Region.',
+                  style: TextStyle(color: Colors.orangeAccent),
+                ),
               if (candidate['access_verified_at'] != null)
                 Text(
                   'Access last verified: ${candidate['access_verified_at']}',
@@ -356,6 +371,8 @@ class _DestinationCandidatesScreenState
                     ),
                   _field('district', 'District'),
                   _field('category', 'Visitor category'),
+                  _field('vibes', 'Vibes'),
+                  _field('island_group', 'Island (blank = mainland)'),
                   _field('visitor_purpose', 'Visitor purpose', lines: 2),
                   _field('location', 'Address or location'),
                   _field('activities', 'Activities', lines: 2),
