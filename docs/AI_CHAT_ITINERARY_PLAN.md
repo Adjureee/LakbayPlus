@@ -1,6 +1,6 @@
 # AI chat → recommendations → picks → itinerary, and group invites
 
-Date: 2026-11-16 · Status: Phases 1 and 2 merged to `main`; Phase 3 implemented on branch `feature/ai-chat-flow-stages` (Phases 4-6 still planned) · Based on `9256d3d`
+Date: 2026-11-16 · Status: Phases 1 and 2 merged to `main`; Phase 3 merged; Phase 4 implemented on branch `feature/ai-prompts-and-eval` (Phases 5-6 still planned) · Based on `9256d3d`
 Scoring model: Simple Additive Weighting (SAW), tuned for nature attractions (see "Weighted scoring (SAW) built for nature attractions").
 
 ## The flow you want
@@ -104,7 +104,7 @@ Two separate AI paths exist in the traveler app (`travel_repository.dart` `sendC
 - Explore Top-5 maps unknown places to `destinationId: 0` (`explore_screen.dart:1742`) → resolves to `api_0`.
 - `_authSession!` null-assertion on the generate call; correct today only because of branch ordering.
 - Silent `catch (_)` around the entire server chat means a network error looks like a normal (fake) answer.
-- The chat-eval fixture has **2 cases** (`tests/fixtures/chat_eval_davao.json`), so prompt changes cannot be measured.
+- (Corrected in Phase 4: the fixture already had 46 cases; it now has 60, including nature, stage and refinement cases.) The chat-eval fixture had **2 cases** (`tests/fixtures/chat_eval_davao.json`), so prompt changes cannot be measured.
 - The card list and the itinerary option list are an `else if` chain in the UI (`home_chat_screen.dart:938-950`): when cards exist, an attached trip is hidden.
 
 ### G. There is no "nature attractions" preference, and a plain one would not work
