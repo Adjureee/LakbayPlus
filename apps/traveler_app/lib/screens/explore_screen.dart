@@ -45,7 +45,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  void _openMultiStopBuilderSheet() {
+  void _openCityPlanSheet(String cityOrQuery) {
+    final added = widget.repo.seedTripBuilderForPlace(cityOrQuery);
+    if (added > 0) {
+      setState(() {});
+      _openMultiStopBuilderSheet(
+        aiFallbackPrompt: 'Help me plan a trip to $cityOrQuery.',
+      );
+      return;
+    }
+    widget.repo.planInChat('Help me plan a trip to $cityOrQuery.');
+  }
+
+  void _openMultiStopBuilderSheet({String? aiFallbackPrompt}) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -55,6 +67,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       ),
       builder: (ctx) => _MultiStopPlanSheet(
         repo: widget.repo,
+        aiFallbackPrompt: aiFallbackPrompt,
         onStopsChanged: () {
           if (mounted) setState(() {});
         },
@@ -166,10 +179,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                widget.repo.planInChat('Help me plan a trip to ${cityObj.city}.');
+                _openCityPlanSheet(cityObj.city);
               },
-              icon: const Icon(Icons.auto_awesome_rounded),
-              label: Text('Plan a trip to ${cityObj.city} with Lakbay AI'),
+              icon: const Icon(Icons.route_rounded),
+              label: Text('Plan Trip · ${cityObj.city}'),
             ),
           ],
         ),
@@ -1443,10 +1456,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
-                onPressed: () =>
-                    widget.repo.planInChat('Help me plan a trip to $_searchQuery.'),
-                icon: const Icon(Icons.auto_awesome_rounded),
-                label: Text('Plan a trip to $_searchQuery with Lakbay AI'),
+                onPressed: () => _openCityPlanSheet(_searchQuery),
+                icon: const Icon(Icons.route_rounded),
+                label: Text('Plan a trip to $_searchQuery'),
               ),
             ],
           ),
@@ -1644,9 +1656,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                       ),
                       TextButton.icon(
-                        onPressed: () => widget.repo
-                            .planInChat('Help me plan a trip to ${cityObj.city}.'),
-                        icon: const Icon(Icons.auto_awesome_rounded, size: 16),
+                        onPressed: () => _openCityPlanSheet(cityObj.city),
+                        icon: const Icon(Icons.route_rounded, size: 16),
                         label: const Text('Plan Trip'),
                       ),
                     ],
@@ -1908,11 +1919,13 @@ class _MultiStopPlanSheet extends StatefulWidget {
   final TravelRepository repo;
   final VoidCallback onStopsChanged;
   final ValueChanged<ItineraryTrip> onTripBuilt;
+  final String? aiFallbackPrompt;
 
   const _MultiStopPlanSheet({
     required this.repo,
     required this.onStopsChanged,
     required this.onTripBuilt,
+    this.aiFallbackPrompt,
   });
 
   @override
@@ -2515,7 +2528,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                     : () async {
                         setState(() => _isGenerating = true);
                         final built =
-                            await widget.repo.buildMultiStopExploreTrip(
+                            (await widget.repo.buildMultiStopExploreTrip(
                           daysCount: _days,
                           travelers: _travelers,
                           pace: pace,
@@ -2523,6 +2536,10 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                           hotelOrigin: _selectedHotel,
                           roundtrip: startMode != 'first_stop' && roundtrip,
                           pruneOptionalToFit: _pruneOptionalToFit,
+                        ))
+                                .copyWith(
+                          isCatalogFallback: true,
+                          expertName: 'Lakbay Catalog Planner (No AI)',
                         );
                         if (!context.mounted) return;
                         Navigator.of(context).pop();
@@ -2544,6 +2561,25 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                       : 'Optimize & Create $_days-Day Trip',
                 ),
               ),
+              if (stops.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _isGenerating
+                      ? null
+                      : () {
+                          final names = stops
+                              .take(5)
+                              .map((s) => s.title.split('—').first.trim())
+                              .join(', ');
+                          final prompt = widget.aiFallbackPrompt ??
+                              'Plan a $_days-day trip for $_travelers travelers visiting $names.';
+                          Navigator.of(context).pop();
+                          widget.repo.planInChat(prompt);
+                        },
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 17),
+                  label: const Text('Improve with AI'),
+                ),
+              ],
             ],
           ),
         ),

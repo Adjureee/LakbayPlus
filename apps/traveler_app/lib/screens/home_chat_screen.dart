@@ -1528,17 +1528,38 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
     BuildContext context,
     List<AiItineraryOptionDraft> options,
   ) {
+    final isCatalogBuilt =
+        options.any((o) => o.isCatalogFallback || o.trip.isCatalogFallback);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Compare AI Itinerary Options',
-          style: TextStyle(
-            fontFamily: 'FigGrotesk',
-            fontWeight: FontWeight.w700,
-            fontSize: 13.5,
-            color: LakbayColors.tealDeep,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                isCatalogBuilt
+                    ? "Built from Lakbay's catalog, without AI"
+                    : 'Compare AI Itinerary Options',
+                style: const TextStyle(
+                  fontFamily: 'FigGrotesk',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                  color: LakbayColors.tealDeep,
+                ),
+              ),
+            ),
+            if (isCatalogBuilt && options.isNotEmpty)
+              ActionChip(
+                visualDensity: VisualDensity.compact,
+                avatar: const Icon(Icons.auto_awesome_rounded, size: 15),
+                label: const Text(
+                  'Improve with AI',
+                  style: TextStyle(fontSize: 11.5),
+                ),
+                onPressed: () =>
+                    widget.repo.improveCatalogTripWithAi(options.first.trip),
+              ),
+          ],
         ),
         const SizedBox(height: 8),
         SizedBox(
@@ -1791,6 +1812,17 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                       color: LakbayColors.textPrimary,
                     ),
                   ),
+                  if (trip.isCatalogFallback) ...[
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Built from Lakbay's catalog, without AI",
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: LakbayColors.tealDeep,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Text(
                     'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)} • ${trip.flights.isNotEmpty ? 'Flights, ' : ''}${trip.hotels.isNotEmpty ? '${trip.hotels.first.name} & ' : ''}Daily Route',
@@ -1820,6 +1852,24 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                               style: TextStyle(fontSize: 13)),
                         ),
                       ),
+                      if (trip.isCatalogFallback) ...[
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          onPressed: () =>
+                              widget.repo.improveCatalogTripWithAi(trip),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 10,
+                            ),
+                          ),
+                          icon: const Icon(Icons.auto_awesome_rounded, size: 15),
+                          label: const Text(
+                            'Improve with AI',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
                       const SizedBox(width: 8),
                       IconButton.filledTonal(
                         tooltip: 'Save to My Trips',

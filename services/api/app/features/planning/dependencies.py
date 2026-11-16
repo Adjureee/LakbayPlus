@@ -48,3 +48,10 @@ def get_planning_route_service(
     if data.state.route_preferences is None:
         return None
     return RouteService(session, get_osrm_client())
+
+
+def get_optional_draft_route_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> RouteService | None:
+    """Routing helper for deterministic /planning/draft (supports both signed-in and guests)."""
+    return RouteService(session, get_osrm_client())

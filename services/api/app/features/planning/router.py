@@ -3,10 +3,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_optional_current_user
 from app.db.session import get_db_session
-from app.features.planning.dependencies import get_planning_route_service
+from app.features.planning.dependencies import (
+    get_optional_draft_route_service,
+    get_planning_route_service,
+)
 from app.features.planning.schemas import (
+    PlanningDraftRequest,
+    PlanningDraftResponse,
     PlanningFeedbackRequest,
     PlanningFeedbackResponse,
     PlanningPreviewRequest,
@@ -57,3 +62,23 @@ async def feedback_planning(
     route_service: Annotated[RouteService | None, Depends(get_planning_route_service)],
 ) -> PlanningFeedbackResponse:
     return await PlanningService(session, route_service).feedback(data)
+
+
+@router.post(
+    "/draft",
+    response_model=PlanningDraftResponse,
+    summary="Build a deterministic itinerary draft without AI",
+    description=(
+        "Builds up to two structured catalog itinerary options from active destinations, "
+        "route order, visit durations, and catalog prices without calling an AI model. "
+        "Available to both guests and signed-in travelers."
+    ),
+)
+async def draft_planning(
+    data: PlanningDraftRequest,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User | None, Depends(get_optional_current_user)],
+    route_service: Annotated[RouteService | None, Depends(get_optional_draft_route_service)],
+) -> PlanningDraftResponse:
+    del current_user  # Both guests and signed-in travelers may build catalog drafts.
+    return await PlanningService(session, route_service).draft(data)

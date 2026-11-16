@@ -418,3 +418,55 @@ class PlanningFeedbackResponse(BaseModel):
     status: Literal["needs_details", "needs_review", "no_flagged_issues"]
     findings: list[PlanningFeedbackFinding]
     preview: PlanningPreviewResponse
+
+
+class PlanningDraftRequest(PlanningInput):
+    input_revision: int = Field(default=0, ge=0)
+    state: PlanningState = Field(default_factory=PlanningState)
+    city: str | None = Field(default=None, max_length=120)
+    query: str | None = Field(default=None, max_length=200)
+    max_places: int = Field(default=5, ge=1, le=10)
+    option_count: int = Field(default=2, ge=1, le=2)
+
+
+class CatalogDraftActivity(BaseModel):
+    time: str
+    title: str
+    description: str
+    destination_id: int | None = None
+    accommodation_id: int | None = None
+    transportation_id: int | None = None
+    estimated_cost: Money = Decimal("0.00")
+    cost_listed: bool = False
+    cost_source: Literal["catalog_estimate", "catalog_verified", "catalog_unlisted"] = (
+        "catalog_unlisted"
+    )
+    notes: str | None = None
+
+
+class CatalogDraftDay(BaseModel):
+    day: PositiveInt
+    title: str
+    summary: str
+    activities: list[CatalogDraftActivity] = Field(min_length=1)
+
+
+class CatalogDraftOption(BaseModel):
+    option_number: PositiveInt
+    title: str
+    summary: str
+    estimated_total_cost: Money
+    cost_source: Literal["catalog_deterministic"] = "catalog_deterministic"
+    source_label: str = "Built from Lakbay's catalog, without AI"
+    is_over_budget: bool
+    days: list[CatalogDraftDay] = Field(min_length=1)
+    quality_warnings: list[str] = Field(default_factory=list)
+
+
+class PlanningDraftResponse(BaseModel):
+    source: Literal["catalog_deterministic"] = "catalog_deterministic"
+    source_label: str = "Built from Lakbay's catalog, without AI"
+    options: list[CatalogDraftOption]
+    planning_preview: PlanningPreviewResponse
+    unlisted_cost_destination_ids: list[int] = Field(default_factory=list)
+    route_source: str = "catalog_coordinates"

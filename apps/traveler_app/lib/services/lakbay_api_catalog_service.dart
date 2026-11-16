@@ -1178,6 +1178,71 @@ class LakbayApiCatalogService {
     }
   }
 
+  /// Calls `POST /planning/draft` to build a deterministic itinerary from the
+  /// catalog without using any AI model (available to guests and signed-in).
+  Future<({
+    List<Map<String, dynamic>> options,
+    String sourceLabel,
+    Map<String, dynamic>? planningPreview,
+  })?> buildPlanningDraft(
+    String? accessToken, {
+    Map<String, dynamic>? planningState,
+    int inputRevision = 0,
+    String? city,
+    String? query,
+    int maxPlaces = 5,
+    int optionCount = 2,
+  }) async {
+    final base = _base;
+    if (base.isEmpty) return null;
+    try {
+      final encodedPayload = jsonEncode({
+        'input_revision': inputRevision,
+        'state': planningState ?? const <String, dynamic>{},
+        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        if (query != null && query.trim().isNotEmpty) 'query': query.trim(),
+        'max_places': maxPlaces.clamp(1, 10),
+        'option_count': optionCount.clamp(1, 2),
+      });
+      final token = (accessToken ?? '').trim();
+      Future<http.Response> sendReq(String? tok) => _client
+          .post(
+            Uri.parse('$base/planning/draft'),
+            headers: {
+              if (tok != null && tok.isNotEmpty) 'Authorization': 'Bearer $tok',
+              'Content-Type': 'application/json',
+            },
+            body: encodedPayload,
+          )
+          .timeout(const Duration(seconds: 25));
+
+      var res = token.isEmpty
+          ? await sendReq(null)
+          : await _sendAuthorized(token, sendReq);
+      if (token.isNotEmpty && res.statusCode == 401) {
+        res = await sendReq(null);
+      }
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final options = (decoded['options'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      if (options.isEmpty) return null;
+      return (
+        options: options,
+        sourceLabel: (decoded['source_label'] ??
+                "Built from Lakbay's catalog, without AI")
+            .toString(),
+        planningPreview: decoded['planning_preview'] is Map<String, dynamic>
+            ? decoded['planning_preview'] as Map<String, dynamic>
+            : null,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<({
     String status,
     List<PlanningFeedbackFinding> findings,
