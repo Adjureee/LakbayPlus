@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator
 
 from app.features.users.schemas import UserResponse
 
@@ -9,6 +9,16 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     confirm_password: str = Field(min_length=8, max_length=128)
     avatar_url: str | None = Field(default=None, max_length=2048)
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, value: str) -> str:
+        cleaned = " ".join(value.split())
+        if len(cleaned) < 2:
+            raise ValueError("Please enter your full name (at least 2 characters).")
+        if cleaned.lower() == "lakbay traveler":
+            raise ValueError("Please enter your real full name.")
+        return cleaned
 
     @model_validator(mode="after")
     def validate_password_confirmation(self) -> "RegisterRequest":

@@ -26,8 +26,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
   }
 
   void _showCreateTripDialog() {
-    final destController =
-        TextEditingController(text: 'Samal Island & Davao City');
+    final destController = TextEditingController();
     int days = 3;
     String vibe = 'Island Hopping & Highlands';
 
@@ -65,6 +64,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                   controller: destController,
                   decoration: InputDecoration(
                     labelText: 'Destination in Region XI',
+                    hintText: 'e.g. Samal Island, Mati, or Mt. Apo',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),

@@ -24,6 +24,7 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
+  final _fullNameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
@@ -47,29 +48,29 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   void dispose() {
+    _fullNameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
     super.dispose();
   }
 
-  static String _deriveNameFromEmail(String email) {
-    final local = email.split('@').first.trim();
-    final words = local
-        .split(RegExp(r'[._\-+0-9]+'))
-        .where((w) => w.isNotEmpty)
-        .map((w) => '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
-        .toList();
-    if (words.isEmpty) return 'Lakbay Traveler';
-    final joined = words.join(' ');
-    return joined.length >= 2 ? joined : '$joined Traveler';
-  }
-
   Future<void> _submitEmailAuth() async {
     if (_busy || _googleBusy) return;
+    final fullName =
+        _fullNameCtrl.text.trim().replaceAll(RegExp(r'\s+'), ' ');
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     final confirmPassword = _confirmPasswordCtrl.text;
+
+    if (_isRegister &&
+        (fullName.length < 2 ||
+            fullName.toLowerCase() == 'lakbay traveler')) {
+      setState(
+        () => _error = 'Please enter your full name (at least 2 characters).',
+      );
+      return;
+    }
 
     if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
       setState(() => _error = 'Please enter a valid email address.');
@@ -95,7 +96,7 @@ class _AuthScreenState extends State<AuthScreen> {
       if (widget.repo.apiCatalog.isConfigured) {
         if (_isRegister) {
           await widget.repo.registerWithBackend(
-            fullName: _deriveNameFromEmail(email),
+            fullName: fullName,
             email: email,
             password: password,
             confirmPassword: confirmPassword,
@@ -107,15 +108,12 @@ class _AuthScreenState extends State<AuthScreen> {
           );
         }
       } else {
-        // Standalone offline mode: update local profile cleanly without fabricating a JWT.
-        final parts = _deriveNameFromEmail(email).split(' ');
-        widget.repo.updateProfile(
-          firstName: parts.first,
-          lastName: parts.length > 1 ? parts.sublist(1).join(' ') : '',
-          headline: widget.repo.profile.headline,
-          location: widget.repo.profile.location,
-          email: email,
-        );
+        setState(() {
+          _busy = false;
+          _error =
+              'Connect LAKBAY_API_BASE_URL to sign in or create your Lakbay+ account.';
+        });
+        return;
       }
       if (!mounted) return;
       setState(() => _busy = false);
@@ -154,7 +152,9 @@ class _AuthScreenState extends State<AuthScreen> {
       widget.onAuthenticated!();
       return;
     }
-    Navigator.of(context).pop(true);
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(true);
+    }
   }
 
   void _showLegalDialog(BuildContext context, String title, String body) {
@@ -199,20 +199,23 @@ class _AuthScreenState extends State<AuthScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                onPressed: _busy || _googleBusy
-                    ? null
-                    : () => Navigator.of(context).maybePop(false),
-                icon: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 20,
-                  color: LakbayColors.tealDeep,
+            if (Navigator.of(context).canPop())
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: _busy || _googleBusy
+                      ? null
+                      : () => Navigator.of(context).maybePop(false),
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 20,
+                    color: LakbayColors.tealDeep,
+                  ),
+                  tooltip: 'Back',
                 ),
-                tooltip: 'Back',
-              ),
-            ),
+              )
+            else
+              const SizedBox(height: 12),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 6, 24, 24),
@@ -309,6 +312,15 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                         const SizedBox(height: 22),
 
+                        if (_isRegister) ...[
+                          _AuthTextField(
+                            controller: _fullNameCtrl,
+                            hintText: 'Full name',
+                            keyboardType: TextInputType.name,
+                            borderColor: fieldBorder,
+                          ),
+                          const SizedBox(height: 14),
+                        ],
                         // Email input
                         _AuthTextField(
                           controller: _emailCtrl,

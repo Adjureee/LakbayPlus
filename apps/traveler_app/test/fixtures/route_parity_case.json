@@ -1,0 +1,55 @@
+{
+  "description": "Deterministic cross-island Davao Region parity fixture shared between Dart RouteOptimizer and Python route planner tests.",
+  "origin": {
+    "label": "Downtown Davao City",
+    "lat": 7.0707,
+    "lng": 125.6096,
+    "island_group": null
+  },
+  "days": 3,
+  "pace": "balanced",
+  "roundtrip": false,
+  "driving": true,
+  "stops": [
+    {
+      "id": "api_4",
+      "name": "Samal Island Beach Area",
+      "lat": 7.0744,
+      "lng": 125.7087,
+      "island_group": "samal",
+      "stay_duration_type": "full_day"
+    },
+    {
+      "id": "api_3",
+      "name": "Eden Nature Park",
+      "lat": 7.0088,
+      "lng": 125.3992,
+      "island_group": null,
+      "stay_duration_type": "half_day"
+    },
+    {
+      "id": "api_34",
+      "name": "Monfort Bat Sanctuary",
+      "lat": 7.165537,
+      "lng": 125.692742,
+      "island_group": "samal",
+      "stay_duration_type": "half_day"
+    },
+    {
+      "id": "api_2",
+      "name": "Philippine Eagle Center",
+      "lat": 7.1854,
+      "lng": 125.4169,
+      "island_group": null,
+      "stay_duration_type": "half_day"
+    },
+    {
+      "id": "api_6",
+      "name": "Dahican Beach",
+      "lat": 6.9487,
+      "lng": 126.2542,
+      "island_group": null,
+      "stay_duration_type": "overnight"
+    }
+  ]
+}

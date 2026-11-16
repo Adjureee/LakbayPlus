@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
+import '../widgets/origin_picker_sheet.dart';
 import 'yes_ai_onboarding_flow.dart';
 import 'auth_screen.dart';
 
@@ -48,7 +49,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     if (_stepIndex < _totalSteps - 1) {
       setState(() => _stepIndex++);
     } else {
-      widget.repo.completeOnboarding();
+      _proceedToAuthOrComplete();
     }
   }
 
@@ -60,7 +61,26 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   void _finishOnboarding({required bool shareLocation}) {
     widget.repo.setLocationSharingEnabled(shareLocation);
-    widget.repo.completeOnboarding();
+    _proceedToAuthOrComplete();
+  }
+
+  void _proceedToAuthOrComplete() {
+    if (widget.repo.isSignedIn) {
+      widget.repo.completeOnboarding();
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<bool>(
+        builder: (navCtx) => AuthScreen(
+          repo: widget.repo,
+          initialRegisterMode: true,
+          onAuthenticated: () {
+            widget.repo.completeOnboarding();
+            Navigator.of(navCtx).popUntil((route) => route.isFirst);
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _handleShareLocationAndContinue() async {
@@ -73,11 +93,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     if (!mounted) return;
     setState(() => _requestingLocation = false);
     if (result.granted) {
-      widget.repo.completeOnboarding();
+      _proceedToAuthOrComplete();
     } else {
       setState(() {
         _locationFeedback =
-            '${result.statusMessage} You can retry or tap "Maybe later".';
+            '${result.statusMessage} Search for or pin your starting place below, or tap "Maybe later".';
       });
     }
   }
@@ -729,7 +749,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           ),
           const SizedBox(height: 8),
           const Text(
-            'I can find flights into Davao (DVO) and build the best deals and routes for your Region XI trip.',
+            'Share your current GPS location—or search or pin where you are starting from—for tailored Region XI routes.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -777,7 +797,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         children: [
                           CircleAvatar(
                             radius: 4,
-                            backgroundColor: widget.repo.hasUserLocation
+                            backgroundColor: widget.repo.hasOrigin
                                 ? LakbayColors.tealDeep
                                 : LakbayColors.primary,
                           ),
@@ -787,9 +807,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             child: Text(
                               _requestingLocation
                                   ? 'Requesting permission…'
-                                  : (widget.repo.hasUserLocation
-                                      ? widget.repo.profile.location
-                                      : 'Locating'),
+                                  : (widget.repo.hasOrigin
+                                      ? widget.repo.effectiveOriginLabel
+                                      : 'Starting place not set'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -890,7 +910,27 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () async {
+              final picked = await showOriginPickerSheet(context, widget.repo);
+              if (picked == true && mounted) {
+                _proceedToAuthOrComplete();
+              }
+            },
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+            icon: const Icon(Icons.search_rounded, size: 18),
+            label: const Text(
+              'Search or pin a starting place',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 4),
           TextButton(
             onPressed: () => _finishOnboarding(shareLocation: false),
             child: const Text(
@@ -1120,10 +1160,10 @@ class _DavaoRadarMapPainter extends CustomPainter {
       );
     canvas.drawPath(highway, roadPaint);
 
-    // Airport & city labels
+    // Destination region landmarks
     final labels = [
-      ('DAVAO CITY', Offset(size.width * 0.16, size.height * 0.42)),
-      ('DVO AIRPORT', Offset(size.width * 0.25, size.height * 0.24)),
+      ('REGION XI', Offset(size.width * 0.18, size.height * 0.42)),
+      ('PACIFIC COAST', Offset(size.width * 0.72, size.height * 0.24)),
       ('SAMAL', Offset(size.width * 0.76, size.height * 0.36)),
       ('DAVAO GULF', Offset(size.width * 0.70, size.height * 0.78)),
     ];

@@ -23,6 +23,7 @@ from app.features.ai.rag import VectorRAGRetriever
 from app.features.ai.schemas import (
     AIChatRequest,
     AIChatResponse,
+    AIPlaceQuery,
     AIPlanningChatOutput,
     AIPlanningChatResult,
     AIPlanningStateUpdates,
@@ -44,7 +45,12 @@ from app.features.destinations.catalog_selection import (
     require_rates_belong_to_destinations,
 )
 from app.features.destinations.models import Destination
-from app.features.destinations.region import region_status
+from app.features.destinations.region import (
+    canonical_province_name,
+    nearest_provinces,
+    province_for_destination,
+    region_status,
+)
 from app.features.planning.schemas import PlanningOrigin, PlanningPreviewRequest, PlanningPreviewResponse, PlanningState
 from app.features.planning.service import PlanningService
 from app.features.recommendations.schemas import (
@@ -1129,104 +1135,179 @@ async def _build_planning_chat_result(
     recommendations = []
     recommendation_total_candidates = 0
     recommendation_shortfall_reason = None
-    # If the model did not record an interest the traveler stated, use the one the
-    # catalog retrieval detected in the message so the Top 5 cards still appear.
-    ranking_interests = list(next_state.interests) or (
-        [retrieval_interest] if retrieval_interest else []
-    )
-    if not next_state.destination_ids and not ranking_interests:
-        # Without interests there is nothing to rank. If the traveler named a place the
-        # catalog matched, offer those places as selectable cards instead of leaving the
-        # plan with no way to choose a destination.
-        card_ids = [match.destination_id for match in resolver_matches] or (
-            list(named_destination_ids or []) if requested_locations else []
+    output_intent = output.intent if output is not None else None
+    output_place_query = output.place_query if output is not None else None
+    origin_coord = (
+        RouteCoordinate(
+            label=next_state.origin.label,
+            lat=next_state.origin.lat,
+            lng=next_state.origin.lng,
         )
-        if card_ids:
-            named = await AIItineraryRepository(session).list_active_destinations_by_ids(
-                list(dict.fromkeys(card_ids))[:5],
-            )
-            by_id = {item.destination_id: item for item in named}
-            recommendations = [
-                PlanningRecommendationItem(
-                    destination_id=by_id[destination_id].destination_id,
-                    name=by_id[destination_id].name,
-                    district=by_id[destination_id].district,
-                    category=by_id[destination_id].category,
-                    estimated_cost=by_id[destination_id].estimated_cost,
-                    score=0.0,
-                    matched_fields=["location"],
-                    reasons=[
-                        f"Matches the place you named: {', '.join(requested_locations)}"
-                        if requested_locations
-                        else "Matches the place you named."
-                    ],
-                    travel_mode="driving",
+        if next_state.origin is not None
+        and next_state.origin.lat is not None
+        and next_state.origin.lng is not None
+        else None
+    )
+    selected_modes = tuple(next_state.selected_transport_option_ids)
+    travel_mode = {
+        ("mode:personal_vehicle",): "driving",
+        ("mode:walking",): "walking",
+    }.get(selected_modes, "public_transport" if selected_modes else "driving")
+
+    if output_intent == "show_places":
+        place_query = output_place_query or AIPlaceQuery()
+        categories = list(place_query.categories) or (
+            [retrieval_interest] if retrieval_interest else []
+        )
+        requested_province_raw = (place_query.province or "").strip() or None
+        target_province: str | None = None
+        outside_province: str | None = None
+        if requested_province_raw is not None:
+            target_province = canonical_province_name(requested_province_raw)
+            if target_province is None:
+                outside_province = requested_province_raw
+        elif requested_locations:
+            for loc in requested_locations:
+                mapped = canonical_province_name(loc)
+                if mapped is not None:
+                    target_province = mapped
+                    break
+
+        if target_province is None and outside_province is None:
+            if origin_coord is not None:
+                target_province = province_for_destination(
+                    origin_coord.lat,
+                    origin_coord.lng,
+                    district=origin_coord.label,
                 )
-                for destination_id in dict.fromkeys(card_ids)
-                if destination_id in by_id
-            ]
-            recommendation_total_candidates = len(recommendations)
-        if not recommendations:
-            recommendation_shortfall_reason = (
-                "No travel interests were supplied, so there is no preference match to rank."
+            elif next_state.origin is not None and next_state.origin.label:
+                target_province = canonical_province_name(next_state.origin.label)
+
+        if outside_province is not None:
+            nearby = nearest_provinces(
+                lat=origin_coord.lat if origin_coord is not None else None,
+                lng=origin_coord.lng if origin_coord is not None else None,
             )
-    elif not next_state.destination_ids or retrieval_interest:
-        # With stops already chosen, only rank when this message asked for more of an
-        # interest, and never offer a place that is already in the plan.
-        already_selected = set(next_state.destination_ids)
-        if already_selected:
-            ranking_interests = [retrieval_interest]
-        selected_modes = tuple(next_state.selected_transport_option_ids)
-        ranking_started = perf_counter()
-        top_places = await RecommendationService(session).rank_top_places(
-            data=TopPlacesRequest(
-                interests=ranking_interests,
-                origin=(
-                    RouteCoordinate(
-                        label=next_state.origin.label,
-                        lat=next_state.origin.lat,
-                        lng=next_state.origin.lng,
-                    )
-                    if next_state.origin is not None
-                    and next_state.origin.lat is not None
-                    and next_state.origin.lng is not None
-                    else None
-                ),
-                # Catalog fare choices mean the traveler is commuting; no choice
-                # yet is ranked by car.
-                travel_mode={
-                    ("mode:personal_vehicle",): "driving",
-                    ("mode:walking",): "walking",
-                }.get(selected_modes, "public_transport" if selected_modes else "driving"),
+            recommendation_shortfall_reason = (
+                f"{outside_province} is outside the Davao Region (Region XI). "
+                f"Closest Region XI provinces to explore: {', '.join(nearby[:3])}."
+            )
+            chat_response = recommendation_shortfall_reason
+        else:
+            ranking_started = perf_counter()
+            place_result = await RecommendationService(session).rank_place_query(
+                categories=categories,
+                province=target_province,
+                origin=origin_coord,
+                travel_mode=travel_mode,
                 total_budget=next_state.total_budget,
                 budget_scope=next_state.budget_scope,
                 traveler_count=next_state.traveler_count,
                 adult_count=next_state.adult_count,
                 child_ages=next_state.child_ages,
                 day_count=next_state.day_count,
-            ),
-            osrm_client=route_service.osrm_client if route_service is not None else None,
+                limit=place_query.limit,
+                osrm_client=route_service.osrm_client if route_service is not None else None,
+            )
+            _log_timing("recommendation_ranking", ranking_started)
+            recommendations = [
+                planning_recommendation_from_top_place(item)
+                for item in place_result.items
+            ]
+            recommendation_total_candidates = place_result.total_candidates
+            recommendation_shortfall_reason = place_result.shortfall_reason
+            if recommendation_shortfall_reason is not None:
+                chat_response = recommendation_shortfall_reason
+    elif output_intent in {"question", "logistics", "smalltalk"}:
+        # Q&A, logistics, and small talk stay concise text replies without card dumps.
+        pass
+    else:
+        # If the model did not record an interest the traveler stated, use the one the
+        # catalog retrieval detected in the message so the Top 5 cards still appear.
+        ranking_interests = list(next_state.interests) or (
+            [retrieval_interest] if retrieval_interest else []
         )
-        _log_timing("recommendation_ranking", ranking_started)
-        recommendations = [
-            planning_recommendation_from_top_place(item)
-            for item in top_places.items
-            if item.destination_id not in already_selected
-        ]
-        recommendation_total_candidates = top_places.total_candidates
-        recommendation_shortfall_reason = top_places.shortfall_reason
-        if already_selected:
-            # The plan already has stops, so a thin result is not worth replacing the
-            # model's reply with a shortfall message.
-            recommendation_shortfall_reason = None
-        if recommendation_shortfall_reason is not None:
-            # Catalog and route checks are authoritative over model prose.
-            chat_response = recommendation_shortfall_reason
+        if not next_state.destination_ids and not ranking_interests:
+            # Without interests there is nothing to rank. If the traveler named a place the
+            # catalog matched, offer those places as selectable cards instead of leaving the
+            # plan with no way to choose a destination.
+            card_ids = [match.destination_id for match in resolver_matches] or (
+                list(named_destination_ids or []) if requested_locations else []
+            )
+            if card_ids:
+                named = await AIItineraryRepository(session).list_active_destinations_by_ids(
+                    list(dict.fromkeys(card_ids))[:5],
+                )
+                by_id = {item.destination_id: item for item in named}
+                recommendations = [
+                    PlanningRecommendationItem(
+                        destination_id=by_id[destination_id].destination_id,
+                        name=by_id[destination_id].name,
+                        district=by_id[destination_id].district,
+                        category=by_id[destination_id].category,
+                        image_url=by_id[destination_id].image_url,
+                        estimated_cost=by_id[destination_id].estimated_cost,
+                        score=0.0,
+                        matched_fields=["location"],
+                        reasons=[
+                            f"Matches the place you named: {', '.join(requested_locations)}"
+                            if requested_locations
+                            else "Matches the place you named."
+                        ],
+                        travel_mode="driving",
+                    )
+                    for destination_id in dict.fromkeys(card_ids)
+                    if destination_id in by_id
+                ]
+                recommendation_total_candidates = len(recommendations)
+            if not recommendations:
+                recommendation_shortfall_reason = (
+                    "No travel interests were supplied, so there is no preference match to rank."
+                )
+        elif not next_state.destination_ids or retrieval_interest:
+            # With stops already chosen, only rank when this message asked for more of an
+            # interest, and never offer a place that is already in the plan.
+            already_selected = set(next_state.destination_ids)
+            if already_selected:
+                ranking_interests = [retrieval_interest]
+            ranking_started = perf_counter()
+            top_places = await RecommendationService(session).rank_top_places(
+                data=TopPlacesRequest(
+                    interests=ranking_interests,
+                    origin=origin_coord,
+                    # Catalog fare choices mean the traveler is commuting; no choice
+                    # yet is ranked by car.
+                    travel_mode=travel_mode,
+                    total_budget=next_state.total_budget,
+                    budget_scope=next_state.budget_scope,
+                    traveler_count=next_state.traveler_count,
+                    adult_count=next_state.adult_count,
+                    child_ages=next_state.child_ages,
+                    day_count=next_state.day_count,
+                ),
+                osrm_client=route_service.osrm_client if route_service is not None else None,
+            )
+            _log_timing("recommendation_ranking", ranking_started)
+            recommendations = [
+                planning_recommendation_from_top_place(item)
+                for item in top_places.items
+                if item.destination_id not in already_selected
+            ]
+            recommendation_total_candidates = top_places.total_candidates
+            recommendation_shortfall_reason = top_places.shortfall_reason
+            if already_selected:
+                # The plan already has stops, so a thin result is not worth replacing the
+                # model's reply with a shortfall message.
+                recommendation_shortfall_reason = None
+            if recommendation_shortfall_reason is not None:
+                # Catalog and route checks are authoritative over model prose.
+                chat_response = recommendation_shortfall_reason
     return (
         chat_response,
         AIPlanningChatResult(
             input_revision=data.input_revision,
-            intent=output.intent if output is not None else None,
+            intent=output_intent,
+            place_query=output_place_query,
             suggested_replies=output.suggested_replies if output is not None else [],
             state_updates=changes_json,
             update_status=update_status,
@@ -1300,7 +1381,7 @@ def _parse_planning_chat_output(
     except (TypeError, ValueError):
         return None, []
     required = {"chat_response", "state_updates"}
-    optional = {"intent", "suggested_replies"}
+    optional = {"intent", "suggested_replies", "place_query"}
     if not isinstance(raw, dict) or not required <= set(raw) <= required | optional:
         return None, []
     updates = raw["state_updates"]
@@ -1329,6 +1410,7 @@ def _parse_planning_chat_output(
             "chat_response": raw["chat_response"],
             "state_updates": valid_updates,
             "intent": raw.get("intent"),
+            "place_query": raw.get("place_query"),
             "suggested_replies": raw.get("suggested_replies", []),
         })
     except ValidationError:

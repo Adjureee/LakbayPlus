@@ -23,6 +23,57 @@ class LakbayApiCatalogService {
   final http.Client _client;
   final String? baseUrlOverride;
 
+  /// Optional callback invoked when a bearer-authenticated request receives
+  /// 401 Unauthorized, returning a refreshed access token for one retry.
+  Future<String?> Function()? onUnauthorizedRefresh;
+
+  Future<http.Response> _sendAuthorized(
+    String accessToken,
+    Future<http.Response> Function(String token) send,
+  ) async {
+    final first = await send(accessToken);
+    if (first.statusCode != 401 || onUnauthorizedRefresh == null) {
+      return first;
+    }
+    final nextToken = (await onUnauthorizedRefresh!() ?? '').trim();
+    if (nextToken.isEmpty || nextToken == accessToken) {
+      return first;
+    }
+    return send(nextToken);
+  }
+
+  /// Sends a POST request with bearer auth (and 401 refresh retry) when
+  /// signed in, or directly to [guestPath] when signed out or if 401 persists.
+  Future<http.Response> _postAuthedOrGuest({
+    required String? accessToken,
+    required String authedPath,
+    required String guestPath,
+    required String encodedBody,
+    required Duration timeout,
+  }) async {
+    Future<http.Response> postGuest() => _client
+        .post(
+          Uri.parse('$_base$guestPath'),
+          headers: const {'Content-Type': 'application/json'},
+          body: encodedBody,
+        )
+        .timeout(timeout);
+
+    final token = (accessToken ?? '').trim();
+    if (token.isEmpty) return postGuest();
+    final res = await _sendAuthorized(
+      token,
+      (tok) => _client
+          .post(
+            Uri.parse('$_base$authedPath'),
+            headers: _authHeaders(tok),
+            body: encodedBody,
+          )
+          .timeout(timeout),
+    );
+    return res.statusCode == 401 ? postGuest() : res;
+  }
+
   String get _base {
     final raw = baseUrlOverride ?? EnvConfig.lakbayApiBaseUrl;
     return raw.trim().replaceAll(RegExp(r'/+$'), '');
@@ -98,24 +149,28 @@ class LakbayApiCatalogService {
     final bestTime = (raw['best_time_to_visit'] ?? '').toString().trim();
     final travelNotes = (raw['travel_notes'] ?? '').toString().trim();
     final whatToBring = (raw['what_to_bring'] ?? '').toString().trim();
-    final stayDuration = (raw['stay_duration_type'] ?? '').toString().toLowerCase();
-
-    final inferredDays = stayDuration.contains('overnight') ||
-            stayDuration.contains('multi') ||
-            overnightFee.isNotEmpty
-        ? 3
-        : 2;
+    final stayDurationRaw =
+        (raw['stay_duration_type'] ?? '').toString().trim().toLowerCase();
+    final islandGroupRaw =
+        (raw['island_group'] ?? '').toString().trim().toLowerCase();
+    final stayDuration = normalizeStayDurationType(
+      stayDurationRaw,
+      category: category,
+      overnightFee: overnightFee,
+    );
 
     return ExploreTrip(
       locale: 'en',
       id: 'api_$idStr',
-      title: district.isNotEmpty ? '$name — $district' : name,
-      days: inferredDays,
+      title: name,
+      days: 1,
       lat: lat,
       lng: lng,
       thumbnailUrl: imageUrl,
-      tag: category.isNotEmpty ? category : 'Live Catalog',
+      tag: category.isNotEmpty ? category : 'Place',
       apiDestinationId: destId,
+      islandGroup: islandGroupRaw.isNotEmpty ? islandGroupRaw : null,
+      stayDurationType: stayDuration,
       description: description.isNotEmpty ? description : null,
       district: district.isNotEmpty ? district : null,
       activities: activities.isNotEmpty ? activities : null,
@@ -318,12 +373,15 @@ class LakbayApiCatalogService {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return const [];
     try {
-      final res = await _client
-          .get(
-            Uri.parse('$base/trips'),
-            headers: {'Authorization': 'Bearer $accessToken'},
-          )
-          .timeout(const Duration(seconds: 10));
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .get(
+              Uri.parse('$base/trips'),
+              headers: {'Authorization': 'Bearer $tok'},
+            )
+            .timeout(const Duration(seconds: 10)),
+      );
       if (res.statusCode != 200) return const [];
       final decoded = jsonDecode(res.body);
       if (decoded is List) {
@@ -363,16 +421,17 @@ class LakbayApiCatalogService {
         if (itineraryDays != null && itineraryDays.isNotEmpty)
           'itinerary_days': itineraryDays,
       };
-      final res = await _client
-          .post(
-            Uri.parse('$base/trips'),
-            headers: {
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 12));
+      final encodedPayload = jsonEncode(payload);
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .post(
+              Uri.parse('$base/trips'),
+              headers: _authHeaders(tok),
+              body: encodedPayload,
+            )
+            .timeout(const Duration(seconds: 12)),
+      );
       if (res.statusCode < 200 || res.statusCode >= 300) return null;
       final decoded = _tryDecodeJson(res.body);
       if (decoded is Map<String, dynamic>) {
@@ -391,12 +450,15 @@ class LakbayApiCatalogService {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return null;
     try {
-      final res = await _client
-          .get(
-            Uri.parse('$base/trips/$tripId'),
-            headers: {'Authorization': 'Bearer $accessToken'},
-          )
-          .timeout(const Duration(seconds: 10));
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .get(
+              Uri.parse('$base/trips/$tripId'),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 10)),
+      );
       if (res.statusCode != 200) return null;
       final decoded = _tryDecodeJson(res.body);
       return decoded is Map<String, dynamic> ? decoded : null;
@@ -431,16 +493,17 @@ class LakbayApiCatalogService {
     };
     if (payload.isEmpty) return true;
     try {
-      final res = await _client
-          .patch(
-            Uri.parse('$base/trips/$tripId'),
-            headers: {
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 10));
+      final encodedPayload = jsonEncode(payload);
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .patch(
+              Uri.parse('$base/trips/$tripId'),
+              headers: _authHeaders(tok),
+              body: encodedPayload,
+            )
+            .timeout(const Duration(seconds: 10)),
+      );
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (_) {
       return false;
@@ -451,12 +514,15 @@ class LakbayApiCatalogService {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return false;
     try {
-      final res = await _client
-          .delete(
-            Uri.parse('$base/trips/$tripId'),
-            headers: {'Authorization': 'Bearer $accessToken'},
-          )
-          .timeout(const Duration(seconds: 10));
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .delete(
+              Uri.parse('$base/trips/$tripId'),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 10)),
+      );
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (_) {
       return false;
@@ -472,20 +538,21 @@ class LakbayApiCatalogService {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return null;
     try {
-      final res = await _client
-          .post(
-            Uri.parse('$base/trips/from-ai-option'),
-            headers: {
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({
-              'generation_run_id': generationRunId,
-              'option_number': optionNumber,
-              if (notes != null && notes.isNotEmpty) 'notes': notes,
-            }),
-          )
-          .timeout(const Duration(seconds: 12));
+      final encodedPayload = jsonEncode({
+        'generation_run_id': generationRunId,
+        'option_number': optionNumber,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      });
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .post(
+              Uri.parse('$base/trips/from-ai-option'),
+              headers: _authHeaders(tok),
+              body: encodedPayload,
+            )
+            .timeout(const Duration(seconds: 12)),
+      );
       if (res.statusCode < 200 || res.statusCode >= 300) return null;
       final decoded = _tryDecodeJson(res.body);
       if (decoded is Map<String, dynamic>) {
@@ -545,6 +612,136 @@ class LakbayApiCatalogService {
         'lng': origin.lng,
       };
 
+  /// Plans an adaptive multi-day itinerary via `/routes/plan` or `/routes/plan/guest`.
+  Future<BackendRoutePlanResult?> planRoute(
+    String? accessToken, {
+    required List<int> destinationIds,
+    required int days,
+    String pace = 'balanced',
+    String travelMode = 'driving',
+    GeoPoint? origin,
+    bool returnToOrigin = false,
+    bool preserveFirstDestination = false,
+    int? lockedFirstDestinationId,
+    List<int>? mustVisitDestinationIds,
+    bool pruneOptionalToFit = false,
+  }) async {
+    final base = _base;
+    final uniqueIds = destinationIds.toSet().toList();
+    if (base.isEmpty || uniqueIds.isEmpty) return null;
+    try {
+      final encodedPayload = jsonEncode({
+        'destination_ids': uniqueIds,
+        'travel_mode': travelMode,
+        'days': days.clamp(1, 14),
+        'pace': pace,
+        if (origin != null) 'origin': _routeOrigin(origin),
+        'return_to_origin': origin != null && returnToOrigin,
+        'preserve_first_destination': preserveFirstDestination,
+        'locked_first_destination_id': ?lockedFirstDestinationId,
+        if (mustVisitDestinationIds != null)
+          'must_visit_destination_ids': mustVisitDestinationIds.toSet().toList(),
+        'prune_optional_to_fit': pruneOptionalToFit,
+      });
+      final res = await _postAuthedOrGuest(
+        accessToken: accessToken,
+        authedPath: '/routes/plan',
+        guestPath: '/routes/plan/guest',
+        encodedBody: encodedPayload,
+        timeout: _routeRequestTimeout,
+      );
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final routeMap = decoded['route'];
+      if (routeMap is! Map<String, dynamic>) return null;
+      final parsedRoute = _parseRouteResult(routeMap);
+      final rawSavings =
+          decoded['savings_vs_input'] as Map<String, dynamic>? ?? const {};
+      final suggestedDays =
+          (decoded['suggested_days'] as num?)?.toInt() ?? days.clamp(1, 14);
+      final orderMethod =
+          (decoded['order_method'] ?? 'requested').toString();
+      final costSource =
+          (decoded['cost_source'] ?? parsedRoute.routeProvider).toString();
+      final parsedPace = (decoded['pace'] ?? pace).toString();
+
+      final rawDays = (decoded['days'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>();
+      final parsedDays = <BackendRoutePlanDay>[];
+      for (final dayMap in rawDays) {
+        final rawStops = (dayMap['stops'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>();
+        final stops = rawStops
+            .map(
+              (s) => BackendRoutePlanStop(
+                destinationId: (s['destination_id'] as num?)?.toInt(),
+                name: s['name']?.toString() ?? 'Stop',
+                lat: _toDouble(s['lat']) ?? 7.0731,
+                lng: _toDouble(s['lng']) ?? 125.6128,
+                islandGroup: s['island_group']?.toString(),
+                stayDurationType:
+                    s['stay_duration_type']?.toString() ?? 'half_day',
+                visitHours: _toDouble(s['visit_hours']) ?? 4.0,
+              ),
+            )
+            .toList();
+        parsedDays.add(
+          BackendRoutePlanDay(
+            dayNumber: (dayMap['day_number'] as num?)?.toInt() ??
+                (parsedDays.length + 1),
+            stops: stops,
+            visitHours: _toDouble(dayMap['visit_hours']) ?? 0,
+            transitHours: _toDouble(dayMap['transit_hours']) ?? 0,
+            totalHours: _toDouble(dayMap['total_hours']) ?? 0,
+            isContinuationDay: dayMap['is_continuation_day'] == true,
+            continuationOfName: dayMap['continuation_of_name']?.toString(),
+            isOverloaded: dayMap['is_overloaded'] == true,
+            overloadWarning: dayMap['overload_warning']?.toString(),
+          ),
+        );
+      }
+
+      return BackendRoutePlanResult(
+        summary: RoutePlanOptimizationSummary(
+          orderMethod: orderMethod,
+          costSource: costSource,
+          baselineDistanceKm:
+              _toDouble(rawSavings['baseline_distance_km']) ?? 0,
+          optimizedDistanceKm:
+              _toDouble(rawSavings['optimized_distance_km']) ??
+                  parsedRoute.totalDistanceKm,
+          distanceSavedKm: _toDouble(rawSavings['distance_saved_km']) ?? 0,
+          distanceSavedPercent:
+              _toDouble(rawSavings['distance_saved_percent']) ?? 0,
+          baselineTransitMinutes:
+              _toDouble(rawSavings['baseline_transit_minutes']) ?? 0,
+          optimizedTransitMinutes:
+              _toDouble(rawSavings['optimized_transit_minutes']) ??
+                  parsedRoute.totalDurationMinutes.toDouble(),
+          minutesSaved: _toDouble(rawSavings['minutes_saved']) ?? 0,
+          pace: parsedPace,
+          suggestedDays: suggestedDays,
+          roundtrip: origin != null && returnToOrigin,
+        ),
+        warnings: (decoded['warnings'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+        skippedDestinationIds:
+            (decoded['skipped_destination_ids'] as List<dynamic>? ?? const [])
+                .whereType<num>()
+                .map((n) => n.toInt())
+                .toList(),
+        days: parsedDays,
+        route: parsedRoute,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static const Duration _routeRequestTimeout = Duration(seconds: 30);
+
   Future<BackendRouteResult?> _fetchRoute({
     required String path,
     required String accessToken,
@@ -554,51 +751,57 @@ class LakbayApiCatalogService {
     final destIds = body['destination_ids'] as List<dynamic>? ?? const [];
     if (base.isEmpty || accessToken.isEmpty || destIds.isEmpty) return null;
     try {
-      final res = await _client
-          .post(
-            Uri.parse('$base$path'),
-            headers: {
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 12));
+      final encodedBody = jsonEncode(body);
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .post(
+              Uri.parse('$base$path'),
+              headers: _authHeaders(tok),
+              body: encodedBody,
+            )
+            // Long mountain routes and a Render cold start can exceed 12 s.
+            .timeout(_routeRequestTimeout),
+      );
       if (res.statusCode < 200 || res.statusCode >= 300) return null;
       final decoded = jsonDecode(res.body);
       if (decoded is! Map<String, dynamic>) return null;
-
-      final encodedPolyline = decoded['polyline']?.toString() ?? '';
-      final stops = (decoded['stops'] as List<dynamic>? ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .toList();
-      // Only provider road geometry counts as a route. Estimated responses
-      // (Haversine) have no polyline; joining their stops would draw a line
-      // straight across the sea, so leave the geometry empty instead.
-      final decodedPts = encodedPolyline.isNotEmpty && decoded['is_estimated'] != true
-          ? decodePolyline5(encodedPolyline)
-          : const <GeoPoint>[];
-
-      return BackendRouteResult(
-        routeProvider: (decoded['route_provider'] ?? 'osrm').toString(),
-        isEstimated: decoded['is_estimated'] == true,
-        totalDistanceKm: _toDouble(decoded['total_distance_km']) ?? 0,
-        totalDurationMinutes:
-            (decoded['total_duration_minutes'] as num?)?.toInt() ?? 0,
-        geometryPoints: decodedPts,
-        warnings: (decoded['warnings'] as List<dynamic>? ?? const [])
-            .map((e) => e.toString())
-            .toList(),
-        orderedDestinationIds: stops
-            .map((s) => (s['destination_id'] as num?)?.toInt())
-            .whereType<int>()
-            .toList(),
-        segments: _parseRouteSegments(decoded['segments']),
-        seaCrossings: _parseSeaCrossings(decoded['sea_crossings']),
-      );
+      return _parseRouteResult(decoded);
     } catch (_) {
       return null;
     }
+  }
+
+  static BackendRouteResult _parseRouteResult(Map<String, dynamic> decoded) {
+    final encodedPolyline = decoded['polyline']?.toString() ?? '';
+    final stops = (decoded['stops'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    // Only provider road geometry counts as a route. Estimated responses
+    // (Haversine) have no polyline; joining their stops would draw a line
+    // straight across the sea, so leave the geometry empty instead.
+    final decodedPts =
+        encodedPolyline.isNotEmpty && decoded['is_estimated'] != true
+            ? decodePolyline5(encodedPolyline)
+            : const <GeoPoint>[];
+
+    return BackendRouteResult(
+      routeProvider: (decoded['route_provider'] ?? 'osrm').toString(),
+      isEstimated: decoded['is_estimated'] == true,
+      totalDistanceKm: _toDouble(decoded['total_distance_km']) ?? 0,
+      totalDurationMinutes:
+          (decoded['total_duration_minutes'] as num?)?.toInt() ?? 0,
+      geometryPoints: decodedPts,
+      warnings: (decoded['warnings'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+      orderedDestinationIds: stops
+          .map((s) => (s['destination_id'] as num?)?.toInt())
+          .whereType<int>()
+          .toList(),
+      segments: _parseRouteSegments(decoded['segments']),
+      seaCrossings: _parseSeaCrossings(decoded['sea_crossings']),
+    );
   }
 
   static List<RouteSegmentGeometry> _parseRouteSegments(Object? raw) {
@@ -660,9 +863,7 @@ class LakbayApiCatalogService {
   }) async {
     final base = _base;
     if (base.isEmpty) return null;
-    // Signed out: the rate-limited guest endpoint (no AI key in the app).
-    final token = (accessToken ?? '').trim();
-    final path = token.isEmpty ? '/ai/chat/guest' : '/ai/chat';
+    // Signed out or expired-token fallback: rate-limited guest endpoint.
     try {
       final payload = <String, dynamic>{
         'message': message,
@@ -672,16 +873,13 @@ class LakbayApiCatalogService {
         'planning_state': ?planningState,
         if (planningState != null) 'input_revision': inputRevision,
       };
-      final res = await _client
-          .post(
-            Uri.parse('$base$path'),
-            headers: {
-              if (token.isNotEmpty) 'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 28));
+      final res = await _postAuthedOrGuest(
+        accessToken: accessToken,
+        authedPath: '/ai/chat',
+        guestPath: '/ai/chat/guest',
+        encodedBody: jsonEncode(payload),
+        timeout: const Duration(seconds: 28),
+      );
       if (res.statusCode < 200 || res.statusCode >= 300) return null;
       final decoded = jsonDecode(res.body);
       if (decoded is! Map<String, dynamic>) return null;
@@ -724,25 +922,33 @@ class LakbayApiCatalogService {
     if (base.isEmpty) return null;
     final token = (accessToken ?? '').trim();
     try {
-      final res = await _client
+      final encodedPayload = jsonEncode({
+        'message': message,
+        'history': history,
+        'current_location': ?currentLocation,
+        if (userLat != null && userLng != null) 'user_lat': userLat,
+        if (userLat != null && userLng != null) 'user_lng': userLng,
+        'preferred_vibes': preferredVibes.take(10).toList(),
+        'strict_budget': strictBudget,
+        'default_days': defaultDays.clamp(1, 14),
+      });
+      Future<http.Response> sendReq(String? tok) => _client
           .post(
             Uri.parse('$base/ai/trip-draft'),
             headers: {
-              if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+              if (tok != null && tok.isNotEmpty) 'Authorization': 'Bearer $tok',
               'Content-Type': 'application/json',
             },
-            body: jsonEncode({
-              'message': message,
-              'history': history,
-              'current_location': ?currentLocation,
-              if (userLat != null && userLng != null) 'user_lat': userLat,
-              if (userLat != null && userLng != null) 'user_lng': userLng,
-              'preferred_vibes': preferredVibes.take(10).toList(),
-              'strict_budget': strictBudget,
-              'default_days': defaultDays.clamp(1, 14),
-            }),
+            body: encodedPayload,
           )
           .timeout(const Duration(seconds: 45));
+
+      var res = token.isEmpty
+          ? await sendReq(null)
+          : await _sendAuthorized(token, sendReq);
+      if (token.isNotEmpty && res.statusCode == 401) {
+        res = await sendReq(null);
+      }
       if (res.statusCode < 200 || res.statusCode >= 300) return null;
       final decoded = _tryDecodeJson(res.body);
       if (decoded is! Map<String, dynamic>) return null;
@@ -782,7 +988,7 @@ class LakbayApiCatalogService {
       return null;
     }
     try {
-      final payload = <String, dynamic>{
+      final encodedPayload = jsonEncode({
         'total_budget': totalBudgetPhp.clamp(100, 9999999).toStringAsFixed(2),
         'traveler_count': travelerCount.clamp(1, 100),
         'day_count': dayCount.clamp(1, 30),
@@ -799,17 +1005,17 @@ class LakbayApiCatalogService {
         'planning_state': ?planningState,
         'input_revision': inputRevision,
         'strict_budget_filter': strictBudgetFilter,
-      };
-      final res = await _client
-          .post(
-            Uri.parse('$base/ai/itineraries/generate'),
-            headers: {
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 45));
+      });
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .post(
+              Uri.parse('$base/ai/itineraries/generate'),
+              headers: _authHeaders(tok),
+              body: encodedPayload,
+            )
+            .timeout(const Duration(seconds: 45)),
+      );
       if (res.statusCode < 200 || res.statusCode >= 300) return null;
       final decoded = _tryDecodeJson(res.body);
       if (decoded is! Map<String, dynamic>) return null;
@@ -841,20 +1047,21 @@ class LakbayApiCatalogService {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return null;
     try {
-      final res = await _client
-          .post(
-            Uri.parse('$base/planning/feedback'),
-            headers: {
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({
-              'input_revision': inputRevision,
-              'state': state,
-              'traveling_with_children': ?travelingWithChildren,
-            }),
-          )
-          .timeout(const Duration(seconds: 12));
+      final encodedPayload = jsonEncode({
+        'input_revision': inputRevision,
+        'state': state,
+        'traveling_with_children': ?travelingWithChildren,
+      });
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .post(
+              Uri.parse('$base/planning/feedback'),
+              headers: _authHeaders(tok),
+              body: encodedPayload,
+            )
+            .timeout(const Duration(seconds: 12)),
+      );
       if (res.statusCode < 200 || res.statusCode >= 300) return null;
       final decoded = _tryDecodeJson(res.body);
       if (decoded is! Map<String, dynamic>) return null;
@@ -882,12 +1089,15 @@ class LakbayApiCatalogService {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return null;
     try {
-      final res = await _client
-          .get(
-            Uri.parse('$base/weather/current?lat=$lat&lng=$lng'),
-            headers: {'Authorization': 'Bearer $accessToken'},
-          )
-          .timeout(const Duration(seconds: 8));
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .get(
+              Uri.parse('$base/weather/current?lat=$lat&lng=$lng'),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 8)),
+      );
       if (res.statusCode != 200) return null;
       final decoded = jsonDecode(res.body);
       if (decoded is! Map<String, dynamic>) return null;
@@ -1019,12 +1229,15 @@ class LakbayApiCatalogService {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return const [];
     try {
-      final res = await _client
-          .get(
-            Uri.parse('$base/notifications?unread_only=$unreadOnly&limit=50'),
-            headers: _authHeaders(accessToken, json: false),
-          )
-          .timeout(const Duration(seconds: 8));
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .get(
+              Uri.parse('$base/notifications?unread_only=$unreadOnly&limit=50'),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 8)),
+      );
       if (res.statusCode != 200) return const [];
       final decoded = _tryDecodeJson(res.body);
       if (decoded is! List) return const [];
@@ -1041,12 +1254,15 @@ class LakbayApiCatalogService {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return 0;
     try {
-      final res = await _client
-          .get(
-            Uri.parse('$base/notifications/unread-count'),
-            headers: _authHeaders(accessToken, json: false),
-          )
-          .timeout(const Duration(seconds: 6));
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .get(
+              Uri.parse('$base/notifications/unread-count'),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 6)),
+      );
       if (res.statusCode != 200) return 0;
       final decoded = _tryDecodeJson(res.body);
       if (decoded is Map<String, dynamic>) {
@@ -1065,12 +1281,15 @@ class LakbayApiCatalogService {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return false;
     try {
-      final res = await _client
-          .post(
-            Uri.parse('$base/notifications/$notificationId/read'),
-            headers: _authHeaders(accessToken, json: false),
-          )
-          .timeout(const Duration(seconds: 6));
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .post(
+              Uri.parse('$base/notifications/$notificationId/read'),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 6)),
+      );
       return res.statusCode == 200;
     } catch (_) {
       return false;
@@ -1081,12 +1300,15 @@ class LakbayApiCatalogService {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return false;
     try {
-      final res = await _client
-          .post(
-            Uri.parse('$base/notifications/read-all'),
-            headers: _authHeaders(accessToken, json: false),
-          )
-          .timeout(const Duration(seconds: 6));
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .post(
+              Uri.parse('$base/notifications/read-all'),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 6)),
+      );
       return res.statusCode == 200;
     } catch (_) {
       return false;
@@ -1642,7 +1864,7 @@ class LakbayApiCatalogService {
     );
   }
 
-  // ── Personalized Top-5 Recommendations (TOPSIS / SAW) ─────────────────────
+  // ── Personalized Top-5 Recommendations (weighted SAW by default) ──────────
 
   Future<TopPlacesResult?> fetchTopPlaces(
     String accessToken, {
@@ -1654,7 +1876,7 @@ class LakbayApiCatalogService {
     int? dayCount,
     double? originLat,
     double? originLng,
-    String rankingMethod = 'topsis',
+    String rankingMethod = 'simple_additive_weighting',
     int limit = 5,
   }) async {
     final base = _base;

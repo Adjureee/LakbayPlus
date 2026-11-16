@@ -43,6 +43,9 @@ class OSRMRouteResult:
     ferry_crossings: list[OSRMFerryCrossing] = field(default_factory=list)
     # Which OSRM-compatible service answered: "osrm" or "mapbox".
     provider: str = "osrm"
+    # Per requested coordinate: where it joined the road (lat, lng) and how
+    # far it was moved in meters; None when the router did not say.
+    waypoint_snaps: list[tuple[float, float, float] | None] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

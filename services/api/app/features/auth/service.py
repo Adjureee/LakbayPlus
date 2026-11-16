@@ -121,11 +121,14 @@ class AuthService:
         email = _normalize_email(raw_email)
         user = await self.users.get_by_email(email)
         if user is None:
-            raw_name = str(token_info.get("name") or "").strip()
-            fallback_name = email.split("@", 1)[0].replace(".", " ").title()
-            full_name = (raw_name or fallback_name or "Lakbay Traveler")[:255]
-            if len(full_name) < 2:
-                full_name = "Lakbay Traveler"
+            raw_name = " ".join(str(token_info.get("name") or "").split())
+            if len(raw_name) < 2 or raw_name.lower() == "lakbay traveler":
+                raise LakbayAPIError(
+                    "Google account did not include a full name. Please update your Google profile name or register with email.",
+                    code="missing_google_name",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+            full_name = raw_name[:255]
             picture = str(token_info.get("picture") or "").strip() or None
             user = await self.users.create(
                 full_name=full_name,
