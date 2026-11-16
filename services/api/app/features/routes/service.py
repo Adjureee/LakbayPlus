@@ -119,8 +119,8 @@ class RouteService:
                 stops=route_stops,
                 route_provider="stored_transportation_estimate",
                 warnings=[
-                    "Public transport routing is estimated in Phase 6. Use "
-                    "Phase 2 transportation rates for fare choices.",
+                    "Public transit times are estimates. For fares, see the "
+                    "transport rates listed for the place.",
                 ],
             )
 
@@ -185,8 +185,8 @@ class RouteService:
                 stops=route_stops,
                 route_provider="stored_transportation_estimate",
                 warnings=[
-                    "Public transport route order is estimated from destination "
-                    "coordinates in Phase 6.",
+                    "Public transit stop order is estimated from the places' "
+                    "locations.",
                 ],
             ), "nearest_neighbor_2opt")
 
