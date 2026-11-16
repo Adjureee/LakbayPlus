@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import LakbayAPIError
+from app.core.provider_usage import ProviderLimiter
 from app.features.users.models import User
 from app.features.users.repository import UserRepository
 from app.features.users.schemas import (
@@ -10,6 +11,7 @@ from app.features.users.schemas import (
     AdminUserItem,
     AdminUserStatusUpdate,
     UserResponse,
+    UserSearchItem,
     UserUpdateRequest,
 )
 from app.integrations.storage.client import CloudinaryStorageClient
@@ -17,6 +19,9 @@ from app.integrations.storage.uploads import (
     read_validated_image,
     reserve_cloudinary_upload,
 )
+
+
+_user_search_limiter = ProviderLimiter()
 
 
 class UserService:
@@ -89,6 +94,30 @@ class UserService:
             has_active_session=has_session,
         )
 
+    async def search(self, *, user: User, query: str) -> list[UserSearchItem]:
+        """Travelers to invite, found by username or name (never by email)."""
+        cleaned = query.strip().removeprefix("@").strip()
+        if len(cleaned) < 2:
+            return []
+        _user_search_limiter.reserve(
+            f"user-search:{user.user_id}",
+            limit=30,
+            code="user_search_rate_limited",
+            message="Too many searches. Please try again shortly.",
+        )
+        found = await self.users.search_by_username_or_name(
+            query=cleaned, exclude_user_id=user.user_id, limit=8,
+        )
+        return [
+            UserSearchItem(
+                user_id=item.user_id,
+                username=item.username,
+                full_name=item.full_name,
+                avatar_url=item.avatar_url,
+            )
+            for item in found
+        ]
+
     async def get_me(self, user: User) -> UserResponse:
         return UserResponse.model_validate(user)
 
@@ -107,10 +136,20 @@ class UserService:
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
+        new_username = update_data.get("username")
+        if new_username is not None and new_username != (user.username or "").lower():
+            if await self.users.username_taken(new_username, except_user_id=user.user_id):
+                raise LakbayAPIError(
+                    "That username is already taken.",
+                    code="username_taken",
+                    status_code=status.HTTP_409_CONFLICT,
+                )
+
         updated_user = await self.users.update_profile(
             user=user,
             full_name=update_data.get("full_name"),
             avatar_url=update_data.get("avatar_url"),
+            username=new_username,
         )
         await self.session.commit()
         await self.session.refresh(updated_user)

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.auth.models import RefreshToken
 from app.features.users.models import User
+from app.features.users.usernames import username_seed, with_suffix
 
 
 class UserRepository:
@@ -24,6 +25,44 @@ class UserRepository:
         )
 
         return result.scalar_one_or_none()
+
+    async def get_by_username(self, username: str) -> User | None:
+        result = await self.session.execute(
+            select(User).where(func.lower(User.username) == username.lower()),
+        )
+
+        return result.scalar_one_or_none()
+
+    async def username_taken(self, username: str, *, except_user_id: int | None = None) -> bool:
+        statement = select(User.user_id).where(func.lower(User.username) == username.lower())
+        if except_user_id is not None:
+            statement = statement.where(User.user_id != except_user_id)
+        return (await self.session.execute(statement.limit(1))).first() is not None
+
+    async def unique_username(self, full_name: str, email: str) -> str:
+        seed = username_seed(full_name, email)
+        attempt = 1
+        while await self.username_taken(candidate := with_suffix(seed, attempt)):
+            attempt += 1
+        return candidate
+
+    async def search_by_username_or_name(
+        self, *, query: str, exclude_user_id: int, limit: int
+    ) -> list[User]:
+        """Active users whose username or name starts with the query."""
+        pattern = f"{query.lower()}%"
+        result = await self.session.execute(
+            select(User)
+            .where(
+                User.is_active.is_(True),
+                User.user_id != exclude_user_id,
+                User.username.is_not(None),
+                or_(func.lower(User.username).like(pattern), func.lower(User.full_name).like(pattern)),
+            )
+            .order_by(func.lower(User.username))
+            .limit(limit)
+        )
+        return list(result.scalars().all())
 
     async def admin_directory(
         self, *, search: str | None, limit: int, offset: int
@@ -87,6 +126,7 @@ class UserRepository:
             password_hash=password_hash,
             role=role,
             avatar_url=avatar_url,
+            username=await self.unique_username(full_name, email),
         )
         self.session.add(user)
         await self.session.flush()
@@ -99,9 +139,13 @@ class UserRepository:
         user: User,
         full_name: str | None = None,
         avatar_url: str | None = None,
+        username: str | None = None,
     ) -> User:
         if full_name is not None:
             user.full_name = full_name
+
+        if username is not None:
+            user.username = username
 
         if avatar_url is not None:
             user.avatar_url = avatar_url

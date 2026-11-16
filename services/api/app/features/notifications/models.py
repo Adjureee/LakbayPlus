@@ -24,6 +24,9 @@ class Notification(Base):
             (
                 "event_type IN ("
                 "'trip_member_added', "
+                "'trip_invitation', "
+                "'trip_invitation_accepted', "
+                "'trip_invitation_declined', "
                 "'task_assigned', "
                 "'task_updated', "
                 "'expense_created', "

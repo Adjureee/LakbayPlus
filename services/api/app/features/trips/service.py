@@ -35,6 +35,7 @@ from app.features.trips.schemas import (
     TripItineraryActivityResponse,
     TripItineraryDayResponse,
     TripListItemResponse,
+    TripInvitationResponse,
     TripMemberCreate,
     TripMemberResponse,
     TripMemberUpdate,
@@ -48,6 +49,7 @@ from app.features.trips.schemas import (
     TripUpdate,
 )
 from app.features.users.models import User
+from app.features.users.usernames import normalize_username
 
 
 class TripService:
@@ -449,8 +451,13 @@ class TripService:
         trip_id: int,
     ) -> list[TripMemberResponse]:
         trip = await self._require_trip_access(user=user, trip_id=trip_id)
+        members = _active_members(trip)
 
-        return [_member_response(member) for member in _active_members(trip)]
+        # Only the owner and organizers see who has been invited but not yet answered.
+        if _can_manage(trip, user.user_id):
+            members = members + [m for m in trip.members if m.status == "invited"]
+
+        return [_member_response(member) for member in members]
 
     async def add_member(
         self,
@@ -459,13 +466,21 @@ class TripService:
         trip_id: int,
         data: TripMemberCreate,
     ) -> TripMemberResponse:
+        """Invite a traveler by email or username. They join when they accept."""
         trip = await self._require_trip_manager(user=user, trip_id=trip_id)
-        target_user = await self.trips.get_user_by_email(_normalize_email(str(data.email)))
+        if data.email is not None:
+            target_user = await self.trips.get_user_by_email(_normalize_email(str(data.email)))
+        else:
+            target_user = await self.trips.get_user_by_username(
+                normalize_username(data.username or ""),
+            )
 
-        if target_user is None:
+        # The same answer whether the person does not exist or is inactive, so
+        # this cannot be used to find out who has an account.
+        if target_user is None or not target_user.is_active:
             raise LakbayAPIError(
-                "User was not found.",
-                code="user_not_found",
+                "We couldn't find that person.",
+                code="invitee_not_found",
                 status_code=status.HTTP_404_NOT_FOUND,
             )
 
@@ -474,10 +489,19 @@ class TripService:
             user_id=target_user.user_id,
         )
 
-        if existing_member is not None and existing_member.status == "active":
+        if target_user.user_id == trip.owner_user_id or (
+            existing_member is not None and existing_member.status == "active"
+        ):
             raise LakbayAPIError(
                 "User is already an active trip member.",
                 code="trip_member_already_exists",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if existing_member is not None and existing_member.status == "invited":
+            raise LakbayAPIError(
+                "This person has already been invited.",
+                code="trip_invitation_pending",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -486,16 +510,16 @@ class TripService:
                 trip_id=trip_id,
                 user_id=target_user.user_id,
                 role=data.role,
-                status="active",
+                status="invited",
             )
             await self.trips.add_trip_member(member)
         else:
+            # Someone who left or declined can be invited again.
             existing_member.role = data.role
-            existing_member.status = "active"
-            existing_member.joined_at = datetime.now(UTC)
+            existing_member.status = "invited"
             member = existing_member
 
-        await self.notifications.notify_trip_member_added(
+        await self.notifications.notify_trip_invitation(
             actor=user,
             trip=trip,
             member=member,
@@ -515,6 +539,56 @@ class TripService:
             )
 
         return _member_response(reloaded_member)
+
+    async def list_invitations(self, *, user: User) -> list[TripInvitationResponse]:
+        rows = await self.trips.list_pending_invitations(user_id=user.user_id)
+        return [
+            TripInvitationResponse(
+                trip_member_id=member.trip_member_id,
+                trip_id=member.trip_id,
+                trip_title=title,
+                role=member.role,
+                invited_by_name=owner_name,
+                invited_at=member.created_at,
+            )
+            for member, title, owner_name in rows
+        ]
+
+    async def answer_invitation(
+        self,
+        *,
+        user: User,
+        trip_id: int,
+        accept: bool,
+    ) -> TripMemberResponse | None:
+        """The invited traveler accepts (joins the trip) or declines."""
+        member = await self.trips.get_trip_member_by_user_id(
+            trip_id=trip_id, user_id=user.user_id,
+        )
+        trip = await self.trips.get_trip_by_id(trip_id) if member is not None else None
+        if member is None or member.status != "invited" or trip is None:
+            raise LakbayAPIError(
+                "That invitation is no longer available.",
+                code="invitation_not_found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        if accept:
+            member.status = "active"
+            member.joined_at = datetime.now(UTC)
+        else:
+            member.status = "removed"
+        await self.notifications.notify_invitation_answered(
+            invitee=user, trip=trip, member=member, accepted=accept,
+        )
+        await self.session.commit()
+
+        if not accept:
+            return None
+        reloaded = await self.trips.get_trip_member_by_user_id(
+            trip_id=trip_id, user_id=user.user_id,
+        )
+        return _member_response(reloaded) if reloaded is not None else None
 
     async def update_member(
         self,
@@ -555,10 +629,17 @@ class TripService:
         member_id: int,
     ) -> TripMemberResponse:
         await self._require_trip_manager(user=user, trip_id=trip_id)
-        member = await self._require_active_member_by_id(
+        member = await self.trips.get_trip_member(
             trip_id=trip_id,
-            member_id=member_id,
+            trip_member_id=member_id,
         )
+        # A pending invitation is cancelled the same way as a member is removed.
+        if member is None or member.status not in ("active", "invited"):
+            raise LakbayAPIError(
+                "Trip member was not found.",
+                code="trip_member_not_found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
 
         if member.role == "owner":
             raise LakbayAPIError(
@@ -984,7 +1065,8 @@ def _member_response(member: TripMember) -> TripMemberResponse:
         trip_id=member.trip_id,
         user_id=member.user_id,
         full_name=member.user.full_name,
-        email=member.user.email,
+        username=member.user.username,
+        email=None if member.status == "invited" else member.user.email,
         role=member.role,
         status=member.status,
         joined_at=member.joined_at,
@@ -1007,6 +1089,13 @@ def _task_response(task: TripTask) -> TripTaskResponse:
         created_at=task.created_at,
         updated_at=task.updated_at,
     )
+
+
+def _can_manage(trip: Trip, user_id: int) -> bool:
+    if trip.owner_user_id == user_id:
+        return True
+    member = _active_member_for_user(trip, user_id)
+    return member is not None and member.role == "organizer"
 
 
 def _active_members(trip: Trip) -> list[TripMember]:

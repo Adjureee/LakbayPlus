@@ -11,6 +11,7 @@ def _register(client, email: str, *, admin: bool = False) -> dict[str, str]:
     response = client.post(path, json=payload)
     assert response.status_code == 201
     return {"Authorization": f"Bearer {response.json()['tokens']['access_token']}"}
+from tests.invites import join_trip
 
 
 def _trip(client, owner: dict[str, str], admin: dict[str, str], *, completed: bool) -> int:
@@ -84,12 +85,9 @@ def test_member_submission_is_private_and_unique(client) -> None:
     member = _register(client, "assessment-member2@example.com")
     admin = _register(client, "assessment-admin2@example.com", admin=True)
     trip_id = _trip(client, owner, admin, completed=True)
-    added = client.post(
-        f"/api/v1/trips/{trip_id}/members",
-        headers=owner,
-        json={"email": "assessment-member2@example.com", "role": "member"},
+    added = join_trip(
+        client, headers=owner, trip_id=trip_id, email="assessment-member2@example.com",
     )
-    assert added.status_code == 201
     path = f"/api/v1/trips/{trip_id}/app-assessment"
 
     submitted = client.post(path, headers=member, json=_payload())
@@ -105,7 +103,7 @@ def test_member_submission_is_private_and_unique(client) -> None:
     assert duplicate.json()["error"]["code"] == "app_assessment_already_exists"
 
     removed = client.delete(
-        f"/api/v1/trips/{trip_id}/members/{added.json()['trip_member_id']}",
+        f"/api/v1/trips/{trip_id}/members/{added['trip_member_id']}",
         headers=owner,
     )
     assert removed.status_code in (200, 204)

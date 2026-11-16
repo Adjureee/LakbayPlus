@@ -1,4 +1,5 @@
 from itertools import count
+from tests.invites import join_trip
 
 
 ADMIN_COUNTER = count(1)
@@ -107,15 +108,7 @@ def add_member(
     email: str,
     role: str = "member",
 ) -> dict:
-    response = client.post(
-        f"/api/v1/trips/{trip_id}/members",
-        headers=headers,
-        json={"email": email, "role": role},
-    )
-
-    assert response.status_code == 201
-
-    return response.json()
+    return join_trip(client, headers=headers, trip_id=trip_id, email=email, role=role)
 
 
 def save_route(client, *, headers: dict[str, str], trip: dict) -> dict:

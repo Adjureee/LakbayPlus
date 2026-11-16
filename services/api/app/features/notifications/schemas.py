@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 
 NotificationEventType = Literal[
     "trip_member_added",
+    "trip_invitation",
+    "trip_invitation_accepted",
+    "trip_invitation_declined",
     "task_assigned",
     "task_updated",
     "expense_created",

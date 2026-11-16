@@ -8,6 +8,7 @@ from app.db.session import get_db_session
 from app.features.trips.schemas import (
     TripCreate,
     TripFromAIOptionCreate,
+    TripInvitationResponse,
     TripListItemResponse,
     TripMemberCreate,
     TripMemberResponse,
@@ -25,6 +26,55 @@ from app.features.trips.service import TripService
 from app.features.users.models import User
 
 router = APIRouter(prefix="/trips", tags=["trips"])
+
+
+# Declared first so "/trips/invitations" is not read as a trip id.
+@router.get(
+    "/invitations",
+    response_model=list[TripInvitationResponse],
+    summary="List my trip invitations",
+    description="Protected endpoint that lists trips the current user has been invited to.",
+)
+async def list_my_invitations(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> list[TripInvitationResponse]:
+    return await TripService(session).list_invitations(user=current_user)
+
+
+@router.post(
+    "/{trip_id}/invitation/accept",
+    response_model=TripMemberResponse,
+    summary="Accept a trip invitation",
+    description="Protected endpoint. The invited traveler joins the trip.",
+)
+async def accept_trip_invitation(
+    trip_id: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> TripMemberResponse:
+    member = await TripService(session).answer_invitation(
+        user=current_user, trip_id=trip_id, accept=True,
+    )
+    assert member is not None
+    return member
+
+
+@router.post(
+    "/{trip_id}/invitation/decline",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Decline a trip invitation",
+    description="Protected endpoint. The invited traveler turns the invitation down.",
+)
+async def decline_trip_invitation(
+    trip_id: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> Response:
+    await TripService(session).answer_invitation(
+        user=current_user, trip_id=trip_id, accept=False,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
@@ -209,10 +259,11 @@ async def list_trip_members(
     "/{trip_id}/members",
     response_model=TripMemberResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Add trip member",
+    summary="Invite a trip member",
     description=(
-        "Protected endpoint that adds an existing user to a trip by email. "
-        "The trip owner or an organizer can add members."
+        "Protected endpoint that invites an existing user to a trip by email or "
+        "username. The person is notified and joins when they accept. The trip "
+        "owner or an organizer can invite."
     ),
 )
 async def add_trip_member(

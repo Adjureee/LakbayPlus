@@ -9,7 +9,7 @@ from app.features.routes.schemas import TravelMode
 TripStatus = Literal["planned", "ongoing", "completed", "archived"]
 TripMemberRole = Literal["owner", "organizer", "member"]
 TripAssignableMemberRole = Literal["organizer", "member"]
-TripMemberStatus = Literal["active", "removed"]
+TripMemberStatus = Literal["active", "removed", "invited"]
 TripTaskStatus = Literal["pending", "ongoing", "completed"]
 Money = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
 DistanceKm = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
@@ -168,8 +168,17 @@ class TripRouteDirectionStep(BaseModel):
 
 
 class TripMemberCreate(BaseModel):
-    email: EmailStr
+    """Invite a traveler by email or by username (exactly one)."""
+
+    email: EmailStr | None = None
+    username: str | None = Field(default=None, min_length=1, max_length=40)
     role: TripAssignableMemberRole = "member"
+
+    @model_validator(mode="after")
+    def require_one_way_to_find_the_person(self) -> "TripMemberCreate":
+        if (self.email is None) == (self.username is None):
+            raise ValueError("Provide either an email or a username, not both.")
+        return self
 
 
 class TripMemberUpdate(BaseModel):
@@ -245,12 +254,26 @@ class TripMemberResponse(BaseModel):
     trip_id: int
     user_id: int
     full_name: str
-    email: EmailStr
+    username: str | None = None
+    # Hidden (null) while an invitation is pending, so inviting by username
+    # does not reveal anyone's email address.
+    email: EmailStr | None
     role: TripMemberRole
     status: TripMemberStatus
     joined_at: datetime
     created_at: datetime
     updated_at: datetime
+
+
+class TripInvitationResponse(BaseModel):
+    """A pending invitation, as the invited traveler sees it."""
+
+    trip_member_id: int
+    trip_id: int
+    trip_title: str
+    role: TripMemberRole
+    invited_by_name: str
+    invited_at: datetime
 
 
 class TripTaskResponse(BaseModel):

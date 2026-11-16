@@ -1,4 +1,4 @@
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -80,6 +80,32 @@ class TripRepository(CatalogSelectionQueries):
         )
 
         return result.scalar_one_or_none()
+
+    async def get_trip_by_id(self, trip_id: int) -> Trip | None:
+        result = await self.session.execute(select(Trip).where(Trip.trip_id == trip_id))
+
+        return result.scalar_one_or_none()
+
+    async def get_user_by_username(self, username: str) -> User | None:
+        result = await self.session.execute(
+            select(User).where(func.lower(User.username) == username.lower()),
+        )
+
+        return result.scalar_one_or_none()
+
+    async def list_pending_invitations(
+        self, *, user_id: int
+    ) -> list[tuple[TripMember, str, str]]:
+        """Pending invitations with the trip title and the owner's name."""
+        result = await self.session.execute(
+            select(TripMember, Trip.title, User.full_name)
+            .join(Trip, Trip.trip_id == TripMember.trip_id)
+            .join(User, User.user_id == Trip.owner_user_id)
+            .where(TripMember.user_id == user_id, TripMember.status == "invited")
+            .order_by(TripMember.created_at.desc())
+        )
+
+        return [(member, title, owner) for member, title, owner in result.all()]
 
     async def get_trip_member(
         self,

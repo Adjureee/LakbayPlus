@@ -163,6 +163,75 @@ class NotificationService:
             ]
         )
 
+    async def notify_trip_invitation(
+        self,
+        *,
+        actor: User,
+        trip: Trip,
+        member: TripMember,
+    ) -> None:
+        """Tell the invitee they can accept or decline. Never notifies the inviter."""
+        if member.user_id == actor.user_id:
+            return
+
+        await self.create_many(
+            [
+                NotificationCreate(
+                    recipient_user_id=member.user_id,
+                    actor_user_id=actor.user_id,
+                    trip_id=trip.trip_id,
+                    event_type="trip_invitation",
+                    title="Trip invitation",
+                    message=f"{actor.full_name} invited you to join {trip.title}.",
+                    entity_type="trip_member",
+                    entity_id=member.trip_member_id,
+                    metadata=_notification_metadata(
+                        actor=actor,
+                        trip=trip,
+                        values={
+                            "trip_member_id": member.trip_member_id,
+                            "role": member.role,
+                        },
+                    ),
+                )
+            ]
+        )
+
+    async def notify_invitation_answered(
+        self,
+        *,
+        invitee: User,
+        trip: Trip,
+        member: TripMember,
+        accepted: bool,
+    ) -> None:
+        """Tell the trip owner how the invitee answered."""
+        if trip.owner_user_id == invitee.user_id:
+            return
+
+        verb = "accepted" if accepted else "declined"
+        await self.create_many(
+            [
+                NotificationCreate(
+                    recipient_user_id=trip.owner_user_id,
+                    actor_user_id=invitee.user_id,
+                    trip_id=trip.trip_id,
+                    event_type=(
+                        "trip_invitation_accepted" if accepted else "trip_invitation_declined"
+                    ),
+                    title=f"Invitation {verb}",
+                    message=f"{invitee.full_name} {verb} your invitation to {trip.title}.",
+                    entity_type="trip_member",
+                    entity_id=member.trip_member_id,
+                    metadata=_notification_metadata(
+                        actor=invitee,
+                        trip=trip,
+                        values={"trip_member_id": member.trip_member_id},
+                    ),
+                )
+            ]
+        )
+
     async def notify_trip_updated(
         self,
         *,

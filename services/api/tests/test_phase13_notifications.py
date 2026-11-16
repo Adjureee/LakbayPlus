@@ -3,6 +3,7 @@ from itertools import count
 from fastapi.testclient import TestClient
 
 ADMIN_COUNTER = count(1)
+from tests.invites import join_trip
 
 
 DESTINATION = {
@@ -97,15 +98,7 @@ def add_member(
     email: str,
     role: str = "member",
 ) -> dict:
-    response = client.post(
-        f"/api/v1/trips/{trip_id}/members",
-        headers=headers,
-        json={"email": email, "role": role},
-    )
-
-    assert response.status_code == 201
-
-    return response.json()
+    return join_trip(client, headers=headers, trip_id=trip_id, email=email, role=role)
 
 
 def create_expense(
@@ -165,13 +158,16 @@ def test_added_trip_member_receives_scoped_notification(client) -> None:
     )
 
     assert member_response.status_code == 200
-    assert notification["event_type"] == "trip_member_added"
+    assert notification["event_type"] == "trip_invitation"
     assert notification["trip_id"] == trip["trip_id"]
     assert notification["actor_full_name"] == "Notification Owner Add"
     assert notification["recipient_user_id"] != notification["actor_user_id"]
     assert notification["is_read"] is False
     assert notification["metadata"]["role"] == "member"
-    assert owner_response.json() == []
+    # The owner hears back only when the invitee accepts; never about their own invite.
+    assert [item["event_type"] for item in owner_response.json()] == [
+        "trip_invitation_accepted"
+    ]
     assert unread_response.json()["unread_count"] == 1
     assert outsider_read_response.status_code == 404
     assert outsider_read_response.json()["error"]["code"] == "notification_not_found"
@@ -267,7 +263,7 @@ def test_removed_member_notification_uses_snapshot_display_fields(client) -> Non
     notifications_response = client.get(
         "/api/v1/notifications",
         headers=member_headers,
-        params={"event_type": "trip_member_added"},
+        params={"event_type": "trip_invitation"},
     )
     notification = notifications_response.json()[0]
 
@@ -337,7 +333,11 @@ def test_expense_events_notify_members_except_actor(client) -> None:
 
     assert update_response.status_code == 200
     assert void_response.status_code == 200
-    assert owner_notifications.json() == []
+    # Only the two invitation answers (member and third accepted); the owner is never
+    # notified about their own expense actions.
+    assert {n["event_type"] for n in owner_notifications.json()} == {
+        "trip_invitation_accepted"
+    }
     assert member_event_types == {
         "expense_created",
         "expense_updated",
@@ -471,7 +471,7 @@ def test_two_account_collaboration_sync_and_outsider_denial(client) -> None:
         )
         assert member_notifications.status_code == 200
         assert {item["event_type"] for item in member_notifications.json()} >= {
-            "trip_member_added", "expense_created"
+            "trip_invitation", "expense_created"
         }
         assert any(
             item["event_type"] == "task_assigned"

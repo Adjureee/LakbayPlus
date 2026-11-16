@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, Text, func
+from sqlalchemy import Boolean, DateTime, Index, String, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -8,10 +8,15 @@ from app.db.base import Base
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        # Unique without regard to case, so "Maria" and "maria" cannot both exist.
+        Index("uq_users_username_lower", func.lower(text("username")), unique=True),
+    )
 
     user_id: Mapped[int] = mapped_column(primary_key=True, index=True)
     full_name: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    username: Mapped[str | None] = mapped_column(String(30))
     password_hash: Mapped[str] = mapped_column(String(512))
     role: Mapped[str] = mapped_column(String(50), default="user", index=True)
     avatar_url: Mapped[str | None] = mapped_column(Text)

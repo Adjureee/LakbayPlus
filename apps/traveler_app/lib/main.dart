@@ -45,6 +45,8 @@ class _LakbayTravelAppState extends State<LakbayTravelApp>
     // Pick up admin edits made while the app sat in the background.
     if (state == AppLifecycleState.resumed && _repo.isInitialized) {
       _repo.refreshCatalogIfStale();
+      // An invitation may have arrived while the app was in the background.
+      _repo.refreshNotifications();
     }
   }
 
@@ -128,9 +130,16 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   @override
   void initState() {
     super.initState();
+    widget.repo.startNotificationPolling();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.repo.autoDetectLocationOnShellEntry();
     });
+  }
+
+  @override
+  void dispose() {
+    widget.repo.stopNotificationPolling();
+    super.dispose();
   }
   @override
   Widget build(BuildContext context) {

@@ -1891,6 +1891,7 @@ class TripMemberItem {
   final int tripId;
   final int userId;
   final String fullName;
+  final String? username;
   final String email;
   final String role;
   final String status;
@@ -1900,19 +1901,69 @@ class TripMemberItem {
     required this.tripId,
     required this.userId,
     required this.fullName,
+    this.username,
     required this.email,
     required this.role,
     required this.status,
   });
+
+  /// Invited but has not accepted yet. Their email is hidden by the server.
+  bool get isPending => status == 'invited';
 
   factory TripMemberItem.fromJson(Map<String, dynamic> json) => TripMemberItem(
         tripMemberId: (json['trip_member_id'] as num?)?.toInt() ?? 0,
         tripId: (json['trip_id'] as num?)?.toInt() ?? 0,
         userId: (json['user_id'] as num?)?.toInt() ?? 0,
         fullName: (json['full_name'] ?? '').toString(),
+        username: json['username']?.toString(),
         email: (json['email'] ?? '').toString(),
         role: (json['role'] ?? 'member').toString(),
         status: (json['status'] ?? 'active').toString(),
+      );
+}
+
+/// A trip the signed-in traveler has been invited to and has not answered.
+class TripInvitationItem {
+  final int tripMemberId;
+  final int tripId;
+  final String tripTitle;
+  final String invitedByName;
+  final String role;
+
+  const TripInvitationItem({
+    required this.tripMemberId,
+    required this.tripId,
+    required this.tripTitle,
+    required this.invitedByName,
+    required this.role,
+  });
+
+  factory TripInvitationItem.fromJson(Map<String, dynamic> json) =>
+      TripInvitationItem(
+        tripMemberId: (json['trip_member_id'] as num?)?.toInt() ?? 0,
+        tripId: (json['trip_id'] as num?)?.toInt() ?? 0,
+        tripTitle: (json['trip_title'] ?? '').toString(),
+        invitedByName: (json['invited_by_name'] ?? '').toString(),
+        role: (json['role'] ?? 'member').toString(),
+      );
+}
+
+/// Another traveler found while inviting (never includes an email).
+class UserSearchItem {
+  final int userId;
+  final String username;
+  final String fullName;
+
+  const UserSearchItem({
+    required this.userId,
+    required this.username,
+    required this.fullName,
+  });
+
+  factory UserSearchItem.fromJson(Map<String, dynamic> json) => UserSearchItem(
+        userId: (json['user_id'] as num?)?.toInt() ?? 0,
+        username: (json['username'] ?? '').toString(),
+        fullName: (json['full_name'] ?? '').toString(),
       );
 }
 
