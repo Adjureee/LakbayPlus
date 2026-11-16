@@ -428,6 +428,59 @@ class TravelRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Pre-fills the Trip Builder from catalog places matching [cityOrQuery].
+  /// Used by Davao Region Encyclopedia and Explore offline/instant plans.
+  int seedTripBuilderForPlace(String cityOrQuery, {int limit = 5}) {
+    final needle = cityOrQuery.trim().toLowerCase();
+    if (needle.isEmpty) return 0;
+
+    final ignoreTokens = {'city', 'island', 'region', 'municipality', 'province'};
+    final terms = needle
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((t) => t.length >= 2 && !ignoreTokens.contains(t))
+        .toList();
+
+    final primary = <ExploreTrip>[];
+    final secondary = <ExploreTrip>[];
+    final seenIds = <String>{};
+
+    bool matchesField(String field) {
+      final lower = field.toLowerCase();
+      if (lower.contains(needle)) return true;
+      return terms.isNotEmpty && terms.every(lower.contains);
+    }
+
+    for (final place in _allTrips) {
+      if (matchesField('${place.regionName} ${place.district ?? ''} ${place.title}')) {
+        if (seenIds.add(place.id)) primary.add(place);
+      } else if (matchesField('${place.description} ${place.tag}')) {
+        if (seenIds.add(place.id)) secondary.add(place);
+      }
+    }
+
+    final candidates = [...primary, ...secondary];
+    if (candidates.isEmpty && terms.isNotEmpty) {
+      for (final place in _allTrips) {
+        final hay =
+            '${place.regionName} ${place.district ?? ''} ${place.title} ${place.description}'
+                .toLowerCase();
+        if (terms.any((t) => t != 'davao' && hay.contains(t)) &&
+            seenIds.add(place.id)) {
+          candidates.add(place);
+        }
+      }
+    }
+
+    _tripBuilderStops.clear();
+    _builderOptionalStopIds.clear();
+    _builderLockedFirstStopId = null;
+    for (final place in candidates.take(limit)) {
+      _tripBuilderStops.add(place);
+    }
+    notifyListeners();
+    return _tripBuilderStops.length;
+  }
+
   RouteStopInput _exploreTripToRouteStop(
     ExploreTrip stop, {
     bool mustVisit = true,
@@ -3312,6 +3365,134 @@ class TravelRepository extends ChangeNotifier {
     }
   }
 
+  Future<List<AiItineraryOptionDraft>> _buildCatalogDraftOptionsForPicks({
+    required List<int> destinationIds,
+    required int dayCount,
+    required int travelerCount,
+    double? budgetPhp,
+    String? city,
+    String? query,
+  }) async {
+    if (apiCatalog.isConfigured) {
+      final draftRes = await apiCatalog.buildPlanningDraft(
+        isSignedIn ? _authSession!.accessToken : null,
+        planningState: {
+          ...?_planningState,
+          if (destinationIds.isNotEmpty) 'destination_ids': destinationIds,
+          'day_count': dayCount,
+          'traveler_count': travelerCount,
+          if (budgetPhp != null && budgetPhp > 0)
+            'total_budget': budgetPhp.toStringAsFixed(2),
+        },
+        inputRevision: _planningRevision,
+        city: city,
+        query: query,
+      );
+      if (draftRes != null && draftRes.options.isNotEmpty) {
+        return [
+          for (final rawOpt in draftRes.options)
+            _parseBackendAiOption(
+              rawOpt,
+              fallbackDestinationIds: destinationIds,
+              isCatalogFallback: true,
+            ),
+        ];
+      }
+    }
+
+    // Offline / server-down catalog builder from cached or bundled catalog.
+    final matched = <ExploreTrip>[];
+    final idSet = destinationIds.toSet();
+    for (final place in _allTrips) {
+      if (place.apiDestinationId != null &&
+          idSet.contains(place.apiDestinationId)) {
+        matched.add(place);
+      }
+    }
+    if (matched.isEmpty && (city != null || query != null)) {
+      final needle = (city ?? query ?? '').trim().toLowerCase();
+      if (needle.isNotEmpty) {
+        for (final place in _allTrips) {
+          final hay =
+              '${place.regionName} ${place.title} ${place.tag}'.toLowerCase();
+          if (hay.contains(needle)) {
+            matched.add(place);
+          }
+          if (matched.length >= 5) break;
+        }
+      }
+    }
+    if (matched.isEmpty) return const [];
+
+    final savedStops = List<ExploreTrip>.from(_tripBuilderStops);
+    final savedOptional = Set<String>.from(_builderOptionalStopIds);
+    final savedLocked = _builderLockedFirstStopId;
+    try {
+      _tripBuilderStops
+        ..clear()
+        ..addAll(matched);
+      _builderOptionalStopIds.clear();
+      _builderLockedFirstStopId = null;
+      final offlineTrip = (await buildMultiStopExploreTrip(
+        daysCount: dayCount,
+        travelers: travelerCount,
+        refineWithBackend: false,
+      ))
+          .copyWith(
+        isCatalogFallback: true,
+        expertName: 'Lakbay Catalog Planner (No AI)',
+      );
+      return [
+        AiItineraryOptionDraft(
+          optionNumber: 1,
+          title: offlineTrip.title,
+          summary:
+              "Built from Lakbay's catalog, without AI (${matched.length} ${matched.length == 1 ? 'place' : 'places'}).",
+          estimatedTotalCostPhp:
+              offlineTrip.backendEstimatedCostPhp ?? 0.0,
+          isOverBudget: budgetPhp != null &&
+              budgetPhp > 0 &&
+              (offlineTrip.backendEstimatedCostPhp ?? 0.0) > budgetPhp,
+          isCatalogFallback: true,
+          sourceLabel: "Built from Lakbay's catalog, without AI",
+          trip: offlineTrip,
+        ),
+      ];
+    } finally {
+      _tripBuilderStops
+        ..clear()
+        ..addAll(savedStops);
+      _builderOptionalStopIds
+        ..clear()
+        ..addAll(savedOptional);
+      _builderLockedFirstStopId = savedLocked;
+    }
+  }
+
+  /// Asks Lakbay AI to refine or replace a catalog-built trip with richer guidance.
+  Future<ItineraryTrip?> improveCatalogTripWithAi(ItineraryTrip trip) async {
+    final destIds = trip.effectiveBackendDestinationIds;
+    if (isSignedIn && apiCatalog.isConfigured && destIds.isNotEmpty) {
+      final refined = await refineTripWithAi(
+        trip,
+        'Keep these catalog destinations and improve daily flow, timing, and local tips.',
+      );
+      if (refined != null) {
+        return refined.copyWith(isCatalogFallback: false);
+      }
+    }
+    final stopNames = trip.days
+        .expand((d) => d.stops)
+        .map((s) => s.title)
+        .toSet()
+        .take(5)
+        .join(', ');
+    await planInChat(
+      'Improve my ${trip.daysCount}-day ${trip.title} itinerary including $stopNames.',
+    );
+    return null;
+  }
+
   /// Asks the AI to plan from the traveler's picked places.
   ///
   /// When days, party size, and budget are already set, this skips the extra
@@ -3407,6 +3588,39 @@ class TravelRepository extends ChangeNotifier {
         return;
       }
       final failure = result as AiItineraryFailure;
+      const blockingUserCodes = {
+        'planning_over_budget',
+        'planning_selection_invalid',
+        'planning_input_mismatch',
+      };
+      if (!blockingUserCodes.contains(failure.code)) {
+        final fallbackOptions = await _buildCatalogDraftOptionsForPicks(
+          destinationIds: targetDestIds,
+          dayCount: daysCount.clamp(1, 30),
+          travelerCount: travelerCount,
+          budgetPhp: budgetPhp,
+        );
+        if (fallbackOptions.isNotEmpty) {
+          final attached = fallbackOptions.first.trip;
+          _chatMessages.add(
+            ChatMessage(
+              id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
+              isUser: false,
+              text:
+                  "The AI is busy, so here's a plan built from Lakbay's catalog, without AI.",
+              timestamp: DateTime.now(),
+              attachedTrip: fallbackOptions.length <= 1 ? attached : null,
+              aiOptions: fallbackOptions,
+            ),
+          );
+          _aiTypingStatus = null;
+          _isAiTyping = false;
+          _syncActiveSession(titleHint: attached.title, hasTrip: true);
+          _scheduleSaveState();
+          notifyListeners();
+          return;
+        }
+      }
       _addChatError(
         pickLabel,
         failure.userFacingMessage(),
@@ -3643,21 +3857,46 @@ class TravelRepository extends ChangeNotifier {
             attachedTrip = aiOptions.first.trip;
           } else {
             final failure = generated as AiItineraryFailure;
-            _addChatError(
-              trimmed,
-              failure.userFacingMessage(),
-              errorCode: failure.code,
-            );
-            return;
+            const blockingUserCodes = {
+              'planning_over_budget',
+              'planning_selection_invalid',
+              'planning_input_mismatch',
+            };
+            var recovered = false;
+            if (!blockingUserCodes.contains(failure.code)) {
+              final fallbackOptions = await _buildCatalogDraftOptionsForPicks(
+                destinationIds: targetDestIds,
+                dayCount: daysCount.clamp(1, 14),
+                travelerCount: travelerCount,
+                budgetPhp: budgetPhp,
+              );
+              if (fallbackOptions.isNotEmpty) {
+                aiOptions = fallbackOptions;
+                attachedTrip = aiOptions.first.trip;
+                recovered = true;
+              }
+            }
+            if (!recovered) {
+              _addChatError(
+                trimmed,
+                failure.userFacingMessage(),
+                errorCode: failure.code,
+              );
+              return;
+            }
           }
         }
       }
 
+      final effectiveText = aiOptions.isNotEmpty &&
+              aiOptions.every((o) => o.isCatalogFallback)
+          ? "The AI is busy, so here's a plan built from Lakbay's catalog, without AI."
+          : serverAi.replyText;
       _chatMessages.add(
         ChatMessage(
           id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
           isUser: false,
-          text: serverAi.replyText,
+          text: effectiveText,
           timestamp: DateTime.now(),
           attachedTrip: aiOptions.length <= 1 ? attachedTrip : null,
           aiOptions: aiOptions,
@@ -3738,7 +3977,10 @@ class TravelRepository extends ChangeNotifier {
     String? preferredHeroAsset,
     List<int> fallbackDestinationIds = const [],
     bool includeFlights = false,
+    bool isCatalogFallback = false,
   }) {
+    final effectiveFallback =
+        isCatalogFallback || rawOpt['cost_source'] == 'catalog_deterministic';
     final optionNumber = (rawOpt['option_number'] as num?)?.toInt() ?? 1;
     final optTitle =
         (rawOpt['title'] ?? fallbackTrip?.title ?? 'Davao Region Option $optionNumber')
@@ -3854,7 +4096,9 @@ class TravelRepository extends ChangeNotifier {
           : (fallbackTrip?.overviewText ?? ''),
       bestMonths: firstMatchedCatalog?.bestTimeToVisit ?? '',
       avgTemp: fallbackTrip?.avgTemp ?? '',
-      expertName: 'Lakbay+ AI Planner',
+      expertName: effectiveFallback
+          ? 'Lakbay Catalog Planner (No AI)'
+          : 'Lakbay+ AI Planner',
       expertTip:
           firstMatchedCatalog?.travelNotes ?? fallbackTrip?.expertTip ?? '',
       days: parsedDays.isNotEmpty ? parsedDays : (fallbackTrip?.days ?? const []),
@@ -3880,6 +4124,7 @@ class TravelRepository extends ChangeNotifier {
       backendEstimatedCostPhp: totalCostPhp > 0 ? totalCostPhp : null,
       aiGenerationRunId: generationRunId,
       aiOptionNumber: optionNumber,
+      isCatalogFallback: effectiveFallback,
     );
 
     return AiItineraryOptionDraft(
@@ -3889,6 +4134,11 @@ class TravelRepository extends ChangeNotifier {
       estimatedTotalCostPhp: totalCostPhp,
       isOverBudget: isOverBudget,
       generationRunId: generationRunId,
+      isCatalogFallback: effectiveFallback,
+      sourceLabel: effectiveFallback
+          ? (rawOpt['source_label']?.toString() ??
+              "Built from Lakbay's catalog, without AI")
+          : null,
       trip: trip,
     );
   }

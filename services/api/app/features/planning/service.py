@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.destinations.models import Destination
 from app.features.planning.costs import build_budget
+from app.features.planning.draft import build_catalog_draft
 from app.features.planning.feedback import evaluate_preview
 from app.features.planning.repository import PlanningRepository
 from app.features.planning.routing import build_route_preview
@@ -15,6 +16,8 @@ from app.features.planning.schemas import (
     PlanningActivityOption,
     PlanningAccommodationOption,
     PlanningDestination,
+    PlanningDraftRequest,
+    PlanningDraftResponse,
     PlanningFeedbackRequest,
     PlanningFeedbackResponse,
     PlanningNextAction,
@@ -32,6 +35,14 @@ class PlanningService:
     def __init__(self, session: AsyncSession, route_service: RouteService | None = None) -> None:
         self.planning = PlanningRepository(session)
         self.route_service = route_service
+
+    async def draft(self, data: PlanningDraftRequest) -> PlanningDraftResponse:
+        return await build_catalog_draft(
+            data=data,
+            destinations_repo=self.planning,
+            route_service=self.route_service,
+            preview_fn=self.preview,
+        )
 
     async def feedback(self, data: PlanningFeedbackRequest) -> PlanningFeedbackResponse:
         preview = await self.preview(data)

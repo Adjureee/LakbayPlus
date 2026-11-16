@@ -1079,6 +1079,7 @@ class ItineraryTrip {
   final String? lockedFirstDestinationId;
   final List<RouteSegmentGeometry> routeSegments;
   final List<SeaCrossingInfo> seaCrossings;
+  final bool isCatalogFallback;
 
   const ItineraryTrip({
     required this.id,
@@ -1121,6 +1122,7 @@ class ItineraryTrip {
     this.lockedFirstDestinationId,
     this.routeSegments = const [],
     this.seaCrossings = const [],
+    this.isCatalogFallback = false,
   });
 
   int get totalEstimatedCostUsd {
@@ -1227,6 +1229,8 @@ class ItineraryTrip {
     String? lockedFirstDestinationId,
     List<RouteSegmentGeometry>? routeSegments,
     List<SeaCrossingInfo>? seaCrossings,
+    String? expertName,
+    bool? isCatalogFallback,
   }) {
     return ItineraryTrip(
       id: id,
@@ -1244,7 +1248,7 @@ class ItineraryTrip {
       bestMonths: bestMonths,
       avgTemp: avgTemp ?? this.avgTemp,
       wmoWeatherCode: wmoWeatherCode ?? this.wmoWeatherCode,
-      expertName: expertName,
+      expertName: expertName ?? this.expertName,
       expertAvatarAsset: expertAvatarAsset,
       expertTip: expertTip,
       days: days ?? this.days,
@@ -1272,6 +1276,7 @@ class ItineraryTrip {
           lockedFirstDestinationId ?? this.lockedFirstDestinationId,
       routeSegments: routeSegments ?? this.routeSegments,
       seaCrossings: seaCrossings ?? this.seaCrossings,
+      isCatalogFallback: isCatalogFallback ?? this.isCatalogFallback,
     );
   }
 
@@ -1323,6 +1328,7 @@ class ItineraryTrip {
           'routeSegments': routeSegments.map((s) => s.toJson()).toList(),
         if (seaCrossings.isNotEmpty)
           'seaCrossings': seaCrossings.map((c) => c.toJson()).toList(),
+        if (isCatalogFallback) 'isCatalogFallback': true,
       };
 
   factory ItineraryTrip.fromJson(Map<String, dynamic> json) => ItineraryTrip(
@@ -1397,6 +1403,7 @@ class ItineraryTrip {
             .whereType<Map<String, dynamic>>()
             .map(SeaCrossingInfo.fromJson)
             .toList(),
+        isCatalogFallback: json['isCatalogFallback'] == true,
       );
 }
 
@@ -1407,6 +1414,8 @@ class AiItineraryOptionDraft {
   final double estimatedTotalCostPhp;
   final bool isOverBudget;
   final int? generationRunId;
+  final bool isCatalogFallback;
+  final String? sourceLabel;
   final ItineraryTrip trip;
 
   const AiItineraryOptionDraft({
@@ -1416,6 +1425,8 @@ class AiItineraryOptionDraft {
     required this.estimatedTotalCostPhp,
     required this.isOverBudget,
     this.generationRunId,
+    this.isCatalogFallback = false,
+    this.sourceLabel,
     required this.trip,
   });
 
@@ -1426,6 +1437,8 @@ class AiItineraryOptionDraft {
         'estimatedTotalCostPhp': estimatedTotalCostPhp,
         'isOverBudget': isOverBudget,
         if (generationRunId != null) 'generationRunId': generationRunId,
+        if (isCatalogFallback) 'isCatalogFallback': true,
+        if (sourceLabel != null) 'sourceLabel': sourceLabel,
         'trip': trip.toJson(),
       };
 
@@ -1438,6 +1451,8 @@ class AiItineraryOptionDraft {
             (json['estimatedTotalCostPhp'] as num?)?.toDouble() ?? 0.0,
         isOverBudget: json['isOverBudget'] as bool? ?? false,
         generationRunId: (json['generationRunId'] as num?)?.toInt(),
+        isCatalogFallback: json['isCatalogFallback'] == true,
+        sourceLabel: json['sourceLabel'] as String?,
         trip: ItineraryTrip.fromJson(
           (json['trip'] as Map<String, dynamic>? ?? const {}),
         ),

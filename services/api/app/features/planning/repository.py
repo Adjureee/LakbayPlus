@@ -21,6 +21,14 @@ class PlanningRepository:
         )
         return list(result.scalars().all())
 
+    async def list_all_active_destinations(self) -> list[Destination]:
+        result = await self.session.execute(
+            select(Destination)
+            .where(Destination.is_active.is_(True))
+            .order_by(Destination.destination_id),
+        )
+        return list(result.scalars().all())
+
     async def list_available_accommodations(self, destination_ids: list[int]) -> list[Accommodation]:
         if not destination_ids:
             return []

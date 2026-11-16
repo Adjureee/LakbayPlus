@@ -983,6 +983,57 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           ),
           const SizedBox(height: 16),
         ],
+        if (_activeTrip.isCatalogFallback) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: LakbayColors.tealWash.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: LakbayColors.primary.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.route_rounded,
+                  color: LakbayColors.tealDeep,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    "Built from Lakbay's catalog, without AI",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: LakbayColors.tealDeep,
+                    ),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _isRefining
+                      ? null
+                      : () => _handleAiRefine(
+                          'Keep these destinations and improve timing, pacing, and local tips.'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: Size.zero,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 15),
+                  label: const Text(
+                    'Improve with AI',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         const Text(
           'Refine with Lakbay+ AI',
           style: TextStyle(
