@@ -196,6 +196,14 @@ class NotificationService:
                     }
                 )
         await client.send_notifications(messages)
+        # Firebase says these devices will never receive anything again (app
+        # uninstalled, token rotated): stop sending to them.
+        for user_id, device_tokens in tokens_by_user.items():
+            for device_token in device_tokens:
+                if device_token in client.invalid_tokens:
+                    await self.notifications.deactivate_device_token(
+                        user_id=user_id, device_token=device_token,
+                    )
 
     async def notify_trip_member_added(
         self,
