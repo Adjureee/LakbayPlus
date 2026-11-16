@@ -342,4 +342,143 @@ void main() {
     expect(server.requests.where((r) => r.path == '/ai/itineraries/generate'), isEmpty);
     expect(repo.chatMessages.last.attachedTrip, isNull);
   });
+
+  group('picking and plan details', () {
+    final park = <String, dynamic>{
+      ..._falls,
+      'destination_id': 78,
+      'name': 'Hidden Test Park',
+      'category': 'Park',
+      'lat': 7.2,
+      'lng': 126.0,
+    };
+
+    Map<String, dynamic> reply(
+      Map<String, dynamic> body, {
+      Map<String, dynamic> extraState = const {},
+      Map<String, dynamic>? conversation,
+    }) {
+      final base = _planningReply(body, recommendations: [_falls, park]);
+      final planning = base['planning'] as Map<String, dynamic>;
+      planning['preview'] = {
+        'state': {...(body['planning_state'] as Map<String, dynamic>), ...extraState},
+      };
+      if (conversation != null) planning['conversation'] = conversation;
+      return base;
+    }
+
+    test('the itinerary is built from exactly the places picked', () async {
+      final server = _Server((path, body) {
+        if (path == '/ai/itineraries/generate') return {'options': []};
+        return reply(body, extraState: {
+          'day_count': 2,
+          'traveler_count': 2,
+          'total_budget': '6000',
+        });
+      });
+      SharedPreferences.setMockInitialValues({
+        'lakbay_traveler_state_v1': jsonEncode({
+          'hasCompletedOnboarding': true,
+          'authSession': const LakbayAuthSession(
+            accessToken: 'token', refreshToken: 'refresh', userId: 1,
+            fullName: 'Test Traveler', email: 't@example.com', role: 'traveler',
+          ).toJson(),
+        }),
+      });
+      final repo = _repo(server);
+      await repo.initialize();
+
+      await repo.sendChatMessage('I like nature'); // cards: falls + park
+      // Pick only the park, not the first card.
+      repo.toggleChatPick(repo.resolveExploreTripForRecommendation(
+        TopPlaceRecommendation.fromJson(park),
+      ));
+      expect(repo.chatPickCount, 1);
+      await repo.planWithPicks();
+
+      final generate =
+          server.requests.lastWhere((r) => r.path == '/ai/itineraries/generate');
+      expect(generate.body['destination_ids'], [78]);
+      expect((generate.body['planning_state'] as Map)['destination_ids'], [78]);
+    });
+
+    test('at most ten places can be picked for one plan', () async {
+      final repo = _repo(_Server((_, body) => _planningReply(body)));
+      await repo.initialize();
+      ExploreTrip place(int id) => repo.resolveExploreTripForRecommendation(
+            TopPlaceRecommendation.fromJson({
+              ..._falls,
+              'destination_id': 200 + id,
+              'name': 'Pick Place $id',
+            }),
+          );
+
+      for (var i = 0; i < TravelRepository.maxChatPicks; i++) {
+        expect(repo.toggleChatPick(place(i)), isTrue);
+      }
+      expect(repo.toggleChatPick(place(99)), isFalse);
+      expect(repo.chatPickCount, TravelRepository.maxChatPicks);
+      // Removing one frees a slot.
+      expect(repo.toggleChatPick(place(0)), isTrue);
+      expect(repo.chatPickCount, TravelRepository.maxChatPicks - 1);
+    });
+
+    test('a detail question shows answer buttons, and the answer reaches the AI', () async {
+      final server = _Server((path, body) => reply(body, conversation: {
+            'stage': 'recommend',
+            'missing_details': ['activity_level', 'travel_start_date'],
+            'ask_next': 'How active do you want to be?',
+            'optional_details': [],
+          }));
+      final repo = _repo(server);
+      await repo.initialize();
+
+      await repo.sendChatMessage('I like nature');
+      expect(repo.chatMessages.last.askNext, 'activity_level');
+
+      await repo.answerChatDetail('activity_level', 'easy', 'Easy');
+      final state = _lastChat(server)['planning_state'] as Map<String, dynamic>;
+      expect(state['activity_level'], 'easy');
+      expect(_lastChat(server)['message'], 'Easy');
+    });
+
+    test('no buttons are offered when nothing button-shaped is missing', () async {
+      final server = _Server((path, body) => reply(body, conversation: {
+            'stage': 'collect',
+            'missing_details': ['traveler_count'],
+            'ask_next': 'How many people are going?',
+            'optional_details': [],
+          }));
+      final repo = _repo(server);
+      await repo.initialize();
+
+      await repo.sendChatMessage('Hi');
+      expect(repo.chatMessages.last.askNext, isNull);
+      expect(repo.chatMessages.last.offerPriorities, isFalse);
+    });
+
+    test('"what matters most" is offered, saved in order, and can be skipped', () async {
+      final server = _Server((path, body) => reply(body, conversation: {
+            'stage': 'recommend',
+            'missing_details': [],
+            'ask_next': null,
+            'optional_details': ['priority_order'],
+          }));
+      final repo = _repo(server);
+      await repo.initialize();
+
+      await repo.sendChatMessage('I like nature');
+      expect(repo.chatMessages.last.offerPriorities, isTrue);
+
+      await repo.answerChatPriorities(
+        ['scenery', 'quiet', 'low_cost', 'easy_trail'], 'What matters most',
+      );
+      final state = _lastChat(server)['planning_state'] as Map<String, dynamic>;
+      expect(state['priority_order'], ['scenery', 'quiet', 'low_cost']); // max 3
+
+      await repo.answerChatPriorities(const [], 'Skip');
+      await repo.sendChatMessage('Anything else?');
+      expect(repo.chatMessages.last.offerPriorities, isFalse);
+    });
+  });
 }

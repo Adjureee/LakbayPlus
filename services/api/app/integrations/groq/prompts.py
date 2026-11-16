@@ -2,6 +2,7 @@ import json
 from decimal import Decimal
 from typing import Any
 
+from app.features.ai.conversation_stage import compute_stage
 from app.features.ai.schemas import AIChatRequest, AIItineraryGenerateRequest
 from app.features.geo_analytics.schemas import DestinationGroupsResponse
 from app.features.planning.schemas import PlanningPreviewResponse
@@ -10,7 +11,7 @@ from app.features.recommendations.schemas import RecommendationItem
 
 PROMPT_VERSION = "phase5_itinerary_catalog_facts_v3"
 PLANNING_PROMPT_VERSION = "phase15e_calculated_route_order_v5"
-CHAT_PROMPT_VERSION = "phase5_chat_v9_max5_suggestions"
+CHAT_PROMPT_VERSION = "phase5_chat_v10_stage_aware"
 
 
 def build_itinerary_messages(
@@ -208,6 +209,7 @@ def build_chat_messages(
     request: AIChatRequest,
     retrieved_context: list[dict[str, Any]] | None = None,
     retrieval_coverage: dict[str, Any] | None = None,
+    picked_places: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, str]]:
     system_prompt = (
         # Persona and voice: what makes the answers feel like a real local guide.
@@ -324,6 +326,18 @@ def build_chat_messages(
             "it and omit destination_ids. Interpret an explicit day trip or no "
             "overnight stay as night_count 0. Use null only to clear a nullable "
             "field, and use an empty list to clear destination_ids or interests."
+            " The context carries `conversation` with `stage`, `missing_details` "
+            "and `ask_next`, computed by the server; follow it. Stage "
+            "\"collect\" or \"recommend\": if `ask_next` is set, ask exactly that "
+            "ONE question, in plain words with a short reason, and nothing else "
+            "from the list; never ask for something already in planning_state. "
+            "Never ask the traveler to choose between places in prose: the app "
+            "shows the place cards itself. Stage \"picking\": the traveler has "
+            "chosen the places in `picked_places`; acknowledge them by name, say "
+            "how many there are, and offer two next steps, add more or plan the "
+            "trip, without writing an itinerary. Do not write "
+            "activity_level, travel_start_date, prefers_quiet or priority_order "
+            "in state_updates; the app records those from the traveler's taps."
         )
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -344,6 +358,10 @@ def build_chat_messages(
     if request.planning_state is not None:
         context_payload["planning_state"] = request.planning_state.model_dump(mode="json")
         context_payload["input_revision"] = request.input_revision
+        context_payload["conversation"] = compute_stage(
+            request.planning_state,
+        ).as_prompt_payload()
+        context_payload["picked_places"] = picked_places or []
     messages.append(
         {
             "role": "user",

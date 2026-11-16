@@ -1481,6 +1481,14 @@ class ChatMessage {
   final bool isError;
   final String? retryText;
 
+  /// The detail the AI is asking for next (for example `activity_level`), so
+  /// the answer buttons can show under the reply. Not saved: only the latest
+  /// reply offers them.
+  final String? askNext;
+
+  /// Offer the optional "what matters most?" choice under this reply.
+  final bool offerPriorities;
+
   const ChatMessage({
     required this.id,
     required this.isUser,
@@ -1492,6 +1500,8 @@ class ChatMessage {
     this.suggestedReplies = const [],
     this.isError = false,
     this.retryText,
+    this.askNext,
+    this.offerPriorities = false,
   });
 
   Map<String, dynamic> toJson() => {

@@ -51,6 +51,7 @@ from app.features.destinations.region import (
     province_for_destination,
     region_status,
 )
+from app.features.ai.conversation_stage import compute_stage
 from app.features.planning.schemas import PlanningOrigin, PlanningPreviewRequest, PlanningPreviewResponse, PlanningState
 from app.features.planning.service import PlanningService
 from app.features.recommendations.limits import MAX_SUGGESTIONS
@@ -373,10 +374,27 @@ class AIItineraryService:
             _log_timing("retrieval", chat_started, matches=len(rag_matches))
 
         retrieved_context = [match.to_prompt_dict() for match in rag_matches]
+        picked_places: list[dict] = []
+        if data.planning_state is not None and data.planning_state.destination_ids:
+            picked = await self.ai.list_active_destinations_by_ids(
+                list(data.planning_state.destination_ids),
+            )
+            by_id = {item.destination_id: item for item in picked}
+            picked_places = [
+                {
+                    "destination_id": destination_id,
+                    "name": by_id[destination_id].name,
+                    "district": by_id[destination_id].district,
+                    "category": by_id[destination_id].category,
+                }
+                for destination_id in data.planning_state.destination_ids
+                if destination_id in by_id
+            ]
         messages = build_chat_messages(
             request=data,
             retrieved_context=retrieved_context,
             retrieval_coverage=retrieval_coverage,
+            picked_places=picked_places,
         )
         failed_runs: list[dict] = []
         rate_limit_error: GroqRateLimitError | None = None
@@ -1289,6 +1307,10 @@ async def _build_planning_chat_result(
                     adult_count=next_state.adult_count,
                     child_ages=next_state.child_ages,
                     day_count=next_state.day_count,
+                    activity_level=next_state.activity_level,
+                    travel_start_date=next_state.travel_start_date,
+                    prefers_quiet=bool(next_state.prefers_quiet),
+                    priority_order=list(next_state.priority_order),
                     fill_to_limit=True,
                 ),
                 osrm_client=route_service.osrm_client if route_service is not None else None,
@@ -1322,6 +1344,7 @@ async def _build_planning_chat_result(
             recommendations=recommendations,
             recommendation_total_candidates=recommendation_total_candidates,
             recommendation_shortfall_reason=recommendation_shortfall_reason,
+            conversation=compute_stage(next_state).as_prompt_payload(),
         ),
         validation_status,
     )

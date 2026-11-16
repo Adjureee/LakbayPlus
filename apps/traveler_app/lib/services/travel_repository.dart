@@ -510,6 +510,7 @@ class TravelRepository extends ChangeNotifier {
   void resetPlanningState() {
     _planningState = null;
     _planningRevision = 0;
+    _prioritySkipped = false;
   }
 
   // AI Strict Budget & Route Mode Preferences
@@ -3095,7 +3096,11 @@ class TravelRepository extends ChangeNotifier {
   /// A card's "+ Add" in the chat: toggles the place in the trip tray and
   /// tells the AI planner about it, so the itinerary is built from the
   /// traveler's own picks.
-  void toggleChatPick(ExploreTrip place) {
+  /// Returns false when the pick limit is reached and nothing was added.
+  bool toggleChatPick(ExploreTrip place) {
+    if (!isInTripBuilder(place.id) && chatPickCount >= maxChatPicks) {
+      return false;
+    }
     toggleTripBuilderStop(place);
     final state = _ensurePlanningState();
     state['destination_ids'] = [
@@ -3103,6 +3108,76 @@ class TravelRepository extends ChangeNotifier {
         if (stop.apiDestinationId != null) stop.apiDestinationId!,
     ];
     _planningRevision++;
+    return true;
+  }
+
+  /// The planner accepts at most this many places in one plan.
+  static const int maxChatPicks = 10;
+
+  /// Places the traveler has picked in the chat (the ones the plan uses).
+  int get chatPickCount =>
+      _tripBuilderStops.where((s) => s.apiDestinationId != null).length;
+
+  /// Answers one of the AI's detail questions with a button tap. The answer
+  /// is saved in the planning state and also sent as a normal message so the
+  /// conversation reads naturally.
+  Future<void> answerChatDetail(
+    String field,
+    Object? value,
+    String label,
+  ) async {
+    final state = _ensurePlanningState();
+    if (value == null) {
+      state.remove(field);
+    } else {
+      state[field] = value;
+    }
+    _planningRevision++;
+    await sendChatMessage(label);
+  }
+
+  /// Saves the "what matters most" order (up to 3, most important first), or
+  /// records that the traveler skipped the question.
+  Future<void> answerChatPriorities(List<String> order, String label) async {
+    if (order.isEmpty) {
+      _prioritySkipped = true;
+      notifyListeners();
+      return;
+    }
+    await answerChatDetail('priority_order', order.take(3).toList(), label);
+  }
+
+  bool _prioritySkipped = false;
+
+  /// Asks the AI to plan from exactly the places the traveler picked.
+  Future<void> planWithPicks() => sendChatMessage(
+        chatPickCount == 1
+            ? 'Plan a trip with my pick.'
+            : 'Plan a trip with my $chatPickCount picks.',
+      );
+
+  static Map<String, dynamic>? _conversation(Map<String, dynamic>? planning) {
+    final value = planning?['conversation'];
+    return value is Map<String, dynamic> ? value : null;
+  }
+
+  /// The one detail the server wants next, only for the questions the app
+  /// can answer with buttons.
+  static String? _firstMissingDetail(Map<String, dynamic>? planning) {
+    final missing = _conversation(planning)?['missing_details'];
+    if (missing is! List || missing.isEmpty) return null;
+    const buttonQuestions = {
+      'activity_level',
+      'travel_start_date',
+      'prefers_quiet',
+    };
+    final first = missing.first.toString();
+    return buttonQuestions.contains(first) ? first : null;
+  }
+
+  static List<String> _optionalDetails(Map<String, dynamic>? planning) {
+    final value = _conversation(planning)?['optional_details'];
+    return value is List ? value.map((e) => e.toString()).toList() : const [];
   }
 
   void _addChatError(String retryText, String message) {
@@ -3306,6 +3381,9 @@ class TravelRepository extends ChangeNotifier {
           recommendedPlaces: recommendedPlaces,
           // Only what the AI suggested for this conversation.
           suggestedReplies: modelReplies,
+          askNext: _firstMissingDetail(planning),
+          offerPriorities: !_prioritySkipped &&
+              _optionalDetails(planning).contains('priority_order'),
         ),
       );
       _isAiTyping = false;
