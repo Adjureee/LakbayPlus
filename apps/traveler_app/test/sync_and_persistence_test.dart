@@ -1186,6 +1186,34 @@ void main() {
       if (request.url.path == '/api/v1/trips') {
         return http.Response(jsonEncode({'items': [], 'total': 0}), 200);
       }
+      if (request.url.path == '/api/v1/ai/trip-draft') {
+        // The AI's own draft: the onboarding shows what it returns, nothing else.
+        return http.Response(
+          jsonEncode({
+            'model_id': 'mock',
+            'provider': 'mock',
+            'draft': {
+              'reply': 'Here is a Samal day.',
+              'should_create_itinerary': true,
+              'title': 'Samal Day Trip',
+              'destination': 'Samal Island',
+              'vibe': 'Beach',
+              'days_count': 1,
+              'days': [
+                {
+                  'day': 1,
+                  'title': 'Island day',
+                  'summary': 'A day on Samal.',
+                  'activities': [
+                    {'time': '09:00', 'title': 'Hagimit Falls'},
+                  ],
+                },
+              ],
+            },
+          }),
+          200,
+        );
+      }
       return http.Response('{}', 200);
     });
 
@@ -1228,6 +1256,8 @@ void main() {
     await tester.pump();
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 1400)));
     await tester.pump();
+    // The plan is only offered once the AI has drafted it (the screen waits on a timer).
+    await tester.pump(const Duration(milliseconds: 800));
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('First plan, done.'), findsOneWidget);
     expect(find.byType(MainNavigationShell), findsNothing);

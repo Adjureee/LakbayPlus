@@ -343,6 +343,17 @@ void main() {
     expect(repo.chatMessages.last.attachedTrip, isNull);
   });
 
+  test('a trip is drafted only by the AI; when it fails nothing is invented', () async {
+    final server = _Server((path, body) => null); // every AI call fails
+    final repo = _repo(server);
+    await repo.initialize();
+
+    final trip = await repo.createTripFromAiPrompt('Plan 2 days in Samal Island');
+
+    expect(trip, isNull);
+    expect(repo.savedTrips, isEmpty);
+  });
+
   group('picking and plan details', () {
     final park = <String, dynamic>{
       ..._falls,

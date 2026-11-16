@@ -550,6 +550,13 @@ class TravelRepository extends ChangeNotifier {
   int _activeNavIndex = 2; // 0: Trips, 1: Discover, 2: Chat (center), 3: Memories, 4: Profile
   int get activeNavIndex => _activeNavIndex;
 
+  /// Takes the traveler to the chat and asks Lakbay AI to plan, instead of
+  /// building a ready-made itinerary from a template.
+  Future<void> planInChat(String prompt) {
+    setActiveNavIndex(2);
+    return sendChatMessage(prompt);
+  }
+
   void setActiveNavIndex(int index) {
     if (_activeNavIndex == index) return;
     _activeNavIndex = index;
@@ -3369,7 +3376,9 @@ class TravelRepository extends ChangeNotifier {
         } catch (_) {
           // The AI's reply still shows; there is just no draft attached.
         }
-      } else if (wantsItinerary && targetDestIds.isNotEmpty) {
+      } else if (wantsItinerary &&
+          targetDestIds.isNotEmpty &&
+          _authSession != null) {
         // Everything below comes from the traveler. A missing detail is not
         // guessed: the AI asks for it in its reply instead.
         final daysCount = (_planningState?['day_count'] as num?)?.toInt() ??
@@ -3450,7 +3459,10 @@ class TravelRepository extends ChangeNotifier {
 
   /// Generates a Region XI trip via live Groq/Gemini AI (if configured in `.env`)
   /// or falls back to the local Davao Region itinerary builder.
-  Future<ItineraryTrip> createTripFromAiPrompt(String prompt) async {
+  /// A trip drafted by the AI from the traveler's own words, or null when the
+  /// AI is unreachable or did not return a usable plan. Nothing is invented
+  /// to stand in for it.
+  Future<ItineraryTrip?> createTripFromAiPrompt(String prompt) async {
     if (aiService.isConfigured) {
       try {
         final aiResult = await aiService.chatOrPlan(
@@ -3466,10 +3478,10 @@ class TravelRepository extends ChangeNotifier {
           return _buildItineraryFromAi(aiResult);
         }
       } catch (_) {
-        // Fallback below
+        // The caller tells the traveler and offers to try again.
       }
     }
-    return _generateLocalFallbackTrip(prompt);
+    return null;
   }
 
   /// Exposes [_buildItineraryFromAi] when an onboarding/chat turn already produced
@@ -3650,124 +3662,6 @@ class TravelRepository extends ChangeNotifier {
       generationRunId: generationRunId,
       trip: trip,
     );
-  }
-
-  ItineraryTrip _generateLocalFallbackTrip(
-    String prompt, {
-    bool includeFlights = false,
-  }) {
-    final trimmed = prompt.trim();
-    final lower = trimmed.toLowerCase();
-    final matchedExplore = _allTrips.firstWhere(
-      (t) =>
-          t.title.toLowerCase().contains(lower) ||
-          lower.split(' ').any(
-              (word) => word.length > 3 && t.title.toLowerCase().contains(word)),
-      orElse: () => _allTrips.isNotEmpty
-          ? _allTrips.first
-          : const ExploreTrip(
-              locale: 'en',
-              id: 'api_4',
-              title: 'Samal Island Beach Area',
-              days: 1,
-              lat: 7.0744,
-              lng: 125.7087,
-              thumbnailUrl: '',
-              district: 'Samal (IGaCoS), Davao del Norte',
-              tag: 'Beach',
-              apiDestinationId: 4,
-              islandGroup: 'samal',
-              stayDurationType: 'full_day',
-            ),
-    );
-
-    final daysMatch =
-        RegExp(r'(\d+)\s*-?\s*day', caseSensitive: false).firstMatch(trimmed);
-    final requestedDays = daysMatch != null
-        ? (int.tryParse(daysMatch.group(1)!) ?? matchedExplore.days)
-            .clamp(2, 14)
-        : matchedExplore.days;
-
-    final remoteThumb = matchedExplore.hasRemoteThumbnail
-        ? matchedExplore.thumbnailUrl
-        : null;
-    if (lower.contains('samal') ||
-        lower.contains('talikud') ||
-        lower.contains('island')) {
-      return generateCustomTrip(
-        destination: 'Samal Island (IGaCoS) & Talikud Reefs',
-        daysCount: requestedDays,
-        vibe: 'Island Hopping & Coral Coves',
-        heroAsset: 'assets/home_backdrops/01-samal-island.jpg',
-        remoteImageUrl: remoteThumb,
-        centerLat: 7.0742,
-        centerLng: 125.7089,
-        includeFlights: includeFlights,
-      );
-    } else if (lower.contains('mati') ||
-        lower.contains('dahican') ||
-        lower.contains('aliwagwag') ||
-        lower.contains('pujada') ||
-        lower.contains('oriental')) {
-      return generateCustomTrip(
-        destination: 'Mati Dahican, Pujada Bay & Aliwagwag Falls',
-        daysCount: requestedDays,
-        vibe: 'Pacific Surf & Waterfalls Loop',
-        heroAsset: 'assets/home_backdrops/02-dahican-mati.jpg',
-        remoteImageUrl: remoteThumb,
-        centerLat: 6.9551,
-        centerLng: 126.2185,
-        includeFlights: includeFlights,
-      );
-    } else if (lower.contains('buda') ||
-        lower.contains('marilog') ||
-        lower.contains('pine') ||
-        lower.contains('cabin')) {
-      return generateCustomTrip(
-        destination: 'Buda & Marilog Pine Highlands, Davao City',
-        daysCount: requestedDays,
-        vibe: 'Misty Pine Cabins & Cafes',
-        heroAsset: 'assets/home_backdrops/09-marilog-bemwa.jpg',
-        remoteImageUrl: remoteThumb,
-        centerLat: 7.4561,
-        centerLng: 125.2498,
-        includeFlights: includeFlights,
-      );
-    } else if (lower.contains('apo') ||
-        lower.contains('kapatagan') ||
-        lower.contains('digos') ||
-        lower.contains('sta. cruz')) {
-      return generateCustomTrip(
-        destination: 'Kapatagan Highlands & Mt. Apo, Davao del Sur',
-        daysCount: requestedDays,
-        vibe: 'Volcanic Peaks & Coffee Ridges',
-        heroAsset: 'assets/home_backdrops/03-mount-apo.jpg',
-        remoteImageUrl: remoteThumb,
-        centerLat: 6.9292,
-        centerLng: 125.3315,
-        includeFlights: includeFlights,
-      );
-    } else if (lower.contains('maragusan') ||
-        lower.contains('kopiat') ||
-        lower.contains('de oro') ||
-        lower.contains('tagum')) {
-      return generateCustomTrip(
-        destination: 'Tagum, Kopiat Island & Maragusan Highlands',
-        daysCount: requestedDays,
-        vibe: 'Sea of Clouds & Gulf Islands',
-        heroAsset: 'assets/home_backdrops/10-calamba-clouds.jpg',
-        remoteImageUrl: remoteThumb,
-        centerLat: 7.3508,
-        centerLng: 126.1536,
-        includeFlights: includeFlights,
-      );
-    } else {
-      return buildDetailedItineraryFromExplore(
-        matchedExplore,
-        overrideDays: requestedDays,
-        includeFlights: includeFlights,
-      );
-    }
   }
 
   ItineraryTrip _buildItineraryFromAi(AiPlanResult ai) {

@@ -72,6 +72,8 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
   bool _isThinking = false;
   int _planningPercent = 76;
   ItineraryTrip? _generatedTrip;
+  // The AI could not draft a trip; the traveler can try again.
+  bool _planFailed = false;
   AiPlanResult? _lastStructuredPlan;
 
   String _selectedDestination = '';
@@ -477,6 +479,8 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
     setState(() {
       _stage = 2;
       _planningPercent = 76;
+      _planFailed = false;
+      _generatedTrip = null;
     });
 
     if (_lastStructuredPlan != null &&
@@ -515,17 +519,14 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
     if (!mounted) return;
     setState(() {
       _generatedTrip = trip;
-      _planningPercent = 100;
+      _planFailed = trip == null;
+      _planningPercent = trip == null ? 76 : 100;
     });
   }
 
   void _openGeneratedTrip() {
-    final trip = _generatedTrip ??
-        widget.repo.generateCustomTrip(
-          destination: _selectedDestination,
-          daysCount: 4,
-          vibe: _selectedVibe,
-        );
+    final trip = _generatedTrip;
+    if (trip == null) return; // nothing was planned, so nothing to save
     if (widget.repo.isSignedIn) {
       widget.repo.saveTripToMyTrips(trip);
       widget.repo.completeOnboarding();
@@ -1187,7 +1188,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Your travel expert checks it next.',
+            'Review it, then save it to your trips.',
             style: TextStyle(
               fontSize: 14.5,
               color: LakbayColors.textSecondary,
@@ -1239,7 +1240,9 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                           Text(
                             isReady
                                 ? 'Lakbay+ itinerary ready!'
-                                : 'Lakbay+ is planning...',
+                                : _planFailed
+                                    ? "Couldn't plan your trip"
+                                    : 'Lakbay+ is planning...',
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 15.5,
@@ -1274,13 +1277,13 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   icon: Icons.check_rounded,
                   filled: true,
                   title: 'Lakbay+✦',
-                  subtitle: 'Shortlisted Davao stays, ferry & route',
+                  subtitle: 'Drafted a plan from what you told me',
                 ),
                 _TimelineRow(
                   icon: Icons.auto_awesome,
                   filled: isReady,
-                  title: 'Your expert',
-                  subtitle: 'Reviews stays, route & memories',
+                  title: 'You',
+                  subtitle: 'Review the plan, then save it',
                 ),
                 _TimelineRow(
                   icon: Icons.location_on_outlined,
@@ -1336,10 +1339,25 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           ),
           const SizedBox(height: 16),
           const Spacer(),
+          if (_planFailed) ...[
+            const Text(
+              "I couldn't reach Lakbay AI to draft your trip. Check your connection and try again.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13.5, color: LakbayColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _enterStageThreeAndGenerate,
+                child: const Text('Try again'),
+              ),
+            ),
+          ] else
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _openGeneratedTrip,
+              onPressed: isReady ? _openGeneratedTrip : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: LakbayColors.primaryLight,
                 foregroundColor: LakbayColors.tealDeep,
@@ -1359,14 +1377,6 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Every trip checked by a person.',
-            style: TextStyle(
-              fontSize: 12.5,
-              color: LakbayColors.textSecondary,
             ),
           ),
               ],
