@@ -53,3 +53,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// Firebase push notifications. google-services.json comes from the Firebase
+// console; without it the app still builds and simply has no push.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}

@@ -1259,6 +1259,12 @@ class TravelRepository extends ChangeNotifier {
       onForegroundMessage: (_) {
         if (isSignedIn) refreshNotifications();
       },
+      // Tapping a push opens the app on Trips, where invitations and the
+      // notification bell are, and refreshes them.
+      onOpenedMessage: (_) {
+        setActiveNavIndex(0);
+        if (isSignedIn) refreshNotifications();
+      },
     );
     final tok = await pushService.fetchToken();
     final session = _authSession;
