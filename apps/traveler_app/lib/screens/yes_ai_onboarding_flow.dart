@@ -1,56 +1,18 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
-import '../services/lakbay_ai_service.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
+import '../widgets/lakbay_image.dart';
 import '../widgets/origin_picker_sheet.dart';
 import 'auth_screen.dart';
+import 'trip_detail_screen.dart';
 
-class _OnboardingCarouselSpot {
-  final String name;
-  final String province;
-  final String flagOrBadge;
-  final String dateLabel;
-  final String tempLabel;
-  final String priceLabel;
-  final String imageAsset;
-  final String blurb;
-
-  const _OnboardingCarouselSpot({
-    required this.name,
-    required this.province,
-    required this.flagOrBadge,
-    required this.dateLabel,
-    required this.tempLabel,
-    required this.priceLabel,
-    required this.imageAsset,
-    required this.blurb,
-  });
-}
-
-class _OnboardingChatTurn {
-  final bool isUser;
-  final String? title;
-  final String body;
-  final List<_OnboardingCarouselSpot> carousel;
-  final List<String> options;
-  final bool isGamePlan;
-
-  const _OnboardingChatTurn({
-    required this.isUser,
-    this.title,
-    required this.body,
-    this.carousel = const [],
-    this.options = const [],
-    this.isGamePlan = false,
-  });
-}
-
-/// Interactive "Yes -> AI" onboarding scenario modeled on the 11-screen flow:
-/// 1) Conversational AI trip brief builder ("Where to? I'll plan it.")
-/// 2) Rating / social trust pause ("While I set up your trip — Good so far?")
-/// 3) Live planning progress timeline ("First plan, done." -> "See your trip")
+/// Interactive "Yes -> AI" onboarding planner powered by Lakbay's live backend:
+/// 1) Stateful Layla-style AI trip concierge (`POST /ai/chat/guest` with `is_onboarding: true`,
+///    live DB category cards, live trip preview, `/ai/itineraries/generate/guest`, and Phase 2
+///    `/planning/draft` catalog fallback)
+/// 2) Rating trust pause ("While I set up your trip — Good so far?")
+/// 3) Final plan confirmation ("First plan, done." -> "Sign in or create account to save trip")
 class YesAiOnboardingFlow extends StatefulWidget {
   final TravelRepository repo;
   final VoidCallback onBackToDecision;
@@ -66,102 +28,26 @@ class YesAiOnboardingFlow extends StatefulWidget {
 }
 
 class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
-  // 0 = Interactive AI chat planner, 1 = "Good so far?" rating step, 2 = "First plan, done."
+  // 0 = Interactive AI trip planner, 1 = "Good so far?", 2 = "First plan, done."
   int _stage = 0;
-  int _chatStep = 0;
-  bool _isThinking = false;
   int _planningPercent = 76;
+  ItineraryTrip? _selectedOnboardingTrip;
   ItineraryTrip? _generatedTrip;
-  // The AI could not draft a trip; the traveler can try again.
   bool _planFailed = false;
-  AiPlanResult? _lastStructuredPlan;
-
-  String _selectedDestination = '';
-  String _selectedVibe = 'Just exploring';
-  String _selectedOriginAndParty = 'Solo trip';
-  String _selectedTiming = 'Next month';
-  String? _selectedOptionText;
 
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<_OnboardingChatTurn> _turns = [];
-
-  static const List<_OnboardingCarouselSpot> _davaoSpots = [
-    _OnboardingCarouselSpot(
-      name: 'Samal Island',
-      province: 'Davao del Norte',
-      flagOrBadge: '🏝️',
-      dateLabel: 'Dec 14',
-      tempLabel: '29°',
-      priceLabel: '₱5,400',
-      imageAsset: 'assets/home_backdrops/01-samal-island.jpg',
-      blurb:
-          'Samal Island (IGaCoS) is pure coral magic—blending giant clams, Taklobo sanctuaries, and white-sand coves just 15 minutes from Davao City.',
-    ),
-    _OnboardingCarouselSpot(
-      name: 'Mati Dahican',
-      province: 'Davao Oriental',
-      flagOrBadge: '🏄',
-      dateLabel: 'Dec 14',
-      tempLabel: '30°',
-      priceLabel: '₱6,200',
-      imageAsset: 'assets/home_backdrops/02-dahican-mati.jpg',
-      blurb:
-          'Mati & Dahican Beach bring Pacific skimboarding crescent shores, Sleeping Dinosaur vistas, and Aliwagwag Eco Park waterfalls.',
-    ),
-    _OnboardingCarouselSpot(
-      name: 'Buda Highlands',
-      province: 'Marilog, Davao',
-      flagOrBadge: '🌲',
-      dateLabel: 'Dec 14',
-      tempLabel: '21°',
-      priceLabel: '₱4,800',
-      imageAsset: 'assets/home_backdrops/09-marilog-bemwa.jpg',
-      blurb:
-          'Buda & Marilog serve crisp mountain air, sea-of-clouds sunrise ridges, A-frame pine cabins, and artisan highland coffee.',
-    ),
-  ];
 
   @override
   void initState() {
     super.initState();
-    final hasOrigin = widget.repo.hasOrigin;
-    final origin = widget.repo.effectiveOriginLabel;
-    if (hasOrigin) {
-      _selectedOriginAndParty = 'From $origin';
+    widget.repo.resetPlanningForOnboarding();
+    if (widget.repo.categoryFacets.isEmpty &&
+        widget.repo.apiCatalog.isConfigured) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.repo.refreshPreferenceGroups();
+      });
     }
-    final rng = math.Random();
-    final greetings = hasOrigin
-        ? [
-            'Hey there, Lakbay+ here! Where are we heading across the Davao Region from $origin? Tell me your vibe, crew, or favorite coastline.',
-            'Mabuhay from Lakbay+! Starting from $origin, would you rather island-hop Samal, surf Dahican, or climb misty Buda peaks?',
-            'Ready when you are! Share a mood, destination, or budget starting from $origin and we will build your route together.',
-          ]
-        : [
-            "Hey there, Lakbay+ here! Where are you starting from? Share your GPS location or search/pin your starting place, then tell me what you'd love to explore in Davao Region.",
-            "Maayong adlaw! Tell me where you're starting from (use GPS, search, or pin a spot) and what kind of Davao Region adventure sounds good today.",
-          ];
-    final discoveryIdeas = [
-      if (hasOrigin) 'Surprise getaway near $origin' else 'Set starting place',
-      'What to do in Samal Island?',
-      '3-day Dahican surf & Aliwagwag Falls',
-      'Cool pine coffee route in Buda & Marilog',
-      'Wildcard Davao highlands & food trip',
-    ]..shuffle(rng);
-
-    _turns.add(
-      _OnboardingChatTurn(
-        isUser: false,
-        body: greetings[rng.nextInt(greetings.length)],
-        options: [
-          if (!hasOrigin) 'Set starting place',
-          'Inspire me!',
-          discoveryIdeas.firstWhere((e) => e != 'Set starting place',
-              orElse: () => discoveryIdeas[0]),
-          if (hasOrigin) discoveryIdeas[1],
-        ],
-      ),
-    );
   }
 
   @override
@@ -176,303 +62,48 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 320),
+          duration: const Duration(milliseconds: 280),
           curve: Curves.easeOutCubic,
         );
       }
     });
   }
 
-  Future<void> _handleUserSelectionOrInput(
-    String input, {
-    bool isFreeText = false,
-  }) async {
-    final text = input.trim();
-    if (text.isEmpty || _isThinking) return;
+  Future<void> _sendOnboardingMessage(String raw) async {
+    final text = raw.trim();
+    if (text.isEmpty || widget.repo.isAiTyping) return;
     _inputController.clear();
 
-    final lower = text.toLowerCase();
-
-    if (lower == 'set starting place' ||
-        lower == 'set my starting place' ||
-        lower == 'search or pin a starting place') {
-      final picked = await showOriginPickerSheet(context, widget.repo);
-      if (!mounted) return;
-      final label = widget.repo.resolvedOriginLabel;
-      setState(() {
-        _turns.add(
-          _OnboardingChatTurn(
-            isUser: false,
-            body: picked == true && label != null
-                ? 'Starting place set to $label.${widget.repo.originRegionNote != null ? "\n\n${widget.repo.originRegionNote}" : ""} Where would you like to explore in Region XI?'
-                : 'No starting place set yet. You can tap below anytime to set one, or tell me which Region XI destination interests you.',
-            options: const [
-              'Inspire me!',
-              '3-day Dahican surf & Aliwagwag Falls',
-              'Cool pine coffee route in Buda & Marilog',
-            ],
-          ),
-        );
-      });
-      _scrollToBottom();
+    if (text.toLowerCase() == 'set starting place') {
+      await _openOriginPicker();
       return;
     }
 
-    setState(() {
-      _selectedOptionText = text;
-      _turns.add(_OnboardingChatTurn(isUser: true, body: text));
-      _isThinking = true;
-    });
     _scrollToBottom();
-
-    // Move forward to card finalization when traveler confirms the plan.
-    if (lower.contains('looks perfect') || lower.contains('build trip card')) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (!mounted) return;
-      setState(() {
-        _isThinking = false;
-        _stage = 1;
-      });
-      return;
-    }
-
-    // Route BOTH starter chip taps and free-text prompts through live multi-turn AI.
-    if (widget.repo.aiService.isConfigured) {
-      try {
-        final historyTurns = _turns
-            .where((t) => t.body.trim().isNotEmpty)
-            .take(_turns.length > 1 ? _turns.length - 1 : 0)
-            .map(
-              (t) => {
-                'role': t.isUser ? 'user' : 'assistant',
-                'content': t.body,
-              },
-            )
-            .toList();
-
-        final aiResult = await widget.repo.aiService.chatOrPlan(
-          userPrompt: text,
-          availableDestinations:
-              widget.repo.allTrips.map((t) => t.title).toList(),
-          history: historyTurns,
-          currentLocation: widget.repo.resolvedOriginLabel,
-          userLat: widget.repo.originLat,
-          userLng: widget.repo.originLng,
-          preferredVibes: widget.repo.selectedVibes,
-          strictBudget: widget.repo.strictBudgetFilter,
-        );
-        if (!mounted) return;
-
-        if (aiResult.destination != null &&
-            aiResult.destination!.trim().isNotEmpty) {
-          _selectedDestination = aiResult.destination!.trim();
-        } else if (!lower.contains('inspire') &&
-            !lower.contains('wandering')) {
-          _selectedDestination = text;
-        }
-        if (aiResult.daysCount != null) {
-          _selectedTiming = '${aiResult.daysCount} days';
-        }
-        if (aiResult.vibe != null && aiResult.vibe!.trim().isNotEmpty) {
-          _selectedVibe = aiResult.vibe!.trim();
-        }
-
-        final isReadyPlan = aiResult.hasStructuredItinerary;
-        if (isReadyPlan) {
-          _lastStructuredPlan = aiResult;
-          _chatStep = 5;
-        } else {
-          _chatStep = math.min(4, _chatStep + 1);
-        }
-
-        final dynamicCarousel = (!isReadyPlan && lower.contains('inspire'))
-            ? (List<_OnboardingCarouselSpot>.from(_davaoSpots)
-              ..shuffle(math.Random()))
-            : const <_OnboardingCarouselSpot>[];
-
-        final nextOptions = aiResult.suggestedReplies.isNotEmpty
-            ? [
-                if (isReadyPlan) 'Looks perfect — build trip card ✨',
-                ...aiResult.suggestedReplies,
-              ]
-            : (isReadyPlan
-                ? const [
-                    'Looks perfect — build trip card ✨',
-                    'Swap destinations or pace',
-                    'Tighten budget',
-                  ]
-                : const [
-                    'Build a full multi-day plan ✨',
-                    'Show hidden local food & nature stops',
-                    'Keep it slow and coastal',
-                  ]);
-
-        setState(() {
-          _isThinking = false;
-          _turns.add(
-            _OnboardingChatTurn(
-              isUser: false,
-              title: isReadyPlan
-                  ? (aiResult.title?.isNotEmpty == true
-                      ? aiResult.title!
-                      : 'Custom Route Ready')
-                  : null,
-              isGamePlan: isReadyPlan,
-              carousel: dynamicCarousel,
-              body: aiResult.replyText,
-              options: nextOptions,
-            ),
-          );
-        });
-        _scrollToBottom();
-        return;
-      } catch (_) {
-        // Fall back to guided offline concierge turns below if network/AI fails.
-      }
-    }
-
-    await Future.delayed(const Duration(milliseconds: 550));
+    await widget.repo.sendChatMessage(text, isOnboarding: true);
     if (!mounted) return;
-
-    // If user typed a custom detailed brief directly, check live AI or advance to Game Plan
-    if (_chatStep == 0 && lower.contains('inspire me')) {
-      _chatStep = 1;
-      setState(() {
-        _isThinking = false;
-        _turns.add(
-          const _OnboardingChatTurn(
-            isUser: false,
-            title: 'Davao Region awaits',
-            body:
-                'Here are dreamy getaways right in Region XI, from Samal coral reefs to Mati surf beaches and cool Buda pine ridges.\n\nWhich of these spots catches your eye?',
-            carousel: _davaoSpots,
-            options: [
-              'Samal Island',
-              'Mati Dahican',
-              'Buda Highlands',
-            ],
-          ),
-        );
-      });
-    } else if (_chatStep <= 1) {
-      if (lower.contains('mati') ||
-          lower.contains('dahican') ||
-          lower.contains('aliwagwag') ||
-          lower.contains('waterfall') ||
-          lower.contains('falls')) {
-        _selectedDestination = 'Mati Dahican & Aliwagwag Falls';
-      } else if (lower.contains('buda') ||
-          lower.contains('marilog') ||
-          lower.contains('pine') ||
-          lower.contains('coffee')) {
-        _selectedDestination = 'Buda & Marilog Pine Highlands';
-      } else if (lower.contains('apo') || lower.contains('kapatagan')) {
-        _selectedDestination = 'Kapatagan Highlands & Mt. Apo';
-      } else if (lower.contains('samal')) {
-        _selectedDestination = 'Samal Island & Talikud Reefs';
-      } else if (text.length > 20 && !lower.contains('plan a 4-day')) {
-        _selectedDestination = text;
-      }
-
-      final matchedSpot = _davaoSpots.firstWhere(
-        (s) => _selectedDestination.toLowerCase().contains(s.name.split(' ').first.toLowerCase()),
-        orElse: () => _davaoSpots.first,
-      );
-
-      _chatStep = 2;
-      setState(() {
-        _isThinking = false;
-        _turns.add(
-          _OnboardingChatTurn(
-            isUser: false,
-            title: 'Maayong Pag-abot: ${matchedSpot.name}',
-            body:
-                '${matchedSpot.blurb}\n\nWhat kind of vibes are you craving for this trip?',
-            carousel: [matchedSpot],
-            options: const [
-              'Just exploring',
-              'Island & beach chill',
-              'Food & nature trail',
-            ],
-          ),
-        );
-      });
-    } else if (_chatStep == 2) {
-      _selectedVibe = text;
-      _chatStep = 3;
-      setState(() {
-        _isThinking = false;
-        _turns.add(
-          _OnboardingChatTurn(
-            isUser: false,
-            title: 'Wandering mode on',
-            body:
-                'Wandering without a strict agenda is the best way to uncover Davao\'s hidden coves, local durian stalls, and highland cafes.\n\nWhere will you be setting off from, and who is joining you?',
-            options: [
-              'Search or pin a starting place',
-              if (widget.repo.hasOrigin)
-                'From ${widget.repo.effectiveOriginLabel}'
-              else
-                'Set my starting place',
-              'Solo trip',
-            ],
-          ),
-        );
-      });
-    } else if (_chatStep == 3) {
-      _selectedOriginAndParty = text;
-      _chatStep = 4;
-      setState(() {
-        _isThinking = false;
-        _turns.add(
-          _OnboardingChatTurn(
-            isUser: false,
-            title: lower.startsWith('from ')
-                ? 'Route departure confirmed'
-                : '$_selectedOriginAndParty adventures',
-            body:
-                'Traveling through Davao Region is super welcoming, scenic, and easy to customize.\n\nWhen are you thinking of going and for how many days?',
-            options: const [
-              '3 days • Next weekend',
-              '4 days • Next month',
-              '5 days • Dec 2026',
-            ],
-          ),
-        );
-      });
-    } else {
-      if (!lower.contains('change dates') && !lower.contains('tweak it')) {
-        _selectedTiming = text;
-      } else {
-        _selectedTiming = '4 days • Flexible Region XI dates';
-      }
-      _chatStep = 5;
-      setState(() {
-        _isThinking = false;
-        final startLabel = widget.repo.hasOrigin
-            ? widget.repo.effectiveOriginLabel
-            : 'Starting point not set yet';
-        final destLabel = _selectedDestination.isNotEmpty
-            ? _selectedDestination
-            : 'your Davao Region route';
-        _turns.add(
-          _OnboardingChatTurn(
-            isUser: false,
-            title: 'Ready to roll',
-            isGamePlan: true,
-            body:
-                'Here is our game plan for your Davao Region escape:\n\n• Starting Point: $startLabel → $destLabel\n• Dates & Duration: $_selectedTiming\n• Travel Style & Party: $_selectedOriginAndParty ($_selectedVibe)\n\nDoes this look good to you, or should we adjust anything before I build your trip card?',
-            options: const [
-              'Looks perfect',
-              'Change dates',
-              'Tweak it',
-            ],
-          ),
-        );
-      });
-    }
-
     _scrollToBottom();
+  }
+
+  Future<void> _openOriginPicker() async {
+    final picked = await showOriginPickerSheet(context, widget.repo);
+    if (!mounted || picked != true) return;
+    widget.repo.syncOriginIntoPlanningState();
+    _scrollToBottom();
+  }
+
+  Future<void> _buildFromPicks() async {
+    _scrollToBottom();
+    await widget.repo.planWithPicks(isOnboarding: true);
+    if (!mounted) return;
+    _scrollToBottom();
+  }
+
+  void _confirmOnboardingTrip(ItineraryTrip trip) {
+    setState(() {
+      _selectedOnboardingTrip = trip;
+      _stage = 1;
+    });
   }
 
   Future<void> _enterStageThreeAndGenerate() async {
@@ -483,36 +114,22 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
       _generatedTrip = null;
     });
 
-    if (_lastStructuredPlan != null &&
-        _lastStructuredPlan!.hasStructuredItinerary) {
-      await Future.delayed(const Duration(milliseconds: 350));
-      if (mounted) setState(() => _planningPercent = 94);
-      final built = widget.repo.buildTripFromAiResult(_lastStructuredPlan!);
-      await Future.delayed(const Duration(milliseconds: 220));
+    final alreadyBuilt = _selectedOnboardingTrip;
+    if (alreadyBuilt != null) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (!mounted) return;
+      setState(() => _planningPercent = 94);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
       if (!mounted) return;
       setState(() {
-        _generatedTrip = built;
+        _generatedTrip = alreadyBuilt;
         _planningPercent = 100;
       });
       return;
     }
 
-    final userNotes = _turns
-        .where((t) => t.isUser && t.body.trim().isNotEmpty)
-        .map((t) => t.body.trim())
-        .join(' • ');
-    final originPrefix = widget.repo.hasOrigin
-        ? 'Origin: ${widget.repo.effectiveOriginLabel}. '
-        : '';
-    final destSegment = _selectedDestination.isNotEmpty
-        ? ' to $_selectedDestination'
-        : '';
-    final briefPrompt =
-        '${originPrefix}Preferences: $userNotes. Plan a $_selectedTiming trip$destSegment in Davao Region for $_selectedOriginAndParty, vibe: $_selectedVibe.';
-
-    final tripFuture = widget.repo.createTripFromAiPrompt(briefPrompt);
-
-    await Future.delayed(const Duration(milliseconds: 500));
+    final tripFuture = widget.repo.buildOnboardingItinerary();
+    await Future<void>.delayed(const Duration(milliseconds: 450));
     if (mounted) setState(() => _planningPercent = 88);
 
     final trip = await tripFuture;
@@ -526,7 +143,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
 
   void _openGeneratedTrip() {
     final trip = _generatedTrip;
-    if (trip == null) return; // nothing was planned, so nothing to save
+    if (trip == null) return;
     if (widget.repo.isSignedIn) {
       widget.repo.saveTripToMyTrips(trip);
       widget.repo.completeOnboarding();
@@ -548,165 +165,182 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final double progress = switch (_stage) {
-      0 => (0.35 + (_chatStep * 0.08)).clamp(0.35, 0.72),
-      1 => 0.82,
-      _ => 0.96,
-    };
-
-    return Scaffold(
-      backgroundColor: LakbayColors.canvasBg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Shared Progress Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 16, 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      if (_stage > 0) {
-                        setState(() => _stage--);
-                      } else {
-                        widget.onBackToDecision();
-                      }
-                    },
-                    icon: const Icon(
-                      Icons.chevron_left_rounded,
-                      size: 28,
-                      color: LakbayColors.tealDeep,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 6,
-                        backgroundColor:
-                            LakbayColors.primaryLight.withValues(alpha: 0.45),
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          LakbayColors.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  if (_stage != 2)
-                    TextButton(
-                      onPressed: () {
-                        if (_stage == 0) {
-                          setState(() => _stage = 1);
-                        } else if (_stage == 1) {
-                          _enterStageThreeAndGenerate();
-                        }
-                      },
-                      child: const Text(
-                        'Skip',
-                        style: TextStyle(
-                          color: LakbayColors.tealDeep,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: switch (_stage) {
-                0 => _buildAiChatPlannerStage(context),
-                1 => _buildGoodSoFarRatingStage(context),
-                _ => _buildFirstPlanDoneStage(context),
-              },
-            ),
-          ],
+  Future<void> _showRaiseBudgetDialog(
+    BuildContext context,
+    ChatMessage failedMsg,
+  ) async {
+    final currentBudget =
+        widget.repo.planningWholeTripBudgetPhp?.toInt() ?? 5000;
+    final ctrl = TextEditingController(
+      text: (currentBudget + 3000).toString(),
+    );
+    final updated = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Raise trip budget'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Whole-trip budget (₱ PHP)',
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final parsed = double.tryParse(ctrl.text.trim());
+              Navigator.of(ctx).pop(parsed);
+            },
+            child: const Text('Update & retry'),
+          ),
+        ],
       ),
     );
+    ctrl.dispose();
+    if (updated == null || updated <= 0 || !mounted) return;
+    widget.repo.updatePlanningBudget(updated);
+    if (failedMsg.retryText != null) {
+      await _sendOnboardingMessage(failedMsg.retryText!);
+    }
   }
 
-  Widget _buildAiChatPlannerStage(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.builder(
-            controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-            itemCount: _turns.length + (_isThinking ? 2 : 1),
-            itemBuilder: (context, idx) {
-              if (idx == 0) {
-                if (_turns.length == 1) {
-                  return const Padding(
-                    padding: EdgeInsets.only(top: 20, bottom: 18),
-                    child: Text(
-                      "Where to? I'll plan it.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'FigGrotesk',
-                        fontSize: 27,
-                        fontWeight: FontWeight.w800,
-                        color: LakbayColors.tealDeep,
-                      ),
-                    ),
-                  );
-                }
-                return const SizedBox(height: 4);
-              }
+  String _stageDestinationSummary() {
+    final trip = _generatedTrip ?? _selectedOnboardingTrip;
+    if (trip != null && trip.destination.trim().isNotEmpty) {
+      return '${trip.destination} • ${trip.daysCount} ${trip.daysCount == 1 ? 'day' : 'days'}';
+    }
+    if (widget.repo.tripBuilderStops.isNotEmpty) {
+      return widget.repo.tripBuilderStops.map((s) => s.title).take(2).join(', ');
+    }
+    if (widget.repo.hasOrigin) {
+      return 'From ${widget.repo.effectiveOriginLabel} • Davao Region';
+    }
+    return 'Davao Region Route';
+  }
 
-              final turnIndex = idx - 1;
-              if (turnIndex == _turns.length && _isThinking) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: widget.repo,
+      builder: (context, _) {
+        final turnsCount = widget.repo.chatMessages.length;
+        final double progress = switch (_stage) {
+          0 => (0.35 + (turnsCount * 0.08)).clamp(0.35, 0.72),
+          1 => 0.82,
+          _ => 0.96,
+        };
+
+        return Scaffold(
+          backgroundColor: LakbayColors.canvasBg,
+          body: SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 16, 4),
                   child: Row(
                     children: [
-                      Container(
-                        width: 30,
-                        height: 30,
-                        decoration: const BoxDecoration(
+                      IconButton(
+                        onPressed: () {
+                          if (_stage > 0) {
+                            setState(() => _stage--);
+                          } else {
+                            widget.onBackToDecision();
+                          }
+                        },
+                        icon: const Icon(
+                          Icons.chevron_left_rounded,
+                          size: 28,
                           color: LakbayColors.tealDeep,
-                          shape: BoxShape.circle,
                         ),
-                        alignment: Alignment.center,
-                        child: const Text(
-                          'S✦',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 6,
+                            backgroundColor: LakbayColors.primaryLight
+                                .withValues(alpha: 0.45),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              LakbayColors.primary,
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 10),
-                      const Text(
-                        'Lakbay+ is thinking...',
-                        style: TextStyle(
-                          color: LakbayColors.textSecondary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                      if (_stage != 2)
+                        TextButton(
+                          onPressed: () {
+                            if (_stage == 0) {
+                              setState(() => _stage = 1);
+                            } else if (_stage == 1) {
+                              _enterStageThreeAndGenerate();
+                            }
+                          },
+                          child: const Text(
+                            'Skip',
+                            style: TextStyle(
+                              color: LakbayColors.tealDeep,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
                         ),
-                      ),
                     ],
                   ),
+                ),
+                Expanded(
+                  child: switch (_stage) {
+                    0 => _buildAiChatPlannerStage(context),
+                    1 => _buildGoodSoFarRatingStage(context),
+                    _ => _buildFirstPlanDoneStage(context),
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAiChatPlannerStage(BuildContext context) {
+    final messages = widget.repo.chatMessages;
+    final isTyping = widget.repo.isAiTyping;
+
+    return Column(
+      children: [
+        _buildLiveTripPreviewStrip(context),
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            itemCount: 1 + messages.length + (isTyping ? 1 : 0),
+            itemBuilder: (context, idx) {
+              if (idx == 0) {
+                return _buildOnboardingIntroSection(
+                  context,
+                  hasConversation: messages.isNotEmpty,
                 );
               }
-
-              final turn = _turns[turnIndex];
-              final isLatestAiCard =
-                  !turn.isUser && turnIndex == _turns.length - 1;
-              return _buildTurnWidget(turn, isLatestAiCard: isLatestAiCard);
+              final msgIdx = idx - 1;
+              if (msgIdx == messages.length && isTyping) {
+                return _buildThinkingRow();
+              }
+              final msg = messages[msgIdx];
+              final isLatestAi = !msg.isUser && msgIdx == messages.length - 1;
+              return _buildChatMessageItem(context, msg, isLatestAi: isLatestAi);
             },
           ),
         ),
-
-        // Bottom Prompt Input Bar ("Tell me where you'd like to travel")
+        if (widget.repo.chatPickCount > 0) _buildOnboardingPicksBar(),
         Container(
-          margin: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+          margin: const EdgeInsets.fromLTRB(16, 6, 16, 14),
           padding: const EdgeInsets.fromLTRB(18, 8, 8, 8),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -725,8 +359,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
               Expanded(
                 child: TextField(
                   controller: _inputController,
-                  onSubmitted: (val) =>
-                      _handleUserSelectionOrInput(val, isFreeText: true),
+                  onSubmitted: _sendOnboardingMessage,
                   decoration: const InputDecoration(
                     hintText: "Tell me where you'd like to travel",
                     hintStyle: TextStyle(
@@ -742,10 +375,8 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                 color: LakbayColors.primaryLight,
                 shape: const CircleBorder(),
                 child: IconButton(
-                  onPressed: () => _handleUserSelectionOrInput(
-                    _inputController.text,
-                    isFreeText: true,
-                  ),
+                  onPressed: () =>
+                      _sendOnboardingMessage(_inputController.text),
                   icon: const Icon(
                     Icons.arrow_upward_rounded,
                     color: LakbayColors.primaryDark,
@@ -760,29 +391,273 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
     );
   }
 
-  Widget _buildTurnWidget(
-    _OnboardingChatTurn turn, {
-    required bool isLatestAiCard,
+  Widget _buildLiveTripPreviewStrip(BuildContext context) {
+    final state = widget.repo.planningStateView;
+    final days = (state['day_count'] as num?)?.toInt();
+    final travelers = (state['traveler_count'] as num?)?.toInt();
+    final budgetPhp = widget.repo.planningWholeTripBudgetPhp;
+    final picksCount = widget.repo.chatPickCount;
+    final originText = widget.repo.hasOrigin
+        ? 'From ${widget.repo.effectiveOriginLabel}'
+        : 'Set starting place';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: LakbayColors.cardBorder),
+        ),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            InkWell(
+              onTap: _openOriginPicker,
+              borderRadius: BorderRadius.circular(10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.my_location_rounded,
+                    size: 14,
+                    color: LakbayColors.primary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    originText,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: LakbayColors.tealDeep,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (picksCount > 0)
+              _PreviewTag(label: '$picksCount ${picksCount == 1 ? 'stop' : 'stops'}'),
+            if (days != null) _PreviewTag(label: '${days}d'),
+            if (travelers != null) _PreviewTag(label: '$travelers pax'),
+            if (budgetPhp != null && budgetPhp > 0)
+              _PreviewTag(label: '₱${budgetPhp.toStringAsFixed(0)}'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOnboardingIntroSection(
+    BuildContext context, {
+    required bool hasConversation,
   }) {
-    if (turn.isUser) {
+    if (hasConversation) return const SizedBox(height: 4);
+
+    final origin = widget.repo.hasOrigin
+        ? 'from ${widget.repo.effectiveOriginLabel}'
+        : 'across the Davao Region';
+    final categories = widget.repo.categoryFacets.take(6).toList();
+    final starters = [
+      if (!widget.repo.hasOrigin) 'Set starting place',
+      'Inspire me!',
+      '3-day beach getaway for 2 on ₱8,000',
+      'Waterfalls & mountain escape',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 12, bottom: 14),
+          child: Center(
+            child: Text(
+              "Where to? I'll plan it.",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'FigGrotesk',
+                fontSize: 27,
+                fontWeight: FontWeight.w800,
+                color: LakbayColors.tealDeep,
+              ),
+            ),
+          ),
+        ),
+        _buildAssistantShell(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Tell me what kind of Davao Region trip you are craving $origin — beaches, waterfalls, highland cafes, or just "Inspire me!" — and we will shape your first route together.',
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  height: 1.45,
+                  color: LakbayColors.tealDeep,
+                ),
+              ),
+              if (categories.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Browse catalog categories',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: LakbayColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final cat in categories)
+                      ActionChip(
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: LakbayColors.canvasBg,
+                        side: const BorderSide(color: LakbayColors.cardBorder),
+                        label: Text(
+                          '${cat.label} (${cat.count})',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: LakbayColors.tealDeep,
+                          ),
+                        ),
+                        onPressed: () {
+                          widget.repo.browseCategoryInChat(cat);
+                          _scrollToBottom();
+                        },
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.only(left: 38),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final opt in starters)
+                _SuggestionPill(
+                  label: opt,
+                  onTap: () => _sendOnboardingMessage(opt),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildThinkingRow() {
+    final statusText = widget.repo.aiTypingStatus ?? 'Lakbay+ is planning...';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: const BoxDecoration(
+              color: LakbayColors.tealDeep,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Text(
+              'L✦',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              statusText,
+              style: const TextStyle(
+                color: LakbayColors.textSecondary,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAssistantShell(Widget child) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: const BoxDecoration(
+              color: LakbayColors.tealDeep,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Text(
+              'L✦',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: LakbayColors.cardBorder),
+              ),
+              child: child,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChatMessageItem(
+    BuildContext context,
+    ChatMessage msg, {
+    required bool isLatestAi,
+  }) {
+    if (msg.isUser) {
       return Align(
         alignment: Alignment.centerRight,
         child: Container(
-          margin: const EdgeInsets.only(bottom: 14, left: 60),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-          decoration: BoxDecoration(
-            color: LakbayColors.primaryLight.withValues(alpha: 0.72),
-            borderRadius: const BorderRadius.only(
+          margin: const EdgeInsets.only(top: 6, bottom: 10, left: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+          decoration: const BoxDecoration(
+            gradient: LakbayColors.brandGradient,
+            borderRadius: BorderRadius.only(
               topLeft: Radius.circular(18),
               topRight: Radius.circular(18),
               bottomLeft: Radius.circular(18),
-              bottomRight: Radius.circular(6),
+              bottomRight: Radius.circular(4),
             ),
           ),
           child: Text(
-            turn.body,
+            msg.text,
             style: const TextStyle(
-              color: LakbayColors.tealDeep,
+              color: Colors.white,
               fontSize: 14.5,
               fontWeight: FontWeight.w600,
             ),
@@ -792,212 +667,412 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(top: 6, bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (turn.carousel.isNotEmpty) ...[
-            SizedBox(
-              height: 255,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: turn.carousel.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 12),
-                itemBuilder: (context, i) {
-                  final spot = turn.carousel[i];
-                  return GestureDetector(
-                    onTap: isLatestAiCard
-                        ? () => _handleUserSelectionOrInput(spot.name)
-                        : null,
-                    child: Container(
-                      width: 245,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.asset(
-                            spot.imageAsset,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
-                              decoration: const BoxDecoration(
-                                gradient: LakbayColors.deepTealGradient,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Color(0x11000000),
-                                  Color(0xCC071E26),
-                                ],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            left: 14,
-                            right: 14,
-                            bottom: 14,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${spot.flagOrBadge} ${spot.name}',
-                                  style: const TextStyle(
-                                    fontFamily: 'FigGrotesk',
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                Text(
-                                  spot.province,
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.85),
-                                    fontSize: 12.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 6,
-                                  children: [
-                                    _CarouselStatChip(
-                                      icon: Icons.calendar_today_outlined,
-                                      label: spot.dateLabel,
-                                    ),
-                                    _CarouselStatChip(
-                                      icon: Icons.wb_sunny_outlined,
-                                      label: spot.tempLabel,
-                                    ),
-                                    _CarouselStatChip(
-                                      icon: Icons.flight_outlined,
-                                      label: spot.priceLabel,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+          _buildAssistantShell(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  msg.text.replaceAll('**', ''),
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    height: 1.45,
+                    color: msg.isError
+                        ? const Color(0xFF991B1B)
+                        : LakbayColors.tealDeep,
+                  ),
+                ),
+                if (msg.recommendedPlaces.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildPlaceCardsStrip(context, msg.recommendedPlaces),
+                ],
+                if (msg.aiOptions.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildOptionCards(context, msg.aiOptions),
+                ] else if (msg.attachedTrip != null) ...[
+                  const SizedBox(height: 12),
+                  _buildSingleTripPreviewCard(context, msg.attachedTrip!),
+                ],
+                if (msg.isError) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      if (msg.errorCode == 'planning_over_budget')
+                        ActionChip(
+                          label: const Text('Raise budget'),
+                          onPressed: () => _showRaiseBudgetDialog(context, msg),
+                        ),
+                      if (msg.retryText != null)
+                        ActionChip(
+                          avatar: const Icon(Icons.refresh_rounded, size: 16),
+                          label: const Text('Try again'),
+                          onPressed: () =>
+                              _sendOnboardingMessage(msg.retryText!),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (isLatestAi && !widget.repo.isAiTyping && msg.askNext != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 38, bottom: 6),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: _buildAskNextChips(msg.askNext!),
               ),
             ),
-            const SizedBox(height: 12),
-          ],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                margin: const EdgeInsets.only(top: 4),
-                decoration: const BoxDecoration(
-                  color: LakbayColors.primaryLight,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  size: 15,
-                  color: LakbayColors.primaryDark,
-                ),
+          if (msg.suggestedReplies.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 38),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final reply in msg.suggestedReplies)
+                    _SuggestionPill(
+                      label: reply,
+                      onTap: () => _sendOnboardingMessage(reply),
+                    ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: LakbayColors.cardBorder),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildAskNextChips(String field) {
+    final options = switch (field) {
+      'activity_level' => const [
+          ('easy', 'Easy pace'),
+          ('moderate', 'Moderate'),
+          ('challenging', 'Challenging'),
+        ],
+      'prefers_quiet' => const [
+          (true, 'Quiet spots'),
+          (false, 'Popular icons'),
+        ],
+      _ => const <(Object, String)>[],
+    };
+    return [
+      for (final (value, label) in options)
+        _SuggestionPill(
+          label: label,
+          onTap: () async {
+            await widget.repo.answerChatDetail(
+              field,
+              value,
+              label,
+              isOnboarding: true,
+            );
+            _scrollToBottom();
+          },
+        ),
+    ];
+  }
+
+  Widget _buildPlaceCardsStrip(
+    BuildContext context,
+    List<TopPlaceRecommendation> places,
+  ) {
+    return SizedBox(
+      height: 246,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: places.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final place = places[index];
+          final resolved = widget.repo.resolveExploreTripForRecommendation(place);
+          final isAdded = widget.repo.isInTripBuilder(resolved.id);
+          final networkImg = (place.imageUrl != null &&
+                  place.imageUrl!.startsWith('http'))
+              ? place.imageUrl
+              : (resolved.hasRemoteThumbnail ? resolved.thumbnailUrl : null);
+
+          return Container(
+            width: 215,
+            decoration: BoxDecoration(
+              color: LakbayColors.canvasBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isAdded ? LakbayColors.primary : LakbayColors.cardBorder,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: 82,
+                  width: double.infinity,
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      if (turn.title != null) ...[
+                      LakbayNetworkOrAssetImage(
+                        networkUrl: networkImg,
+                        assetPath: resolved.localAssetPath,
+                      ),
+                      if (place.category != null &&
+                          place.category!.trim().isNotEmpty)
+                        Positioned(
+                          top: 6,
+                          left: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: LakbayColors.tealDeep,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              place.category!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(9),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          turn.title!,
+                          place.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontFamily: 'FigGrotesk',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13.5,
                             color: LakbayColors.tealDeep,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                      ],
-                      Text(
-                        turn.body,
-                        style: const TextStyle(
-                          fontSize: 14.5,
-                          color: LakbayColors.tealDeep,
-                          height: 1.45,
+                        const SizedBox(height: 3),
+                        Text(
+                          [
+                            if (place.district != null &&
+                                place.district!.trim().isNotEmpty)
+                              place.district!.trim(),
+                            if (place.travelMinutes != null)
+                              '~${place.travelMinutes} min',
+                            ...place.reasons.take(2),
+                          ].join(' • '),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: LakbayColors.textSecondary,
+                            height: 1.3,
+                          ),
                         ),
-                      ),
-                      if (turn.options.isNotEmpty && isLatestAiCard) ...[
-                        const SizedBox(height: 14),
-                        for (final opt in turn.options)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(14),
-                              onTap: () => _handleUserSelectionOrInput(opt),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: LakbayColors.canvasBg,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: _selectedOptionText == opt
-                                        ? LakbayColors.primary
-                                        : LakbayColors.cardBorder,
+                        const Spacer(),
+                        Row(
+                          children: [
+                            OutlinedButton(
+                              onPressed: () {
+                                final trip = widget.repo
+                                    .buildDetailedItineraryFromExplore(resolved);
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => TripDetailScreen(
+                                      trip: trip,
+                                      repo: widget.repo,
+                                    ),
                                   ),
+                                );
+                              },
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
                                 ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        opt,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: LakbayColors.tealDeep,
-                                        ),
-                                      ),
-                                    ),
-                                    Icon(
-                                      _selectedOptionText == opt
-                                          ? Icons.radio_button_checked_rounded
-                                          : Icons.radio_button_off_rounded,
-                                      size: 20,
-                                      color: _selectedOptionText == opt
-                                          ? LakbayColors.primary
-                                          : LakbayColors.textMuted,
-                                    ),
-                                  ],
+                                minimumSize: Size.zero,
+                              ),
+                              child: const Text(
+                                'Inspect',
+                                style: TextStyle(fontSize: 11.5),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () =>
+                                    widget.repo.toggleChatPick(resolved),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isAdded
+                                      ? LakbayColors.primaryLight
+                                      : LakbayColors.primary,
+                                  foregroundColor: isAdded
+                                      ? LakbayColors.tealDeep
+                                      : Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  minimumSize: Size.zero,
+                                ),
+                                child: Text(
+                                  isAdded ? 'Added' : '+ Add',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 11.5),
                                 ),
                               ),
                             ),
-                          ),
+                          ],
+                        ),
                       ],
-                    ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildOptionCards(
+    BuildContext context,
+    List<AiItineraryOptionDraft> options,
+  ) {
+    return SizedBox(
+      height: 206,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: options.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final opt = options[index];
+          return _buildSingleTripPreviewCard(
+            context,
+            opt.trip,
+            summaryOverride: opt.summary,
+            isCatalogFallback: opt.isCatalogFallback || opt.trip.isCatalogFallback,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSingleTripPreviewCard(
+    BuildContext context,
+    ItineraryTrip trip, {
+    String? summaryOverride,
+    bool? isCatalogFallback,
+  }) {
+    final catalogBuilt = isCatalogFallback ?? trip.isCatalogFallback;
+    return Container(
+      width: 248,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: LakbayColors.canvasBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: LakbayColors.primary),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (catalogBuilt)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 4),
+              child: Text(
+                "Built from Lakbay's catalog, without AI",
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: LakbayColors.tealDeep,
+                ),
+              ),
+            ),
+          Text(
+            trip.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: 'FigGrotesk',
+              fontWeight: FontWeight.w700,
+              fontSize: 14.5,
+              color: LakbayColors.tealDeep,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            summaryOverride ??
+                '${trip.daysCount} ${trip.daysCount == 1 ? 'day' : 'days'} • ${trip.destination}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              color: LakbayColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)}',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: LakbayColors.primaryDark,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          TripDetailScreen(trip: trip, repo: widget.repo),
+                    ),
+                  );
+                },
+                style: OutlinedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                ),
+                child: const Text('Inspect', style: TextStyle(fontSize: 11.5)),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _confirmOnboardingTrip(trip),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: LakbayColors.primary,
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    minimumSize: Size.zero,
+                  ),
+                  child: const Text(
+                    'Use plan ✨',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11.5),
                   ),
                 ),
               ),
@@ -1008,153 +1083,202 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
     );
   }
 
-  // Stage 1: "While I set up your trip — Good so far?" (Image 2)
+  Widget _buildOnboardingPicksBar() {
+    final count = widget.repo.chatPickCount;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+      padding: const EdgeInsets.fromLTRB(14, 7, 8, 7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: LakbayColors.primary),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$count of ${TravelRepository.maxChatPicks} stops picked',
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: LakbayColors.tealDeep,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: widget.repo.isAiTyping ? null : _buildFromPicks,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: LakbayColors.primary,
+              foregroundColor: Colors.white,
+              minimumSize: Size.zero,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            ),
+            child: Text(
+              count == 1 ? 'Plan with 1 pick' : 'Plan with $count picks',
+              style: const TextStyle(fontSize: 12.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Stage 1: "While I set up your trip — Good so far?"
   Widget _buildGoodSoFarRatingStage(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            minHeight: (constraints.maxHeight - 40).clamp(0.0, double.infinity),
+            minHeight:
+                (constraints.maxHeight - 40).clamp(0.0, double.infinity),
           ),
           child: IntrinsicHeight(
             child: Column(
               children: [
-          const Text(
-            'While I set up your trip',
-            style: TextStyle(
-              fontSize: 14,
-              color: LakbayColors.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Good so far?',
-            style: TextStyle(
-              fontFamily: 'FigGrotesk',
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: LakbayColors.tealDeep,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'A rating helps more people find Lakbay+.',
-            style: TextStyle(
-              fontSize: 14,
-              color: LakbayColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Lakbay+✦ was made for people like you',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: LakbayColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (final asset in const [
-                'assets/experts/carla.webp',
-                'assets/experts/aleks.webp',
-                'assets/experts/rob.webp',
-              ])
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2.5),
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      asset,
-                      width: 56,
-                      height: 56,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const CircleAvatar(
-                        radius: 28,
-                        backgroundColor: LakbayColors.primaryLight,
-                        child: Icon(Icons.person, color: LakbayColors.primaryDark),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: LakbayColors.cardBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
                 const Text(
-                  '"Lakbay+ doesn\'t feel like a generic bot. It feels like chatting with a super organized friend who already knows Samal\'s hidden coves, Mati\'s surf spots, and the ferry logistics you\'d forget to check."',
+                  'While I set up your trip',
                   style: TextStyle(
-                    fontSize: 14.5,
-                    color: LakbayColors.tealDeep,
-                    height: 1.45,
+                    fontSize: 14,
+                    color: LakbayColors.textSecondary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 6),
+                const Text(
+                  'Good so far?',
+                  style: TextStyle(
+                    fontFamily: 'FigGrotesk',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: LakbayColors.tealDeep,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'A rating helps more people find Lakbay+.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: LakbayColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Lakbay+✦ was made for people like you',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: LakbayColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    ClipOval(
-                      child: Image.asset(
-                        'assets/experts/carla.webp',
-                        width: 34,
-                        height: 34,
-                        fit: BoxFit.cover,
+                    for (final asset in const [
+                      'assets/experts/carla.webp',
+                      'assets/experts/aleks.webp',
+                      'assets/experts/rob.webp',
+                    ])
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2.5),
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            asset,
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => const CircleAvatar(
+                              radius: 28,
+                              backgroundColor: LakbayColors.primaryLight,
+                              child: Icon(
+                                Icons.person,
+                                color: LakbayColors.primaryDark,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'Carla G',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: LakbayColors.tealDeep,
-                      ),
-                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _enterStageThreeAndGenerate,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: LakbayColors.primaryLight,
-                foregroundColor: LakbayColors.tealDeep,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: LakbayColors.cardBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '"Lakbay+ feels like planning with a local Dabawenyo friend who already knows Samal piers, Mati surf spots, and cool highland cabins."',
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          color: LakbayColors.tealDeep,
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          ClipOval(
+                            child: Image.asset(
+                              'assets/experts/carla.webp',
+                              width: 34,
+                              height: 34,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => const CircleAvatar(
+                                radius: 17,
+                                backgroundColor: LakbayColors.primaryLight,
+                                child: Icon(Icons.person, size: 18),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Text(
+                            'Carla G',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: LakbayColors.tealDeep,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              child: const Text(
-                'Rate Lakbay+✦',
-                style: TextStyle(
-                  fontFamily: 'FigGrotesk',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+                const SizedBox(height: 16),
+                const Spacer(),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _enterStageThreeAndGenerate,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: LakbayColors.primaryLight,
+                      foregroundColor: LakbayColors.tealDeep,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child: const Text(
+                      'Rate Lakbay+✦',
+                      style: TextStyle(
+                        fontFamily: 'FigGrotesk',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ),
               ],
             ),
           ),
@@ -1163,222 +1287,227 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
     );
   }
 
-  // Stage 2: "First plan, done." Timeline (Image 11)
+  // Stage 2: "First plan, done." Timeline
   Widget _buildFirstPlanDoneStage(BuildContext context) {
-    final isReady = _planningPercent >= 100;
+    final isReady = _planningPercent >= 100 && _generatedTrip != null;
+    final routeSummary = _stageDestinationSummary();
 
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(22, 16, 22, 20),
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            minHeight: (constraints.maxHeight - 36).clamp(0.0, double.infinity),
+            minHeight:
+                (constraints.maxHeight - 36).clamp(0.0, double.infinity),
           ),
           child: IntrinsicHeight(
             child: Column(
               children: [
-          const Text(
-            'First plan, done.',
-            style: TextStyle(
-              fontFamily: 'FigGrotesk',
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: LakbayColors.tealDeep,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Review it, then save it to your trips.',
-            style: TextStyle(
-              fontSize: 14.5,
-              color: LakbayColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 22),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: LakbayColors.cardBorder),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
+                const Text(
+                  'First plan, done.',
+                  style: TextStyle(
+                    fontFamily: 'FigGrotesk',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: LakbayColors.tealDeep,
+                  ),
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                        color: LakbayColors.primaryLight,
-                        shape: BoxShape.circle,
+                const SizedBox(height: 6),
+                Text(
+                  isReady && _generatedTrip!.isCatalogFallback
+                      ? "Prepared from Lakbay's catalog — review & save it."
+                      : 'Review it, then save it to your trips.',
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    color: LakbayColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: LakbayColors.cardBorder),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
                       ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'S✦',
-                        style: TextStyle(
-                          fontFamily: 'FigGrotesk',
-                          fontWeight: FontWeight.w800,
-                          fontSize: 17,
-                          color: LakbayColors.primaryDark,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Text(
-                            isReady
-                                ? 'Lakbay+ itinerary ready!'
-                                : _planFailed
-                                    ? "Couldn't plan your trip"
-                                    : 'Lakbay+ is planning...',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15.5,
-                              color: LakbayColors.tealDeep,
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              color: LakbayColors.primaryLight,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: const Text(
+                              'L✦',
+                              style: TextStyle(
+                                fontFamily: 'FigGrotesk',
+                                fontWeight: FontWeight.w800,
+                                fontSize: 17,
+                                color: LakbayColors.primaryDark,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _selectedDestination.isNotEmpty
-                                ? '$_selectedDestination • Davao Region'
-                                : 'Davao Region Route',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              color: LakbayColors.textSecondary,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isReady
+                                      ? (_generatedTrip!.isCatalogFallback
+                                          ? 'Catalog itinerary ready!'
+                                          : 'Lakbay+ itinerary ready!')
+                                      : _planFailed
+                                          ? "Couldn't plan your trip"
+                                          : 'Lakbay+ is planning...',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15.5,
+                                    color: LakbayColors.tealDeep,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  routeSummary,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    color: LakbayColors.textSecondary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const _TimelineRow(
-                  icon: Icons.check_rounded,
-                  filled: true,
-                  title: 'You',
-                  subtitle: 'Said the word',
-                ),
-                const _TimelineRow(
-                  icon: Icons.check_rounded,
-                  filled: true,
-                  title: 'Lakbay+✦',
-                  subtitle: 'Drafted a plan from what you told me',
-                ),
-                _TimelineRow(
-                  icon: Icons.auto_awesome,
-                  filled: isReady,
-                  title: 'You',
-                  subtitle: 'Review the plan, then save it',
-                ),
-                _TimelineRow(
-                  icon: Icons.location_on_outlined,
-                  filled: isReady,
-                  isLast: true,
-                  title: _selectedDestination.isNotEmpty
-                      ? _selectedDestination
-                      : 'Davao Region route',
-                  subtitle: isReady ? 'Ready to view!' : 'Almost ready',
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.bolt_rounded,
-                      size: 16,
-                      color: LakbayColors.textSecondary,
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Planning progress',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: LakbayColors.textSecondary,
+                      const SizedBox(height: 20),
+                      const _TimelineRow(
+                        icon: Icons.check_rounded,
+                        filled: true,
+                        title: 'You',
+                        subtitle: 'Shared your trip preferences',
                       ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '$_planningPercent%',
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        color: LakbayColors.primary,
+                      const _TimelineRow(
+                        icon: Icons.check_rounded,
+                        filled: true,
+                        title: 'Lakbay+✦',
+                        subtitle: 'Matched catalog places & logistics',
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: _planningPercent / 100,
-                    minHeight: 7,
-                    backgroundColor: LakbayColors.canvasBg,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      LakbayColors.primary,
-                    ),
+                      _TimelineRow(
+                        icon: Icons.auto_awesome,
+                        filled: isReady,
+                        title: 'Save to your account',
+                        subtitle: 'Keep & edit this itinerary anytime',
+                      ),
+                      _TimelineRow(
+                        icon: Icons.location_on_outlined,
+                        filled: isReady,
+                        isLast: true,
+                        title: _generatedTrip?.title ?? routeSummary,
+                        subtitle: isReady ? 'Ready to view!' : 'Almost ready',
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.bolt_rounded,
+                            size: 16,
+                            color: LakbayColors.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'Planning progress',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: LakbayColors.textSecondary,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '$_planningPercent%',
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: LakbayColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: LinearProgressIndicator(
+                          value: _planningPercent / 100,
+                          minHeight: 7,
+                          backgroundColor: LakbayColors.canvasBg,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            LakbayColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Spacer(),
-          if (_planFailed) ...[
-            const Text(
-              "I couldn't reach Lakbay AI to draft your trip. Check your connection and try again.",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13.5, color: LakbayColors.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _enterStageThreeAndGenerate,
-                child: const Text('Try again'),
-              ),
-            ),
-          ] else
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: isReady ? _openGeneratedTrip : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: LakbayColors.primaryLight,
-                foregroundColor: LakbayColors.tealDeep,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-              child: Text(
-                widget.repo.isSignedIn
-                    ? 'Continue to dashboard'
-                    : 'Sign in or create account to save trip',
-                style: const TextStyle(
-                  fontFamily: 'FigGrotesk',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ),
+                const SizedBox(height: 16),
+                const Spacer(),
+                if (_planFailed) ...[
+                  const Text(
+                    "I couldn't reach Lakbay right now to draft your trip. Check your connection and try again.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: LakbayColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _enterStageThreeAndGenerate,
+                      child: const Text('Try again'),
+                    ),
+                  ),
+                ] else
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: isReady ? _openGeneratedTrip : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: LakbayColors.primaryLight,
+                        foregroundColor: LakbayColors.tealDeep,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: Text(
+                        widget.repo.isSignedIn
+                            ? 'Save to your account'
+                            : 'Sign in or create account to save trip',
+                        style: const TextStyle(
+                          fontFamily: 'FigGrotesk',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1388,34 +1517,51 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
   }
 }
 
-class _CarouselStatChip extends StatelessWidget {
-  final IconData icon;
+class _PreviewTag extends StatelessWidget {
   final String label;
 
-  const _CarouselStatChip({required this.icon, required this.label});
+  const _PreviewTag({required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
+        color: LakbayColors.canvasBg,
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: LakbayColors.cardBorder),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: Colors.white),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: LakbayColors.tealDeep,
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionPill extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _SuggestionPill({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      onPressed: onTap,
+      backgroundColor: Colors.white,
+      side: const BorderSide(color: LakbayColors.primary),
+      label: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+          color: LakbayColors.tealDeep,
+        ),
       ),
     );
   }
@@ -1424,16 +1570,16 @@ class _CarouselStatChip extends StatelessWidget {
 class _TimelineRow extends StatelessWidget {
   final IconData icon;
   final bool filled;
-  final bool isLast;
   final String title;
   final String subtitle;
+  final bool isLast;
 
   const _TimelineRow({
     required this.icon,
     required this.filled,
-    this.isLast = false,
     required this.title,
     required this.subtitle,
+    this.isLast = false,
   });
 
   @override
@@ -1444,36 +1590,34 @@ class _TimelineRow extends StatelessWidget {
         Column(
           children: [
             Container(
-              width: 30,
-              height: 30,
+              width: 24,
+              height: 24,
               decoration: BoxDecoration(
-                color: filled ? LakbayColors.primary : Colors.white,
+                color: filled
+                    ? LakbayColors.primary
+                    : LakbayColors.primaryLight.withValues(alpha: 0.45),
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: filled
-                      ? LakbayColors.primary
-                      : LakbayColors.primaryLight,
-                  width: 1.5,
-                ),
               ),
               child: Icon(
                 icon,
-                size: 16,
+                size: 14,
                 color: filled ? Colors.white : LakbayColors.primaryDark,
               ),
             ),
             if (!isLast)
               Container(
                 width: 2,
-                height: 22,
-                color: LakbayColors.primaryLight,
+                height: 28,
+                color: filled
+                    ? LakbayColors.primary.withValues(alpha: 0.4)
+                    : LakbayColors.cardBorder,
               ),
           ],
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.only(top: 2, bottom: 10),
+            padding: const EdgeInsets.only(bottom: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1487,6 +1631,7 @@ class _TimelineRow extends StatelessWidget {
                     color: LakbayColors.tealDeep,
                   ),
                 ),
+                const SizedBox(height: 1),
                 Text(
                   subtitle,
                   style: const TextStyle(

@@ -125,6 +125,7 @@ class AIChatRequest(BaseModel):
     allow_fallback: bool = True
     use_rag: bool = True
     rag_limit: int = Field(default=6, ge=0, le=12)
+    is_onboarding: bool = False
 
 
 class AIPlanningOriginUpdate(BaseModel):

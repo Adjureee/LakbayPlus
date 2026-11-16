@@ -20,7 +20,7 @@ from app.features.users.models import User
 async def selected_geo_inputs(
     *,
     session: AsyncSession,
-    user: User,
+    user: User | None,
     preview: PlanningPreviewResponse,
     destinations: list[Destination],
     routes: RouteService | None,
@@ -51,7 +51,10 @@ async def selected_geo_inputs(
 
     route = preview.route
     if (
-        routes is None or route.summary is None or route.travel_mode is None
+        user is None
+        or routes is None
+        or route.summary is None
+        or route.travel_mode is None
         or len(preview.state.destination_ids) < 2
     ):
         return recommendations, None

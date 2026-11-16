@@ -80,6 +80,7 @@ from app.integrations.groq.model_selector import (
 )
 from app.integrations.groq.prompts import (
     CHAT_PROMPT_VERSION,
+    ONBOARDING_CHAT_PROMPT_VERSION,
     PLANNING_PROMPT_VERSION,
     PROMPT_VERSION,
     build_chat_messages,
@@ -91,6 +92,7 @@ from app.integrations.groq.prompts import (
 )
 
 REQUEST_PURPOSE = "itinerary_generation"
+GUEST_ITINERARY_REQUEST_PURPOSE = "guest_itinerary_generation"
 CHAT_REQUEST_PURPOSE = "travel_chat"
 GUEST_CHAT_REQUEST_PURPOSE = "guest_travel_chat"
 TRIP_DRAFT_REQUEST_PURPOSE = "trip_draft"
@@ -188,9 +190,12 @@ class AIItineraryService:
     async def generate_itinerary(
         self,
         *,
-        user: User,
+        user: User | None,
         data: AIItineraryGenerateRequest,
+        guest_key: str | None = None,
     ) -> AIItineraryGenerateResponse:
+        if user is None and not guest_key:
+            raise ValueError("Guest itinerary generation needs a guest_key.")
         settings = get_settings()
         planning_preview: PlanningPreviewResponse | None = None
         if data.planning_state is not None:
@@ -233,7 +238,7 @@ class AIItineraryService:
                 user=user,
                 preview=planning_preview,
                 destinations=destinations,
-                routes=self.route_service,
+                routes=self.route_service if user is not None else None,
                 interests=data.interests,
             )
             geo_analytics_context = build_geo_analytics_context(
@@ -294,6 +299,7 @@ class AIItineraryService:
             try:
                 run_result = await self._run_model_generation(
                     user=user,
+                    guest_key=guest_key,
                     data=data,
                     selection=selection,
                     messages=messages,
@@ -427,7 +433,11 @@ class AIItineraryService:
                 ),
                 model_role=selection.model_role,
                 model_id=selection.model_id,
-                prompt_version=CHAT_PROMPT_VERSION,
+                prompt_version=(
+                    ONBOARDING_CHAT_PROMPT_VERSION
+                    if data.is_onboarding
+                    else CHAT_PROMPT_VERSION
+                ),
                 input_summary=_build_chat_input_summary(data),
                 fallback_used=selection.fallback_used,
             )
@@ -731,7 +741,8 @@ class AIItineraryService:
     async def _run_model_generation(
         self,
         *,
-        user: User,
+        user: User | None,
+        guest_key: str | None = None,
         data: AIItineraryGenerateRequest,
         selection: ModelSelection,
         messages: list[dict[str, str]],
@@ -741,12 +752,23 @@ class AIItineraryService:
         geo_analytics_context: dict | None = None,
         quality_warnings: list[str] | None = None,
     ) -> AIModelRunResult:
-        _reserve_user_ai_call(
-            user.user_id, get_settings(), count_daily=not selection.fallback_used
-        )
+        settings = get_settings()
+        if user is not None:
+            _reserve_user_ai_call(
+                user.user_id, settings, count_daily=not selection.fallback_used
+            )
+        else:
+            assert guest_key is not None
+            _reserve_guest_ai_call(
+                guest_key, settings, count_daily=not selection.fallback_used
+            )
         run = await self.ai.create_generation_run(
-            user_id=user.user_id,
-            request_purpose=REQUEST_PURPOSE,
+            user_id=user.user_id if user is not None else None,
+            request_purpose=(
+                REQUEST_PURPOSE
+                if user is not None
+                else GUEST_ITINERARY_REQUEST_PURPOSE
+            ),
             model_role=selection.model_role,
             model_id=selection.model_id,
             prompt_version=(
@@ -758,7 +780,6 @@ class AIItineraryService:
         await self.session.commit()
         await self.session.refresh(run)
 
-        settings = get_settings()
         started_at = perf_counter()
         json_retry_used = False
 
@@ -1053,6 +1074,7 @@ def _build_chat_input_summary(data: AIChatRequest) -> dict:
         "rag_limit": data.rag_limit,
         "planning_enabled": data.planning_state is not None,
         "input_revision": data.input_revision if data.planning_state is not None else None,
+        "is_onboarding": data.is_onboarding,
     }
 
 

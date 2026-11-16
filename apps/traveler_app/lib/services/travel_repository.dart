@@ -588,6 +588,26 @@ class TravelRepository extends ChangeNotifier {
     _prioritySkipped = false;
   }
 
+  /// Prepares a fresh, clean planning session when entering onboarding without
+  /// notifying listeners during widget initialization.
+  void resetPlanningForOnboarding() {
+    _chatMessages.clear();
+    _tripBuilderStops.clear();
+    _builderOptionalStopIds.clear();
+    _builderLockedFirstStopId = null;
+    resetPlanningState();
+    _ensurePlanningState();
+  }
+
+  /// Updates whole-trip budget in the current planning state and bumps revision.
+  void updatePlanningBudget(double totalBudgetPhp) {
+    final state = _ensurePlanningState();
+    state['total_budget'] = totalBudgetPhp.clamp(500, 9999999).toStringAsFixed(2);
+    state['budget_scope'] = 'whole_trip';
+    _planningRevision++;
+    notifyListeners();
+  }
+
   // AI Strict Budget & Route Mode Preferences
   bool strictBudgetFilter = false;
   String preferredTravelMode = 'driving'; // driving | public_transport | walking
@@ -3690,8 +3710,9 @@ class TravelRepository extends ChangeNotifier {
   Future<void> answerChatDetail(
     String field,
     Object? value,
-    String label,
-  ) async {
+    String label, {
+    bool isOnboarding = false,
+  }) async {
     final state = _ensurePlanningState();
     if (value == null) {
       state.remove(field);
@@ -3699,21 +3720,49 @@ class TravelRepository extends ChangeNotifier {
       state[field] = value;
     }
     _planningRevision++;
-    await sendChatMessage(label);
+    await sendChatMessage(label, isOnboarding: isOnboarding);
   }
 
   /// Saves the "what matters most" order (up to 3, most important first), or
   /// records that the traveler skipped the question.
-  Future<void> answerChatPriorities(List<String> order, String label) async {
+  Future<void> answerChatPriorities(
+    List<String> order,
+    String label, {
+    bool isOnboarding = false,
+  }) async {
     if (order.isEmpty) {
       _prioritySkipped = true;
       notifyListeners();
       return;
     }
-    await answerChatDetail('priority_order', order.take(3).toList(), label);
+    await answerChatDetail(
+      'priority_order',
+      order.take(3).toList(),
+      label,
+      isOnboarding: isOnboarding,
+    );
   }
 
   bool _prioritySkipped = false;
+
+  /// Exposes current stateless planning state (read-only view for UI previews).
+  Map<String, dynamic> get planningStateView =>
+      Map<String, dynamic>.unmodifiable(_planningState ?? const {});
+
+  /// Refreshes origin coordinates inside [_planningState] (e.g. after onboarding location step).
+  void syncOriginIntoPlanningState() {
+    final state = _ensurePlanningState();
+    if (hasOrigin) {
+      state['origin'] = {
+        if (resolvedOriginLabel != null) 'label': resolvedOriginLabel,
+        if (originLat != null && originLng != null) 'lat': originLat,
+        if (originLat != null && originLng != null) 'lng': originLng,
+      };
+    } else {
+      state.remove('origin');
+    }
+    notifyListeners();
+  }
 
   /// Current whole-trip budget from planning state, if set.
   double? get planningWholeTripBudgetPhp =>
@@ -3886,7 +3935,7 @@ class TravelRepository extends ChangeNotifier {
   ///
   /// When days, party size, and budget are already set, this skips the extra
   /// chat LLM turn and generates itineraries directly to avoid rate limits.
-  Future<void> planWithPicks() async {
+  Future<void> planWithPicks({bool isOnboarding = false}) async {
     final pickLabel = chatPickCount == 1
         ? 'Plan a trip with my pick.'
         : 'Plan a trip with my $chatPickCount picks.';
@@ -3899,14 +3948,13 @@ class TravelRepository extends ChangeNotifier {
     final travelerCount = (state?['traveler_count'] as num?)?.toInt();
     final budgetPhp = computeWholeTripBudgetPhp(state);
 
-    if (!isSignedIn ||
-        !apiCatalog.isConfigured ||
+    if (!apiCatalog.isConfigured ||
         targetDestIds.isEmpty ||
         daysCount == null ||
         travelerCount == null ||
         budgetPhp == null ||
         budgetPhp <= 0) {
-      await sendChatMessage(pickLabel);
+      await sendChatMessage(pickLabel, isOnboarding: isOnboarding);
       return;
     }
 
@@ -3929,7 +3977,7 @@ class TravelRepository extends ChangeNotifier {
 
     try {
       final result = await apiCatalog.generateAiItineraries(
-        _authSession!.accessToken,
+        _authSession?.accessToken,
         totalBudgetPhp: budgetPhp,
         travelerCount: travelerCount,
         dayCount: daysCount.clamp(1, 30),
@@ -4077,7 +4125,7 @@ class TravelRepository extends ChangeNotifier {
   /// rate-limited guest endpoint), so the app ships no AI provider key. When
   /// the AI cannot be reached the traveler sees an error and can retry; the
   /// app never substitutes an invented itinerary.
-  Future<void> sendChatMessage(String text) async {
+  Future<void> sendChatMessage(String text, {bool isOnboarding = false}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
 
@@ -4121,6 +4169,7 @@ class TravelRepository extends ChangeNotifier {
         planningState: _ensurePlanningState(),
         inputRevision: _planningRevision,
         language: _aiLanguage,
+        isOnboarding: isOnboarding,
       );
       if (serverAi == null) {
         _addChatError(
@@ -4179,9 +4228,83 @@ class TravelRepository extends ChangeNotifier {
       var aiOptions = <AiItineraryOptionDraft>[];
       ItineraryTrip? attachedTrip;
 
-      if (wantsItinerary && !isSignedIn) {
-        // Guests get a quick backend trip draft; validated catalog
-        // itineraries need an account.
+      // Everything below comes from the traveler. A missing detail is not
+      // guessed: the AI asks for it in its reply instead.
+      final daysCount = (_planningState?['day_count'] as num?)?.toInt() ??
+          RegExp(r'(\d+)\s*-?\s*day', caseSensitive: false)
+              .firstMatch(trimmed)
+              ?.group(1)
+              .letOrNull(int.tryParse);
+      final travelerCount =
+          (_planningState?['traveler_count'] as num?)?.toInt();
+      final budgetPhp = computeWholeTripBudgetPhp(_planningState);
+      final canGenerateValidatedItinerary = targetDestIds.isNotEmpty &&
+          daysCount != null &&
+          travelerCount != null &&
+          budgetPhp != null &&
+          budgetPhp > 0;
+
+      if (wantsItinerary && canGenerateValidatedItinerary) {
+        final generated = await apiCatalog.generateAiItineraries(
+          _authSession?.accessToken,
+          totalBudgetPhp: budgetPhp,
+          travelerCount: travelerCount,
+          dayCount: daysCount.clamp(1, 14),
+          destinationIds: targetDestIds,
+          planningState: _planningState,
+          inputRevision: _planningRevision,
+          specialRequirements: trimmed,
+          strictBudgetFilter: strictBudgetFilter,
+          language: _aiLanguage,
+          onRateLimitRetry: (waitSeconds) {
+            _aiTypingStatus =
+                'The AI is busy. Trying again in ${waitSeconds}s...';
+            notifyListeners();
+          },
+        );
+        if (generated is AiItinerarySuccess) {
+          aiOptions = [
+            for (final rawOpt in generated.options)
+              _parseBackendAiOption(
+                rawOpt,
+                generationRunId: generated.generationRunId,
+                fallbackDestinationIds: targetDestIds,
+                includeFlights: _needsFlights(trimmed),
+              ),
+          ];
+          attachedTrip = aiOptions.first.trip;
+        } else {
+          final failure = generated as AiItineraryFailure;
+          const blockingUserCodes = {
+            'planning_over_budget',
+            'planning_selection_invalid',
+            'planning_input_mismatch',
+          };
+          var recovered = false;
+          if (!blockingUserCodes.contains(failure.code)) {
+            final fallbackOptions = await _buildCatalogDraftOptionsForPicks(
+              destinationIds: targetDestIds,
+              dayCount: daysCount.clamp(1, 14),
+              travelerCount: travelerCount,
+              budgetPhp: budgetPhp,
+            );
+            if (fallbackOptions.isNotEmpty) {
+              aiOptions = fallbackOptions;
+              attachedTrip = aiOptions.first.trip;
+              recovered = true;
+            }
+          }
+          if (!recovered) {
+            _addChatError(
+              trimmed,
+              failure.userFacingMessage(),
+              errorCode: failure.code,
+            );
+            return;
+          }
+        }
+      } else if (wantsItinerary && !isSignedIn && !isOnboarding) {
+        // Signed-out quick free-text prompt without full picks/inputs uses trip-draft.
         try {
           final draft = await aiService.chatOrPlan(
             userPrompt: trimmed,
@@ -4198,82 +4321,6 @@ class TravelRepository extends ChangeNotifier {
           }
         } catch (_) {
           // The AI's reply still shows; there is just no draft attached.
-        }
-      } else if (wantsItinerary &&
-          targetDestIds.isNotEmpty &&
-          _authSession != null) {
-        // Everything below comes from the traveler. A missing detail is not
-        // guessed: the AI asks for it in its reply instead.
-        final daysCount = (_planningState?['day_count'] as num?)?.toInt() ??
-            RegExp(r'(\d+)\s*-?\s*day', caseSensitive: false)
-                .firstMatch(trimmed)
-                ?.group(1)
-                .letOrNull(int.tryParse);
-        final travelerCount =
-            (_planningState?['traveler_count'] as num?)?.toInt();
-        final budgetPhp = computeWholeTripBudgetPhp(_planningState);
-        if (daysCount != null &&
-            travelerCount != null &&
-            budgetPhp != null &&
-            budgetPhp > 0) {
-          final generated = await apiCatalog.generateAiItineraries(
-            _authSession!.accessToken,
-            totalBudgetPhp: budgetPhp,
-            travelerCount: travelerCount,
-            dayCount: daysCount.clamp(1, 14),
-            destinationIds: targetDestIds,
-            planningState: _planningState,
-            inputRevision: _planningRevision,
-            specialRequirements: trimmed,
-            strictBudgetFilter: strictBudgetFilter,
-            language: _aiLanguage,
-            onRateLimitRetry: (waitSeconds) {
-              _aiTypingStatus =
-                  'The AI is busy. Trying again in ${waitSeconds}s...';
-              notifyListeners();
-            },
-          );
-          if (generated is AiItinerarySuccess) {
-            aiOptions = [
-              for (final rawOpt in generated.options)
-                _parseBackendAiOption(
-                  rawOpt,
-                  generationRunId: generated.generationRunId,
-                  fallbackDestinationIds: targetDestIds,
-                  includeFlights: _needsFlights(trimmed),
-                ),
-            ];
-            attachedTrip = aiOptions.first.trip;
-          } else {
-            final failure = generated as AiItineraryFailure;
-            const blockingUserCodes = {
-              'planning_over_budget',
-              'planning_selection_invalid',
-              'planning_input_mismatch',
-            };
-            var recovered = false;
-            if (!blockingUserCodes.contains(failure.code)) {
-              final fallbackOptions = await _buildCatalogDraftOptionsForPicks(
-                destinationIds: targetDestIds,
-                dayCount: daysCount.clamp(1, 14),
-                travelerCount: travelerCount,
-                budgetPhp: budgetPhp,
-              );
-              if (fallbackOptions.isNotEmpty) {
-                aiOptions = fallbackOptions;
-                attachedTrip = aiOptions.first.trip;
-                recovered = true;
-              }
-            }
-            if (!recovered) {
-              _addChatError(
-                trimmed,
-                failure.userFacingMessage(),
-                errorCode: failure.code,
-              );
-              return;
-            }
-          }
         }
       }
 
@@ -4345,6 +4392,97 @@ class TravelRepository extends ChangeNotifier {
   /// a structured multi-day itinerary.
   ItineraryTrip buildTripFromAiResult(AiPlanResult ai) =>
       _buildItineraryFromAi(ai);
+
+  /// Finalizes an itinerary during onboarding from picked destinations or chat context,
+  /// using `/ai/itineraries/generate/guest` (or `/ai/trip-draft`) with automatic Phase 2
+  /// `/planning/draft` catalog fallback when AI is busy or unavailable.
+  Future<ItineraryTrip?> buildOnboardingItinerary({
+    String? fallbackPrompt,
+  }) async {
+    for (final msg in _chatMessages.reversed) {
+      if (msg.aiOptions.isNotEmpty) return msg.aiOptions.first.trip;
+      if (msg.attachedTrip != null) return msg.attachedTrip;
+    }
+
+    final state = _planningState;
+    final stateIds = (state?['destination_ids'] as List<dynamic>? ?? const [])
+        .whereType<num>()
+        .map((n) => n.toInt())
+        .toList();
+    final stopIds = [
+      for (final stop in _tripBuilderStops)
+        if (stop.apiDestinationId != null) stop.apiDestinationId!,
+    ];
+    final targetDestIds =
+        {...stateIds, ...stopIds}.take(maxChatPicks).toList();
+
+    final dayCount = ((state?['day_count'] as num?)?.toInt() ?? 2).clamp(1, 14);
+    final travelerCount =
+        ((state?['traveler_count'] as num?)?.toInt() ?? 2).clamp(1, 50);
+    final budgetPhp = computeWholeTripBudgetPhp(state) ?? 6000.0;
+
+    final userNotes = _chatMessages
+        .where((m) => m.isUser && m.text.trim().isNotEmpty)
+        .map((m) => m.text.trim())
+        .join(' • ');
+    final originNote = hasOrigin ? 'Origin: $effectiveOriginLabel. ' : '';
+    final promptText = fallbackPrompt?.trim().isNotEmpty == true
+        ? fallbackPrompt!.trim()
+        : '$originNote${userNotes.isNotEmpty ? "Preferences: $userNotes. " : ""}Plan a $dayCount-day Davao Region trip for $travelerCount travelers.';
+
+    if (apiCatalog.isConfigured && targetDestIds.isNotEmpty) {
+      final adjustedState = <String, dynamic>{
+        ..._ensurePlanningState(),
+        'destination_ids': targetDestIds,
+        'day_count': dayCount,
+        'traveler_count': travelerCount,
+        'total_budget': budgetPhp.toStringAsFixed(2),
+        'budget_scope': 'whole_trip',
+      };
+      final generated = await apiCatalog.generateAiItineraries(
+        _authSession?.accessToken,
+        totalBudgetPhp: budgetPhp,
+        travelerCount: travelerCount,
+        dayCount: dayCount,
+        destinationIds: targetDestIds,
+        planningState: adjustedState,
+        inputRevision: _planningRevision,
+        specialRequirements: userNotes.isNotEmpty ? userNotes : null,
+        strictBudgetFilter: strictBudgetFilter,
+        language: _aiLanguage,
+      );
+      if (generated is AiItinerarySuccess && generated.options.isNotEmpty) {
+        return _parseBackendAiOption(
+          generated.options.first,
+          generationRunId: generated.generationRunId,
+          fallbackDestinationIds: targetDestIds,
+          includeFlights: _needsFlights(promptText),
+        ).trip;
+      }
+      final fallback = await _buildCatalogDraftOptionsForPicks(
+        destinationIds: targetDestIds,
+        dayCount: dayCount,
+        travelerCount: travelerCount,
+        budgetPhp: budgetPhp,
+        query: promptText,
+      );
+      if (fallback.isNotEmpty) return fallback.first.trip;
+    }
+
+    final aiDraft = await createTripFromAiPrompt(promptText);
+    if (aiDraft != null) return aiDraft;
+
+    final catalogDraft = await _buildCatalogDraftOptionsForPicks(
+      destinationIds: targetDestIds,
+      dayCount: dayCount,
+      travelerCount: travelerCount,
+      budgetPhp: budgetPhp,
+      query: userNotes.isNotEmpty ? userNotes : 'Davao Region getaway',
+    );
+    if (catalogDraft.isNotEmpty) return catalogDraft.first.trip;
+
+    return null;
+  }
 
   /// Flights are offered when the traveler's start point is outside Region XI,
   /// or they ask for a flight in their own words. No list of cities is kept.

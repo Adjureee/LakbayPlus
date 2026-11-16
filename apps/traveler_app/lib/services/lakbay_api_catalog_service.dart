@@ -1013,6 +1013,7 @@ class LakbayApiCatalogService {
     int inputRevision = 0,
     String modelRole = 'default',
     String language = 'auto',
+    bool isOnboarding = false,
   }) async {
     final base = _base;
     if (base.isEmpty) return null;
@@ -1024,6 +1025,7 @@ class LakbayApiCatalogService {
         'use_rag': true,
         'model_role': modelRole,
         'language': language,
+        if (isOnboarding) 'is_onboarding': true,
         'planning_state': ?planningState,
         if (planningState != null) 'input_revision': inputRevision,
       };
@@ -1121,7 +1123,7 @@ class LakbayApiCatalogService {
   }
 
   Future<AiItineraryResult> generateAiItineraries(
-    String accessToken, {
+    String? accessToken, {
     required double totalBudgetPhp,
     required int travelerCount,
     required int dayCount,
@@ -1139,10 +1141,10 @@ class LakbayApiCatalogService {
     Future<void> Function(Duration delay)? retryDelay,
   }) async {
     final base = _base;
-    if (base.isEmpty || accessToken.isEmpty || destinationIds.isEmpty) {
+    if (base.isEmpty || destinationIds.isEmpty) {
       return const AiItineraryFailure(
         code: 'not_configured',
-        message: 'Sign in and pick at least one destination first.',
+        message: 'Pick at least one destination first.',
       );
     }
     try {
@@ -1166,15 +1168,12 @@ class LakbayApiCatalogService {
         'strict_budget_filter': strictBudgetFilter,
       });
 
-      Future<http.Response> sendOnce() => _sendAuthorized(
-            accessToken,
-            (tok) => _client
-                .post(
-                  Uri.parse('$base/ai/itineraries/generate'),
-                  headers: _authHeaders(tok),
-                  body: encodedPayload,
-                )
-                .timeout(const Duration(seconds: 45)),
+      Future<http.Response> sendOnce() => _postAuthedOrGuest(
+            accessToken: accessToken,
+            authedPath: '/ai/itineraries/generate',
+            guestPath: '/ai/itineraries/generate/guest',
+            encodedBody: encodedPayload,
+            timeout: const Duration(seconds: 45),
           );
 
       var res = await sendOnce();
