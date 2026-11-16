@@ -1343,6 +1343,10 @@ void main() {
     await tester.tap(find.text('Continue'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('What do you enjoy?'), findsOneWidget);
+    await tester.tap(find.text('Skip for now'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('First, share your location'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Continue without location'));

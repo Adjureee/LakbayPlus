@@ -39,6 +39,9 @@ class LoginRequest(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     id_token: str = Field(min_length=10, max_length=8192)
+    # A Google email with no Lakbay account yet is only registered when the
+    # traveler has confirmed it (the app asks first), never silently.
+    confirm_new_account: bool = False
 
 
 class RefreshRequest(BaseModel):

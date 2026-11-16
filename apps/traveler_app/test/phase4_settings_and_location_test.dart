@@ -183,6 +183,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
+    // The new preferences step comes first; nothing chosen, so it can be skipped.
+    expect(find.text('What do you enjoy?'), findsOneWidget);
+    await tester.tap(find.text('Skip for now'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
     expect(find.text('First, share your location'), findsOneWidget);
     expect(
       find.textContaining('helps Lakbay AI calculate travel time and route your stops'),
@@ -247,6 +253,12 @@ void main() {
     await tester.tap(find.text('Get started'));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('Continue'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // The new preferences step comes first; nothing chosen, so it can be skipped.
+    expect(find.text('What do you enjoy?'), findsOneWidget);
+    await tester.tap(find.text('Skip for now'));
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
     // Denied once -> stays on Location step, shows Try again & Not now choice

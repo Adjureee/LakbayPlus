@@ -653,7 +653,7 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
   @override
   void initState() {
     super.initState();
-    _adults = widget.trip.adults.clamp(1, 20);
+    _adults = (widget.trip.adults ?? 1).clamp(1, 20);
     _children = widget.trip.children.clamp(0, 20);
     _load();
   }
@@ -920,20 +920,9 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Equal vs Age-Weighted Split (50% Child)',
-              style: TextStyle(
-                fontFamily: 'FigGrotesk',
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-              ),
-            ),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Age-weighted child rate (50%)'),
-              subtitle: const Text(
-                'Thesis formula: Child pays half of an adult share',
-              ),
+              title: const Text('Children pay half'),
               value: _ageWeightedSplit,
               onChanged: (v) => setState(() => _ageWeightedSplit = v),
             ),

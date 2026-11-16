@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../services/lakbay_api_catalog_service.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 
@@ -134,9 +135,30 @@ class _AuthScreenState extends State<AuthScreen> {
       _error = null;
     });
     try {
-      await widget.repo.signInWithGoogleBackend();
+      try {
+        await widget.repo.signInWithGoogleBackend();
+      } on GoogleAccountNotRegistered catch (notRegistered) {
+        // No Lakbay account for this Google email: ask before creating one.
+        if (!mounted) return;
+        final create = await _confirmNewGoogleAccount(notRegistered);
+        if (!create) {
+          if (!mounted) return;
+          setState(() => _googleBusy = false);
+          return;
+        }
+        await widget.repo.signInWithGoogleBackend(
+          existingIdToken: notRegistered.idToken,
+          confirmNewAccount: true,
+        );
+      }
       if (!mounted) return;
       setState(() => _googleBusy = false);
+      final email = widget.repo.profile.email;
+      if (email.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Signed in as $email')),
+        );
+      }
       _completeAuth();
     } catch (e) {
       if (!mounted) return;
@@ -145,6 +167,30 @@ class _AuthScreenState extends State<AuthScreen> {
         _error = e.toString();
       });
     }
+  }
+
+  Future<bool> _confirmNewGoogleAccount(GoogleAccountNotRegistered info) async {
+    final create = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Create a Lakbay account?'),
+        content: Text(
+          "There's no Lakbay account for ${info.email.isEmpty ? 'this Google account' : info.email} yet. "
+          "We can create one${info.fullName.isEmpty ? '' : ' for ${info.fullName}'}.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Create account'),
+          ),
+        ],
+      ),
+    );
+    return create == true;
   }
 
   void _completeAuth() {

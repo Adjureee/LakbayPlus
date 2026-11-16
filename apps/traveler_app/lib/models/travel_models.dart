@@ -381,13 +381,14 @@ class SuggestedRoute {
   final String id;
   final String title;
   final List<String> destinationIds;
-  final int suggestedDays;
+  /// How many days the route is meant for, or null when the data does not say.
+  final int? suggestedDays;
 
   const SuggestedRoute({
     required this.id,
     required this.title,
     required this.destinationIds,
-    required this.suggestedDays,
+    this.suggestedDays,
   });
 
   factory SuggestedRoute.fromJson(Map<String, dynamic> json) {
@@ -399,8 +400,7 @@ class SuggestedRoute {
       title: (json['title'] ?? 'Suggested Region XI Route').toString(),
       destinationIds: idsRaw.map((e) => e.toString()).toList(),
       suggestedDays:
-          ((json['suggested_days'] ?? json['suggestedDays']) as num?)?.toInt() ??
-              3,
+          ((json['suggested_days'] ?? json['suggestedDays']) as num?)?.toInt(),
     );
   }
 }
@@ -1043,8 +1043,12 @@ class ItineraryTrip {
   final String title;
   final String destination;
   final int daysCount;
-  final int adults;
+  /// How many adults are travelling, or null until the traveler says.
+  final int? adults;
   final int children;
+
+  /// Everyone travelling, or null when the number of adults is not set.
+  int? get travelerCount => adults == null ? null : adults! + children;
   final double centerLat;
   final double centerLng;
   final String heroAsset;
@@ -1093,7 +1097,7 @@ class ItineraryTrip {
     required this.title,
     required this.destination,
     required this.daysCount,
-    this.adults = 2,
+    this.adults,
     this.children = 0,
     required this.centerLat,
     required this.centerLng,
@@ -1139,7 +1143,7 @@ class ItineraryTrip {
       return (backendEstimatedCostPhp! / 57.0).round().clamp(1, 999999);
     }
     final flightTotal =
-        flights.isNotEmpty ? flights.first.priceRoundtripUsd * adults : 0;
+        flights.isNotEmpty ? flights.first.priceRoundtripUsd * (adults ?? 1) : 0;
     final hotelTotal = hotels.isNotEmpty && daysCount > 1
         ? hotels.first.pricePerNightUsd * (daysCount - 1).clamp(1, 30)
         : 0;
@@ -1351,7 +1355,7 @@ class ItineraryTrip {
         title: json['title'] as String? ?? '',
         destination: json['destination'] as String? ?? '',
         daysCount: (json['daysCount'] as num?)?.toInt() ?? 3,
-        adults: (json['adults'] as num?)?.toInt() ?? 2,
+        adults: (json['adults'] as num?)?.toInt(),
         children: (json['children'] as num?)?.toInt() ?? 0,
         centerLat: (json['centerLat'] as num?)?.toDouble() ?? 7.0731,
         centerLng: (json['centerLng'] as num?)?.toDouble() ?? 125.6128,
