@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' show MediaType;
+import '../models/commute.dart';
 import '../models/travel_models.dart';
 import 'env_config.dart';
 
@@ -164,6 +165,29 @@ class LakbayApiCatalogService {
   }
 
   bool get isConfigured => _base.isNotEmpty;
+
+  /// Verified public-transport routes to a place (`GET /destinations/{id}/commute`).
+  /// Returns null when the request fails, so the screen can say it could not
+  /// check, and an empty list when no route has been verified yet.
+  Future<List<CommuteRoute>?> fetchCommuteRoutes(int destinationId) async {
+    final base = _base;
+    if (base.isEmpty) return null;
+    try {
+      final res = await _client
+          .get(Uri.parse('$base/destinations/$destinationId/commute'))
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 404) return const <CommuteRoute>[];
+      if (res.statusCode != 200) return null;
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      return [
+        for (final raw in (decoded['routes'] as List? ?? const []))
+          if (raw is Map<String, dynamic>) CommuteRoute.fromJson(raw),
+      ];
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Live preference groups and normalized categories from `GET /destinations/facets`.
   Future<({List<PreferenceGroup> groups, List<CategoryFacet> categories})>

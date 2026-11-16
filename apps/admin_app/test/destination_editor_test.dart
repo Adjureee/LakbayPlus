@@ -456,6 +456,14 @@ ApiService _api(Future<http.Response> Function(http.Request) handler) =>
             200,
           );
         }
+        // The commute section loads on its own; it is tested separately and
+        // is not one of the requests these tests count.
+        if (request.method == 'GET' && request.url.path.endsWith('/commute')) {
+          return http.Response(
+            jsonEncode({'destination_id': 12, 'routes': []}),
+            200,
+          );
+        }
         return handler(request);
       }),
       tokenProvider: () async => 'test-access',

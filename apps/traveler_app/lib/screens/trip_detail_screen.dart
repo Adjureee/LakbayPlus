@@ -11,6 +11,7 @@ import 'trip_route_map_screen.dart';
 import '../services/access_notices.dart';
 import '../widgets/access_notice_card.dart';
 import 'memories_screen.dart';
+import 'commute_directions_screen.dart';
 
 class TripDetailScreen extends StatefulWidget {
   final ItineraryTrip trip;
@@ -350,6 +351,26 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             TripRouteMapScreen(trip: _activeTrip, repo: widget.repo),
       ),
     );
+  }
+
+  /// Places in this trip that exist in the catalog, for commute directions.
+  List<CommuteStopRef> _commuteStops() {
+    final seen = <int>{};
+    final stops = <CommuteStopRef>[];
+    for (final day in widget.trip.days) {
+      for (final stop in day.stops) {
+        final id = stop.destinationId;
+        if (id != null && seen.add(id)) {
+          stops.add(CommuteStopRef(id, stop.title));
+        }
+      }
+    }
+    if (stops.isEmpty) {
+      for (final id in widget.trip.effectiveBackendDestinationIds) {
+        if (seen.add(id)) stops.add(CommuteStopRef(id, widget.trip.title));
+      }
+    }
+    return stops;
   }
 
   @override
@@ -787,6 +808,26 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             ),
           ],
         ),
+        if (_commuteStops().isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const ValueKey('open-commute-directions'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CommuteDirectionsScreen(
+                    repo: widget.repo,
+                    trip: trip,
+                    stops: _commuteStops(),
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.directions_transit_rounded, size: 18),
+              label: const Text('How to get there by commute'),
+            ),
+          ),
+        ],
         if (combinedWarnings.isNotEmpty) ...[
           const SizedBox(height: 10),
           Container(
