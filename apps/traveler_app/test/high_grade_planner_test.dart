@@ -283,7 +283,7 @@ void main() {
     expect(result?.method, 'simple_additive_weighting');
   });
 
-  testWidgets('Top-5 Match sheet hides TOPSIS/SAW method chips and scores offline matches fairly', (tester) async {
+  testWidgets('Top 5 sheet shows no method chips and invents no offline ranking', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final repo = TravelRepository(
       apiCatalog: LakbayApiCatalogService(baseUrlOverride: ''),
@@ -302,18 +302,22 @@ void main() {
     await tester.tap(find.text('Top-5 Match'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Personalized Top-5 Match'), findsOneWidget);
+    expect(find.text('Personalized Top 5'), findsOneWidget);
     expect(find.textContaining('TOPSIS'), findsNothing);
     expect(find.textContaining('Weighted SAW'), findsNothing);
     expect(find.textContaining('Method:'), findsNothing);
+    // Preferences come from the server; offline there are none to choose from,
+    // and none is pre-selected or typed into the app.
+    expect(find.text('Preferences load from Lakbay when you are online.'),
+        findsOneWidget);
+    expect(find.byType(FilterChip), findsNothing);
 
     await tester.tap(find.text('Rank Top 5'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Method:'), findsNothing);
-    expect(find.textContaining('TOPSIS'), findsNothing);
-    expect(find.textContaining('Offline suggestions'), findsOneWidget);
+    // Signed out: no invented offline matches or scores, just the reason.
+    expect(find.text('Sign in to get matches ranked for you.'), findsOneWidget);
     expect(find.textContaining('Match '), findsNothing);
-    expect(find.textContaining('Fits your interests'), findsWidgets);
+    expect(find.textContaining('Fits your interests'), findsNothing);
   });
 }

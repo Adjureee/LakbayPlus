@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "note": "Simple Additive Weighting profiles. Weights must sum to 1. Edit here, not in code; the server refuses to start with an invalid file. 'default' reproduces the approved 10 Nov 2026 Top 5 model exactly.",
+  "profiles": {
+    "default": {
+      "rationale": "Approved Phase 15I model: interest, travel and budget match the Phase 15B group weights; group fit combines child and group needs.",
+      "weights": {
+        "interest": 0.35,
+        "travel": 0.25,
+        "budget": 0.20,
+        "group_fit": 0.10,
+        "popularity": 0.10
+      },
+      "priority_criteria": {}
+    },
+    "nature_attractions": {
+      "rationale": "Nature trips are decided by what the place is, how hard it is for this party, and the weather, so nature fit, physical suitability and weather carry 50% together; travel, budget and the rest follow the default model. Proposed 16 Nov 2026; to be confirmed by the project adviser.",
+      "weights": {
+        "nature_fit": 0.25,
+        "travel": 0.20,
+        "budget": 0.15,
+        "physical_suitability": 0.15,
+        "weather_season": 0.10,
+        "access": 0.05,
+        "group_fit": 0.05,
+        "quiet_popular": 0.05
+      },
+      "priority_criteria": {
+        "scenery": "nature_fit",
+        "short_travel": "travel",
+        "low_cost": "budget",
+        "easy_trail": "physical_suitability",
+        "good_weather": "weather_season",
+        "quiet": "quiet_popular"
+      }
+    }
+  },
+  "thresholds": {
+    "day_trip_max_travel_minutes": 180,
+    "multi_day_max_travel_minutes": 300,
+    "large_group_size": 5,
+    "young_child_max_age": 6,
+    "rain_low_below_percent": 40,
+    "rain_high_from_percent": 70,
+    "rain_sensitivity_factors": {"high": 1.0, "medium": 0.6, "low": 0.25},
+    "relax_travel_factor": 1.5,
+    "relax_budget_factor": 1.3,
+    "priority_blend": 0.3,
+    "max_priorities": 3
+  }
+}

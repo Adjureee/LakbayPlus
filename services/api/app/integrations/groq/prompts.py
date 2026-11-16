@@ -5,11 +5,12 @@ from typing import Any
 from app.features.ai.schemas import AIChatRequest, AIItineraryGenerateRequest
 from app.features.geo_analytics.schemas import DestinationGroupsResponse
 from app.features.planning.schemas import PlanningPreviewResponse
+from app.features.recommendations.limits import MAX_SUGGESTIONS
 from app.features.recommendations.schemas import RecommendationItem
 
 PROMPT_VERSION = "phase5_itinerary_catalog_facts_v3"
 PLANNING_PROMPT_VERSION = "phase15e_calculated_route_order_v5"
-CHAT_PROMPT_VERSION = "phase5_chat_v8_show_places"
+CHAT_PROMPT_VERSION = "phase5_chat_v9_max5_suggestions"
 
 
 def build_itinerary_messages(
@@ -282,8 +283,8 @@ def build_chat_messages(
             "`{\"categories\": [\"mountain\"], \"province\": \"Davao de Oro\", \"limit\": 5}` "
             "(singular category keywords like \"beach\", \"mountain\", "
             "\"waterfall\", \"island\", \"park\", \"food\", or [] for all "
-            "categories; omit `province` unless named by the traveler; limit 1 to 10; "
-            "omit `place_query` for other intents). "
+            "categories; omit `province` unless named by the traveler; "
+            f"limit 1 to {MAX_SUGGESTIONS}, never more; omit `place_query` for other intents). "
             "`suggested_replies` holds 2 or 3 short things the traveler might say "
             "next, written in their voice, each under 60 characters, specific to "
             "this conversation (e.g. \"How do I get to Samal by car?\"). "

@@ -268,7 +268,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               controller: promptCtrl,
               autofocus: true,
               decoration: InputDecoration(
-                hintText: 'e.g., 3-day Samal & Talikud family getaway',
+                hintText: 'Tell Lakbay AI what you like',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -285,22 +285,15 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                ActionChip(
-                  label: const Text('Samal & Talikud 3d'),
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    _handleSend('Plan a 3-day Samal Island & Talikud reef trip');
-                  },
-                ),
-                ActionChip(
-                  label: const Text('Mati & Aliwagwag 4d'),
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    _handleSend(
-                      'Plan a 4-day Mati Dahican surf & Aliwagwag Falls trip',
-                    );
-                  },
-                ),
+                // Quick starts come from the catalog's preference groups.
+                for (final group in widget.repo.preferenceGroups)
+                  ActionChip(
+                    label: Text(group.label),
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _handleSend('I like ${group.label.toLowerCase()}');
+                    },
+                  ),
               ],
             ),
             const SizedBox(height: 12),
@@ -421,11 +414,9 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                       color: LakbayColors.canvasBg,
                       shape: const CircleBorder(),
                       child: IconButton(
-                        tooltip: 'Quick Davao Ideas',
+                        tooltip: 'New chat',
                         visualDensity: VisualDensity.compact,
-                        onPressed: () => _handleSend(
-                          'Plan a 3-day Samal Island and Davao City trip',
-                        ),
+                        onPressed: widget.repo.startNewChat,
                         icon: const Icon(
                           Icons.add_rounded,
                           color: LakbayColors.tealDeep,
@@ -502,17 +493,17 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 onTap: () => showOriginPickerSheet(context, widget.repo),
               ),
               _HeroChip(
-                label: 'A few days in ${backdrop.place}',
+                label: 'Things to do in ${backdrop.place}',
                 onTap: () => _handleSend(
-                  'Plan a 3-day trip to ${backdrop.place} in Davao Region',
+                  'Show me places to visit around ${backdrop.place}',
                 ),
               ),
               _HeroChip(
                 label: 'Surprise me',
                 onTap: () => _handleSend(
                   widget.repo.hasOrigin
-                      ? 'Surprise me with a fresh 4-day Davao Region route starting from ${widget.repo.effectiveOriginLabel}'
-                      : 'Surprise me with a 4-day Davao Region adventure route',
+                      ? 'Surprise me with places to visit near ${widget.repo.effectiveOriginLabel}'
+                      : 'Surprise me with places to visit in the Davao Region',
                 ),
               ),
             ],
@@ -941,12 +932,21 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                           context,
                           msg.recommendedPlaces,
                         ),
-                      ] else if (msg.aiOptions.isNotEmpty) ...[
+                      ],
+                      if (msg.aiOptions.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         _buildAiOptionsPicker(context, msg.aiOptions),
                       ] else if (msg.attachedTrip != null) ...[
                         const SizedBox(height: 12),
                         _buildAttachedTripCard(context, msg.attachedTrip!),
+                      ],
+                      if (msg.isError && msg.retryText != null) ...[
+                        const SizedBox(height: 10),
+                        ActionChip(
+                          avatar: const Icon(Icons.refresh_rounded, size: 16),
+                          label: const Text('Try again'),
+                          onPressed: () => _handleSend(msg.retryText!),
+                        ),
                       ],
                     ],
                   ),
@@ -1005,7 +1005,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 224,
+          height: 262,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: places.length,
@@ -1020,11 +1020,12 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                   place.district!.trim(),
                 if (place.travelMinutes != null) '~${place.travelMinutes} min',
               ].join(' • ');
-              final subtitle = locationLine.isNotEmpty
-                  ? locationLine
-                  : (place.reasons.isNotEmpty
-                      ? place.reasons.first
-                      : 'Davao Region destination');
+              // Why this place fits, in the server's words. A near match leads
+              // with the limit it relaxes (for example "About ₱200 over budget").
+              final subtitle = [
+                if (locationLine.isNotEmpty) locationLine,
+                ...place.reasons.take(2),
+              ].join('\n');
               final networkImg = (place.imageUrl != null &&
                       place.imageUrl!.startsWith('http'))
                   ? place.imageUrl
@@ -1108,11 +1109,13 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                             const SizedBox(height: 3),
                             Text(
                               subtitle,
-                              maxLines: 2,
+                              maxLines: 5,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11.5,
-                                color: LakbayColors.textSecondary,
+                                color: place.matchTier > 1
+                                    ? const Color(0xFFB45309)
+                                    : LakbayColors.textSecondary,
                                 height: 1.3,
                               ),
                             ),
@@ -1149,8 +1152,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: ElevatedButton(
-                                    onPressed: () => widget.repo
-                                        .toggleTripBuilderStop(resolved),
+                                    onPressed: () =>
+                                        widget.repo.toggleChatPick(resolved),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: isAdded
                                           ? LakbayColors.primaryLight

@@ -11,7 +11,9 @@ from app.integrations.storage.uploads import (
 from app.features.destinations.region import island_group_for
 from app.core.exceptions import LakbayAPIError
 from app.features.destinations.repository import DestinationRepository
+from app.features.recommendations.preference_groups import load_groups
 from app.features.destinations.schemas import (
+    DestinationFacetsResponse,
     DestinationCreate,
     DestinationListQuery,
     DestinationResponse,
@@ -70,6 +72,21 @@ class DestinationService:
         await self.session.commit()
         await self.session.refresh(updated)
         return DestinationResponse.model_validate(updated)
+
+    async def facets(self) -> DestinationFacetsResponse:
+        """Preference groups (for example Nature attractions) with catalog counts."""
+        places: list[DestinationResponse] = []
+        offset = 0
+        while True:
+            page = await self.list_destinations(DestinationListQuery(limit=100, offset=offset))
+            places.extend(page)
+            if len(page) < 100:
+                break
+            offset += len(page)
+        return DestinationFacetsResponse(
+            total_places=len(places),
+            groups=load_groups().facets(places),
+        )
 
     async def list_destinations(
         self,

@@ -1692,76 +1692,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  /// Offline Top-5: places whose text or category matches a chosen interest,
-  /// nearest first when GPS is known. No scores are invented.
-  List<TopPlaceRecommendation> _offlineInterestMatches(Set<String> interests) {
-    final repo = widget.repo;
-    const synonyms = <String, List<String>>{
-      'beach': ['beach', 'coast', 'island', 'surf', 'cove', 'sand', 'bay'],
-      'nature': [
-        'nature',
-        'falls',
-        'eco',
-        'forest',
-        'pine',
-        'park',
-        'sanctuary',
-        'cape',
-        'ridge',
-        'mangrove',
-      ],
-      'mountain': ['mountain', 'mt.', 'peak', 'highland', 'ridge', 'clouds', 'camp'],
-      'waterfalls': ['waterfall', 'falls', 'spring'],
-      'culture': ['culture', 'heritage', 'museum', 'cathedral', 'sanctuary'],
-      'food': ['food', 'culinary', 'durian', 'coffee', 'farm'],
-    };
-    bool matches(ExploreTrip t) {
-      final text = [
-        t.title,
-        t.tag ?? '',
-        t.activities ?? '',
-        t.description ?? '',
-      ].join(' ').toLowerCase();
-      return interests.any((i) {
-        final stem = i.endsWith('s') ? i.substring(0, i.length - 1) : i;
-        final keywords = synonyms[i] ?? [stem];
-        return keywords.any(text.contains);
-      });
-    }
-
-    final pool = repo.allTrips.where(matches).toList();
-    if (repo.hasUserLocation) {
-      double km(ExploreTrip t) => MapboxService.haversineKm(
-            repo.userLat!, repo.userLng!, t.lat, t.lng);
-      pool.sort((a, b) => km(a).compareTo(km(b)));
-    }
-    return [
-      for (final (i, t) in pool.take(5).indexed)
-        TopPlaceRecommendation(
-          rank: i + 1,
-          destinationId: t.apiDestinationId ?? 0,
-          name: t.title,
-          district: t.district ?? 'Region XI',
-          category: t.tag,
-          imageUrl: t.thumbnailUrl,
-          estimatedCost: t.estimatedCostPhp,
-          score: 0,
-          reasons: [
-            repo.hasUserLocation
-                ? 'Fits your interests • ${MapboxService.haversineKm(repo.userLat!, repo.userLng!, t.lat, t.lng).toStringAsFixed(0)} km away'
-                : 'Fits your interests',
-          ],
-          routeVerified: false,
-          travelMode: repo.preferredTravelMode,
-        ),
-    ];
-  }
-
   void _openTopPlacesSheet() {
-    final selectedInterests = <String>{'beach', 'nature'};
-    final budgetCtrl = TextEditingController(text: '5000');
+    final repo = widget.repo;
+    // Start from the traveler's saved preferences; nothing is pre-selected.
+    final selected = <String>{...repo.selectedVibes};
+    final budgetCtrl = TextEditingController();
     bool loading = false;
-    bool isLive = false;
+    String? message;
     TopPlacesResult? result;
 
     showModalBottomSheet<void>(
@@ -1775,31 +1712,30 @@ class _ExploreScreenState extends State<ExploreScreen> {
         return StatefulBuilder(
           builder: (sheetCtx, setSheetState) {
             Future<void> runMatch() async {
-              setSheetState(() => loading = true);
-              final budget = double.tryParse(budgetCtrl.text.trim()) ?? 5000.0;
-              TopPlacesResult? live;
-              if (widget.repo.isSignedIn &&
-                  widget.repo.apiCatalog.isConfigured) {
-                live = await widget.repo.apiCatalog.fetchTopPlaces(
-                  widget.repo.authSession!.accessToken,
-                  interests: selectedInterests.toList(),
-                  travelMode: widget.repo.preferredTravelMode,
-                  totalBudgetPhp: budget,
-                  originLat: widget.repo.userLat,
-                  originLng: widget.repo.userLng,
-                );
+              if (!repo.isSignedIn || repo.authSession == null) {
+                setSheetState(() => message =
+                    'Sign in to get matches ranked for you.');
+                return;
               }
-              final gotLive = live != null;
-              // Offline / signed out: no invented scores. Keep places that
-              // mention a chosen interest, nearest first when GPS is known.
-              live ??= TopPlacesResult(
-                method: 'offline',
-                items: _offlineInterestMatches(selectedInterests),
+              setSheetState(() {
+                loading = true;
+                message = null;
+              });
+              final live = await repo.apiCatalog.fetchTopPlaces(
+                repo.authSession!.accessToken,
+                interests: selected.toList(),
+                travelMode: repo.preferredTravelMode,
+                // Empty means no budget limit; no amount is assumed.
+                totalBudgetPhp: double.tryParse(budgetCtrl.text.trim()),
+                originLat: repo.userLat,
+                originLng: repo.userLng,
               );
               if (!sheetCtx.mounted) return;
               setSheetState(() {
                 result = live;
-                isLive = gotLive;
+                message = live == null
+                    ? "Lakbay couldn't rank places right now. Please try again."
+                    : null;
                 loading = false;
               });
             }
@@ -1818,7 +1754,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
                 children: [
                   const Text(
-                    'Personalized Top-5 Match',
+                    'Personalized Top 5',
                     style: TextStyle(
                       fontFamily: 'FigGrotesk',
                       fontSize: 21,
@@ -1828,35 +1764,65 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'The Region XI places that best fit your interests, budget and location.',
+                    'The places that best fit what you like, your budget and where you start.',
                     style: TextStyle(fontSize: 13, color: LakbayColors.textSecondary),
                   ),
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      for (final interest in const [
-                        'beach',
-                        'nature',
-                        'mountain',
-                        'waterfalls',
-                        'culture',
-                        'food',
-                      ])
-                        FilterChip(
-                          label: Text(interest),
-                          selected: selectedInterests.contains(interest),
-                          onSelected: (sel) => setSheetState(() {
-                            if (sel) {
-                              selectedInterests.add(interest);
-                            } else if (selectedInterests.length > 1) {
-                              selectedInterests.remove(interest);
-                            }
-                          }),
+                  if (repo.preferenceGroups.isEmpty)
+                    const Text(
+                      'Preferences load from Lakbay when you are online.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: LakbayColors.textSecondary,
+                      ),
+                    )
+                  else ...[
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final group in repo.preferenceGroups)
+                          FilterChip(
+                            label: Text(group.label),
+                            selected: selected.contains(group.key),
+                            onSelected: (sel) => setSheetState(() {
+                              if (sel) {
+                                selected.add(group.key);
+                              } else {
+                                selected.remove(group.key);
+                                selected.removeAll(
+                                  group.subtypes.map((s) => s.key),
+                                );
+                              }
+                            }),
+                          ),
+                      ],
+                    ),
+                    for (final group in repo.preferenceGroups)
+                      if (selected.contains(group.key) &&
+                          group.subtypes.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final sub in group.subtypes)
+                              FilterChip(
+                                label: Text(sub.label),
+                                visualDensity: VisualDensity.compact,
+                                selected: selected.contains(sub.key),
+                                onSelected: (sel) => setSheetState(() {
+                                  if (sel) {
+                                    selected.add(sub.key);
+                                  } else {
+                                    selected.remove(sub.key);
+                                  }
+                                }),
+                              ),
+                          ],
                         ),
-                    ],
-                  ),
+                      ],
+                  ],
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -1865,7 +1831,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           controller: budgetCtrl,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            labelText: 'Budget (PHP)',
+                            labelText: 'Budget per trip, PHP (optional)',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -1892,63 +1858,73 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         child: CircularProgressIndicator(),
                       ),
                     )
-                  else if (result != null) ...[
-                    if (!isLive)
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 8),
+                  else ...[
+                    if (message != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
-                          'Offline suggestions. Sign in to get personalized match scores.',
-                          style: TextStyle(
-                            fontSize: 12,
+                          message!,
+                          style: const TextStyle(
+                            fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                             color: LakbayColors.textSecondary,
                           ),
                         ),
                       ),
-                    if (result!.items.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Text(
-                          'No places match those interests yet. Try another interest.',
-                          style: TextStyle(color: LakbayColors.textSecondary),
+                    if (result != null) ...[
+                      if (result!.items.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            'No places match yet. Try another preference.',
+                            style: TextStyle(color: LakbayColors.textSecondary),
+                          ),
                         ),
-                      ),
-                    for (final item in result!.items)
-                      Card(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: LakbayColors.tealDeep,
-                            foregroundColor: Colors.white,
-                            child: Text('#${item.rank}'),
-                          ),
-                          title: Text(item.name),
-                          subtitle: Text(
-                            '${item.district ?? "Region XI"}'
-                            '${isLive ? " • Match ${item.score.toStringAsFixed(1)}/100" : ""}'
-                            '${item.reasons.isNotEmpty ? "\n${item.reasons.first}" : ""}',
-                          ),
-                          isThreeLine: item.reasons.isNotEmpty,
-                          trailing: const Icon(Icons.chevron_right_rounded),
-                          onTap: () {
-                            Navigator.of(ctx).pop();
-                            final generated = widget.repo.generateCustomTrip(
-                              destination:
-                                  '${item.name}, ${item.district ?? "Region XI"}',
-                              daysCount: 3,
-                              vibe: item.category ?? 'Recommended',
-                            );
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => TripDetailScreen(
-                                  trip: generated,
-                                  repo: widget.repo,
-                                ),
+                      for (final item in result!.items)
+                        Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: LakbayColors.tealDeep,
+                              foregroundColor: Colors.white,
+                              child: Text('#${item.rank}'),
+                            ),
+                            title: Text(item.name),
+                            subtitle: Text(
+                              [
+                                [
+                                  if (item.district != null) item.district!,
+                                  'Match ${item.score.toStringAsFixed(1)}/100',
+                                ].join(' • '),
+                                ...item.reasons.take(2),
+                              ].join('\n'),
+                              style: TextStyle(
+                                color: item.matchTier > 1
+                                    ? const Color(0xFFB45309)
+                                    : null,
                               ),
-                            );
-                          },
+                            ),
+                            isThreeLine: true,
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              // The real place, not a generated template trip.
+                              final place =
+                                  repo.resolveExploreTripForRecommendation(item);
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => TripDetailScreen(
+                                    trip: repo.buildDetailedItineraryFromExplore(
+                                      place,
+                                    ),
+                                    repo: repo,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                      ),
+                    ],
                   ],
                 ],
               ),

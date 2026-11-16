@@ -53,6 +53,7 @@ from app.features.destinations.region import (
 )
 from app.features.planning.schemas import PlanningOrigin, PlanningPreviewRequest, PlanningPreviewResponse, PlanningState
 from app.features.planning.service import PlanningService
+from app.features.recommendations.limits import MAX_SUGGESTIONS
 from app.features.recommendations.schemas import (
     PlanningRecommendationItem,
     TopPlacesRequest,
@@ -1216,7 +1217,9 @@ async def _build_planning_chat_result(
             ]
             recommendation_total_candidates = place_result.total_candidates
             recommendation_shortfall_reason = place_result.shortfall_reason
-            if recommendation_shortfall_reason is not None:
+            if recommendation_shortfall_reason is not None and not recommendations:
+                # With no cards there is nothing to introduce, so say why. With
+                # some cards the model's reply stays and the reason is a note.
                 chat_response = recommendation_shortfall_reason
     elif output_intent in {"question", "logistics", "smalltalk"}:
         # Q&A, logistics, and small talk stay concise text replies without card dumps.
@@ -1236,7 +1239,7 @@ async def _build_planning_chat_result(
             )
             if card_ids:
                 named = await AIItineraryRepository(session).list_active_destinations_by_ids(
-                    list(dict.fromkeys(card_ids))[:5],
+                    list(dict.fromkeys(card_ids))[:MAX_SUGGESTIONS],
                 )
                 by_id = {item.destination_id: item for item in named}
                 recommendations = [
@@ -1246,6 +1249,8 @@ async def _build_planning_chat_result(
                         district=by_id[destination_id].district,
                         category=by_id[destination_id].category,
                         image_url=by_id[destination_id].image_url,
+                        lat=by_id[destination_id].lat,
+                        lng=by_id[destination_id].lng,
                         estimated_cost=by_id[destination_id].estimated_cost,
                         score=0.0,
                         matched_fields=["location"],
@@ -1254,7 +1259,7 @@ async def _build_planning_chat_result(
                             if requested_locations
                             else "Matches the place you named."
                         ],
-                        travel_mode="driving",
+                        travel_mode=travel_mode,
                     )
                     for destination_id in dict.fromkeys(card_ids)
                     if destination_id in by_id
@@ -1284,6 +1289,7 @@ async def _build_planning_chat_result(
                     adult_count=next_state.adult_count,
                     child_ages=next_state.child_ages,
                     day_count=next_state.day_count,
+                    fill_to_limit=True,
                 ),
                 osrm_client=route_service.osrm_client if route_service is not None else None,
             )
@@ -1292,15 +1298,16 @@ async def _build_planning_chat_result(
                 planning_recommendation_from_top_place(item)
                 for item in top_places.items
                 if item.destination_id not in already_selected
-            ]
+            ][:MAX_SUGGESTIONS]
             recommendation_total_candidates = top_places.total_candidates
             recommendation_shortfall_reason = top_places.shortfall_reason
             if already_selected:
                 # The plan already has stops, so a thin result is not worth replacing the
                 # model's reply with a shortfall message.
                 recommendation_shortfall_reason = None
-            if recommendation_shortfall_reason is not None:
-                # Catalog and route checks are authoritative over model prose.
+            if recommendation_shortfall_reason is not None and not recommendations:
+                # Only when there are no cards: the catalog and route checks are
+                # authoritative over model prose. With cards, the reason stays a note.
                 chat_response = recommendation_shortfall_reason
     return (
         chat_response,

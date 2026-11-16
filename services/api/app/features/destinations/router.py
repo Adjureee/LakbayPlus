@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import require_admin
 from app.db.session import get_db_session
 from app.features.destinations.schemas import (
+    DestinationFacetsResponse,
     DestinationCreate,
     DestinationListQuery,
     DestinationResponse,
@@ -81,6 +82,23 @@ async def create_destination(
     admin: Annotated[User, Depends(require_admin)],
 ) -> DestinationResponse:
     return await DestinationService(session).create_destination(data)
+
+
+@router.get(
+    "/facets",
+    response_model=DestinationFacetsResponse,
+    summary="Preference groups with counts",
+    description=(
+        "Public. The preference groups a traveler can choose (for example Nature "
+        "attractions and its sub-types), each with how many active destinations "
+        "it covers. The app builds its preference chips from this, so no "
+        "preference is typed into the app."
+    ),
+)
+async def destination_facets(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DestinationFacetsResponse:
+    return await DestinationService(session).facets()
 
 
 @router.get(

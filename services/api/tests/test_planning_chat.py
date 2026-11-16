@@ -189,7 +189,8 @@ def test_planning_chat_puts_verified_routes_first_and_explains_skipped_places(
         "Only 2 places qualify for your Top 5: 1 does not match your interests, "
         "1 needs a boat or ferry and 1 has no road route from your start."
     )
-    assert response.json()["chat_response"] == planning["recommendation_shortfall_reason"]
+    # With cards to show, the model's reply stays and the shortfall is a note.
+    assert response.json()["chat_response"] == "Beach choices."
     assert osrm.calls == 1
 
 
@@ -251,7 +252,8 @@ def test_planning_chat_without_map_origin_never_claims_a_road_route(client, monk
     assert item["route_duration_minutes"] is None
     assert "Set a start point to rank by travel time." in item["reasons"]
     assert planning["recommendation_shortfall_reason"] == "Only 1 place qualifies for your Top 5."
-    assert response.json()["chat_response"] == planning["recommendation_shortfall_reason"]
+    # The model's reply is kept; the reason is shown as a note under the card.
+    assert response.json()["chat_response"] == "I found a beach."
 
 
 def test_planning_chat_shows_unverified_matches_with_a_label(client, monkeypatch) -> None:
@@ -951,7 +953,7 @@ def test_a_nature_request_returns_cards_for_nature_places(client, monkeypatch) -
         client, headers=admin, name="Green Park", category="park",
         vibes="nature, relaxing", activities="walking", **verified_arrival(0),
     )
-    create_destination(
+    mountain = create_destination(
         client, headers=admin, name="Mountain", category="mountain",
         vibes="adventure", activities="hiking", **verified_arrival(1),
     )
@@ -975,9 +977,11 @@ def test_a_nature_request_returns_cards_for_nature_places(client, monkeypatch) -
 
     assert response.status_code == 200, response.text
     planning = response.json()["planning"]
-    assert [item["destination_id"] for item in planning["recommendations"]] == [
-        park["destination_id"],
-    ]
+    # "nature" is the Nature attractions group: a mountain is nature, and a park
+    # whose vibes say nature still matches by its text.
+    assert {item["destination_id"] for item in planning["recommendations"]} == {
+        park["destination_id"], mountain["destination_id"],
+    }
 
 
 def test_more_places_can_be_offered_after_a_stop_is_selected(client, monkeypatch) -> None:
