@@ -1554,12 +1554,17 @@ class UserProfile {
   final String location;
   final String email;
 
+  /// The name other travelers use to find and invite this traveler. It is
+  /// kept by the server; empty until it has been loaded or the traveler signs in.
+  final String username;
+
   const UserProfile({
     this.firstName = '',
     this.lastName = '',
     this.headline = '',
     this.location = '',
     this.email = '',
+    this.username = '',
   });
 
   String get fullName => '$firstName $lastName'.trim();
@@ -1580,6 +1585,7 @@ class UserProfile {
     String? headline,
     String? location,
     String? email,
+    String? username,
   }) {
     return UserProfile(
       firstName: firstName ?? this.firstName,
@@ -1587,6 +1593,7 @@ class UserProfile {
       headline: headline ?? this.headline,
       location: location ?? this.location,
       email: email ?? this.email,
+      username: username ?? this.username,
     );
   }
 
@@ -1596,6 +1603,7 @@ class UserProfile {
         'headline': headline,
         'location': location,
         'email': email,
+        'username': username,
       };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
@@ -1604,6 +1612,7 @@ class UserProfile {
         headline: json['headline'] as String? ?? '',
         location: json['location'] as String? ?? '',
         email: json['email'] as String? ?? '',
+        username: json['username'] as String? ?? '',
       );
 }
 

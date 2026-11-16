@@ -1405,6 +1405,60 @@ class LakbayApiCatalogService {
     );
   }
 
+  /// The signed-in traveler's username, or null when it cannot be loaded.
+  Future<String?> fetchMyUsername(String accessToken) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return null;
+    try {
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .get(
+              Uri.parse('$base/users/me'),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 8)),
+      );
+      if (res.statusCode != 200) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final username = decoded['username']?.toString().trim();
+      return (username == null || username.isEmpty) ? null : username;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Changes the username. Returns the saved (normalised) username; throws a
+  /// [LakbayApiException] carrying the server's message when it is refused
+  /// (for example "That username is already taken.").
+  Future<String> updateMyUsername(String accessToken, String username) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) {
+      throw const LakbayApiException("You're not connected to Lakbay.");
+    }
+    final res = await _sendAuthorized(
+      accessToken,
+      (tok) => _client
+          .patch(
+            Uri.parse('$base/users/me'),
+            headers: _authHeaders(tok),
+            body: jsonEncode({'username': username.trim()}),
+          )
+          .timeout(const Duration(seconds: 10)),
+    );
+    final decoded = _tryDecodeJson(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300 && decoded is Map) {
+      return (decoded['username'] ?? username).toString();
+    }
+    throw LakbayApiException(
+      res.statusCode == 422
+          ? 'Use 3 to 30 letters, numbers, dots or underscores.'
+          : _extractErrorMessage(decoded, res.statusCode),
+      statusCode: res.statusCode,
+    );
+  }
+
   /// Travelers matching the start of a username or name (no emails).
   Future<List<UserSearchItem>> searchUsers(String accessToken, String query) async {
     final base = _base;

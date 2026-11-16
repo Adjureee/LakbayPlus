@@ -1015,6 +1015,62 @@ void main() {
     expect(find.text('Edit profile'), findsOneWidget);
   });
 
+  testWidgets('Edit profile shows a Username field only when signed in, and the @username under the name', (
+    tester,
+  ) async {
+    Future<TravelRepository> repoWith({required bool signedIn}) async {
+      SharedPreferences.setMockInitialValues({
+        'lakbay_traveler_state_v1': jsonEncode({
+          'hasCompletedOnboarding': true,
+          'profile': {
+            'firstName': 'Maria',
+            'lastName': 'Santos',
+            'email': 'maria@example.com',
+            'username': 'maria_s',
+          },
+          if (signedIn)
+            'authSession': const LakbayAuthSession(
+              accessToken: 't', refreshToken: 'r', userId: 1,
+              fullName: 'Maria Santos', email: 'maria@example.com', role: 'traveler',
+            ).toJson(),
+        }),
+      });
+      final repo = TravelRepository(
+        apiCatalog: LakbayApiCatalogService(baseUrlOverride: ''),
+        locationService: LocationService(
+          customFetcher: () async => const LocationResult(
+            granted: false,
+            statusMessage: 'Declined',
+          ),
+        ),
+      );
+      await tester.runAsync(() async {
+        await repo.initialize();
+      });
+      return repo;
+    }
+
+    final signedIn = await repoWith(signedIn: true);
+    await tester.pumpWidget(MaterialApp(home: ProfileScreen(repo: signedIn)));
+    await tester.pump();
+    expect(find.text('@maria_s'), findsOneWidget);
+    await tester.tap(find.text('Maria Santos'));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit profile'), findsOneWidget);
+    expect(find.text('Username'), findsOneWidget);
+    expect(find.textContaining('Friends use this to find and invite you'), findsOneWidget);
+
+    final signedOut = await repoWith(signedIn: false);
+    await tester.pumpWidget(
+      MaterialApp(key: UniqueKey(), home: ProfileScreen(repo: signedOut)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Maria Santos'));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit profile'), findsOneWidget);
+    expect(find.text('Username'), findsNothing);
+  });
+
   testWidgets('Signed-out users never reach MainNavigationShell (root & onboarding skip)', (
     tester,
   ) async {
