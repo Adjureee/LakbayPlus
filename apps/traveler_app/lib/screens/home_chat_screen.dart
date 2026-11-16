@@ -652,6 +652,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
             },
           ),
         ),
+        if (widget.repo.chatPickCount > 0 && !widget.repo.isAiTyping)
+          _buildPlanWithPicksBar(context),
         // Bottom Chat Input Bar (above floating nav bar)
         Container(
           margin: const EdgeInsets.fromLTRB(16, 4, 16, 98),
@@ -954,6 +956,20 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               ),
             ],
           ),
+          if ((msg.askNext != null || msg.offerPriorities) &&
+              !widget.repo.isAiTyping &&
+              widget.repo.chatMessages.isNotEmpty &&
+              widget.repo.chatMessages.last.id == msg.id) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 44),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _buildAnswerChips(context, msg),
+              ),
+            ),
+          ],
           if (msg.suggestedReplies.isNotEmpty) ...[
             const SizedBox(height: 8),
             Padding(
@@ -985,6 +1001,181 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
         ],
       ),
     );
+  }
+
+  /// The places picked so far, and the one action that plans from them.
+  Widget _buildPlanWithPicksBar(BuildContext context) {
+    final count = widget.repo.chatPickCount;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: LakbayColors.primary),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$count of ${TravelRepository.maxChatPicks} places picked',
+              style: const TextStyle(
+                color: LakbayColors.tealDeep,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: widget.repo.planWithPicks,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: LakbayColors.primary,
+              foregroundColor: Colors.white,
+              minimumSize: Size.zero,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            ),
+            child: Text(
+              count == 1 ? 'Plan with 1 pick' : 'Plan with $count picks',
+              style: const TextStyle(fontSize: 12.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Answer buttons for the detail the AI asked about, under its latest reply.
+  List<Widget> _buildAnswerChips(BuildContext context, ChatMessage msg) {
+    final repo = widget.repo;
+    final chips = <(String, VoidCallback)>[];
+    switch (msg.askNext) {
+      case 'activity_level':
+        for (final (value, label) in const [
+          ('easy', 'Easy'),
+          ('moderate', 'Moderate'),
+          ('challenging', 'Challenging'),
+        ]) {
+          chips.add((label, () => repo.answerChatDetail('activity_level', value, label)));
+        }
+      case 'prefers_quiet':
+        chips.add(('Quiet places', () => repo.answerChatDetail('prefers_quiet', true, 'Quiet places')));
+        chips.add(('Popular is fine', () => repo.answerChatDetail('prefers_quiet', false, 'Popular is fine')));
+      case 'travel_start_date':
+        final today = DateTime.now();
+        for (var i = 0; i < 3; i++) {
+          final month = DateTime(today.year, today.month + i);
+          // This month starts today; later months start on the 1st.
+          final start = i == 0 ? today : month;
+          const names = [
+            'January', 'February', 'March', 'April', 'May', 'June', 'July',
+            'August', 'September', 'October', 'November', 'December',
+          ];
+          final label = i == 0 ? 'This month' : names[month.month - 1];
+          final iso =
+              '${start.year.toString().padLeft(4, '0')}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
+          chips.add((label, () => repo.answerChatDetail('travel_start_date', iso, label)));
+        }
+    }
+    if (msg.offerPriorities) {
+      chips.add(('What matters most?', () => _askPriorities(context)));
+    }
+    return [
+      for (final (label, onTap) in chips)
+        ActionChip(
+          onPressed: onTap,
+          backgroundColor: LakbayColors.primary.withValues(alpha: 0.9),
+          side: BorderSide.none,
+          label: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+    ];
+  }
+
+  static const _priorityLabels = {
+    'scenery': 'Scenery',
+    'short_travel': 'Short travel',
+    'low_cost': 'Low cost',
+    'easy_trail': 'Easy trail',
+    'good_weather': 'Good weather',
+    'quiet': 'Quiet',
+  };
+
+  /// Pick up to three priorities; the order you tap them is their rank.
+  Future<void> _askPriorities(BuildContext context) async {
+    final order = <String>[];
+    final result = await showModalBottomSheet<List<String>>(
+      context: context,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheet) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'What matters most?',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Tap up to 3, most important first.',
+                style: TextStyle(color: LakbayColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final entry in _priorityLabels.entries)
+                    FilterChip(
+                      selected: order.contains(entry.key),
+                      label: Text(
+                        order.contains(entry.key)
+                            ? '${order.indexOf(entry.key) + 1}. ${entry.value}'
+                            : entry.value,
+                      ),
+                      onSelected: (on) => setSheet(() {
+                        if (!on) {
+                          order.remove(entry.key);
+                        } else if (order.length < 3) {
+                          order.add(entry.key);
+                        }
+                      }),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(const []),
+                    child: const Text('Skip'),
+                  ),
+                  const Spacer(),
+                  ElevatedButton(
+                    onPressed: order.isEmpty
+                        ? null
+                        : () => Navigator.of(sheetContext).pop(List.of(order)),
+                    child: const Text('Apply'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (result == null) return;
+    final label = result.isEmpty
+        ? 'Skip'
+        : 'What matters most to me: ${result.map((k) => _priorityLabels[k]).join(', ')}';
+    await widget.repo.answerChatPriorities(result, label);
   }
 
   Widget _buildRecommendedPlacesPicker(
@@ -1024,7 +1215,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               // with the limit it relaxes (for example "About ₱200 over budget").
               final subtitle = [
                 if (locationLine.isNotEmpty) locationLine,
-                ...place.reasons.take(2),
+                ...place.reasons.take(3),
               ].join('\n');
               final networkImg = (place.imageUrl != null &&
                       place.imageUrl!.startsWith('http'))
@@ -1152,8 +1343,19 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: ElevatedButton(
-                                    onPressed: () =>
-                                        widget.repo.toggleChatPick(resolved),
+                                    onPressed: () {
+                                      if (!widget.repo
+                                          .toggleChatPick(resolved)) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'You can pick up to ${TravelRepository.maxChatPicks} places for one plan.',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: isAdded
                                           ? LakbayColors.primaryLight

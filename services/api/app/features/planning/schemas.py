@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -138,6 +139,13 @@ class PlanningState(PlanningInput):
     night_count: int | None = Field(default=None, ge=0, le=30)
     return_to_origin: bool | None = None
     interests: list[Text] = Field(default_factory=list, max_length=15)
+    # Answers to the Nature attractions questions. They are caller-owned (the
+    # app sets them from the traveler's taps); the AI never writes them, and
+    # None means "not asked yet", never a default.
+    activity_level: Literal["easy", "moderate", "challenging"] | None = None
+    travel_start_date: date | None = None
+    prefers_quiet: bool | None = None
+    priority_order: list[Text] = Field(default_factory=list, max_length=3)
     reserve_amount: Money = Decimal("0.00")
     selected_transport_option_ids: list[OptionId] = Field(default_factory=list, max_length=50)
     selected_activity_option_ids: list[OptionId] = Field(default_factory=list, max_length=50)
@@ -169,6 +177,23 @@ class PlanningState(PlanningInput):
                 seen.add(value.casefold())
                 result.append(value)
         return result
+
+    @field_validator("priority_order")
+    @classmethod
+    def validate_priority_order(cls, values):
+        from app.features.recommendations.weight_profiles import load_config
+
+        known = {
+            name
+            for profile in load_config().profiles.values()
+            for name in profile.priority_criteria
+        }
+        for value in values:
+            if value not in known:
+                raise ValueError(f"Unknown priority {value!r}. Choose from: {', '.join(sorted(known))}.")
+        if len(set(values)) != len(values):
+            raise ValueError("priority_order cannot repeat a priority.")
+        return values
 
     @model_validator(mode="after")
     def validate_nights(self):

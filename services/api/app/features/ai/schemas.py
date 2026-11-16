@@ -265,6 +265,10 @@ class AIPlanningChatResult(BaseModel):
     recommendations: list[PlanningRecommendationItem] = Field(default_factory=list)
     recommendation_total_candidates: int = 0
     recommendation_shortfall_reason: str | None = None
+    # Where the conversation stands after this reply, computed from the saved
+    # state: {"stage", "missing_details", "ask_next"}. The app shows the next
+    # question's answer buttons from it.
+    conversation: dict[str, Any] | None = None
 
 
 class AIChatResponse(BaseModel):
