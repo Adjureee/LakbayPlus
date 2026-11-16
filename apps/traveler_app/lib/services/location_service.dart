@@ -5,6 +5,14 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'env_config.dart';
 
+enum LocationPermissionOutcome {
+  granted,
+  denied,
+  deniedForever,
+  serviceDisabled,
+  error,
+}
+
 class LocationResult {
   final bool granted;
   final double? lat;
@@ -12,6 +20,7 @@ class LocationResult {
   final double? accuracyMeters;
   final String? resolvedLabel;
   final String statusMessage;
+  final LocationPermissionOutcome? permissionOutcome;
 
   const LocationResult({
     required this.granted,
@@ -20,7 +29,18 @@ class LocationResult {
     this.accuracyMeters,
     this.resolvedLabel,
     required this.statusMessage,
+    this.permissionOutcome,
   });
+
+  LocationPermissionOutcome get effectiveOutcome =>
+      permissionOutcome ??
+      (granted ? LocationPermissionOutcome.granted : LocationPermissionOutcome.denied);
+
+  bool get isPermanentlyDenied =>
+      permissionOutcome == LocationPermissionOutcome.deniedForever;
+
+  bool get isServiceDisabled =>
+      permissionOutcome == LocationPermissionOutcome.serviceDisabled;
 }
 
 /// One live GPS fix from the position stream.
@@ -76,6 +96,9 @@ class PlaceSuggestion {
 class LocationService {
   LocationService({
     this.customFetcher,
+    this.customPermissionChecker,
+    this.customOpenAppSettings,
+    this.customOpenLocationSettings,
     this.customPositionStream,
     this.customPlaceSearcher,
     this.customReverseGeocoder,
@@ -83,6 +106,52 @@ class LocationService {
   }) : _httpClient = httpClient ?? http.Client();
 
   final Future<LocationResult> Function()? customFetcher;
+  final Future<LocationPermissionOutcome> Function()? customPermissionChecker;
+  final Future<bool> Function()? customOpenAppSettings;
+  final Future<bool> Function()? customOpenLocationSettings;
+
+  Future<LocationPermissionOutcome> checkPermissionOutcome() async {
+    if (customPermissionChecker != null) {
+      return customPermissionChecker!();
+    }
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return LocationPermissionOutcome.serviceDisabled;
+      final permission = await Geolocator.checkPermission();
+      return switch (permission) {
+        LocationPermission.whileInUse ||
+        LocationPermission.always =>
+          LocationPermissionOutcome.granted,
+        LocationPermission.deniedForever =>
+          LocationPermissionOutcome.deniedForever,
+        LocationPermission.denied ||
+        LocationPermission.unableToDetermine =>
+          LocationPermissionOutcome.denied,
+      };
+    } catch (_) {
+      return LocationPermissionOutcome.error;
+    }
+  }
+
+  Future<bool> openAppSettings() async {
+    if (customOpenAppSettings != null) return customOpenAppSettings!();
+    try {
+      return await Geolocator.openAppSettings();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> openLocationSettings() async {
+    if (customOpenLocationSettings != null) {
+      return customOpenLocationSettings!();
+    }
+    try {
+      return await Geolocator.openLocationSettings();
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Test hook replacing the device position stream.
   final Stream<LivePosition> Function()? customPositionStream;
@@ -96,6 +165,10 @@ class LocationService {
   final http.Client _httpClient;
 
   Future<bool> hasGrantedPermission() async {
+    if (customPermissionChecker != null) {
+      return (await customPermissionChecker!()) ==
+          LocationPermissionOutcome.granted;
+    }
     if (customFetcher != null) return false;
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -170,6 +243,7 @@ class LocationService {
       if (!serviceEnabled) {
         return const LocationResult(
           granted: false,
+          permissionOutcome: LocationPermissionOutcome.serviceDisabled,
           statusMessage: 'Location services are turned off on this device.',
         );
       }
@@ -182,6 +256,7 @@ class LocationService {
       if (permission == LocationPermission.denied) {
         return const LocationResult(
           granted: false,
+          permissionOutcome: LocationPermissionOutcome.denied,
           statusMessage: 'Location permission was declined.',
         );
       }
@@ -189,6 +264,7 @@ class LocationService {
       if (permission == LocationPermission.deniedForever) {
         return const LocationResult(
           granted: false,
+          permissionOutcome: LocationPermissionOutcome.deniedForever,
           statusMessage:
               'Location permission is blocked in browser or system settings.',
         );
@@ -208,6 +284,7 @@ class LocationService {
       if (position == null) {
         return const LocationResult(
           granted: false,
+          permissionOutcome: LocationPermissionOutcome.error,
           statusMessage: 'Unable to determine your current location right now.',
         );
       }
@@ -215,6 +292,7 @@ class LocationService {
       final label = await reverseGeocode(position.latitude, position.longitude);
       return LocationResult(
         granted: true,
+        permissionOutcome: LocationPermissionOutcome.granted,
         lat: position.latitude,
         lng: position.longitude,
         accuracyMeters: position.accuracy,
@@ -224,6 +302,7 @@ class LocationService {
     } catch (_) {
       return const LocationResult(
         granted: false,
+        permissionOutcome: LocationPermissionOutcome.error,
         statusMessage: 'Unable to determine your current location right now.',
       );
     }

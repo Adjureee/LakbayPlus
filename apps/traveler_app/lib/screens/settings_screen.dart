@@ -1,13 +1,22 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/location_service.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 
 class SettingsScreen extends StatelessWidget {
   final TravelRepository repo;
+  final bool? showDiagnosticsOverride;
 
-  const SettingsScreen({super.key, required this.repo});
+  const SettingsScreen({
+    super.key,
+    required this.repo,
+    this.showDiagnosticsOverride,
+  });
+
+  bool get _showDebugDiagnostics => showDiagnosticsOverride ?? kDebugMode;
 
   @override
   Widget build(BuildContext context) {
@@ -62,31 +71,13 @@ class SettingsScreen extends StatelessWidget {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 32),
                     children: [
-                      const _SectionHeader('ACCOUNT'),
-                      _SettingsItemCard(
-                        icon: Icons.credit_card_outlined,
-                        title: 'Payment',
-                        trailingText: repo.preferredPaymentMethod,
-                        showChevron: false,
-                        onTap: () => _showPaymentSheet(context),
-                      ),
-                      _SettingsItemCard(
-                        icon: Icons.link_rounded,
-                        title: 'Connected apps',
-                        trailingText: repo.aiService.isConfigured
-                            ? 'Lakbay AI + Mapbox'
-                            : 'Not connected',
-                        onTap: () => _showConnectedAppsSheet(context),
-                      ),
+                      const _SectionHeader('PREFERENCES'),
                       _SettingsItemCard(
                         icon: Icons.tune_rounded,
                         title: 'Preferences',
                         trailingText: '${repo.preferencesCompletionPercent}% complete',
                         onTap: () => _showPreferencesSheet(context),
                       ),
-
-                      const SizedBox(height: 16),
-                      const _SectionHeader('PREFERENCES'),
                       _SettingsItemCard(
                         icon: Icons.translate_rounded,
                         title: 'Language',
@@ -119,10 +110,20 @@ class SettingsScreen extends StatelessWidget {
                         value: repo.priceDropAlertsEnabled,
                         onChanged: repo.setNotificationsEnabled,
                       ),
-                      _SettingsToggleCard(
-                        icon: Icons.my_location_rounded,
-                        title: 'Location sharing',
+                      _SettingsLocationCard(
                         value: repo.locationSharingEnabled,
+                        statusText: _locationStatusSummary(repo),
+                        showOpenSettings:
+                            repo.lastLocationOutcome ==
+                                LocationPermissionOutcome.deniedForever ||
+                            repo.lastLocationOutcome ==
+                                LocationPermissionOutcome.serviceDisabled ||
+                            !repo.locationSharingEnabled,
+                        onOpenSettings: () => repo.openLocationAppSettings(
+                          openLocationMenu:
+                              repo.lastLocationOutcome ==
+                              LocationPermissionOutcome.serviceDisabled,
+                        ),
                         onChanged: (enabled) async {
                           if (!enabled) {
                             repo.setLocationSharingEnabled(false);
@@ -134,6 +135,18 @@ class SettingsScreen extends StatelessWidget {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(result.statusMessage),
+                              action: (result.isPermanentlyDenied ||
+                                      result.isServiceDisabled)
+                                  ? SnackBarAction(
+                                      label: 'Open settings',
+                                      textColor: LakbayColors.primaryLight,
+                                      onPressed: () =>
+                                          repo.openLocationAppSettings(
+                                        openLocationMenu:
+                                            result.isServiceDisabled,
+                                      ),
+                                    )
+                                  : null,
                               backgroundColor: LakbayColors.tealDeep,
                             ),
                           );
@@ -142,6 +155,15 @@ class SettingsScreen extends StatelessWidget {
 
                       const SizedBox(height: 16),
                       const _SectionHeader('APP'),
+                      if (_showDebugDiagnostics)
+                        _SettingsItemCard(
+                          icon: Icons.developer_mode_rounded,
+                          title: 'Connection diagnostics (Debug)',
+                          trailingText: repo.aiService.isConfigured
+                              ? 'Server + Mapbox'
+                              : 'Offline',
+                          onTap: () => _showDebugDiagnosticsSheet(context),
+                        ),
                       _SettingsItemCard(
                         icon: Icons.download_rounded,
                         title: 'Download my data',
@@ -234,56 +256,21 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _showPaymentSheet(BuildContext context) {
-    final options = [
-      'Set at checkout',
-      'GCash / Maya',
-      'Credit / Debit Card',
-      'Apple Pay / Google Pay',
-    ];
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Default Payment Method',
-              style: TextStyle(
-                fontFamily: 'FigGrotesk',
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
-              ),
-            ),
-            const SizedBox(height: 10),
-            for (final opt in options)
-              ListTile(
-                title: Text(opt),
-                trailing: repo.preferredPaymentMethod == opt
-                    ? const Icon(
-                        Icons.check_circle,
-                        color: LakbayColors.primary,
-                      )
-                    : null,
-                onTap: () {
-                  repo.setPreferredPaymentMethod(opt);
-                  Navigator.of(ctx).pop();
-                },
-              ),
-          ],
-        ),
-      ),
-    );
+  String _locationStatusSummary(TravelRepository repo) {
+    if (repo.locationSharingEnabled && repo.hasUserLocation) {
+      final place = repo.resolvedOriginLabel?.trim() ?? '';
+      return place.isNotEmpty ? 'Allowed · $place' : 'Allowed';
+    }
+    return switch (repo.lastLocationOutcome) {
+      LocationPermissionOutcome.deniedForever => 'Blocked in settings',
+      LocationPermissionOutcome.serviceDisabled => 'Device location off',
+      LocationPermissionOutcome.granted => 'Allowed',
+      LocationPermissionOutcome.denied ||
+      LocationPermissionOutcome.error => 'Not shared',
+    };
   }
 
-  void _showConnectedAppsSheet(BuildContext context) {
+  void _showDebugDiagnosticsSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -297,7 +284,7 @@ class SettingsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Connected Apps & APIs',
+              'Connection Diagnostics (Debug)',
               style: TextStyle(
                 fontFamily: 'FigGrotesk',
                 fontSize: 18,
@@ -306,6 +293,8 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
+            _StatusRow('Lakbay+ Cloud API', repo.apiCatalog.isConfigured),
+            _StatusRow('Lakbay+ Cloud Account', repo.isSignedIn),
             _StatusRow('Lakbay AI (server)', repo.aiService.isConfigured),
             _StatusRow('Mapbox Maps & Routes', repo.mapbox.hasValidToken),
             _StatusRow('Cloudinary Media', repo.cloudinary.isConfigured),
@@ -995,6 +984,99 @@ class _SettingsToggleCard extends StatelessWidget {
             activeThumbColor: Colors.white,
             onChanged: onChanged,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsLocationCard extends StatelessWidget {
+  final bool value;
+  final String statusText;
+  final bool showOpenSettings;
+  final VoidCallback onOpenSettings;
+  final ValueChanged<bool> onChanged;
+
+  const _SettingsLocationCard({
+    required this.value,
+    required this.statusText,
+    required this.showOpenSettings,
+    required this.onOpenSettings,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: LakbayColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.my_location_rounded,
+                color: LakbayColors.tealDeep,
+                size: 22,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Location sharing',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: LakbayColors.tealDeep,
+                      ),
+                    ),
+                    Text(
+                      statusText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: LakbayColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: value,
+                activeTrackColor: LakbayColors.tealDeep,
+                activeThumbColor: Colors.white,
+                onChanged: onChanged,
+              ),
+            ],
+          ),
+          if (showOpenSettings) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onOpenSettings,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(Icons.settings_applications_outlined, size: 16),
+                label: const Text(
+                  'Open app settings',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

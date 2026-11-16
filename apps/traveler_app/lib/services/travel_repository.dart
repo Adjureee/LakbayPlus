@@ -229,7 +229,12 @@ class TravelRepository extends ChangeNotifier {
     notifyListeners();
   }
   String temperatureUnit = 'C'; // 'C' or 'F'
-  String preferredPaymentMethod = 'Set at checkout';
+  LocationPermissionOutcome _lastLocationOutcome =
+      LocationPermissionOutcome.denied;
+  LocationPermissionOutcome get lastLocationOutcome =>
+      (locationSharingEnabled && hasUserLocation)
+          ? LocationPermissionOutcome.granted
+          : _lastLocationOutcome;
   String get travelerId =>
       _authSession != null ? 'usr_${_authSession!.userId}' : 'guest';
 
@@ -728,7 +733,6 @@ class TravelRepository extends ChangeNotifier {
         'manualOriginLng': ?_manualOriginLng,
         if (_manualOriginLabel != null && _manualOriginLabel!.trim().isNotEmpty)
           'manualOriginLabel': _manualOriginLabel,
-        'preferredPaymentMethod': preferredPaymentMethod,
         'selectedVibes': selectedVibes.toList(),
         'preferenceGroups': _preferenceGroups.map((g) => g.toJson()).toList(),
         'categoryFacets': _categoryFacets.map((c) => c.toJson()).toList(),
@@ -784,8 +788,6 @@ class TravelRepository extends ChangeNotifier {
           (savedManualLabel != null && savedManualLabel.isNotEmpty)
               ? savedManualLabel
               : null;
-      preferredPaymentMethod =
-          map['preferredPaymentMethod'] as String? ?? preferredPaymentMethod;
 
       final vibes = map['selectedVibes'] as List<dynamic>?;
       if (vibes != null) {
@@ -957,7 +959,9 @@ class TravelRepository extends ChangeNotifier {
       }
     }
     refreshLiveFxRates();
-    refreshCurrentLocationSilently();
+    if (_hasCompletedOnboarding && locationSharingEnabled) {
+      refreshCurrentLocationSilently(requireExistingGrant: true);
+    }
   }
 
   /// Syncs live active destinations from `/api/v1/destinations`: upserts active
@@ -1872,6 +1876,7 @@ class TravelRepository extends ChangeNotifier {
 
   Future<LocationResult> requestAndSaveCurrentLocation() async {
     final result = await locationService.captureCurrentLocation();
+    _lastLocationOutcome = result.effectiveOutcome;
     if (result.granted && result.lat != null && result.lng != null) {
       _userLat = result.lat;
       _userLng = result.lng;
@@ -1896,6 +1901,20 @@ class TravelRepository extends ChangeNotifier {
     _scheduleSaveState();
     notifyListeners();
     return result;
+  }
+
+  Future<LocationPermissionOutcome> refreshLocationPermissionOutcome() async {
+    final outcome = await locationService.checkPermissionOutcome();
+    _lastLocationOutcome = outcome;
+    notifyListeners();
+    return outcome;
+  }
+
+  Future<bool> openLocationAppSettings({bool openLocationMenu = false}) {
+    if (openLocationMenu) {
+      return locationService.openLocationSettings();
+    }
+    return locationService.openAppSettings();
   }
 
   /// Stores a manually searched or map-pinned starting place without assuming Davao.
@@ -1935,12 +1954,6 @@ class TravelRepository extends ChangeNotifier {
 
   Future<String> reverseGeocodePoint(double lat, double lng) =>
       locationService.reverseGeocode(lat, lng);
-
-  void setPreferredPaymentMethod(String method) {
-    preferredPaymentMethod = method;
-    _scheduleSaveState();
-    notifyListeners();
-  }
 
   /// Preference groups from the server (cached for offline use). Empty until
   /// they have loaded once.
@@ -4939,10 +4952,13 @@ class TravelRepository extends ChangeNotifier {
   bool _didAutoDetectOnShellEntry = false;
 
   /// Refreshes current GPS location silently on startup when permission is already granted.
-  Future<bool> refreshCurrentLocationSilently() async {
+  Future<bool> refreshCurrentLocationSilently({
+    bool requireExistingGrant = false,
+  }) async {
     try {
       final hasPermission = await locationService.hasGrantedPermission();
-      if (!hasPermission && locationService.customFetcher == null) {
+      if (!hasPermission &&
+          (requireExistingGrant || locationService.customFetcher == null)) {
         return false;
       }
       if (!locationSharingEnabled) return false;
