@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
@@ -114,14 +115,30 @@ class ProfileScreen extends StatelessWidget {
                             border: Border.all(color: Colors.white, width: 3),
                           ),
                           alignment: Alignment.center,
-                          child: Text(
-                            profile.initials,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: LakbayColors.primaryDark,
-                            ),
-                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: profile.avatarUrl.isNotEmpty
+                              ? Image.network(
+                                  profile.avatarUrl,
+                                  width: 62,
+                                  height: 62,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Text(
+                                    profile.initials,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: LakbayColors.primaryDark,
+                                    ),
+                                  ),
+                                )
+                              : Text(
+                                  profile.initials,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: LakbayColors.primaryDark,
+                                  ),
+                                ),
                         ),
                       ),
                     ],
@@ -372,6 +389,8 @@ class ProfileScreen extends StatelessWidget {
         String? gpsNotice;
         String? usernameError;
         var isSaving = false;
+        var isUploadingPhoto = false;
+        String? photoError;
         return StatefulBuilder(
           builder: (ctx, setSheetState) => Padding(
             padding: EdgeInsets.fromLTRB(
@@ -411,36 +430,97 @@ class ProfileScreen extends StatelessWidget {
                         CircleAvatar(
                           radius: 42,
                           backgroundColor: LakbayColors.primaryLight,
-                          child: Text(
-                            p.initials,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: LakbayColors.primaryDark,
-                            ),
-                          ),
+                          backgroundImage: repo.profile.avatarUrl.isNotEmpty
+                              ? NetworkImage(repo.profile.avatarUrl)
+                              : null,
+                          child: repo.profile.avatarUrl.isNotEmpty
+                              ? null
+                              : Text(
+                                  p.initials,
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                    color: LakbayColors.primaryDark,
+                                  ),
+                                ),
                         ),
                         Positioned(
                           right: 0,
                           bottom: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              border:
-                                  Border.all(color: LakbayColors.primaryLight),
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt_outlined,
-                              size: 16,
-                              color: LakbayColors.tealDeep,
+                          child: InkWell(
+                            key: const ValueKey('change-profile-photo'),
+                            customBorder: const CircleBorder(),
+                            onTap: isUploadingPhoto
+                                ? null
+                                : () async {
+                                    if (!repo.isSignedIn) {
+                                      setSheetState(() => photoError =
+                                          'Sign in to add a profile photo.');
+                                      return;
+                                    }
+                                    final picked = await ImagePicker().pickImage(
+                                      source: ImageSource.gallery,
+                                      maxWidth: 1280,
+                                      maxHeight: 1280,
+                                      imageQuality: 85,
+                                    );
+                                    if (picked == null || !ctx.mounted) return;
+                                    setSheetState(() {
+                                      isUploadingPhoto = true;
+                                      photoError = null;
+                                    });
+                                    final problem = await repo.uploadProfilePhoto(
+                                      bytes: await picked.readAsBytes(),
+                                      filename: picked.name,
+                                    );
+                                    if (!ctx.mounted) return;
+                                    setSheetState(() {
+                                      isUploadingPhoto = false;
+                                      photoError = problem;
+                                    });
+                                  },
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: LakbayColors.primaryLight,
+                                ),
+                              ),
+                              child: isUploadingPhoto
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.camera_alt_outlined,
+                                      size: 16,
+                                      color: LakbayColors.tealDeep,
+                                    ),
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
+                  if (photoError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Center(
+                        child: Text(
+                          photoError!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 20),
                   _ProfileField(label: 'First name', controller: firstCtrl),
                   const SizedBox(height: 10),

@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
+import '../services/trip_pdf.dart';
 import '../theme/lakbay_theme.dart';
 
 Future<void> showTripCollaborationSheet(
@@ -731,16 +732,67 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
     }
   }
 
+  Future<void> _sharePdf(List<int> bytes, String name) async {
+    final List<XFile> shareFiles;
+    if (kIsWeb) {
+      shareFiles = [
+        XFile.fromData(
+          Uint8List.fromList(bytes),
+          mimeType: 'application/pdf',
+          name: name,
+        ),
+      ];
+    } else {
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/$name');
+      await file.writeAsBytes(bytes, flush: true);
+      shareFiles = [XFile(file.path)];
+    }
+    await SharePlus.instance.share(
+      ShareParams(
+        files: shareFiles,
+        text: '${widget.trip.title} - Lakbay+ itinerary PDF',
+      ),
+    );
+  }
+
+  /// Built on the phone from the trip itself, so it works signed out and offline.
   Future<void> _exportPdf() async {
+    setState(() {
+      _exportingPdf = true;
+      _bannerMsg = null;
+    });
+    try {
+      final bytes = await TripPdfBuilder.build(
+        widget.trip,
+        phpPerUsd: widget.repo.phpPerUsd,
+        origin: widget.repo.routeOrigin,
+      );
+      await _sharePdf(bytes, 'lakbay-${widget.trip.id}-itinerary.pdf');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _bannerMsg = 'Could not make the PDF on this phone: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _exportingPdf = false);
+    }
+  }
+
+  /// The server's report (with saved expenses), for trips saved to the cloud.
+  Future<void> _exportServerPdf() async {
     final tripId = widget.trip.backendTripId;
     if (!widget.repo.isSignedIn || tripId == null) {
       setState(() {
         _bannerMsg =
-            'Sign in and save this trip to cloud first to generate the server PDF report.';
+            'The expense report needs you to sign in and save this trip to the cloud. '
+            'Export PDF still works without that.';
       });
       return;
     }
-    setState(() => _exportingPdf = true);
+    setState(() {
+      _exportingPdf = true;
+      _bannerMsg = null;
+    });
     try {
       final bytes = await widget.repo.apiCatalog.downloadTripReportPdf(
         widget.repo.authSession!.accessToken,
@@ -748,34 +800,15 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
       );
       if (bytes == null || bytes.isEmpty) {
         setState(() {
-          _exportingPdf = false;
-          _bannerMsg = 'PDF report unavailable right now.';
+          _bannerMsg =
+              "Couldn't get the expense report from Lakbay (no answer or no connection). "
+              'Export PDF still works on this phone.';
         });
         return;
       }
-      final List<XFile> shareFiles;
-      if (kIsWeb) {
-        shareFiles = [
-          XFile.fromData(
-            Uint8List.fromList(bytes),
-            mimeType: 'application/pdf',
-            name: 'lakbay-trip-$tripId-report.pdf',
-          ),
-        ];
-      } else {
-        final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/lakbay-trip-$tripId-report.pdf');
-        await file.writeAsBytes(bytes, flush: true);
-        shareFiles = [XFile(file.path)];
-      }
-      await SharePlus.instance.share(
-        ShareParams(
-          files: shareFiles,
-          text: '${widget.trip.title} — Lakbay+ Itinerary & Expense PDF Report',
-        ),
-      );
+      await _sharePdf(bytes, 'lakbay-trip-$tripId-report.pdf');
     } catch (e) {
-      setState(() => _bannerMsg = 'Could not export PDF: $e');
+      if (mounted) setState(() => _bannerMsg = 'Could not export the report: $e');
     } finally {
       if (mounted) setState(() => _exportingPdf = false);
     }
@@ -843,6 +876,15 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
                 ),
               ],
             ),
+            if (widget.repo.isSignedIn && widget.trip.backendTripId != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  key: const ValueKey('export-server-report'),
+                  onPressed: _exportingPdf ? null : _exportServerPdf,
+                  child: const Text('Expense report from Lakbay'),
+                ),
+              ),
             const SizedBox(height: 12),
             if (alertLevel != 'ok')
               Container(

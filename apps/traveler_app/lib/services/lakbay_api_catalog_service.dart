@@ -1838,7 +1838,13 @@ class LakbayApiCatalogService {
   }
 
   /// The signed-in traveler's username, or null when it cannot be loaded.
-  Future<String?> fetchMyUsername(String accessToken) async {
+  Future<String?> fetchMyUsername(String accessToken) async =>
+      (await fetchMyAccount(accessToken))?.username;
+
+  /// Username and profile photo from the server, or null when unavailable.
+  Future<({String? username, String? avatarUrl})?> fetchMyAccount(
+    String accessToken,
+  ) async {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return null;
     try {
@@ -1854,11 +1860,80 @@ class LakbayApiCatalogService {
       if (res.statusCode != 200) return null;
       final decoded = _tryDecodeJson(res.body);
       if (decoded is! Map<String, dynamic>) return null;
-      final username = decoded['username']?.toString().trim();
-      return (username == null || username.isEmpty) ? null : username;
+      String? clean(Object? v) {
+        final text = v?.toString().trim();
+        return (text == null || text.isEmpty) ? null : text;
+      }
+
+      return (
+        username: clean(decoded['username']),
+        avatarUrl: clean(decoded['avatar_url']),
+      );
     } catch (_) {
       return null;
     }
+  }
+
+  /// Uploads the traveler's profile photo (`POST /users/me/avatar`) and returns
+  /// the saved photo address. Throws a [LakbayApiException] with the server's
+  /// reason (too large, wrong type, too many uploads) when it is refused.
+  Future<String> uploadMyAvatar(
+    String accessToken, {
+    Uint8List? fileBytes,
+    String? filePath,
+    String? filename,
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) {
+      throw const LakbayApiException("You're not connected to Lakbay.");
+    }
+    if (fileBytes == null && (filePath == null || filePath.trim().isEmpty)) {
+      throw const LakbayApiException('No photo file was selected.');
+    }
+    final meta = _inferImageUploadMeta(
+      bytes: fileBytes,
+      rawFilename: filename ?? filePath,
+    );
+    http.Response res;
+    try {
+      res = await _sendAuthorized(accessToken, (tok) async {
+        final req = http.MultipartRequest('POST', Uri.parse('$base/users/me/avatar'));
+        req.headers['Authorization'] = 'Bearer $tok';
+        req.files.add(
+          fileBytes != null
+              ? http.MultipartFile.fromBytes(
+                  'file', fileBytes,
+                  filename: meta.filename, contentType: meta.mediaType,
+                )
+              : await http.MultipartFile.fromPath(
+                  'file', filePath!,
+                  filename: meta.filename, contentType: meta.mediaType,
+                ),
+        );
+        return http.Response.fromStream(await _client.send(req).timeout(timeout));
+      });
+    } on TimeoutException {
+      throw const LakbayApiException(
+        'The upload took too long. Check your connection and try again.',
+      );
+    } on LakbayApiException {
+      rethrow;
+    } catch (_) {
+      throw const LakbayApiException(
+        "Couldn't reach Lakbay. Check your connection and try again.",
+      );
+    }
+    final decoded = _tryDecodeJson(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300 && decoded is Map) {
+      final url = (decoded['avatar_url'] ?? '').toString().trim();
+      if (url.isNotEmpty) return url;
+      throw const LakbayApiException('The server did not return the new photo.');
+    }
+    throw LakbayApiException(
+      _extractErrorMessage(decoded, res.statusCode),
+      statusCode: res.statusCode,
+    );
   }
 
   /// Changes the username. Returns the saved (normalised) username; throws a
