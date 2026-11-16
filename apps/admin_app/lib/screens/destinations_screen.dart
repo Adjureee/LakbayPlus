@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/admin_widgets.dart';
+import '../widgets/destinations_map_view.dart';
 import 'destination_editor.dart';
 
 class DestinationsScreen extends StatefulWidget {
@@ -26,6 +27,8 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
   String? _actionError;
   int _page = 0;
   bool _ascending = true;
+  bool _mapView = false;
+  String? _mapSelectedId;
   static const int _pageSize = 15;
 
   @override
@@ -245,6 +248,24 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                     runSpacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
+                      SegmentedButton<bool>(
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment(
+                            value: false,
+                            icon: Icon(Icons.table_rows_outlined),
+                            label: Text('List'),
+                          ),
+                          ButtonSegment(
+                            value: true,
+                            icon: Icon(Icons.map_outlined),
+                            label: Text('Map'),
+                          ),
+                        ],
+                        selected: {_mapView},
+                        onSelectionChanged: (value) =>
+                            setState(() => _mapView = value.first),
+                      ),
                       Text(
                         '${filtered.length} of ${records.length} active destinations',
                       ),
@@ -282,6 +303,28 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                       icon: Icons.search_off,
                       title: 'No matching destinations',
                       message: 'Try another search or reset your filters.',
+                    )
+                  else if (_mapView)
+                    DestinationsMapView(
+                      initialSelectedId: _mapSelectedId,
+                      records: filtered,
+                      api: _api,
+                      onView: (item) => setState(() => _selected = item),
+                      onEdit: (item) {
+                        setState(() => _selected = item);
+                        _edit();
+                      },
+                      onPinMoved: (saved) {
+                        _mapSelectedId = saved['destination_id']?.toString();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Moved the pin for ${_value(saved, 'name')}.',
+                            ),
+                          ),
+                        );
+                        _refresh();
+                      },
                     )
                   else
                     AdminPanel(
