@@ -21,6 +21,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   bool _hasUpcomingTrip = true;
   bool _inYesAiFlow = false;
   bool _requestingLocation = false;
+  bool _locationBlocked = false;
+  bool _locationServiceDisabled = false;
   String? _locationFeedback;
   late final AnimationController _pulseController;
 
@@ -43,19 +45,32 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   void _nextStep() {
     if (_stepIndex == 1 && _hasUpcomingTrip) {
-      setState(() => _inYesAiFlow = true);
+      // Collect starting location permission/choice BEFORE entering AI chat.
+      setState(() => _stepIndex = 4);
       return;
     }
     if (_stepIndex < _totalSteps - 1) {
       setState(() => _stepIndex++);
     } else {
-      _proceedToAuthOrComplete();
+      _completeLocationStep();
     }
   }
 
   void _prevStep() {
+    if (_stepIndex == 4 && _hasUpcomingTrip) {
+      setState(() => _stepIndex = 1);
+      return;
+    }
     if (_stepIndex > 0) {
       setState(() => _stepIndex--);
+    }
+  }
+
+  void _completeLocationStep() {
+    if (_hasUpcomingTrip) {
+      setState(() => _inYesAiFlow = true);
+    } else {
+      _proceedToAuthOrComplete();
     }
   }
 
@@ -88,16 +103,22 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     setState(() {
       _requestingLocation = true;
       _locationFeedback = null;
+      _locationBlocked = false;
+      _locationServiceDisabled = false;
     });
     final result = await widget.repo.requestAndSaveCurrentLocation();
     if (!mounted) return;
     setState(() => _requestingLocation = false);
     if (result.granted) {
-      _proceedToAuthOrComplete();
+      _completeLocationStep();
     } else {
+      final blocked = result.isPermanentlyDenied || result.isServiceDisabled;
       setState(() {
-        _locationFeedback =
-            '${result.statusMessage} Search for or pin your starting place below, or tap "Maybe later".';
+        _locationBlocked = blocked;
+        _locationServiceDisabled = result.isServiceDisabled;
+        _locationFeedback = blocked
+            ? '${result.statusMessage} Open app settings to allow access, or choose your starting place below.'
+            : '${result.statusMessage} Choose a starting place below, or continue without location.';
       });
     }
   }
@@ -749,7 +770,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           ),
           const SizedBox(height: 8),
           const Text(
-            'Share your current GPS location—or search or pin where you are starting from—for tailored Region XI routes.',
+            'Your starting point helps Lakbay AI calculate travel time and route your stops.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -901,7 +922,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   : Text(
                       _locationFeedback != null
                           ? 'Try location again'
-                          : 'Share location & continue',
+                          : 'Allow location',
                       style: const TextStyle(
                         fontFamily: 'FigGrotesk',
                         fontSize: 16,
@@ -910,12 +931,35 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ),
             ),
           ),
+          if (_locationBlocked) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => widget.repo.openLocationAppSettings(
+                openLocationMenu: _locationServiceDisabled,
+              ),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(44),
+                foregroundColor: LakbayColors.tealDeep,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+              icon: const Icon(Icons.settings_applications_outlined, size: 18),
+              label: const Text(
+                'Open app settings',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: () async {
+              if (!widget.repo.hasUserLocation) {
+                widget.repo.setLocationSharingEnabled(false);
+              }
               final picked = await showOriginPickerSheet(context, widget.repo);
               if (picked == true && mounted) {
-                _proceedToAuthOrComplete();
+                _completeLocationStep();
               }
             },
             style: OutlinedButton.styleFrom(
@@ -926,15 +970,20 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             ),
             icon: const Icon(Icons.search_rounded, size: 18),
             label: const Text(
-              'Search or pin a starting place',
+              "Not now, I'll choose a starting place",
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
           const SizedBox(height: 4),
           TextButton(
-            onPressed: () => _finishOnboarding(shareLocation: false),
+            onPressed: () {
+              if (!widget.repo.hasUserLocation) {
+                widget.repo.setLocationSharingEnabled(false);
+              }
+              _completeLocationStep();
+            },
             child: const Text(
-              'Maybe later',
+              'Continue without location',
               style: TextStyle(
                 color: LakbayColors.textSecondary,
                 fontWeight: FontWeight.w600,

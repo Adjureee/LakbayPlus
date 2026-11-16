@@ -1290,12 +1290,19 @@ void main() {
     await tester.pumpWidget(LakbayTravelApp(repository: repo));
     await tester.pump();
 
-    // Welcome -> Trip decision ('Yes' selected by default) -> YesAiOnboardingFlow Stage 0 (Try AI)
+    // Welcome -> Trip decision ('Yes' selected by default) -> Location permission -> YesAiOnboardingFlow Stage 0 (Try AI)
     await tester.tap(find.text('Get started'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
     await tester.tap(find.text('Continue'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('First, share your location'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Continue without location'));
+    await tester.pump();
+    await tester.tap(find.text('Continue without location'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.textContaining("I'll plan it."), findsOneWidget);

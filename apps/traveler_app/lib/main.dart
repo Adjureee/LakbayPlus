@@ -131,9 +131,6 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   void initState() {
     super.initState();
     widget.repo.startNotificationPolling();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.repo.autoDetectLocationOnShellEntry();
-    });
   }
 
   @override
