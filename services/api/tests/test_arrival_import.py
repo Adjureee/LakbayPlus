@@ -66,3 +66,23 @@ def test_mapping_file_pairs_existing_dataset_rows_once():
     ids = [entry["destination_id"] for entry in mapping]
     assert len(ids) == len(set(ids))
     assert all(entry["dataset_row"] in dataset_rows for entry in mapping)
+
+
+def test_rejected_dataset_point_is_skipped():
+    mapping = [{"destination_id": "34", "dataset_row": "10", "dataset_point": "reject"}]
+    [decision] = decide_arrival_updates(mapping, [_row()], [PIN])
+    assert decision.outcome == "skipped"
+
+
+def test_pin_corrections_file_is_well_formed():
+    from app.features.destinations.arrival_import import DATA_DIR, haversine_meters
+
+    rows = read_csv(DATA_DIR / "pin_corrections.csv")
+    assert rows
+    for row in rows:
+        assert row["source_url"].startswith("https://www.openstreetmap.org/")
+        new = (float(row["new_lat"]), float(row["new_lng"]))
+        assert 5.0 < new[0] < 8.5 and 125.0 < new[1] < 127.0  # Region XI
+        if row["arrival_lat"]:
+            gap = haversine_meters(*new, float(row["arrival_lat"]), float(row["arrival_lng"]))
+            assert gap < 1500

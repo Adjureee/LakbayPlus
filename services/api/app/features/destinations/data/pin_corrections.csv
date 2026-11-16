@@ -1,0 +1,8 @@
+destination_id,name,old_lat,old_lng,new_lat,new_lng,arrival_lat,arrival_lng,source_url,evidence
+3,Eden Nature Park,7.0088,125.3992,7.0282403,125.401755,7.0304604,125.3979848,https://www.openstreetmap.org/way/538858577,"OSM resort area way/1135430452; arrival is the OSM 'Eden Nature Park Reception Area' on Bayabas-Eden Road. Old pin 2.2 km off, dataset gate 4.9 km off."
+6,Dahican Beach,6.9487,126.2542,6.9243488,126.2808986,,,https://www.openstreetmap.org/way/651370443,"OSM natural=beach 'Dahican Beach'; old pin was the Dahican suburb 4 km inland. Dataset gate is 0.38 km from the beach."
+8,Tagbibinta Falls,7.3476,126.1514,7.3163971,126.171868,,,https://www.openstreetmap.org/node/7076360886,"OSM waterfall node in Brgy. Coronobe, Maragusan, ~0.9 km from Tagbibinta Road. Old pin 4.1 km off; dataset 'parking' 3.1 km from the falls."
+9,Mainit Hot Springs,7.3636,125.9494,7.401358,126.0288684,,,https://www.openstreetmap.org/way/1000619479,"OSM resort 'Mainit Sulfuric Hot Spring' beside Mainit village, Maco. Old pin 9.5 km off, dataset 5.7 km off."
+10,Little Boracay Beach,6.5361,125.4693,6.5651682,125.4968126,,,https://www.openstreetmap.org/way/1104821790,"OSM 'Little Boracay Beach Resort' on Hiquiana Beach Road, Santa Maria. Old pin 4.4 km off, dataset 3.2 km off."
+12,Tudaya Falls,6.9842,125.3912,6.9590797,125.3554587,,,https://www.openstreetmap.org/node/5062921518,"OSM waterfall node at the end of 'Tudaya Falls Trail' beside Sitio Tudaya, Sta. Cruz. Old pin 4.8 km off, dataset 4.1 km off."
+13,Aliwagwag Falls,7.7431,126.4218,7.7404501,126.3014983,,,https://www.openstreetmap.org/node/5799152058,"OSM waterfall node in Brgy. Aliwagwag, Cateel, beside the Cateel-Compostela road. Old pin was near Cateel town, 13 km off."

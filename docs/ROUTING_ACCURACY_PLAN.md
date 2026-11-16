@@ -171,6 +171,16 @@ New: `services/api/scripts/import_arrival_points.py` +
   12 held (pins 1.7–7.7 km apart), 17 destinations with no dataset row.
   Re-exporting `places.csv` is not needed: it holds attraction pins, which
   the import never changes.
+- **Held places reviewed against OpenStreetMap (applied 2026-11-16).**
+  Current pin confirmed, dataset point rejected: Museo Dabawenyo, Panabo
+  Mangrove, Camp Sabros, Isla Reta. Pin moved to the OSM feature
+  (`destinations/data/pin_corrections.csv`, applied with
+  `python -m scripts.apply_pin_corrections`): Eden Nature Park (plus its
+  OSM reception area as route-ready arrival), Dahican Beach (dataset gate
+  then passed → route-ready), Tagbibinta Falls, Mainit Hot Springs, Little
+  Boracay, Tudaya Falls, Aliwagwag Falls. Seed file and `places.csv` updated.
+  Still open: Mount Apo Trail Area — summit pin is correct; whether routes
+  should end at the Kapatagan registration centre is a permit/policy call.
 - **Phase 4 done.** Route requests time out after 30 s with one retry; the map
   notice shows the API's reason (`routeNotice`); live tracking follows the
   solid road part even when a dashed last stretch exists.
