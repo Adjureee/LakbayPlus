@@ -8,6 +8,7 @@ import '../widgets/admin_map_pin_picker.dart';
 import '../widgets/admin_trail_editor_dialog.dart';
 import '../widgets/admin_widgets.dart';
 import '../widgets/category_picker_field.dart';
+import '../widgets/commute_section.dart';
 import '../widgets/destination_photo_upload.dart';
 
 const destinationSuitability = <String, String>{
@@ -652,6 +653,18 @@ class _DestinationEditorState extends State<DestinationEditor> {
                               ),
                           ],
                         ),
+                        if (!creating)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 24),
+                            child: AdminPanel(
+                              child: CommuteSection(
+                                api: widget.api,
+                                destinationId: widget
+                                    .destination!['destination_id']
+                                    .toString(),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),

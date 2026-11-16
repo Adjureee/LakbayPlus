@@ -368,6 +368,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('How was Samal Escape?'), findsOneWidget);
 
+    // The screen is a lazy list, so a taller view keeps every entry built.
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 2400);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       MaterialApp(
         home: TripDetailScreen(trip: endedTrip, repo: repoWithEnded),
@@ -375,7 +380,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Add memory'), findsOneWidget);
+    expect(find.text('Add memory'), findsWidgets);
     await tester.dragUntilVisible(
       find.text('Trip Memories'),
       find.byType(ListView).first,

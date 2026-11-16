@@ -606,5 +606,44 @@ class ApiService {
   ) async =>
       _object(await _request('PATCH', '/admin/sea-links/$linkId', data: data));
 
+  Future<List<dynamic>> getCommuteRoutes(String destinationId) async {
+    final response = _object(
+      await _request('GET', '/admin/destinations/$destinationId/commute'),
+    );
+    return _list(response['routes']);
+  }
+
+  Future<Map<String, dynamic>> createCommuteRoute(
+    String destinationId,
+    Map<String, dynamic> data,
+  ) async => _object(
+    await _request(
+      'POST',
+      '/admin/destinations/$destinationId/commute',
+      data: data,
+    ),
+  );
+
+  Future<Map<String, dynamic>> replaceCommuteRoute(
+    int routeId,
+    Map<String, dynamic> data,
+  ) async => _object(
+    await _request('PUT', '/admin/commute/$routeId', data: data),
+  );
+
+  Future<Map<String, dynamic>> deactivateCommuteRoute(int routeId) async =>
+      _object(await _request('DELETE', '/admin/commute/$routeId'));
+
+  /// A draft only: nothing is saved or verified until an admin saves it.
+  Future<Map<String, dynamic>> draftCommuteRoutes(
+    String destinationId,
+  ) async => _object(
+    await _request(
+      'POST',
+      '/admin/destinations/$destinationId/commute/draft',
+      data: const <String, dynamic>{},
+    ),
+  );
+
   void close() => _client.close();
 }
