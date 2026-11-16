@@ -474,6 +474,7 @@ class _CommuteRouteDialogState extends State<_CommuteRouteDialog> {
                     decoration: const InputDecoration(
                       labelText: 'Minutes',
                       helperText: 'Blank = unknown',
+                      helperMaxLines: 2,
                     ),
                   ),
                 ),
@@ -487,6 +488,7 @@ class _CommuteRouteDialogState extends State<_CommuteRouteDialog> {
                     decoration: const InputDecoration(
                       labelText: 'Fare (₱)',
                       helperText: 'Blank = unknown',
+                      helperMaxLines: 2,
                     ),
                   ),
                 ),
