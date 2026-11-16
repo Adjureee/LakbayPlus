@@ -1269,7 +1269,21 @@ class TravelRepository extends ChangeNotifier {
       final tripId = (row['trip_id'] as num?)?.toInt();
       final title = (row['title'] ?? '').toString().trim();
       if (tripId == null || title.isEmpty) continue;
-      if (_savedTrips.any((t) => t.backendTripId == tripId || t.id == 'cloud_$tripId')) {
+      final existingIdx = _savedTrips.indexWhere(
+        (t) => t.backendTripId == tripId || t.id == 'cloud_$tripId',
+      );
+      final rowStatus = (row['status'] ?? 'planned').toString().trim();
+      final rowEndDate = DateTime.tryParse((row['end_date'] ?? '').toString());
+      if (existingIdx >= 0) {
+        final existingTrip = _savedTrips[existingIdx];
+        if (existingTrip.backendStatus != rowStatus ||
+            existingTrip.endDate != rowEndDate) {
+          _savedTrips[existingIdx] = existingTrip.copyWith(
+            backendStatus: rowStatus,
+            endDate: rowEndDate,
+          );
+          updated = true;
+        }
         continue;
       }
       final estCostPhp =
@@ -1339,6 +1353,8 @@ class TravelRepository extends ChangeNotifier {
           backendEstimatedCostPhp: estCostPhp > 0 ? estCostPhp : null,
           backendBudgetPhp:
               double.tryParse((row['total_budget'] ?? '0').toString()),
+          backendStatus: rowStatus,
+          endDate: rowEndDate,
         ),
       );
       updated = true;
@@ -1621,7 +1637,30 @@ class TravelRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Memories Album (Replaces Bookings) ─────────────────────────────────────
+  // ── Memories Album ─────────────────────────────────────────────────────────
+
+  List<TripMemoryItem> memoriesForTrip(ItineraryTrip trip) {
+    final bid = trip.backendTripId;
+    return _memories.where((m) {
+      if (bid != null && m.tripId == bid) return true;
+      if (m.destinationName != null &&
+          m.destinationName!.trim().toLowerCase() ==
+              trip.title.trim().toLowerCase()) {
+        return true;
+      }
+      return false;
+    }).toList();
+  }
+
+  List<ItineraryTrip> get postTripMemoryPrompts => _savedTrips
+      .where(
+        (t) =>
+            !t.isArchived &&
+            t.hasEnded &&
+            t.backendTripId != null &&
+            memoriesForTrip(t).isEmpty,
+      )
+      .toList();
 
   Future<void> refreshMemoriesForSavedTrips() async {
     if (!isSignedIn || !apiCatalog.isConfigured) return;
@@ -1640,14 +1679,14 @@ class TravelRepository extends ChangeNotifier {
         }
       }
     }
-    if (merged.isNotEmpty) {
-      merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      _memories
-        ..clear()
-        ..addAll(merged);
-      _scheduleSaveState();
-      notifyListeners();
-    }
+    final outboxItems = _memories.where((m) => m.isOutbox).toList();
+    merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    _memories
+      ..clear()
+      ..addAll(outboxItems)
+      ..addAll(merged);
+    _scheduleSaveState();
+    notifyListeners();
   }
 
   Future<List<TripMemoryItem>> loadMemoriesForTrip(int backendTripId) async {
@@ -1658,24 +1697,46 @@ class TravelRepository extends ChangeNotifier {
       _authSession!.accessToken,
       backendTripId,
     );
-    _memories.removeWhere((m) => m.tripId == backendTripId);
-    _memories.insertAll(0, items);
-    _memories.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    _memories.removeWhere((m) => !m.isOutbox && m.tripId == backendTripId);
+    _memories.addAll(items);
+    _memories.sort((a, b) {
+      if (a.isOutbox != b.isOutbox) return a.isOutbox ? -1 : 1;
+      return b.createdAt.compareTo(a.createdAt);
+    });
     _scheduleSaveState();
     notifyListeners();
-    return items;
+    return _memories.where((m) => m.tripId == backendTripId).toList();
   }
 
   Future<TripMemoryItem?> uploadAndAddMemory({
     required ItineraryTrip trip,
-    required String localFilePath,
+    String? localFilePath,
+    Uint8List? imageBytes,
+    String? fileName,
     String? caption,
     String? locationTag,
+    void Function(String status)? onProgress,
+    Duration? uploadTimeoutOverride,
   }) async {
+    if (!isSignedIn || !apiCatalog.isConfigured) {
+      throw const LakbayApiException(
+        'Sign in to upload and share trip memories.',
+        code: 'auth_required',
+      );
+    }
+    if (trip.isArchived) {
+      throw const LakbayApiException(
+        'Archived trips are read-only for new memories.',
+        statusCode: 400,
+        code: 'trip_archived_read_only',
+      );
+    }
+
     var tripId = trip.backendTripId;
-    if (isSignedIn && tripId == null && apiCatalog.isConfigured) {
+    if (tripId == null) {
       final destIds = trip.effectiveBackendDestinationIds;
       if (destIds.isNotEmpty) {
+        onProgress?.call('Syncing trip…');
         final phpRate = _currencyRates['PHP'] ?? 57.0;
         tripId = await apiCatalog.createTrip(
           _authSession!.accessToken,
@@ -1691,85 +1752,271 @@ class TravelRepository extends ChangeNotifier {
         }
       }
     }
+    if (tripId == null) {
+      throw const LakbayApiException(
+        'Save this trip with catalog destinations first before adding memories.',
+        code: 'trip_not_synced',
+      );
+    }
 
-    if (isSignedIn && tripId != null && apiCatalog.isConfigured) {
+    final safeDestId =
+        trip.backendDestinationId != null &&
+                trip.effectiveBackendDestinationIds.contains(
+                  trip.backendDestinationId,
+                )
+            ? trip.backendDestinationId
+            : null;
+    final cleanCaption =
+        (caption != null && caption.trim().isNotEmpty) ? caption.trim() : null;
+    final cleanTag = (locationTag != null && locationTag.trim().isNotEmpty)
+        ? locationTag.trim()
+        : trip.destination;
+
+    try {
       final uploaded = await apiCatalog.uploadTripMemoryPhoto(
         _authSession!.accessToken,
         tripId,
+        fileBytes: imageBytes,
+        filename: fileName,
         filePath: localFilePath,
+        onProgress: onProgress,
+        timeoutOverride: uploadTimeoutOverride,
       );
-      if (uploaded != null && uploaded.imageUrl.isNotEmpty) {
-        final created = await apiCatalog.createTripMemory(
-          _authSession!.accessToken,
-          tripId,
-          imageUrl: uploaded.imageUrl,
-          cloudinaryPublicId: uploaded.publicId,
-          destinationId: trip.backendDestinationId,
-          caption: caption,
-          locationTag: locationTag ?? trip.destination,
+      if (uploaded == null || uploaded.imageUrl.isEmpty) {
+        throw const LakbayApiException(
+          'Photo upload did not return an image URL.',
+          code: 'network_error',
         );
-        if (created != null) {
-          _memories.insert(0, created);
-          _scheduleSaveState();
-          notifyListeners();
-          return created;
-        }
       }
+      onProgress?.call('Saving memory…');
+      final created = await apiCatalog.createTripMemory(
+        _authSession!.accessToken,
+        tripId,
+        imageUrl: uploaded.imageUrl,
+        cloudinaryPublicId: uploaded.publicId,
+        destinationId: safeDestId,
+        caption: cleanCaption,
+        locationTag: cleanTag,
+      );
+      if (created == null) {
+        throw const LakbayApiException(
+          'Could not save memory on the server.',
+          code: 'network_error',
+        );
+      }
+      _memories.insert(0, created);
+      _scheduleSaveState();
+      notifyListeners();
+      return created;
+    } on LakbayApiException catch (e) {
+      if (e.statusCode == 403 || e.statusCode == 404) {
+        throw const LakbayApiException(
+          'Only accepted trip members can add memories here. Accept your trip invitation first.',
+          statusCode: 403,
+          code: 'membership_required',
+        );
+      }
+      if (e.statusCode != null && e.statusCode! >= 400 && e.statusCode! < 500) {
+        rethrow;
+      }
+      return _queueMemoryOutbox(
+        tripId: tripId,
+        tripTitle: trip.title,
+        destinationId: safeDestId,
+        localFilePath: localFilePath,
+        imageBytes: imageBytes,
+        caption: cleanCaption,
+        locationTag: cleanTag,
+        errorMessage: e.message,
+      );
+    } catch (e) {
+      return _queueMemoryOutbox(
+        tripId: tripId,
+        tripTitle: trip.title,
+        destinationId: safeDestId,
+        localFilePath: localFilePath,
+        imageBytes: imageBytes,
+        caption: cleanCaption,
+        locationTag: cleanTag,
+        errorMessage: 'Network error while uploading: $e',
+      );
     }
-
-    // Local device fallback when offline or guest
-    final localMemory = TripMemoryItem(
-      tripMemoryId: -DateTime.now().millisecondsSinceEpoch,
-      tripId: tripId ?? 0,
-      uploadedByFullName: _profile.fullName,
-      destinationId: trip.backendDestinationId,
-      destinationName: trip.title,
-      imageUrl: trip.remoteImageUrl ?? '',
-      localFilePath: localFilePath,
-      caption: caption,
-      locationTag: locationTag ?? trip.destination,
-      createdAt: DateTime.now(),
-    );
-    _memories.insert(0, localMemory);
-    _scheduleSaveState();
-    notifyListeners();
-    return localMemory;
   }
 
-  Future<void> likeMemory(TripMemoryItem memory) async {
+  TripMemoryItem _queueMemoryOutbox({
+    required int tripId,
+    required String tripTitle,
+    int? destinationId,
+    String? localFilePath,
+    Uint8List? imageBytes,
+    String? caption,
+    String? locationTag,
+    required String errorMessage,
+  }) {
+    final encodedBytes =
+        (imageBytes != null && imageBytes.length <= 2 * 1024 * 1024)
+            ? base64Encode(imageBytes)
+            : null;
+    final outboxItem = TripMemoryItem(
+      tripMemoryId: -DateTime.now().millisecondsSinceEpoch,
+      tripId: tripId,
+      uploadedByFullName: _profile.fullName,
+      destinationId: destinationId,
+      destinationName: tripTitle,
+      imageUrl: '',
+      localFilePath: localFilePath,
+      caption: caption,
+      locationTag: locationTag,
+      createdAt: DateTime.now(),
+      uploadStatus: 'failed',
+      uploadError: errorMessage,
+      localBytesBase64: encodedBytes,
+    );
+    _memories.insert(0, outboxItem);
+    _scheduleSaveState();
+    notifyListeners();
+    return outboxItem;
+  }
+
+  Future<TripMemoryItem?> retryOutboxMemory(
+    TripMemoryItem item, {
+    void Function(String status)? onProgress,
+    Duration? uploadTimeoutOverride,
+  }) async {
+    if (!item.isOutbox) return item;
+    if (!isSignedIn || !apiCatalog.isConfigured || item.tripId <= 0) {
+      throw const LakbayApiException('Sign in to retry this upload.');
+    }
+
+    final idx = _memories.indexWhere((m) => m.tripMemoryId == item.tripMemoryId);
+    if (idx < 0) return null;
+
+    _memories[idx] = item.copyWith(uploadStatus: 'pending');
+    notifyListeners();
+
+    final Uint8List? bytes = item.localBytesBase64 != null
+        ? base64Decode(item.localBytesBase64!)
+        : null;
+
+    try {
+      final uploaded = await apiCatalog.uploadTripMemoryPhoto(
+        _authSession!.accessToken,
+        item.tripId,
+        fileBytes: bytes,
+        filePath: item.localFilePath,
+        onProgress: onProgress,
+        timeoutOverride: uploadTimeoutOverride,
+      );
+      if (uploaded == null || uploaded.imageUrl.isEmpty) {
+        throw const LakbayApiException(
+          'Photo upload did not return an image URL.',
+          code: 'network_error',
+        );
+      }
+      onProgress?.call('Saving memory…');
+      final created = await apiCatalog.createTripMemory(
+        _authSession!.accessToken,
+        item.tripId,
+        imageUrl: uploaded.imageUrl,
+        cloudinaryPublicId: uploaded.publicId,
+        destinationId: item.destinationId,
+        caption: item.caption,
+        locationTag: item.locationTag,
+      );
+      if (created == null) {
+        throw const LakbayApiException(
+          'Could not save memory on the server.',
+          code: 'network_error',
+        );
+      }
+      // Remove outbox item ONLY once the server confirms creation.
+      final curIdx =
+          _memories.indexWhere((m) => m.tripMemoryId == item.tripMemoryId);
+      if (curIdx >= 0) {
+        _memories[curIdx] = created;
+      } else {
+        _memories.insert(0, created);
+      }
+      _scheduleSaveState();
+      notifyListeners();
+      return created;
+    } on LakbayApiException catch (e) {
+      final curIdx =
+          _memories.indexWhere((m) => m.tripMemoryId == item.tripMemoryId);
+      if (curIdx >= 0) {
+        _memories[curIdx] = item.copyWith(
+          uploadStatus: 'failed',
+          uploadError: e.message,
+        );
+        _scheduleSaveState();
+        notifyListeners();
+      }
+      rethrow;
+    } catch (e) {
+      final curIdx =
+          _memories.indexWhere((m) => m.tripMemoryId == item.tripMemoryId);
+      if (curIdx >= 0) {
+        _memories[curIdx] = item.copyWith(
+          uploadStatus: 'failed',
+          uploadError: 'Retry failed: $e',
+        );
+        _scheduleSaveState();
+        notifyListeners();
+      }
+      return null;
+    }
+  }
+
+  Future<bool> likeMemory(TripMemoryItem memory) async {
+    if (memory.isOutbox ||
+        !isSignedIn ||
+        !apiCatalog.isConfigured ||
+        memory.tripMemoryId <= 0 ||
+        memory.tripId <= 0) {
+      return false;
+    }
     final idx = _memories.indexWhere(
       (m) => m.tripMemoryId == memory.tripMemoryId,
     );
-    if (idx < 0) return;
-    _memories[idx] = TripMemoryItem(
-      tripMemoryId: memory.tripMemoryId,
-      tripId: memory.tripId,
-      uploadedByFullName: memory.uploadedByFullName,
-      destinationId: memory.destinationId,
-      destinationName: memory.destinationName,
-      imageUrl: memory.imageUrl,
-      localFilePath: memory.localFilePath,
-      caption: memory.caption,
-      locationTag: memory.locationTag,
-      likeCount: memory.likeCount + 1,
-      commentCount: memory.commentCount,
-      createdAt: memory.createdAt,
-    );
+    if (idx < 0) return false;
+    final original = _memories[idx];
+    _memories[idx] = original.copyWith(likeCount: original.likeCount + 1);
     notifyListeners();
-    if (isSignedIn && memory.tripMemoryId > 0 && memory.tripId > 0) {
-      await apiCatalog.likeTripMemory(
-        _authSession!.accessToken,
-        memory.tripId,
-        memory.tripMemoryId,
-      );
+
+    final res = await apiCatalog.likeTripMemory(
+      _authSession!.accessToken,
+      memory.tripId,
+      memory.tripMemoryId,
+    );
+    final curIdx = _memories.indexWhere(
+      (m) => m.tripMemoryId == memory.tripMemoryId,
+    );
+    if (res.confirmed) {
+      if (curIdx >= 0 && res.likeCount != null) {
+        _memories[curIdx] = _memories[curIdx].copyWith(
+          likeCount: res.likeCount!,
+        );
+      }
+      _scheduleSaveState();
+      notifyListeners();
+      return true;
     }
+    // Roll back optimistic increment when server does not confirm.
+    if (curIdx >= 0) {
+      _memories[curIdx] = original;
+    }
+    notifyListeners();
+    return false;
   }
 
   Future<void> deleteMemory(TripMemoryItem memory) async {
     _memories.removeWhere((m) => m.tripMemoryId == memory.tripMemoryId);
     _scheduleSaveState();
     notifyListeners();
-    if (isSignedIn && memory.tripMemoryId > 0 && memory.tripId > 0) {
+    if (!memory.isOutbox &&
+        isSignedIn &&
+        memory.tripMemoryId > 0 &&
+        memory.tripId > 0) {
       await apiCatalog.deleteTripMemory(
         _authSession!.accessToken,
         memory.tripId,

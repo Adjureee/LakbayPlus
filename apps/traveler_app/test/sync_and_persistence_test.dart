@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,8 +27,51 @@ void main() {
   });
 
   test('SharedPreferences round-trip persists profile, trips, bucket, memories, preferences, and auth', () async {
+    SharedPreferences.setMockInitialValues({
+      'lakbay_traveler_state_v1': jsonEncode({
+        'authSession': {
+          'accessToken': 'tok_roundtrip',
+          'refreshToken': 'ref_roundtrip',
+          'userId': 1,
+          'email': 'andrea@lakbay.ph',
+          'fullName': 'Andrea Reyes',
+        },
+      }),
+    });
+    final mockClient = MockClient((request) async {
+      if (request.url.path == '/api/v1/trips/901/memories/upload') {
+        return http.Response(
+          jsonEncode({
+            'image_url': 'https://res.cloudinary.com/demo/image/upload/dahican.jpg',
+            'cloudinary_public_id': 'lakbay/dahican',
+          }),
+          200,
+        );
+      }
+      if (request.url.path == '/api/v1/trips/901/memories' &&
+          request.method == 'POST') {
+        return http.Response(
+          jsonEncode({
+            'trip_memory_id': 91,
+            'trip_id': 901,
+            'uploaded_by_full_name': 'Andrea Reyes',
+            'image_url': 'https://res.cloudinary.com/demo/image/upload/dahican.jpg',
+            'caption': 'Morning waves at Dahican Beach',
+            'location_tag': 'Mati City',
+            'like_count': 0,
+            'comment_count': 0,
+            'created_at': DateTime.now().toIso8601String(),
+          }),
+          201,
+        );
+      }
+      return http.Response('[]', 200);
+    });
     final repo1 = TravelRepository(
-      apiCatalog: LakbayApiCatalogService(baseUrlOverride: ''),
+      apiCatalog: LakbayApiCatalogService(
+        baseUrlOverride: 'https://api.lakbay.test/api/v1',
+        client: mockClient,
+      ),
     );
     await repo1.initialize();
 
@@ -48,11 +92,12 @@ void main() {
       destination: 'Dahican Surf Sanctuary',
       daysCount: 3,
       vibe: 'Beach',
-    );
+    ).copyWith(backendTripId: 901);
     repo1.saveTripToMyTrips(customTrip);
     await repo1.uploadAndAddMemory(
       trip: customTrip,
-      localFilePath: 'assets/home_backdrops/01-samal-island.jpg',
+      imageBytes: Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, 1, 2]),
+      fileName: 'dahican.jpg',
       caption: 'Morning waves at Dahican Beach',
       locationTag: 'Mati City',
     );

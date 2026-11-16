@@ -520,3 +520,50 @@ def test_archived_trip_rejects_memory_writes(client) -> None:
     assert delete_response.status_code == 400
     assert delete_response.json()["error"]["code"] == "trip_archived_read_only"
     assert storage.calls == []
+
+
+def test_upload_accepts_octet_stream_and_image_jpg_when_jpeg_bytes_valid(client) -> None:
+    owner_headers = register_user(client, email="memory-owner-mime@example.com")
+    trip = create_trip(client, owner_headers)
+    storage = FakeStorageClient()
+    override_storage(client, storage)
+
+    res_octet = client.post(
+        f"/api/v1/trips/{trip['trip_id']}/memories/upload",
+        headers=owner_headers,
+        files={"file": ("photo.jpg", JPEG_BYTES, "application/octet-stream")},
+    )
+    res_jpg_alias = client.post(
+        f"/api/v1/trips/{trip['trip_id']}/memories/upload",
+        headers=owner_headers,
+        files={"file": ("photo2.jpg", JPEG_BYTES, "image/jpg")},
+    )
+
+    assert res_octet.status_code == 200
+    assert res_jpg_alias.status_code == 200
+    assert len(storage.calls) == 2
+
+
+def test_active_member_can_like_memory_and_outsider_cannot(client) -> None:
+    owner_headers = register_user(client, email="memory-like-owner@example.com")
+    outsider_headers = register_user(client, email="memory-like-outsider@example.com")
+    trip = create_trip(client, owner_headers)
+    memory = create_memory(client, headers=owner_headers, trip_id=trip["trip_id"])
+
+    unauth = client.post(
+        f"/api/v1/trips/{trip['trip_id']}/memories/{memory['trip_memory_id']}/likes",
+    )
+    outsider = client.post(
+        f"/api/v1/trips/{trip['trip_id']}/memories/{memory['trip_memory_id']}/likes",
+        headers=outsider_headers,
+    )
+    like_res = client.post(
+        f"/api/v1/trips/{trip['trip_id']}/memories/{memory['trip_memory_id']}/likes",
+        headers=owner_headers,
+    )
+
+    assert unauth.status_code == 401
+    assert outsider.status_code == 404
+    assert like_res.status_code == 200
+    assert like_res.json()["like_count"] == 1
+

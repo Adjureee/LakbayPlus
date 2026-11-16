@@ -1080,6 +1080,13 @@ class ItineraryTrip {
   final List<RouteSegmentGeometry> routeSegments;
   final List<SeaCrossingInfo> seaCrossings;
   final bool isCatalogFallback;
+  final String backendStatus; // planned | ongoing | completed | archived
+  final DateTime? endDate;
+
+  bool get isArchived => backendStatus == 'archived';
+  bool get hasEnded =>
+      backendStatus == 'completed' ||
+      (endDate != null && endDate!.isBefore(DateTime.now()));
 
   const ItineraryTrip({
     required this.id,
@@ -1123,6 +1130,8 @@ class ItineraryTrip {
     this.routeSegments = const [],
     this.seaCrossings = const [],
     this.isCatalogFallback = false,
+    this.backendStatus = 'planned',
+    this.endDate,
   });
 
   int get totalEstimatedCostUsd {
@@ -1231,6 +1240,8 @@ class ItineraryTrip {
     List<SeaCrossingInfo>? seaCrossings,
     String? expertName,
     bool? isCatalogFallback,
+    String? backendStatus,
+    DateTime? endDate,
   }) {
     return ItineraryTrip(
       id: id,
@@ -1277,6 +1288,8 @@ class ItineraryTrip {
       routeSegments: routeSegments ?? this.routeSegments,
       seaCrossings: seaCrossings ?? this.seaCrossings,
       isCatalogFallback: isCatalogFallback ?? this.isCatalogFallback,
+      backendStatus: backendStatus ?? this.backendStatus,
+      endDate: endDate ?? this.endDate,
     );
   }
 
@@ -1329,6 +1342,8 @@ class ItineraryTrip {
         if (seaCrossings.isNotEmpty)
           'seaCrossings': seaCrossings.map((c) => c.toJson()).toList(),
         if (isCatalogFallback) 'isCatalogFallback': true,
+        if (backendStatus != 'planned') 'backendStatus': backendStatus,
+        if (endDate != null) 'endDate': endDate!.toIso8601String(),
       };
 
   factory ItineraryTrip.fromJson(Map<String, dynamic> json) => ItineraryTrip(
@@ -1404,6 +1419,8 @@ class ItineraryTrip {
             .map(SeaCrossingInfo.fromJson)
             .toList(),
         isCatalogFallback: json['isCatalogFallback'] == true,
+        backendStatus: (json['backendStatus'] as String?) ?? 'planned',
+        endDate: DateTime.tryParse((json['endDate'] ?? '').toString()),
       );
 }
 
@@ -2184,6 +2201,11 @@ class TripMemoryItem {
   final int likeCount;
   final int commentCount;
   final DateTime createdAt;
+  final String uploadStatus; // synced | pending | failed
+  final String? uploadError;
+  final String? localBytesBase64;
+
+  bool get isOutbox => uploadStatus != 'synced';
 
   const TripMemoryItem({
     required this.tripMemoryId,
@@ -2198,7 +2220,38 @@ class TripMemoryItem {
     this.likeCount = 0,
     this.commentCount = 0,
     required this.createdAt,
+    this.uploadStatus = 'synced',
+    this.uploadError,
+    this.localBytesBase64,
   });
+
+  TripMemoryItem copyWith({
+    int? tripMemoryId,
+    int? tripId,
+    String? imageUrl,
+    String? localFilePath,
+    int? likeCount,
+    String? uploadStatus,
+    String? uploadError,
+    String? localBytesBase64,
+  }) =>
+      TripMemoryItem(
+        tripMemoryId: tripMemoryId ?? this.tripMemoryId,
+        tripId: tripId ?? this.tripId,
+        uploadedByFullName: uploadedByFullName,
+        destinationId: destinationId,
+        destinationName: destinationName,
+        imageUrl: imageUrl ?? this.imageUrl,
+        localFilePath: localFilePath ?? this.localFilePath,
+        caption: caption,
+        locationTag: locationTag,
+        likeCount: likeCount ?? this.likeCount,
+        commentCount: commentCount,
+        createdAt: createdAt,
+        uploadStatus: uploadStatus ?? this.uploadStatus,
+        uploadError: uploadError ?? this.uploadError,
+        localBytesBase64: localBytesBase64 ?? this.localBytesBase64,
+      );
 
   Map<String, dynamic> toJson() => {
         'trip_memory_id': tripMemoryId,
@@ -2213,6 +2266,9 @@ class TripMemoryItem {
         'like_count': likeCount,
         'comment_count': commentCount,
         'created_at': createdAt.toIso8601String(),
+        if (uploadStatus != 'synced') 'upload_status': uploadStatus,
+        if (uploadError != null) 'upload_error': uploadError,
+        if (localBytesBase64 != null) 'local_bytes_base64': localBytesBase64,
       };
 
   factory TripMemoryItem.fromJson(Map<String, dynamic> json) => TripMemoryItem(
@@ -2230,6 +2286,9 @@ class TripMemoryItem {
         commentCount: (json['comment_count'] as num?)?.toInt() ?? 0,
         createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
             DateTime.now(),
+        uploadStatus: (json['upload_status'] ?? 'synced').toString(),
+        uploadError: json['upload_error']?.toString(),
+        localBytesBase64: json['local_bytes_base64']?.toString(),
       );
 }
 

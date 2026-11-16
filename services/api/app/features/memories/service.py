@@ -167,6 +167,23 @@ class MemoryService:
 
         return _memory_response(updated_memory)
 
+    async def like_memory(
+        self,
+        *,
+        user: User,
+        trip_id: int,
+        memory_id: int,
+    ) -> TripMemoryResponse:
+        await self._require_active_member(
+            user=user,
+            trip_id=trip_id,
+        )
+        memory = await self._require_memory(trip_id=trip_id, memory_id=memory_id)
+        memory.like_count = (memory.like_count or 0) + 1
+        await self.session.commit()
+        updated_memory = await self._require_memory(trip_id=trip_id, memory_id=memory_id)
+        return _memory_response(updated_memory)
+
     async def delete_memory(
         self,
         *,
