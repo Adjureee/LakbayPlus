@@ -8,19 +8,18 @@ export '../services/notification_routing.dart'
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 
-/// Shared notification bell icon button with unread badge for Chat & Trips headers.
+/// Shared notification bell for the Chat and Trips headers.
+///
+/// A plain icon with no circle, border or shadow, in a 48 dp tap area. Unread
+/// shows as a small solid dot, or "9+" when there are more than nine.
 class NotificationBellButton extends StatelessWidget {
   final TravelRepository repo;
-  final Color? backgroundColor;
   final Color? iconColor;
-  final double elevation;
 
   const NotificationBellButton({
     super.key,
     required this.repo,
-    this.backgroundColor,
     this.iconColor,
-    this.elevation = 2,
   });
 
   @override
@@ -29,41 +28,54 @@ class NotificationBellButton extends StatelessWidget {
       listenable: repo,
       builder: (context, _) {
         final unread = repo.unreadNotificationCount;
-        return Material(
-          color: backgroundColor ?? Colors.white.withValues(alpha: 0.94),
-          shape: const CircleBorder(),
-          elevation: elevation,
+        return SizedBox(
+          width: 48,
+          height: 48,
           child: Stack(
             clipBehavior: Clip.none,
+            alignment: Alignment.center,
             children: [
               IconButton(
                 tooltip: 'Notifications',
                 onPressed: () => showNotificationsSheet(context, repo),
                 icon: Icon(
                   Icons.notifications_none_rounded,
+                  size: 26,
                   color: iconColor ?? LakbayColors.tealDeep,
                 ),
               ),
               if (unread > 0)
                 Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: LakbayColors.primary,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      unread > 99 ? '99+' : '$unread',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
+                  right: unread > 9 ? 4 : 10,
+                  top: unread > 9 ? 6 : 10,
+                  child: IgnorePointer(
+                    child: Container(
+                      key: const ValueKey('unread-badge'),
+                      constraints: BoxConstraints(
+                        minWidth: unread > 9 ? 18 : 10,
+                        minHeight: unread > 9 ? 18 : 10,
                       ),
+                      padding: unread > 9
+                          ? const EdgeInsets.symmetric(horizontal: 4)
+                          : EdgeInsets.zero,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: LakbayColors.primary,
+                        shape: unread > 9 ? BoxShape.rectangle : BoxShape.circle,
+                        borderRadius:
+                            unread > 9 ? BorderRadius.circular(9) : null,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: unread > 9
+                          ? const Text(
+                              '9+',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            )
+                          : null,
                     ),
                   ),
                 ),

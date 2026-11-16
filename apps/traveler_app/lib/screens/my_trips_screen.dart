@@ -190,10 +190,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                NotificationBellButton(
-                  repo: widget.repo,
-                  elevation: 0,
-                ),
+                NotificationBellButton(repo: widget.repo),
                 const SizedBox(width: 8),
                 Material(
                   color: LakbayColors.primary,
