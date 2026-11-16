@@ -310,7 +310,6 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showPreferencesSheet(BuildContext context) {
-    final vibes = ['beach', 'adventure', 'foodie', 'highlands', 'wellness'];
     final companions = ['Solo', 'Couple', 'Family', 'Friends'];
 
     showModalBottomSheet(
@@ -337,27 +336,68 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Davao Region Vibes',
+                'What do you like?',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
               ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: vibes
-                    .map(
-                      (v) => FilterChip(
-                        label: Text(v),
-                        selected: repo.selectedVibes.contains(v),
+              if (repo.preferenceGroups.isEmpty)
+                const Text(
+                  'Preferences load from Lakbay when you are online.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: LakbayColors.textSecondary,
+                  ),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final group in repo.preferenceGroups)
+                      FilterChip(
+                        label: Text('${group.label} · ${group.count}'),
+                        tooltip: group.description,
+                        selected: repo.selectedVibes.contains(group.key),
                         selectedColor: LakbayColors.primaryLight,
                         onSelected: (_) {
-                          repo.toggleVibe(v);
+                          repo.toggleVibe(group.key);
                           setSheetState(() {});
                         },
                       ),
-                    )
-                    .toList(),
-              ),
+                  ],
+                ),
+              // Narrow a chosen group down (for example Waterfalls within
+              // Nature attractions). Choosing none means all of them.
+              for (final group in repo.preferenceGroups)
+                if (repo.selectedVibes.contains(group.key) &&
+                    group.subtypes.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    '${group.label}: narrow it down (optional)',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      for (final sub in group.subtypes)
+                        FilterChip(
+                          label: Text('${sub.label} · ${sub.count}'),
+                          visualDensity: VisualDensity.compact,
+                          selected: repo.selectedVibes.contains(sub.key),
+                          selectedColor: LakbayColors.primaryLight,
+                          onSelected: (_) {
+                            repo.toggleVibe(sub.key);
+                            setSheetState(() {});
+                          },
+                        ),
+                    ],
+                  ),
+                ],
               const SizedBox(height: 14),
               const Text(
                 'Travel Companion',

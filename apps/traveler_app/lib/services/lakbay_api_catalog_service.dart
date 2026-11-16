@@ -81,6 +81,29 @@ class LakbayApiCatalogService {
 
   bool get isConfigured => _base.isNotEmpty;
 
+  /// The preference groups travelers can choose, with live counts. Empty when
+  /// the server cannot be reached, so callers keep what they already have.
+  Future<List<PreferenceGroup>> fetchPreferenceGroups() async {
+    final base = _base;
+    if (base.isEmpty) return const [];
+    try {
+      final res = await _client
+          .get(Uri.parse('$base/destinations/facets'))
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return const [];
+      final decoded = jsonDecode(res.body);
+      final groups = decoded is Map ? decoded['groups'] : null;
+      if (groups is! List) return const [];
+      return groups
+          .whereType<Map<String, dynamic>>()
+          .map(PreferenceGroup.fromJson)
+          .where((g) => g.key.isNotEmpty && g.label.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// Fetches all active destinations across pages (`limit` per request).
   Future<List<ExploreTrip>> fetchActiveDestinations({int limit = 100}) {
     return fetchAllActiveDestinations(pageSize: limit);
@@ -192,8 +215,9 @@ class LakbayApiCatalogService {
     String city = 'Davao Region',
     String fallbackImageAsset = 'assets/home_backdrops/01-samal-island.jpg',
     String? remoteImageUrl,
-    double lat = 7.0731,
-    double lng = 125.6128,
+    // Where the trip is: hotels without their own pin are shown here.
+    required double lat,
+    required double lng,
     double phpPerUsd = 57.0,
   }) async {
     final base = _base;
@@ -672,13 +696,15 @@ class LakbayApiCatalogService {
       for (final dayMap in rawDays) {
         final rawStops = (dayMap['stops'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>();
+        // A stop without coordinates is dropped, not placed at a made-up spot.
         final stops = rawStops
+            .where((s) => _toDouble(s['lat']) != null && _toDouble(s['lng']) != null)
             .map(
               (s) => BackendRoutePlanStop(
                 destinationId: (s['destination_id'] as num?)?.toInt(),
                 name: s['name']?.toString() ?? 'Stop',
-                lat: _toDouble(s['lat']) ?? 7.0731,
-                lng: _toDouble(s['lng']) ?? 125.6128,
+                lat: _toDouble(s['lat'])!,
+                lng: _toDouble(s['lng'])!,
                 islandGroup: s['island_group']?.toString(),
                 stayDurationType:
                     s['stay_duration_type']?.toString() ?? 'half_day',
@@ -1871,13 +1897,16 @@ class LakbayApiCatalogService {
     List<String> interests = const [],
     String travelMode = 'driving',
     double? totalBudgetPhp,
-    int adultCount = 1,
+    int? adultCount,
     List<int> childAges = const [],
     int? dayCount,
     double? originLat,
     double? originLng,
     String rankingMethod = 'simple_additive_weighting',
-    int limit = 5,
+    // The server caps this at 5 (its MAX_SUGGESTIONS).
+    int? limit,
+    // Fill the list with clearly labelled near matches when fewer fit exactly.
+    bool fillToLimit = true,
   }) async {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return null;
@@ -1891,13 +1920,14 @@ class LakbayApiCatalogService {
               'travel_mode': travelMode,
               if (totalBudgetPhp != null && totalBudgetPhp > 0)
                 'total_budget': totalBudgetPhp.toStringAsFixed(2),
-              'adult_count': adultCount,
+              'adult_count': ?adultCount,
               if (childAges.isNotEmpty) 'child_ages': childAges,
               'day_count': ?dayCount,
               if (originLat != null && originLng != null)
                 'origin': {'lat': originLat, 'lng': originLng},
               'ranking_method': rankingMethod,
-              'limit': limit,
+              'limit': ?limit,
+              'fill_to_limit': fillToLimit,
               'save_preference': false,
             }),
           )

@@ -8,6 +8,7 @@ from app.features.planning.schemas import (
     PlanningPreviewResponse,
     PlanningState,
 )
+from app.features.recommendations.limits import MAX_SUGGESTIONS
 from app.features.recommendations.schemas import PlanningRecommendationItem
 
 Money = Annotated[
@@ -170,7 +171,17 @@ class AIPlaceQuery(BaseModel):
 
     categories: list[str] = Field(default_factory=list, max_length=10)
     province: str | None = Field(default=None, max_length=120)
-    limit: int = Field(default=5, ge=1, le=10)
+    limit: int = Field(default=MAX_SUGGESTIONS, ge=1, le=MAX_SUGGESTIONS)
+
+    @field_validator("limit", mode="before")
+    @classmethod
+    def clamp_limit(cls, value: object) -> int:
+        """A model asking for 8 cards gets 5; an unreadable value gets the default."""
+        try:
+            number = int(value)  # type: ignore[call-overload]
+        except (TypeError, ValueError):
+            return MAX_SUGGESTIONS
+        return max(1, min(MAX_SUGGESTIONS, number))
 
 
 class AIPlanningChatOutput(BaseModel):

@@ -125,7 +125,9 @@ class TravelRepository extends ChangeNotifier {
   List<CityDescription> get cityDescriptions => _cityDescriptions;
 
   // User Preferences collected during Onboarding
-  final Set<String> selectedVibes = {'beach', 'adventure', 'foodie'};
+  // Chosen by the traveler from the catalog's preference groups; nothing is
+  // pre-selected.
+  final Set<String> selectedVibes = <String>{};
   final Set<String> selectedHelpNeeds = {
     'choose_where_to_go',
     'build_itinerary'
@@ -256,8 +258,13 @@ class TravelRepository extends ChangeNotifier {
         return trip;
       }
     }
-    final fallbackLat = hasOrigin ? originLat! : 7.0731;
-    final fallbackLng = hasOrigin ? originLng! : 125.6128;
+    // The server sends each card's own pin. Only an older server omits it; then
+    // the place sits at the traveler's start point (or the region center)
+    // until the catalog syncs, rather than at an invented spot.
+    final fallbackLat =
+        item.lat ?? (hasOrigin ? originLat! : MapboxService.davaoCenterLat);
+    final fallbackLng =
+        item.lng ?? (hasOrigin ? originLng! : MapboxService.davaoCenterLng);
     return ExploreTrip(
       locale: _locale,
       id: targetApiId,
@@ -616,6 +623,7 @@ class TravelRepository extends ChangeNotifier {
           'manualOriginLabel': _manualOriginLabel,
         'preferredPaymentMethod': preferredPaymentMethod,
         'selectedVibes': selectedVibes.toList(),
+        'preferenceGroups': _preferenceGroups.map((g) => g.toJson()).toList(),
         'travelCompanion': travelCompanion,
         'profile': _profile.toJson(),
         'placeholderNameMigrated': _placeholderNameMigrated,
@@ -672,6 +680,13 @@ class TravelRepository extends ChangeNotifier {
         selectedVibes
           ..clear()
           ..addAll(vibes.map((e) => e.toString()));
+      }
+      final savedGroups = map['preferenceGroups'] as List<dynamic>?;
+      if (savedGroups != null) {
+        _preferenceGroups = savedGroups
+            .whereType<Map<String, dynamic>>()
+            .map(PreferenceGroup.fromJson)
+            .toList();
       }
       travelCompanion =
           map['travelCompanion'] as String? ?? travelCompanion;
@@ -816,6 +831,7 @@ class TravelRepository extends ChangeNotifier {
 
     if (apiCatalog.isConfigured) {
       refreshFromApi();
+      refreshPreferenceGroups();
       if (isSignedIn) {
         syncTripsFromBackend();
       }
@@ -1741,12 +1757,39 @@ class TravelRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Preference groups from the server (cached for offline use). Empty until
+  /// they have loaded once.
+  List<PreferenceGroup> _preferenceGroups = const [];
+  List<PreferenceGroup> get preferenceGroups => _preferenceGroups;
+
+  Future<void> refreshPreferenceGroups() async {
+    final groups = await apiCatalog.fetchPreferenceGroups();
+    if (groups.isEmpty) return;
+    _preferenceGroups = groups;
+    // Forget preferences the catalog no longer offers.
+    final known = {
+      for (final g in groups) ...[g.key, for (final s in g.subtypes) s.key],
+    };
+    selectedVibes.removeWhere((key) => !known.contains(key));
+    _scheduleSaveState();
+    notifyListeners();
+  }
+
+  /// Chooses or clears a preference group or sub-type. The AI planner is told
+  /// right away, so recommendations follow what the traveler picked.
   void toggleVibe(String vibe) {
     if (selectedVibes.contains(vibe)) {
       selectedVibes.remove(vibe);
+      // Clearing a group also clears its sub-types.
+      for (final group in _preferenceGroups) {
+        if (group.key == vibe) {
+          selectedVibes.removeAll(group.subtypes.map((s) => s.key));
+        }
+      }
     } else {
       selectedVibes.add(vibe);
     }
+    _planningState?['interests'] = selectedVibes.toList();
     _scheduleSaveState();
     notifyListeners();
   }
@@ -2413,8 +2456,9 @@ class TravelRepository extends ChangeNotifier {
       vibeTag: 'Multi-Stop Route',
       overviewText:
           'Custom $daysCount-day Region XI route connecting ${shortNames.join(', ')}.',
-      bestMonths: 'Dec – May (Dry Season)',
-      avgTemp: '29°C',
+      // No invented climate: weather comes from the forecast service.
+      bestMonths: '',
+      avgTemp: '',
       expertName: 'Lakbay+ Route Builder',
       expertTip: orderedPlaces
           .map((s) => s.travelNotes)
@@ -2972,66 +3016,19 @@ class TravelRepository extends ChangeNotifier {
   }
 
   void _seedInitialTripsAndChat() {
-    if (isSignedIn) {
-      if (_chatSessions.isEmpty) {
-        _chatSessions.add(
-          ChatSession(
-            id: 'chat_new',
-            title: 'New Trip',
-            groupLabel: 'Today',
-            isTrip: false,
-            createdAt: DateTime.now(),
-            messages: const [],
-          ),
-        );
-        _activeChatId = 'chat_new';
-      }
-      return;
-    }
-
-    final sampleExplore = _allTrips.take(3).toList();
-    if (_savedTrips.isEmpty && sampleExplore.isNotEmpty) {
-      for (final exp in sampleExplore.take(2)) {
-        _savedTrips.add(buildDetailedItineraryFromExplore(exp));
-      }
-      _bucketListTripIds.add(sampleExplore.first.id);
-    }
-
-    final firstTrip = _savedTrips.isNotEmpty
-        ? _savedTrips.first
-        : generateCustomTrip(
-            destination: 'Samal Island & Talikud Coral Garden',
-            daysCount: 4,
-            vibe: 'Island Hopping & Reefs',
-            centerLat: 7.0742,
-            centerLng: 125.7089,
-          );
-
-    final samalWelcomeMsg = ChatMessage(
-      id: 'welcome_1',
-      isUser: false,
-      text:
-          "Maayong adlaw! I'm Lakbay+, your Davao Region (Region XI) AI travel planner. Tell me which province or spot you'd like to explore—from Samal & Talikud reefs to Mati's Dahican surf, Buda pine cabins, or Mt. Apo—and I'll animate your Mapbox route and day-by-day itinerary!",
-      timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-      attachedTrip: firstTrip,
-      suggestedReplies: const [
-        '4-day Samal & Talikud Island hopping 🏝️',
-        '5-day Mati Dahican surf & Aliwagwag Falls 🏄',
-        '3-day Buda pine cabins & Marilog highlands 🌲',
-        '3-day Davao City, Malagos & Eden Nature Park 🦅',
-      ],
-    );
-
+    // A new traveler starts with an empty chat: no sample trips, no sample
+    // conversations and no canned welcome. Older installs may still hold the
+    // sample chats this method used to create; drop them.
+    const legacySampleChatIds = {
+      'chat_today_samal',
+      'chat_yest_davao',
+      'chat_yest_mati',
+    };
+    final hadSamples =
+        _chatSessions.any((chat) => legacySampleChatIds.contains(chat.id));
+    _chatSessions.removeWhere((chat) => legacySampleChatIds.contains(chat.id));
     if (_chatSessions.isEmpty) {
-      _chatSessions.addAll([
-        ChatSession(
-          id: 'chat_today_samal',
-          title: '3-Day Samal and Davao City Escape',
-          groupLabel: 'Today',
-          isTrip: true,
-          createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-          messages: [samalWelcomeMsg],
-        ),
+      _chatSessions.add(
         ChatSession(
           id: 'chat_new',
           title: 'New Trip',
@@ -3040,37 +3037,14 @@ class TravelRepository extends ChangeNotifier {
           createdAt: DateTime.now(),
           messages: const [],
         ),
-        ChatSession(
-          id: 'chat_yest_davao',
-          title: '7-Day Davao & Samal Island Loop',
-          groupLabel: 'Yesterday',
-          isTrip: true,
-          createdAt: DateTime.now().subtract(const Duration(days: 1)),
-          messages: [samalWelcomeMsg],
-        ),
-        ChatSession(
-          id: 'chat_yest_mati',
-          title: '5-Day Mati Dahican & Aliwagwag Falls',
-          groupLabel: 'Yesterday',
-          isTrip: true,
-          createdAt: DateTime.now().subtract(const Duration(days: 1, hours: 3)),
-          messages: [
-            ChatMessage(
-              id: 'welcome_mati',
-              isUser: false,
-              text:
-                  'Pacific surf & waterfall mode ready! Explore **Dahican Beach**, **Sleeping Dinosaur Viewdeck**, and **Aliwagwag Falls** across Davao Oriental.',
-              timestamp: DateTime.now().subtract(const Duration(days: 1, hours: 3)),
-              suggestedReplies: const [
-                'Plan sunrise surf at Dahican 🏄',
-                'Add Sleeping Dinosaur ridge stop 🌄',
-                'Suggest coastal resorts in Mati 🌴',
-              ],
-            ),
-          ],
-        ),
-      ]);
+      );
       _activeChatId = 'chat_new';
+    } else if (hadSamples ||
+        !_chatSessions.any((chat) => chat.id == _activeChatId)) {
+      _activeChatId = _chatSessions.first.id;
+      _chatMessages
+        ..clear()
+        ..addAll(_chatSessions.first.messages);
     }
   }
 
@@ -3102,7 +3076,58 @@ class TravelRepository extends ChangeNotifier {
     return cleaned.length > 2000 ? cleaned.substring(0, 2000) : cleaned;
   }
 
-  /// Sends a prompt to the Lakbay+ Davao AI Travel Planner and generates a contextual Region XI route.
+  /// The planning state sent with every chat message: only what the traveler
+  /// gave or picked. Nothing is assumed (no party size, days or budget).
+  Map<String, dynamic> _ensurePlanningState() {
+    return _planningState ??= {
+      if (hasOrigin)
+        'origin': {
+          if (resolvedOriginLabel != null) 'label': resolvedOriginLabel,
+          if (originLat != null && originLng != null) 'lat': originLat,
+          if (originLat != null && originLng != null) 'lng': originLng,
+        },
+      'destination_ids': <int>[],
+      // The traveler's chosen preference groups (from the catalog), if any.
+      if (selectedVibes.isNotEmpty) 'interests': selectedVibes.toList(),
+    };
+  }
+
+  /// A card's "+ Add" in the chat: toggles the place in the trip tray and
+  /// tells the AI planner about it, so the itinerary is built from the
+  /// traveler's own picks.
+  void toggleChatPick(ExploreTrip place) {
+    toggleTripBuilderStop(place);
+    final state = _ensurePlanningState();
+    state['destination_ids'] = [
+      for (final stop in _tripBuilderStops)
+        if (stop.apiDestinationId != null) stop.apiDestinationId!,
+    ];
+    _planningRevision++;
+  }
+
+  void _addChatError(String retryText, String message) {
+    _chatMessages.add(
+      ChatMessage(
+        id: 'err_${DateTime.now().millisecondsSinceEpoch}',
+        isUser: false,
+        text: message,
+        timestamp: DateTime.now(),
+        isError: true,
+        retryText: retryText,
+      ),
+    );
+    _isAiTyping = false;
+    _syncActiveSession();
+    _scheduleSaveState();
+    notifyListeners();
+  }
+
+  /// Sends a message to Lakbay AI.
+  ///
+  /// Signed in or not, chat goes through the backend (guests use the
+  /// rate-limited guest endpoint), so the app ships no AI provider key. When
+  /// the AI cannot be reached the traveler sees an error and can retry; the
+  /// app never substitutes an invented itinerary.
   Future<void> sendChatMessage(String text) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
@@ -3116,277 +3141,186 @@ class TravelRepository extends ChangeNotifier {
       ),
     );
 
-    // Signed in or not, chat goes through the backend: guests use the
-    // rate-limited guest endpoint, so the app ships no AI provider key.
-    if (apiCatalog.isConfigured) {
-      _isAiTyping = true;
-      notifyListeners();
-      try {
-        // The most recent turns (not the first ones) before this message.
-        final earlier = _chatMessages.take(
-            _chatMessages.length > 1 ? _chatMessages.length - 1 : 0);
-        final history = earlier
-            .skip(math.max(0, earlier.length - _serverChatHistoryTurns))
-            .map((m) => {
-                  'role': m.isUser ? 'user' : 'assistant',
-                  'content': _chatHistoryText(m.text),
-                })
-            .where((m) => m['content']!.isNotEmpty)
-            .toList();
-        // The backend planning schema names the coordinates lat/lng and rejects
-        // unknown keys, so "latitude"/"longitude" made every request fail.
-        _planningState ??= {
-          if (hasOrigin)
-            'origin': {
-              if (resolvedOriginLabel != null) 'label': resolvedOriginLabel,
-              if (originLat != null && originLng != null) 'lat': originLat,
-              if (originLat != null && originLng != null) 'lng': originLng,
-            },
-          'destination_ids': <int>[],
-          'traveler_count': 2,
-        };
-        final serverAi = await apiCatalog.aiChat(
-          _authSession?.accessToken,
-          message: trimmed,
-          history: history,
-          planningState: _planningState,
-          inputRevision: _planningRevision,
-        );
-        if (serverAi != null) {
-          final planning = serverAi.planning;
-          if (planning != null) {
-            _planningRevision =
-                (planning['input_revision'] as num?)?.toInt() ??
-                (_planningRevision + 1);
-            final preview = planning['preview'];
-            if (preview is Map<String, dynamic> &&
-                preview['state'] is Map<String, dynamic>) {
-              _planningState = Map<String, dynamic>.from(
-                preview['state'] as Map<String, dynamic>,
-              );
-            }
-          }
-
-          final stateDestIds =
-              (_planningState?['destination_ids'] as List<dynamic>? ?? const [])
-                  .whereType<num>()
-                  .map((n) => n.toInt())
-                  .toList();
-          final ragDestIds = serverAi.retrievedContext
-              .where((r) => r['source'] == 'destination')
-              .map((r) => (r['source_id'] as num?)?.toInt())
-              .whereType<int>()
-              .toList();
-          final targetDestIds = stateDestIds.isNotEmpty
-              ? stateDestIds
-              : ragDestIds.take(4).toList();
-
-          // The model judges intent; keywords are only a fallback for replies
-          // without one (older backends or unparseable output).
-          final intent = planning?['intent']?.toString();
-          final isShowPlaces = intent == 'show_places';
-          final recommendedPlaces = isShowPlaces
-              ? (planning?['recommendations'] as List<dynamic>? ?? const [])
-                  .whereType<Map<String, dynamic>>()
-                  .map(TopPlaceRecommendation.fromJson)
-                  .toList()
-              : const <TopPlaceRecommendation>[];
-          final wantsItinerary = intent != null
-              ? intent == 'plan_trip' || intent == 'modify_trip'
-              : RegExp(
-                  r'\b(plan|itinerary|trip|route|days?|generate|options?|weekend)\b',
-                  caseSensitive: false,
-                ).hasMatch(trimmed);
-          final modelReplies =
-              (planning?['suggested_replies'] as List<dynamic>? ?? const [])
-                  .map((e) => e.toString())
-                  .where((e) => e.trim().isNotEmpty)
-                  .toList();
-
-          var aiOptions = <AiItineraryOptionDraft>[];
-          ItineraryTrip? attachedTrip;
-
-          if (!isShowPlaces && wantsItinerary && !isSignedIn) {
-            // Guests get a quick backend trip draft; validated catalog
-            // itineraries need an account.
-            try {
-              final draft = await aiService.chatOrPlan(
-                userPrompt: trimmed,
-                history: history,
-                currentLocation: resolvedOriginLabel,
-                userLat: originLat,
-                userLng: originLng,
-                preferredVibes: selectedVibes,
-                strictBudget: strictBudgetFilter,
-              );
-              if (draft.hasStructuredItinerary) {
-                attachedTrip = _buildItineraryFromAi(draft);
-              }
-            } catch (_) {}
-          } else if (wantsItinerary && targetDestIds.isNotEmpty) {
-            final daysCount =
-                (_planningState?['day_count'] as num?)?.toInt() ??
-                RegExp(r'(\d+)\s*-?\s*day', caseSensitive: false)
-                    .firstMatch(trimmed)
-                    ?.group(1)
-                    .letOrNull(int.tryParse) ??
-                3;
-            final travelerCount =
-                (_planningState?['traveler_count'] as num?)?.toInt() ?? 2;
-            final budgetRaw = _planningState?['total_budget'];
-            final budgetPhp =
-                double.tryParse((budgetRaw ?? '').toString()) ??
-                (daysCount.clamp(1, 14) * 3500.0 * travelerCount);
-
-            final generated = await apiCatalog.generateAiItineraries(
-              _authSession!.accessToken,
-              totalBudgetPhp: budgetPhp,
-              travelerCount: travelerCount,
-              dayCount: daysCount.clamp(1, 14),
-              destinationIds: targetDestIds,
-              planningState: _planningState,
-              inputRevision: _planningRevision,
-              specialRequirements: trimmed,
-              strictBudgetFilter: strictBudgetFilter,
-            );
-
-            if (generated != null && generated.options.isNotEmpty) {
-              aiOptions = [
-                for (final rawOpt in generated.options)
-                  _parseBackendAiOption(
-                    rawOpt,
-                    generationRunId: generated.generationRunId,
-                    fallbackDestinationIds: targetDestIds,
-                    includeFlights: _mentionsFlightOrigin(trimmed),
-                  ),
-              ];
-              attachedTrip = aiOptions.first.trip;
-            }
-          }
-
-          attachedTrip ??= wantsItinerary
-              ? _generateLocalFallbackTrip(
-                  trimmed,
-                  includeFlights: _mentionsFlightOrigin(trimmed),
-                )
-              : null;
-
-          _chatMessages.add(
-            ChatMessage(
-              id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
-              isUser: false,
-              text: serverAi.replyText,
-              timestamp: DateTime.now(),
-              attachedTrip:
-                  (!isShowPlaces && aiOptions.length <= 1) ? attachedTrip : null,
-              aiOptions: isShowPlaces ? const [] : aiOptions,
-              recommendedPlaces: recommendedPlaces,
-              suggestedReplies: modelReplies.isNotEmpty
-                  ? modelReplies
-                  : const [
-                      'Make it 3 days within ₱8,000 budget 💸',
-                      'Compare Budget vs. Comfort options ✨',
-                      'Suggest family-friendly Davao stops 🌿',
-                    ],
-            ),
-          );
-          _isAiTyping = false;
-          _syncActiveSession(
-            titleHint: attachedTrip?.title ?? trimmed,
-            hasTrip: attachedTrip != null || aiOptions.isNotEmpty,
-          );
-          _scheduleSaveState();
-          notifyListeners();
-          return;
-        }
-      } catch (_) {
-        // Fall through to client AI or local Region XI engine
-      }
-      _isAiTyping = false;
+    if (!apiCatalog.isConfigured) {
+      _addChatError(
+        trimmed,
+        "Lakbay AI isn't connected to the server, so I can't answer right now.",
+      );
+      return;
     }
 
-    if (aiService.isConfigured) {
-      _isAiTyping = true;
-      notifyListeners();
-
-      try {
-        final aiResult = await aiService.chatOrPlan(
-          userPrompt: trimmed,
-          availableDestinations: _allTrips.map((t) => t.title).toList(),
-          history: _chatMessages
-              .map(
-                (m) => {
-                  'role': m.isUser ? 'user' : 'assistant',
-                  'content': m.text,
-                },
-              )
-              .toList(),
-          currentLocation: resolvedOriginLabel,
-          userLat: originLat,
-          userLng: originLng,
-          preferredVibes: selectedVibes,
-          strictBudget: strictBudgetFilter,
-        );
-
-        ItineraryTrip? attachedTrip;
-        if (aiResult.hasStructuredItinerary) {
-          attachedTrip = _buildItineraryFromAi(aiResult);
-        }
-
-        _chatMessages.add(
-          ChatMessage(
-            id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
-            isUser: false,
-            text:
-                '${aiResult.replyText}\n\n_Powered by ${aiResult.providerUsed} (${aiResult.modelUsed})_',
-            timestamp: DateTime.now(),
-            attachedTrip: attachedTrip,
-            suggestedReplies: aiResult.suggestedReplies.isNotEmpty
-                ? aiResult.suggestedReplies
-                : const [
-                    'Show 2-day weekend version 🗓️',
-                    'Adjust pacing or coastal stops 🌊',
-                    'Suggest food & night market gems 🍢',
-                  ],
-          ),
-        );
-        _isAiTyping = false;
-        _syncActiveSession(
-          titleHint: attachedTrip?.title ?? trimmed,
-          hasTrip: attachedTrip != null,
-        );
-        _scheduleSaveState();
-        notifyListeners();
-        return;
-      } catch (_) {
-        _isAiTyping = false;
-      }
-    }
-
-    final generatedTrip = _generateLocalFallbackTrip(trimmed);
-
-    _chatMessages.add(
-      ChatMessage(
-        id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
-        isUser: false,
-        text:
-            "I've mapped out a custom **${generatedTrip.daysCount}-day ${generatedTrip.destination}** itinerary in Region XI! It includes animated Mapbox waypoints, ferry/coastal highway transit legs, and handpicked Davao stays.\n\nTap the card below to launch the **Play Route Tour** animation or edit your daily stops.",
-        timestamp: DateTime.now(),
-        attachedTrip: generatedTrip,
-        suggestedReplies: const [
-          'Show 2-day weekend version 🗓️',
-          'Add Samal ferry & boat transfers ⛴️',
-          'Include Malagos & Roxas Night Market 🍢',
-        ],
-      ),
-    );
-
-    _syncActiveSession(
-      titleHint: generatedTrip.title,
-      hasTrip: true,
-    );
-    _scheduleSaveState();
+    _isAiTyping = true;
     notifyListeners();
+    try {
+      // The most recent turns (not the first ones) before this message.
+      final earlier = _chatMessages.take(
+          _chatMessages.length > 1 ? _chatMessages.length - 1 : 0);
+      final history = earlier
+          .where((m) => !m.isError)
+          .skip(math.max(0, earlier.length - _serverChatHistoryTurns))
+          .map((m) => {
+                'role': m.isUser ? 'user' : 'assistant',
+                'content': _chatHistoryText(m.text),
+              })
+          .where((m) => m['content']!.isNotEmpty)
+          .toList();
+      final serverAi = await apiCatalog.aiChat(
+        _authSession?.accessToken,
+        message: trimmed,
+        history: history,
+        planningState: _ensurePlanningState(),
+        inputRevision: _planningRevision,
+      );
+      if (serverAi == null) {
+        _addChatError(
+          trimmed,
+          "I couldn't reach Lakbay AI just now. Check your connection and try again.",
+        );
+        return;
+      }
+
+      final planning = serverAi.planning;
+      if (planning != null) {
+        _planningRevision =
+            (planning['input_revision'] as num?)?.toInt() ??
+            (_planningRevision + 1);
+        final preview = planning['preview'];
+        if (preview is Map<String, dynamic> &&
+            preview['state'] is Map<String, dynamic>) {
+          _planningState = Map<String, dynamic>.from(
+            preview['state'] as Map<String, dynamic>,
+          );
+        }
+      }
+
+      // Only places the traveler picked (or named) are planned: never the
+      // first few search results.
+      final targetDestIds =
+          (_planningState?['destination_ids'] as List<dynamic>? ?? const [])
+              .whereType<num>()
+              .map((n) => n.toInt())
+              .toList();
+
+      // The model judges intent; keywords are only a fallback for replies
+      // without one (older backends or unparseable output).
+      final intent = planning?['intent']?.toString();
+      // Cards come from the server's ranking for any planning reply. A plain
+      // question, logistics or small-talk reply never shows place cards.
+      const textOnlyIntents = {'question', 'logistics', 'smalltalk'};
+      final recommendedPlaces = textOnlyIntents.contains(intent)
+          ? const <TopPlaceRecommendation>[]
+          : (planning?['recommendations'] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .map(TopPlaceRecommendation.fromJson)
+              .toList();
+      final wantsItinerary = intent != null
+          ? intent == 'plan_trip' || intent == 'modify_trip'
+          : RegExp(
+              r'\b(plan|itinerary|trip|route|days?|generate|options?|weekend)\b',
+              caseSensitive: false,
+            ).hasMatch(trimmed);
+      final modelReplies =
+          (planning?['suggested_replies'] as List<dynamic>? ?? const [])
+              .map((e) => e.toString())
+              .where((e) => e.trim().isNotEmpty)
+              .toList();
+
+      var aiOptions = <AiItineraryOptionDraft>[];
+      ItineraryTrip? attachedTrip;
+
+      if (wantsItinerary && !isSignedIn) {
+        // Guests get a quick backend trip draft; validated catalog
+        // itineraries need an account.
+        try {
+          final draft = await aiService.chatOrPlan(
+            userPrompt: trimmed,
+            history: history,
+            currentLocation: resolvedOriginLabel,
+            userLat: originLat,
+            userLng: originLng,
+            preferredVibes: selectedVibes,
+            strictBudget: strictBudgetFilter,
+          );
+          if (draft.hasStructuredItinerary) {
+            attachedTrip = _buildItineraryFromAi(draft);
+          }
+        } catch (_) {
+          // The AI's reply still shows; there is just no draft attached.
+        }
+      } else if (wantsItinerary && targetDestIds.isNotEmpty) {
+        // Everything below comes from the traveler. A missing detail is not
+        // guessed: the AI asks for it in its reply instead.
+        final daysCount = (_planningState?['day_count'] as num?)?.toInt() ??
+            RegExp(r'(\d+)\s*-?\s*day', caseSensitive: false)
+                .firstMatch(trimmed)
+                ?.group(1)
+                .letOrNull(int.tryParse);
+        final travelerCount =
+            (_planningState?['traveler_count'] as num?)?.toInt();
+        final budgetPhp =
+            double.tryParse((_planningState?['total_budget'] ?? '').toString());
+        if (daysCount != null &&
+            travelerCount != null &&
+            budgetPhp != null &&
+            budgetPhp > 0) {
+          final generated = await apiCatalog.generateAiItineraries(
+            _authSession!.accessToken,
+            totalBudgetPhp: budgetPhp,
+            travelerCount: travelerCount,
+            dayCount: daysCount.clamp(1, 14),
+            destinationIds: targetDestIds,
+            planningState: _planningState,
+            inputRevision: _planningRevision,
+            specialRequirements: trimmed,
+            strictBudgetFilter: strictBudgetFilter,
+          );
+          if (generated != null && generated.options.isNotEmpty) {
+            aiOptions = [
+              for (final rawOpt in generated.options)
+                _parseBackendAiOption(
+                  rawOpt,
+                  generationRunId: generated.generationRunId,
+                  fallbackDestinationIds: targetDestIds,
+                  includeFlights: _needsFlights(trimmed),
+                ),
+            ];
+            attachedTrip = aiOptions.first.trip;
+          } else {
+            _addChatError(
+              trimmed,
+              "I couldn't build an itinerary from your picks just now. Please try again.",
+            );
+            return;
+          }
+        }
+      }
+
+      _chatMessages.add(
+        ChatMessage(
+          id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
+          isUser: false,
+          text: serverAi.replyText,
+          timestamp: DateTime.now(),
+          attachedTrip: aiOptions.length <= 1 ? attachedTrip : null,
+          aiOptions: aiOptions,
+          recommendedPlaces: recommendedPlaces,
+          // Only what the AI suggested for this conversation.
+          suggestedReplies: modelReplies,
+        ),
+      );
+      _isAiTyping = false;
+      _syncActiveSession(
+        titleHint: attachedTrip?.title ?? trimmed,
+        hasTrip: attachedTrip != null || aiOptions.isNotEmpty,
+      );
+      _scheduleSaveState();
+      notifyListeners();
+    } catch (_) {
+      _addChatError(
+        trimmed,
+        'Something went wrong while talking to Lakbay AI. Please try again.',
+      );
+    }
   }
 
   /// Generates a Region XI trip via live Groq/Gemini AI (if configured in `.env`)
@@ -3418,10 +3352,17 @@ class TravelRepository extends ChangeNotifier {
   ItineraryTrip buildTripFromAiResult(AiPlanResult ai) =>
       _buildItineraryFromAi(ai);
 
-  bool _mentionsFlightOrigin(String prompt) => RegExp(
-        r'\b(from manila|from cebu|from clark|from iloilo|flight|fly in|airfare|mnl|ceb)\b',
-        caseSensitive: false,
-      ).hasMatch(prompt);
+  /// Flights are offered when the traveler's start point is outside Region XI,
+  /// or they ask for a flight in their own words. No list of cities is kept.
+  bool _needsFlights(String prompt) {
+    final lat = originLat, lng = originLng;
+    final startsOutsideRegion =
+        lat != null && lng != null && !MapboxService.isInsideDavaoRegion(lat, lng);
+    return startsOutsideRegion ||
+        RegExp(r'\b(flights?|fly(?:ing)? in|airfare|airplane)\b',
+                caseSensitive: false)
+            .hasMatch(prompt);
+  }
 
   AiItineraryOptionDraft _parseBackendAiOption(
     Map<String, dynamic> rawOpt, {
@@ -3544,14 +3485,12 @@ class TravelRepository extends ChangeNotifier {
           : (optionNumber == 2 ? 'Balanced Pace' : 'Curated'),
       overviewText: summary.isNotEmpty
           ? summary
-          : (fallbackTrip?.overviewText ?? 'AI-curated Davao Region route.'),
-      bestMonths:
-          firstMatchedCatalog?.bestTimeToVisit ?? 'Dec - May (Dry Season)',
-      avgTemp: fallbackTrip?.avgTemp ?? '29°C',
+          : (fallbackTrip?.overviewText ?? ''),
+      bestMonths: firstMatchedCatalog?.bestTimeToVisit ?? '',
+      avgTemp: fallbackTrip?.avgTemp ?? '',
       expertName: 'Lakbay+ AI Planner',
-      expertTip: firstMatchedCatalog?.travelNotes ??
-          fallbackTrip?.expertTip ??
-          'Cluster nearby stops by corridor and depart early for falls or mountain ridges.',
+      expertTip:
+          firstMatchedCatalog?.travelNotes ?? fallbackTrip?.expertTip ?? '',
       days: parsedDays.isNotEmpty ? parsedDays : (fallbackTrip?.days ?? const []),
       flights: includeFlights ? _defaultDavaoFlights() : const [],
       hotels: fallbackTrip?.hotels ??
@@ -3763,11 +3702,10 @@ class TravelRepository extends ChangeNotifier {
       heroAsset: currentBackdrop.localAssetPath,
       vibeTag: ai.vibe?.isNotEmpty == true ? ai.vibe! : 'Davao AI Route',
       overviewText: ai.replyText,
-      bestMonths: 'Dec - May (Dry Season)',
-      avgTemp: '29°C',
-      expertName: 'Lakbay+ AI • Davao Region',
-      expertTip:
-          'Generated via ${ai.providerUsed} (${ai.modelUsed}) with Region XI coordinates.',
+      bestMonths: '',
+      avgTemp: '',
+      expertName: 'Lakbay+ AI',
+      expertTip: '',
       days: days,
       flights: const [],
       hotels: _buildDavaoHotels(
@@ -4260,13 +4198,6 @@ class TravelRepository extends ChangeNotifier {
       );
     }
 
-    const experts = [
-      ('Carla Fernandez • Davao Coastal Curator', 'assets/experts/carla-fernandez.webp'),
-      ('Ricardo Santos • Mindanao Trail Guide', 'assets/experts/ricardo.webp'),
-      ('Robin Reyes • Samal & Mati Diver', 'assets/experts/robin.webp'),
-    ];
-    final expert = experts[tripId.hashCode.abs() % experts.length];
-
     return ItineraryTrip(
       id: tripId,
       title: cleanTitle,
@@ -4276,15 +4207,13 @@ class TravelRepository extends ChangeNotifier {
       centerLng: clampedLng,
       heroAsset: effectiveHero,
       vibeTag: vibe,
-      overviewText:
-          'Curated by Lakbay+ AI for Davao Region (Region XI). This $daysCount-day route connects authentic Mindanao islands, Pacific surf beaches, cool pine highlands, and vibrant Davao City culinary stops with seamless ferry and road legs.',
-      bestMonths: 'Dec – May (Dry)',
-      avgTemp: '29°C / 84°F',
-      wmoWeatherCode: 1,
-      expertName: expert.$1,
-      expertAvatarAsset: expert.$2,
-      expertTip:
-          'Catch the 7:30 AM ferry from Sta. Ana Wharf or Sasa Barge before midday heat, and save Roxas Night Market for grilled tuna panga after sunset.',
+      // Nothing is invented here: no climate, no named experts, no schedules.
+      // Real weather and notes arrive from the forecast service and the catalog.
+      overviewText: '',
+      bestMonths: '',
+      avgTemp: '',
+      expertName: '',
+      expertTip: '',
       days: days,
       flights: flights,
       hotels: hotels,

@@ -1376,7 +1376,9 @@ void main() {
       expect(find.text('Recommended Destinations'), findsOneWidget);
       expect(find.text('Maragusan Sea of Clouds'), findsOneWidget);
       expect(find.text('Mountain'), findsOneWidget);
-      expect(find.text('Maragusan • ~95 min'), findsOneWidget);
+      // Location and travel time, then why it fits, in the server's words.
+      expect(find.textContaining('Maragusan • ~95 min'), findsOneWidget);
+      expect(find.textContaining('Matches mountain'), findsOneWidget);
 
       await tester.tap(find.text('+ Add'));
       await tester.pump();

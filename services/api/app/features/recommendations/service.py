@@ -1,9 +1,14 @@
-from dataclasses import dataclass
+import logging
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.exceptions import LakbayAPIError
 from app.features.destinations.candidate_repository import distance_meters
 from app.features.destinations.models import Destination
@@ -13,6 +18,18 @@ from app.features.destinations.region import (
 )
 from app.features.planning.routing import _has_non_road_access_hint
 from app.features.recommendations import scoring
+from app.features.recommendations.limits import (
+    FORECAST_CELL_DEGREES,
+    MAX_FORECAST_CELLS,
+    MAX_SUGGESTIONS,
+    WEATHER_FORECAST_DAYS,
+)
+from app.features.recommendations.preference_groups import (
+    Membership,
+    PreferenceGroups,
+    load_groups,
+)
+from app.features.recommendations.weight_profiles import WeightProfile, get_profile
 from app.features.recommendations.models import (
     DestinationInteraction,
     DestinationPopularity,
@@ -30,6 +47,7 @@ from app.features.recommendations.schemas import (
     RecommendationResponse,
     TopPlaceBreakdown,
     TopPlaceFactor,
+    TopPlaceFactorDetail,
     TopPlaceItem,
     TopPlacesRequest,
     TopPlacesResponse,
@@ -42,6 +60,11 @@ from app.features.users.models import User
 from app.integrations.osrm.client import MAX_PREVIEW_WAYPOINT_SNAP_METERS, OSRMClient
 from app.integrations.osrm.errors import OSRMClientError
 
+logger = logging.getLogger(__name__)
+
+# Gets the forecast for a point: (lat, lng, days) -> a WeatherForecastResponse.
+ForecastProvider = Callable[[float, float, int], Awaitable[object]]
+
 NON_REPEATABLE_INTERACTIONS = {"save", "rate", "add_to_itinerary"}
 # One OSRM table request covers at most this many places (public OSRM allows 100).
 MAX_ROUTED_CANDIDATES = 50
@@ -52,8 +75,14 @@ class _TopPlaceCandidate:
     destination: Destination
     matched: list[str]
     matched_fields: list[str]
-    # Normalized 0-1 factor values, except travel, which needs a route first.
+    # Normalized 0-1 factor values, except those that need a route (travel, access)
+    # or a forecast (weather), which are added once those are known.
     values: dict[str, float]
+    memberships: dict[str, Membership] = field(default_factory=dict)
+    budget_relaxed: bool = False
+    rain_sensitivity: str = "medium"
+    # Criteria whose data was missing, so the neutral value 0.5 was used.
+    defaults: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
@@ -78,11 +107,15 @@ class RecommendationService:
         osrm_client: OSRMClient | None,
         user: User | None = None,
         save_preference: bool = False,
+        forecast_provider: ForecastProvider | None = None,
     ) -> TopPlacesResponse:
-        """Rank places with the weighted scoring model in `scoring.py`.
+        """Rank places with the weighted scoring model (SAW) in `scoring.py`.
 
-        Places with a verified entrance and a confirmed road route fill the list
-        first; places whose location is approximate fill any remaining slots.
+        The weights come from a profile in `data/weight_profiles.json`: the
+        default profile, or the nature profile when the traveler chose a
+        nature preference group. Places with a verified entrance and a confirmed
+        road route fill the list first under the default profile; under the
+        nature profile access is a weighted criterion instead.
         """
         preference_signal_id = None
         if save_preference and user is not None:
@@ -105,6 +138,10 @@ class RecommendationService:
 
         destinations = await self.recommendations.list_active_destinations()
         popularity = await self.recommendations.list_popularity()
+        groups = load_groups()
+        wants = _resolve_wants(data, groups)
+        profile, weights = _profile_and_weights(wants, data, groups)
+        thresholds = scoring.THRESHOLDS
         party = data.party_size
         budget_per_person = (
             None if data.total_budget is None
@@ -124,12 +161,15 @@ class RecommendationService:
         interest_match_count = 0
         candidates: list[_TopPlaceCandidate] = []
         for destination in destinations:
-            matched, matched_fields = scoring.interest_matches(data.interests, {
-                "category": destination.category,
-                "vibes": destination.vibes,
-                "activities": destination.activities,
-            })
-            if matched:
+            memberships = {
+                key: membership
+                for key in wants.group_keys
+                if (membership := groups.membership(
+                    key, destination.category, destination.destination_id,
+                )) is not None
+            }
+            satisfied = _satisfied_wants(wants, destination, memberships, groups)
+            if satisfied.labels:
                 interest_match_count += 1
             if districts and (destination.district or "").strip().lower() not in districts:
                 skipped.outside_preferred_districts += 1
@@ -137,35 +177,53 @@ class RecommendationService:
             if any(required and not getattr(destination, flag) for required, flag in required_flags):
                 skipped.missing_required_accessibility += 1
                 continue
-            if data.interests and not matched:
+            if wants.total and not satisfied.labels:
                 skipped.no_interest_match += 1
                 continue
             cost = destination.estimated_cost
+            budget_relaxed = False
             if cost is not None and budget_per_person is not None and cost > budget_per_person:
-                skipped.over_budget += 1
-                continue
+                if data.fill_to_limit and cost <= budget_per_person * Decimal(
+                    str(thresholds.relax_budget_factor)
+                ):
+                    budget_relaxed = True
+                else:
+                    skipped.over_budget += 1
+                    continue
             if road_mode and _has_non_road_access_hint(destination):
                 skipped.needs_boat_or_ferry += 1
                 continue
             record = popularity.get(destination.destination_id)
+            values, defaults = _candidate_values(
+                profile=profile,
+                data=data,
+                wants=wants,
+                destination=destination,
+                satisfied=satisfied,
+                memberships=memberships,
+                cost=cost,
+                budget_per_person=budget_per_person,
+                party=party,
+                popularity_value=record.popularity_score if record else None,
+            )
+            nature = memberships.get("nature_attractions")
             candidates.append(_TopPlaceCandidate(
                 destination=destination,
-                matched=matched,
-                matched_fields=matched_fields,
-                values={
-                    "interest": scoring.interest_score(len(data.interests), len(matched)),
-                    "budget": scoring.budget_score(cost, budget_per_person),
-                    "group_fit": scoring.group_fit_score(
-                        has_children=bool(data.child_ages),
-                        traveler_count=party,
-                        is_kid_friendly=destination.is_kid_friendly,
-                        group_friendly=destination.group_friendly,
-                    ),
-                    "popularity": scoring.popularity_score(
-                        record.popularity_score if record else None
-                    ),
-                },
+                matched=satisfied.labels,
+                matched_fields=satisfied.fields,
+                values=values,
+                memberships=memberships,
+                budget_relaxed=budget_relaxed,
+                rain_sensitivity=nature.rain_sensitivity if nature else "medium",
+                defaults=defaults,
             ))
+
+        rain_by_destination: dict[int, list[int]] = {}
+        weather_note: str | None = None
+        if "weather_season" in weights and candidates:
+            rain_by_destination, weather_note = await self._rain_by_destination(
+                data, candidates, forecast_provider,
+            )
 
         # Route only the strongest candidates, so one table request stays small.
         # A straight-line estimate stands in for travel while shortlisting, so
@@ -178,11 +236,22 @@ class RecommendationService:
             budget_per_person=budget_per_person,
             osrm_client=osrm_client,
             enforce_max_distance=True,
+            profile=profile,
+            weights=weights,
+            rain_by_destination=rain_by_destination,
         )
+        if weather_note:
+            warnings.append(weather_note)
         items = [
             item.model_copy(update={"rank": index})
             for index, item in enumerate(qualified[: data.limit], start=1)
         ]
+        relaxed_count = sum(1 for item in items if item.match_tier > 1)
+        if relaxed_count:
+            warnings.append(
+                f"{relaxed_count} of these places relax a limit you set to fill the list; "
+                "each card says which."
+            )
         approximate = sum(1 for item in items if not item.route_verified)
         if data.origin is None:
             warnings.append("Set a start point on the map to rank places by travel time.")
@@ -200,7 +269,9 @@ class RecommendationService:
             await self.session.commit()
         return TopPlacesResponse(
             method=data.ranking_method,
-            weights=scoring.WEIGHTS,
+            profile=profile.name,
+            weights={name: round(value, 4) for name, value in weights.items()},
+            relaxed_count=relaxed_count,
             max_travel_minutes=max_minutes,
             preference_signal_id=preference_signal_id,
             total_candidates=len(qualified),
@@ -215,6 +286,66 @@ class RecommendationService:
             ),
             warnings=warnings,
         )
+
+    async def _rain_by_destination(
+        self,
+        data: TopPlacesRequest,
+        candidates: list[_TopPlaceCandidate],
+        forecast_provider: ForecastProvider | None,
+    ) -> tuple[dict[int, list[int]], str | None]:
+        """Rain chances for the trip days per place, or a note saying why not.
+
+        There is no assumed season: without a date inside the forecast window the
+        weather criterion stays neutral and the note says so.
+        """
+        start = data.travel_start_date
+        if start is None:
+            return {}, "No travel date was set, so weather is not scored."
+        today = _today()
+        if start < today:
+            return {}, "The travel date is in the past, so weather is not scored."
+        if start > today + timedelta(days=WEATHER_FORECAST_DAYS - 1):
+            return {}, (
+                f"The trip starts beyond the {WEATHER_FORECAST_DAYS}-day weather forecast, "
+                "so weather is not scored."
+            )
+        end = start + timedelta(days=max(1, data.day_count or 1) - 1)
+        needed = min(WEATHER_FORECAST_DAYS, (end - today).days + 1)
+
+        provider = forecast_provider or self._default_forecast
+        cells: dict[tuple[float, float], list[_TopPlaceCandidate]] = {}
+        for candidate in candidates:
+            key = (
+                round(candidate.destination.lat / FORECAST_CELL_DEGREES) * FORECAST_CELL_DEGREES,
+                round(candidate.destination.lng / FORECAST_CELL_DEGREES) * FORECAST_CELL_DEGREES,
+            )
+            cells.setdefault(key, []).append(candidate)
+        result: dict[int, list[int]] = {}
+        failed = False
+        for (lat, lng), members in list(cells.items())[:MAX_FORECAST_CELLS]:
+            try:
+                forecast = await provider(lat, lng, needed)
+            except Exception:  # a provider outage must not break recommendations
+                logger.warning("Weather forecast failed for %.2f,%.2f", lat, lng, exc_info=True)
+                failed = True
+                continue
+            chances = [
+                day.rain_chance_percent
+                for day in getattr(forecast, "days", [])
+                if _within(day.date, start, end)
+            ]
+            if not chances:
+                continue
+            for candidate in members:
+                result[candidate.destination.destination_id] = chances
+        if failed and not result:
+            return {}, "The weather forecast is unavailable right now, so weather is not scored."
+        return result, None
+
+    async def _default_forecast(self, lat: float, lng: float, days: int) -> object:
+        from app.features.weather.service import WeatherService
+
+        return await WeatherService(self.session).forecast(lat=lat, lng=lng, days=days)
 
     async def rank_place_query(
         self,
@@ -234,6 +365,7 @@ class RecommendationService:
     ) -> PlaceQueryResult:
         """Resolve an explicit show-places query using Region XI province filtering and SAW ranking."""
         norm_cats = _normalize_category_terms(categories)
+        groups = load_groups()
         query_request = TopPlacesRequest(
             interests=norm_cats[:15],
             origin=origin,
@@ -244,7 +376,7 @@ class RecommendationService:
             adult_count=adult_count,
             child_ages=list(child_ages or []),
             day_count=day_count or 2,
-            limit=max(1, min(10, limit)),
+            limit=max(1, min(MAX_SUGGESTIONS, limit)),
             ranking_method="simple_additive_weighting",
         )
         destinations = await self.recommendations.list_active_destinations()
@@ -270,6 +402,20 @@ class RecommendationService:
                 continue
 
             matched, matched_fields = _match_place_categories(norm_cats, destination)
+            # A word such as "nature" or "waterfall" also matches by preference group.
+            for term in norm_cats:
+                target = groups.resolve(term)
+                if target is None or term in matched:
+                    continue
+                membership = groups.membership(
+                    target.group, destination.category, destination.destination_id,
+                )
+                if membership is not None and (
+                    target.subtype is None or target.subtype in membership.subtypes
+                ):
+                    matched.append(term)
+                    if "category" not in matched_fields:
+                        matched_fields.append("category")
             if norm_cats and not matched:
                 continue
 
@@ -350,9 +496,17 @@ class RecommendationService:
         budget_per_person: Decimal | None,
         osrm_client: OSRMClient | None,
         enforce_max_distance: bool,
+        profile: WeightProfile | None = None,
+        weights: dict[str, float] | None = None,
+        rain_by_destination: dict[int, list[int]] | None = None,
     ) -> tuple[list[TopPlaceItem], TopPlacesSkipped, list[str]]:
+        profile = profile or get_profile("default")
+        weights = weights or dict(profile.weights)
+        rain_by_destination = rain_by_destination or {}
+        thresholds = scoring.THRESHOLDS
+        default_profile = profile.name == "default"
         candidates.sort(key=lambda item: (
-            -_shortlist_score(data, item, max_minutes),
+            -_shortlist_score(data, item, max_minutes, weights),
             item.destination.destination_id,
         ))
         candidates = candidates[:MAX_ROUTED_CANDIDATES]
@@ -366,12 +520,54 @@ class RecommendationService:
             if not trip.reachable:
                 skipped.no_route += 1
                 continue
+            travel_relaxed = False
             if enforce_max_distance and trip.minutes is not None and trip.minutes > max_minutes:
-                skipped.too_far += 1
-                continue
+                if data.fill_to_limit and trip.minutes <= max_minutes * thresholds.relax_travel_factor:
+                    travel_relaxed = True
+                else:
+                    skipped.too_far += 1
+                    continue
+            defaults = set(candidate.defaults)
             values = {**candidate.values, "travel": scoring.travel_score(trip.minutes, max_minutes)}
-            points = scoring.weighted_points(values)
+            if data.origin is None or trip.minutes is None:
+                defaults.add("travel")
+            if "access" in weights:
+                values["access"] = scoring.access_score(
+                    verified=trip.verified,
+                    has_access_trail=bool(destination.access_trail_polyline),
+                    basis=trip.basis,
+                )
+                if values["access"] == scoring.NEUTRAL:
+                    defaults.add("access")
+            rain = rain_by_destination.get(destination.destination_id, [])
+            if "weather_season" in weights:
+                weather = scoring.weather_score(rain, sensitivity=candidate.rain_sensitivity)
+                values["weather_season"] = scoring.NEUTRAL if weather is None else weather
+                if weather is None:
+                    defaults.add("weather_season")
+            points = scoring.weighted_points(values, weights)
             qualified_values.append(values)
+
+            relaxations: list[str] = []
+            if candidate.budget_relaxed and destination.estimated_cost is not None and budget_per_person:
+                over = destination.estimated_cost - budget_per_person
+                relaxations.append(f"About ₱{over:,.0f} over your per-person budget.")
+            if travel_relaxed:
+                relaxations.append(
+                    f"{_duration_words(trip.minutes)} away, beyond your usual "
+                    f"{_duration_words(max_minutes)} limit."
+                )
+            reasons = _top_place_reasons(
+                data=data,
+                candidate=candidate,
+                trip=trip,
+                budget_per_person=budget_per_person,
+            )
+            if "nature_fit" in weights:
+                reasons.extend(_nature_reasons(
+                    data=data, candidate=candidate, defaults=defaults, rain=rain,
+                ))
+            reasons = [*relaxations, *reasons]
             qualified.append(TopPlaceItem(
                 rank=0,
                 destination_id=destination.destination_id,
@@ -381,23 +577,37 @@ class RecommendationService:
                 image_url=destination.image_url,
                 estimated_cost=destination.estimated_cost,
                 cost_basis="not_listed" if destination.estimated_cost is None else "catalog_estimate",
+                lat=destination.lat,
+                lng=destination.lng,
                 score=scoring.total_score(points),
-                breakdown=TopPlaceBreakdown(**{
-                    name: TopPlaceFactor(
+                breakdown=(
+                    TopPlaceBreakdown(**{
+                        name: TopPlaceFactor(
+                            value=round(values[name], 4),
+                            weight=weights[name],
+                            points=points[name],
+                        )
+                        for name in weights
+                    })
+                    if default_profile else None
+                ),
+                profile=profile.name,
+                factors=[
+                    TopPlaceFactorDetail(
+                        criterion=name,
+                        label=scoring.CRITERION_LABELS.get(name, name),
                         value=round(values[name], 4),
-                        weight=scoring.WEIGHTS[name],
+                        weight=round(weights[name], 4),
                         points=points[name],
+                        used_default=name in defaults,
                     )
-                    for name in scoring.WEIGHTS
-                }),
+                    for name in weights
+                ],
+                match_tier=1 + len(relaxations),
+                relaxations=relaxations,
                 matched_interests=candidate.matched,
                 matched_fields=candidate.matched_fields,
-                reasons=_top_place_reasons(
-                    data=data,
-                    candidate=candidate,
-                    trip=trip,
-                    budget_per_person=budget_per_person,
-                ),
+                reasons=reasons,
                 route_verified=trip.verified,
                 travel_mode=data.travel_mode,
                 travel_basis=trip.basis,
@@ -407,15 +617,19 @@ class RecommendationService:
             ))
 
         if data.ranking_method == "topsis" and qualified:
-            topsis_list = scoring.topsis_scores(qualified_values)
+            topsis_list = scoring.topsis_scores(qualified_values, weights)
             qualified = [
                 item.model_copy(update={"score": topsis_val})
                 for item, topsis_val in zip(qualified, topsis_list, strict=True)
             ]
 
-        # Verified road routes first, then approximate places; best score first in each.
+        # Places that fit every limit come first. The default profile then puts
+        # verified road routes ahead of approximate places (the approved Top 5
+        # rule); other profiles weigh access in the score instead. Best score
+        # first within each group.
         qualified.sort(key=lambda item: (
-            not item.route_verified,
+            item.match_tier,
+            (not item.route_verified) if default_profile else False,
             -item.score,
             item.travel_minutes if item.travel_minutes is not None else float("inf"),
             item.destination_id,
@@ -877,6 +1091,8 @@ def planning_recommendation_from_top_place(item: TopPlaceItem) -> PlanningRecomm
         district=item.district,
         category=item.category,
         image_url=item.image_url,
+        lat=item.lat,
+        lng=item.lng,
         estimated_cost=item.estimated_cost,
         score=item.score,
         matched_fields=item.matched_fields,
@@ -888,6 +1104,10 @@ def planning_recommendation_from_top_place(item: TopPlaceItem) -> PlanningRecomm
         route_verified=item.route_verified,
         travel_basis=item.travel_basis,
         breakdown=item.breakdown,
+        profile=item.profile,
+        factors=item.factors,
+        match_tier=item.match_tier,
+        relaxations=item.relaxations,
     )
 
 
@@ -1069,6 +1289,7 @@ def _shortlist_score(
     data: TopPlacesRequest,
     candidate: _TopPlaceCandidate,
     max_minutes: int,
+    weights: dict[str, float],
 ) -> float:
     """The weighted score with straight-line travel, used only to pick places to route."""
     travel = scoring.NEUTRAL
@@ -1077,7 +1298,9 @@ def _shortlist_score(
             data.origin, candidate.destination, data.travel_mode, "straight_line_estimate",
         )
         travel = scoring.travel_score(estimate.minutes, max_minutes)
-    return scoring.total_score(scoring.weighted_points({**candidate.values, "travel": travel}))
+    values = {**candidate.values, "travel": travel}
+    values = {name: values.get(name, scoring.NEUTRAL) for name in weights}
+    return scoring.total_score(scoring.weighted_points(values, weights))
 
 
 def _straight_line_trip(
@@ -1115,7 +1338,7 @@ def _top_place_reasons(
     reasons: list[str] = []
     if candidate.matched:
         reasons.append(f"Matches {', '.join(candidate.matched)}.")
-    elif not data.interests:
+    elif not _has_interest_filter(data):
         reasons.append("Add a vibe or interest to rank places by what you like.")
 
     way = _MODE_WORDS[data.travel_mode]
@@ -1147,7 +1370,7 @@ def _top_place_reasons(
         reasons.append("Kid-friendly." if destination.is_kid_friendly else "Not marked kid-friendly.")
     if data.party_size >= scoring.LARGE_GROUP_SIZE and destination.group_friendly:
         reasons.append("Good for groups.")
-    if candidate.values["popularity"] > 0:
+    if candidate.values.get("popularity", 0.0) > 0:
         reasons.append("Popular with Lakbay travelers.")
     return reasons
 
@@ -1172,7 +1395,7 @@ def _top_place_shortfall(
     interest_match_count: int,
     skipped: TopPlacesSkipped,
 ) -> str | None:
-    if data.interests and interest_match_count == 0:
+    if _has_interest_filter(data) and interest_match_count == 0:
         return "No active catalog destination matches the supplied travel interests."
     if qualified >= data.limit:
         return None
@@ -1186,3 +1409,237 @@ def _top_place_shortfall(
         return f"{found}."
     listed = parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} and {parts[-1]}"
     return f"{found}: {listed}."
+
+
+@dataclass(frozen=True)
+class _Wants:
+    """What the traveler asked for, resolved against the preference groups."""
+
+    terms: tuple[str, ...]  # free interest words, as typed
+    explicit_groups: tuple[str, ...]  # groups chosen directly
+    group_keys: tuple[str, ...]  # every group involved
+    subtypes: frozenset[str]  # sub-types chosen (directly or by word)
+    term_targets: dict[str, tuple[str, str | None]]  # word -> (group, subtype)
+
+    @property
+    def total(self) -> int:
+        return len(self.terms) + len(self.explicit_groups)
+
+
+@dataclass(frozen=True)
+class _Satisfied:
+    labels: list[str]
+    fields: list[str]
+
+
+def _has_interest_filter(data: TopPlacesRequest) -> bool:
+    return bool(data.interests or data.preference_groups or data.sub_preferences)
+
+
+def _resolve_wants(data: TopPlacesRequest, groups: PreferenceGroups) -> _Wants:
+    group_keys: list[str] = list(data.preference_groups)
+    subtypes: set[str] = set(data.sub_preferences)
+    targets: dict[str, tuple[str, str | None]] = {}
+    for term in data.interests:
+        resolved = groups.resolve(term)
+        if resolved is None:
+            continue
+        targets[term] = (resolved.group, resolved.subtype)
+        if resolved.group not in group_keys:
+            group_keys.append(resolved.group)
+        if resolved.subtype is not None:
+            subtypes.add(resolved.subtype)
+    return _Wants(
+        terms=tuple(data.interests),
+        explicit_groups=tuple(data.preference_groups),
+        group_keys=tuple(group_keys),
+        subtypes=frozenset(subtypes),
+        term_targets=targets,
+    )
+
+
+def _satisfied_wants(
+    wants: _Wants,
+    destination: Destination,
+    memberships: dict[str, Membership],
+    groups: PreferenceGroups,
+) -> _Satisfied:
+    """Which of the traveler's wants this place meets.
+
+    A word that names a group is met by group membership *or* by the old text
+    match on category, vibes and activities, so nothing that matched before is lost.
+    """
+    labels: list[str] = []
+    fields: list[str] = []
+    if wants.terms:
+        matched, matched_fields = scoring.interest_matches(list(wants.terms), {
+            "category": destination.category,
+            "vibes": destination.vibes,
+            "activities": destination.activities,
+        })
+        for term in wants.terms:
+            target = wants.term_targets.get(term)
+            in_group = False
+            if target is not None:
+                membership = memberships.get(target[0])
+                in_group = membership is not None and (
+                    target[1] is None or target[1] in membership.subtypes
+                )
+            if term in matched or in_group:
+                labels.append(term)
+        fields.extend(matched_fields)
+    for key in wants.explicit_groups:
+        membership = memberships.get(key)
+        if membership is None:
+            continue
+        label = groups.groups[key].label
+        if label not in labels:
+            labels.append(label)
+        for subtype_key in sorted(membership.subtypes & wants.subtypes):
+            subtype_label = groups.groups[key].subtypes[subtype_key].label
+            if subtype_label not in labels:
+                labels.append(subtype_label)
+        if "category" not in fields:
+            fields.append("category")
+    return _Satisfied(labels=labels, fields=fields)
+
+
+def _profile_and_weights(
+    wants: _Wants, data: TopPlacesRequest, groups: PreferenceGroups
+) -> tuple[WeightProfile, dict[str, float]]:
+    """The weight profile for the chosen groups, blended with traveler priorities.
+
+    A specialised profile (such as nature attractions) applies only when every
+    chosen group uses it: nature criteria like trail difficulty mean little for
+    a beach place. A mixed request, or none, uses the default profile.
+    """
+    names = {groups.groups[key].weight_profile for key in wants.group_keys}
+    profile = get_profile(names.pop() if len(names) == 1 else "default")
+    weights = dict(profile.weights)
+    if data.priority_order and profile.priority_criteria:
+        weights = scoring.blend_priority_weights(
+            weights,
+            list(data.priority_order[: scoring.THRESHOLDS.max_priorities]),
+            profile.priority_criteria,
+        )
+    return profile, weights
+
+
+def _candidate_values(
+    *,
+    profile: WeightProfile,
+    data: TopPlacesRequest,
+    wants: _Wants,
+    destination: Destination,
+    satisfied: _Satisfied,
+    memberships: dict[str, Membership],
+    cost: Decimal | None,
+    budget_per_person: Decimal | None,
+    party: int,
+    popularity_value,
+) -> tuple[dict[str, float], set[str]]:
+    """Criterion values known before routing, and which of them were missing data."""
+    defaults: set[str] = set()
+    budget = scoring.budget_score(cost, budget_per_person)
+    if cost is None or budget_per_person is None:
+        defaults.add("budget")
+    group_fit = scoring.group_fit_score(
+        has_children=bool(data.child_ages),
+        traveler_count=party,
+        is_kid_friendly=destination.is_kid_friendly,
+        group_friendly=destination.group_friendly,
+    )
+    if profile.name == "default":
+        return {
+            "interest": scoring.interest_score(wants.total, len(satisfied.labels)),
+            "budget": budget,
+            "group_fit": group_fit,
+            "popularity": scoring.popularity_score(popularity_value),
+        }, defaults
+
+    nature = memberships.get("nature_attractions")
+    wanted_level = scoring.ACTIVITY_LEVELS.get(data.activity_level or "")
+    place_level = scoring.normalize_difficulty(destination.difficulty_level)
+    lower_one_step = data.requires_elderly_friendly or any(
+        age <= scoring.THRESHOLDS.young_child_max_age for age in data.child_ages
+    )
+    physical = scoring.physical_suitability_score(
+        place_level=place_level, wanted_level=wanted_level, lower_one_step=lower_one_step,
+    )
+    if place_level is None or wanted_level is None:
+        defaults.add("physical_suitability")
+    crowd = scoring.normalize_crowd(destination.crowd_level)
+    quiet_popular = scoring.quiet_popular_score(
+        prefers_quiet=data.prefers_quiet, crowd=crowd, popularity=popularity_value,
+    )
+    if (data.prefers_quiet and crowd is None) or (
+        not data.prefers_quiet and (popularity_value is None or popularity_value <= 0)
+    ):
+        defaults.add("quiet_popular")
+    return {
+        "nature_fit": 0.5 if nature is None else scoring.nature_fit_score(
+            nature.subtypes, wants.subtypes,
+        ),
+        "budget": budget,
+        "physical_suitability": physical,
+        "group_fit": group_fit,
+        "quiet_popular": quiet_popular,
+    }, defaults
+
+
+def _nature_reasons(
+    *,
+    data: TopPlacesRequest,
+    candidate: _TopPlaceCandidate,
+    defaults: set[str],
+    rain: list[int],
+) -> list[str]:
+    """Plain-language reasons for the nature-specific criteria."""
+    destination = candidate.destination
+    reasons: list[str] = []
+    if data.activity_level:
+        level = scoring.normalize_difficulty(destination.difficulty_level)
+        wanted = scoring.ACTIVITY_LEVELS[data.activity_level]
+        if level is None:
+            reasons.append("Trail difficulty not listed.")
+        elif level <= wanted:
+            reasons.append(f"Suits a {data.activity_level} pace.")
+        else:
+            reasons.append(f"Harder than the {data.activity_level} pace you chose.")
+    if rain:
+        average = round(sum(rain) / len(rain))
+        reasons.append(
+            f"About {average}% chance of rain on your dates."
+            if average < scoring.THRESHOLDS.rain_high_from_percent
+            else f"Rain is likely on your dates ({average}%); wet trails and falls can be unsafe."
+        )
+    if data.prefers_quiet:
+        crowd = scoring.normalize_crowd(destination.crowd_level)
+        reasons.append(
+            {"low": "Usually quiet.", "moderate": "Moderately busy.", "high": "Often crowded."}[crowd]
+            if crowd else "Crowd level not listed."
+        )
+    return reasons
+
+
+def _duration_words(minutes: int | None) -> str:
+    if minutes is None:
+        return "an unknown time"
+    hours, rest = divmod(int(minutes), 60)
+    if hours == 0:
+        return f"{rest} min"
+    return f"{hours} h" if rest == 0 else f"{hours} h {rest} min"
+
+
+def _today() -> date:
+    """Today's date in the configured timezone (UTC if its data is not installed)."""
+    try:
+        zone = ZoneInfo(get_settings().timezone)
+    except ZoneInfoNotFoundError:
+        logger.warning("Timezone %r is not available; using UTC.", get_settings().timezone)
+        return datetime.now(UTC).date()
+    return datetime.now(zone).date()
+
+
+def _within(day: date, start: date, end: date) -> bool:
+    return start <= day <= end

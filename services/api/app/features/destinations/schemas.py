@@ -177,6 +177,27 @@ def _normalize_optional_slug(value: str | None) -> str | None:
     return trimmed or None
 
 
+class FacetSubtype(BaseModel):
+    key: str
+    label: str
+    count: int
+
+
+class FacetGroup(BaseModel):
+    key: str
+    label: str
+    description: str
+    count: int
+    subtypes: list[FacetSubtype]
+
+
+class DestinationFacetsResponse(BaseModel):
+    """Preference groups with live counts, for the traveler's preference chips."""
+
+    total_places: int
+    groups: list[FacetGroup]
+
+
 class DestinationListQuery(BaseModel):
     search: str | None = None
     district: str | None = None

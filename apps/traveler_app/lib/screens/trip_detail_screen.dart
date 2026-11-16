@@ -44,19 +44,16 @@ class _TripDetailScreenState extends State<TripDetailScreen>
         if (clean.isNotEmpty) items.add(clean);
       }
     }
-    if (trip.wmoWeatherCode >= 51 ||
-        trip.avgTemp.toLowerCase().contains('rain') ||
-        trip.avgTemp.toLowerCase().contains('shower')) {
-      items.addAll(['Compact Umbrella / Rain Poncho', 'Dry Bag for Electronics']);
-    } else {
-      items.addAll(['SPF50+ Sunscreen & Shades', 'Refillable Water Bottle']);
-    }
-    if (items.isEmpty) {
-      items.addAll([
-        'Valid ID & Cash (₱ Small Bills)',
-        'Comfortable Walking Shoes',
-        'Powerbank & Light Jacket',
-      ]);
+    // Weather-based items only when real weather has been loaded for the trip
+    // (avgTemp is empty until then); otherwise only the catalog's own list.
+    if (trip.avgTemp.trim().isNotEmpty) {
+      if (trip.wmoWeatherCode >= 51 ||
+          trip.avgTemp.toLowerCase().contains('rain') ||
+          trip.avgTemp.toLowerCase().contains('shower')) {
+        items.addAll(['Compact Umbrella / Rain Poncho', 'Dry Bag for Electronics']);
+      } else {
+        items.addAll(['SPF50+ Sunscreen & Shades', 'Refillable Water Bottle']);
+      }
     }
     return items.take(8).toList();
   }
@@ -632,25 +629,30 @@ class _TripDetailScreenState extends State<TripDetailScreen>
       children: [
         Row(
           children: [
-            _buildInfoChip(
-              iconWidget: Image.asset(
-                'assets/png/weather/${trip.wmoWeatherCode}.png',
-                width: 22,
-                height: 22,
-                errorBuilder: (_, _, _) => const Icon(Icons.wb_sunny_rounded,
-                    color: LakbayColors.primary, size: 20),
+            // Weather and best months are shown only when real data exists.
+            if (trip.avgTemp.trim().isNotEmpty) ...[
+              _buildInfoChip(
+                iconWidget: Image.asset(
+                  'assets/png/weather/${trip.wmoWeatherCode}.png',
+                  width: 22,
+                  height: 22,
+                  errorBuilder: (_, _, _) => const Icon(Icons.wb_sunny_rounded,
+                      color: LakbayColors.primary, size: 20),
+                ),
+                label: 'Weather',
+                value: trip.avgTemp,
               ),
-              label: 'Davao Weather',
-              value: trip.avgTemp,
-            ),
-            const SizedBox(width: 10),
-            _buildInfoChip(
-              iconWidget: const Icon(Icons.calendar_month_rounded,
-                  color: LakbayColors.primary, size: 20),
-              label: 'Best Months',
-              value: trip.bestMonths,
-            ),
-            const SizedBox(width: 10),
+              const SizedBox(width: 10),
+            ],
+            if (trip.bestMonths.trim().isNotEmpty) ...[
+              _buildInfoChip(
+                iconWidget: const Icon(Icons.calendar_month_rounded,
+                    color: LakbayColors.primary, size: 20),
+                label: 'Best time',
+                value: trip.bestMonths,
+              ),
+              const SizedBox(width: 10),
+            ],
             _buildInfoChip(
               iconWidget: const Icon(Icons.route_rounded,
                   color: LakbayColors.primary, size: 20),
@@ -1069,8 +1071,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
         ),
         const SizedBox(height: 20),
 
-        // Expert Curator Card with APK .webp avatar
-        Container(
+        // Travel notes from the catalog; hidden when there are none.
+        if (trip.expertTip.trim().isNotEmpty) Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: LakbayColors.primarySoft,
@@ -1081,22 +1083,16 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipOval(
-                child: Image.asset(
-                  trip.expertAvatarAsset,
-                  width: 46,
-                  height: 46,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const LakbayAvatar(size: 46),
-                ),
-              ),
+              const LakbayAvatar(size: 46),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      trip.expertName,
+                      trip.expertName.trim().isNotEmpty
+                          ? trip.expertName
+                          : 'Travel notes',
                       style: const TextStyle(
                         fontFamily: 'FigGrotesk',
                         fontWeight: FontWeight.w700,

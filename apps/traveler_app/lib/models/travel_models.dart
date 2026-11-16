@@ -1476,6 +1476,11 @@ class ChatMessage {
   final List<TopPlaceRecommendation> recommendedPlaces;
   final List<String> suggestedReplies;
 
+  /// A failed request shown as an error, with the message to send again.
+  /// Nothing is invented to cover for a failure.
+  final bool isError;
+  final String? retryText;
+
   const ChatMessage({
     required this.id,
     required this.isUser,
@@ -1485,6 +1490,8 @@ class ChatMessage {
     this.aiOptions = const [],
     this.recommendedPlaces = const [],
     this.suggestedReplies = const [],
+    this.isError = false,
+    this.retryText,
   });
 
   Map<String, dynamic> toJson() => {
@@ -1499,6 +1506,8 @@ class ChatMessage {
           'recommendedPlaces':
               recommendedPlaces.map((p) => p.toJson()).toList(),
         if (suggestedReplies.isNotEmpty) 'suggestedReplies': suggestedReplies,
+        if (isError) 'isError': true,
+        if (retryText != null) 'retryText': retryText,
       };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -2259,6 +2268,66 @@ class AppAssessmentData {
       );
 }
 
+/// A preference the traveler can choose (for example "Nature attractions"),
+/// served by the API from `GET /destinations/facets`. Nothing about which
+/// preferences exist is typed into the app.
+class PreferenceGroup {
+  final String key;
+  final String label;
+  final String description;
+  final int count;
+  final List<PreferenceSubtype> subtypes;
+
+  const PreferenceGroup({
+    required this.key,
+    required this.label,
+    this.description = '',
+    this.count = 0,
+    this.subtypes = const [],
+  });
+
+  factory PreferenceGroup.fromJson(Map<String, dynamic> json) =>
+      PreferenceGroup(
+        key: (json['key'] ?? '').toString(),
+        label: (json['label'] ?? '').toString(),
+        description: (json['description'] ?? '').toString(),
+        count: (json['count'] as num?)?.toInt() ?? 0,
+        subtypes: (json['subtypes'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(PreferenceSubtype.fromJson)
+            .toList(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'label': label,
+        'description': description,
+        'count': count,
+        'subtypes': subtypes.map((s) => s.toJson()).toList(),
+      };
+}
+
+class PreferenceSubtype {
+  final String key;
+  final String label;
+  final int count;
+
+  const PreferenceSubtype({
+    required this.key,
+    required this.label,
+    this.count = 0,
+  });
+
+  factory PreferenceSubtype.fromJson(Map<String, dynamic> json) =>
+      PreferenceSubtype(
+        key: (json['key'] ?? '').toString(),
+        label: (json['label'] ?? '').toString(),
+        count: (json['count'] as num?)?.toInt() ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {'key': key, 'label': label, 'count': count};
+}
+
 class TopPlaceRecommendation {
   final int rank;
   final int destinationId;
@@ -2274,6 +2343,13 @@ class TopPlaceRecommendation {
   final int? travelMinutes;
   final double? travelDistanceKm;
 
+  /// The place's pin, from the server, so a card never needs a guessed location.
+  final double? lat;
+  final double? lng;
+
+  /// 1 fits every limit; 2 or 3 relax a limit (the first reasons say which).
+  final int matchTier;
+
   const TopPlaceRecommendation({
     required this.rank,
     required this.destinationId,
@@ -2288,6 +2364,9 @@ class TopPlaceRecommendation {
     required this.travelMode,
     this.travelMinutes,
     this.travelDistanceKm,
+    this.lat,
+    this.lng,
+    this.matchTier = 1,
   });
 
   String get fallbackAssetPath =>
@@ -2307,6 +2386,9 @@ class TopPlaceRecommendation {
         'travel_mode': travelMode,
         if (travelMinutes != null) 'travel_minutes': travelMinutes,
         if (travelDistanceKm != null) 'travel_distance_km': travelDistanceKm,
+        if (lat != null) 'lat': lat,
+        if (lng != null) 'lng': lng,
+        if (matchTier != 1) 'match_tier': matchTier,
       };
 
   factory TopPlaceRecommendation.fromJson(Map<String, dynamic> json) {
@@ -2331,6 +2413,9 @@ class TopPlaceRecommendation {
       travelMinutes: (minutes as num?)?.toInt(),
       travelDistanceKm:
           distanceKm == null ? null : _parseDoubleModel(distanceKm),
+      lat: (json['lat'] as num?)?.toDouble(),
+      lng: (json['lng'] as num?)?.toDouble(),
+      matchTier: (json['match_tier'] as num?)?.toInt() ?? 1,
     );
   }
 }

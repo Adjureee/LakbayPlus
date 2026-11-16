@@ -155,19 +155,22 @@ class LakbayAiService {
       for (var i = 0; i < rawDays.length; i++) {
         final d = rawDays[i] as Map<String, dynamic>;
         final rawActs = d['activities'] as List<dynamic>? ?? const [];
-        final acts = rawActs.map((item) {
-          final a = item as Map<String, dynamic>;
-          return AiGeneratedActivity(
-            time: (a['time'] ?? '09:00 AM').toString(),
-            title: (a['title'] ?? 'Davao Stop').toString(),
-            description: (a['description'] ?? '').toString(),
-            lat: (a['lat'] as num?)?.toDouble(),
-            lng: (a['lng'] as num?)?.toDouble(),
-            estimatedCostPhp:
-                (a['estimated_cost_php'] as num?)?.toDouble() ?? 0,
-            category: (a['category'] ?? 'activity').toString(),
-          );
-        }).toList();
+        // A stop with no name is dropped rather than shown as a made-up place,
+        // and a missing time stays blank rather than becoming 9 AM.
+        final acts = rawActs
+            .whereType<Map<String, dynamic>>()
+            .where((a) => (a['title'] ?? '').toString().trim().isNotEmpty)
+            .map((a) => AiGeneratedActivity(
+                  time: (a['time'] ?? '').toString(),
+                  title: a['title'].toString().trim(),
+                  description: (a['description'] ?? '').toString(),
+                  lat: (a['lat'] as num?)?.toDouble(),
+                  lng: (a['lng'] as num?)?.toDouble(),
+                  estimatedCostPhp:
+                      (a['estimated_cost_php'] as num?)?.toDouble() ?? 0,
+                  category: (a['category'] ?? 'activity').toString(),
+                ))
+            .toList();
 
         parsedDays.add(
           AiGeneratedDay(
@@ -187,10 +190,13 @@ class LakbayAiService {
         .take(4)
         .toList();
 
+    if (reply.isEmpty && parsedDays.isEmpty) {
+      // Nothing to show: report it instead of putting words in the AI's mouth.
+      throw StateError('Lakbay AI returned an empty answer.');
+    }
+
     return AiPlanResult(
-      replyText: reply.isNotEmpty
-          ? reply
-          : 'Here is your Davao Region travel update.',
+      replyText: reply,
       providerUsed: provider,
       modelUsed: modelId,
       title: decoded['title']?.toString(),
