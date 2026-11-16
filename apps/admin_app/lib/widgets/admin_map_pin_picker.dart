@@ -3,8 +3,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../core/davao_region_boundaries.dart';
+import '../core/map_tiles.dart';
 
-/// Opens a Davao Region (Region XI) OpenStreetMap dialog where admins can click
+/// Opens a Davao Region (Region XI) map dialog (Mapbox, or OpenStreetMap
+/// without a token) where admins can click
 /// anywhere to pick destination coordinates cleanly.
 Future<LatLng?> showAdminMapPinPickerDialog(
   BuildContext context, {
@@ -40,6 +42,8 @@ class _AdminMapPinPickerDialog extends StatefulWidget {
 class _AdminMapPinPickerDialogState extends State<_AdminMapPinPickerDialog> {
   late LatLng _selected = widget.initialPoint;
   final _mapController = MapController();
+  // Satellite helps find the actual gate or parking area.
+  AdminMapStyle _style = AdminMapStyle.streets;
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +53,10 @@ class _AdminMapPinPickerDialogState extends State<_AdminMapPinPickerDialog> {
         for (final ring in entry.value)
           Polygon(
             points: ring,
-            color: (DavaoRegionBoundaries.regionColors[entry.key] ??
-                    theme.colorScheme.primary)
-                .withValues(alpha: 0.10),
+            color:
+                (DavaoRegionBoundaries.regionColors[entry.key] ??
+                        theme.colorScheme.primary)
+                    .withValues(alpha: 0.10),
             borderColor:
                 (DavaoRegionBoundaries.regionColors[entry.key] ??
                         theme.colorScheme.primary)
@@ -94,33 +99,43 @@ class _AdminMapPinPickerDialogState extends State<_AdminMapPinPickerDialog> {
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter: _selected,
-                      initialZoom: 9.5,
-                      onTap: (_, point) => setState(() => _selected = point),
-                    ),
+                  child: Stack(
                     children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.lakbay.plus.lakbay_admin',
-                      ),
-                      PolygonLayer(polygons: polygons),
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            point: _selected,
-                            width: 44,
-                            height: 44,
-                            child: Icon(
-                              Icons.location_on_rounded,
-                              size: 40,
-                              color: theme.colorScheme.primary,
-                            ),
+                      FlutterMap(
+                        mapController: _mapController,
+                        options: MapOptions(
+                          initialCenter: _selected,
+                          initialZoom: 9.5,
+                          onTap: (_, point) =>
+                              setState(() => _selected = point),
+                        ),
+                        children: [
+                          AdminMapTiles.tileLayer(_style),
+                          PolygonLayer(polygons: polygons),
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: _selected,
+                                width: 44,
+                                height: 44,
+                                child: Icon(
+                                  Icons.location_on_rounded,
+                                  size: 40,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ],
                           ),
+                          AdminMapTiles.attribution(),
                         ],
+                      ),
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: AdminMapStyleSwitch(
+                          style: _style,
+                          onChanged: (value) => setState(() => _style = value),
+                        ),
                       ),
                     ],
                   ),

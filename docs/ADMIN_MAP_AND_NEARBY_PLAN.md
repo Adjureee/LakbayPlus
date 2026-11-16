@@ -1,6 +1,6 @@
 # Admin map, photo editing and nearby places — implementation plan
 
-Date: 2026-11-16 · Status: Phases 1 and 6 implemented (feature/sync-and-nearby-places); Phases 2–5 proposed
+Date: 2026-11-16 · Status: Phases 1, 2 and 6 implemented; Phases 3–5 proposed
 
 ## Your request, rewritten as a prompt
 
