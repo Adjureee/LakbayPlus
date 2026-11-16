@@ -454,14 +454,16 @@ class CityDescription {
   final String country;
   final String description;
   final String? longDescription;
-  final int wmoWeatherCode;
+
+  /// Weather code for this city, or null: there is no weather unless a forecast gave one.
+  final int? wmoWeatherCode;
 
   const CityDescription({
     required this.city,
     required this.country,
     required this.description,
     this.longDescription,
-    this.wmoWeatherCode = 2,
+    this.wmoWeatherCode,
   });
 
   factory CityDescription.fromJson(Map<String, dynamic> json) {
@@ -655,15 +657,28 @@ class ItineraryStop {
       );
 }
 
+/// A stay from the Lakbay catalog. Anything the catalog does not say is null,
+/// and the screen says "not listed" instead of inventing it.
 class HotelOffer {
   final String id;
   final String name;
   final String city;
-  final double rating;
-  final int stars;
-  final int pricePerNightUsd;
+
+  /// Guest rating, or null: the catalog has none, so none is shown.
+  final double? rating;
+  final int? stars;
+
+  /// The catalog price in pesos, or null when no price is listed.
+  final double? pricePhp;
+
+  /// What the price is for, for example `per_room_per_night`, or null when the
+  /// catalog does not say. A unit is never assumed.
+  final String? chargingUnit;
+  final int? capacity;
   final List<String> facilities;
-  final String partnerName;
+
+  /// Where the information comes from.
+  final String sourceLabel;
   final String imageAsset;
   final String? remoteImageUrl;
   final double lat;
@@ -674,27 +689,45 @@ class HotelOffer {
     required this.id,
     required this.name,
     required this.city,
-    required this.rating,
-    required this.stars,
-    required this.pricePerNightUsd,
-    required this.facilities,
-    required this.partnerName,
-    required this.imageAsset,
+    this.rating,
+    this.stars,
+    this.pricePhp,
+    this.chargingUnit,
+    this.capacity,
+    this.facilities = const [],
+    this.sourceLabel = 'Lakbay catalog',
+    this.imageAsset = '',
     this.remoteImageUrl,
     required this.lat,
     required this.lng,
     this.apiAccommodationId,
   });
 
+  /// True only when the catalog says the price is per night.
+  bool get isPricedPerNight =>
+      pricePhp != null && (chargingUnit ?? '').contains('night');
+
+  /// The nightly price in USD for cost totals, or null when it is not a
+  /// known per-night price.
+  double? nightlyUsd(double phpPerUsd) =>
+      isPricedPerNight ? pricePhp! / phpPerUsd : null;
+
+  /// The unit in words ("per room per night"), or null when not listed.
+  String? get chargingUnitLabel => chargingUnit == null || chargingUnit!.isEmpty
+      ? null
+      : chargingUnit!.replaceAll('_', ' ');
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'city': city,
-        'rating': rating,
-        'stars': stars,
-        'pricePerNightUsd': pricePerNightUsd,
+        if (rating != null) 'rating': rating,
+        if (stars != null) 'stars': stars,
+        if (pricePhp != null) 'pricePhp': pricePhp,
+        if (chargingUnit != null) 'chargingUnit': chargingUnit,
+        if (capacity != null) 'capacity': capacity,
         'facilities': facilities,
-        'partnerName': partnerName,
+        'sourceLabel': sourceLabel,
         'imageAsset': imageAsset,
         if (remoteImageUrl != null) 'remoteImageUrl': remoteImageUrl,
         'lat': lat,
@@ -702,24 +735,33 @@ class HotelOffer {
         if (apiAccommodationId != null) 'apiAccommodationId': apiAccommodationId,
       };
 
-  factory HotelOffer.fromJson(Map<String, dynamic> json) => HotelOffer(
-        id: json['id'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        city: json['city'] as String? ?? 'Davao Region',
-        rating: (json['rating'] as num?)?.toDouble() ?? 9.0,
-        stars: (json['stars'] as num?)?.toInt() ?? 4,
-        pricePerNightUsd: (json['pricePerNightUsd'] as num?)?.toInt() ?? 78,
-        facilities: (json['facilities'] as List<dynamic>? ?? const [])
-            .map((e) => e.toString())
-            .toList(),
-        partnerName: json['partnerName'] as String? ?? 'Lakbay+ Partner',
-        imageAsset:
-            json['imageAsset'] as String? ?? 'assets/home_backdrops/01-samal-island.jpg',
-        remoteImageUrl: json['remoteImageUrl'] as String?,
-        lat: (json['lat'] as num?)?.toDouble() ?? 7.0731,
-        lng: (json['lng'] as num?)?.toDouble() ?? 125.6128,
-        apiAccommodationId: (json['apiAccommodationId'] as num?)?.toInt(),
-      );
+  /// Reads a saved stay, or null for one saved by an older version: those were
+  /// invented by the app (made-up ratings and prices), so they are dropped.
+  static HotelOffer? tryFromJson(Map<String, dynamic> json) {
+    if (!json.containsKey('sourceLabel')) return null;
+    final lat = (json['lat'] as num?)?.toDouble();
+    final lng = (json['lng'] as num?)?.toDouble();
+    if (lat == null || lng == null) return null;
+    return HotelOffer(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      city: json['city'] as String? ?? '',
+      rating: (json['rating'] as num?)?.toDouble(),
+      stars: (json['stars'] as num?)?.toInt(),
+      pricePhp: (json['pricePhp'] as num?)?.toDouble(),
+      chargingUnit: json['chargingUnit'] as String?,
+      capacity: (json['capacity'] as num?)?.toInt(),
+      facilities: (json['facilities'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+      sourceLabel: json['sourceLabel'] as String? ?? 'Lakbay catalog',
+      imageAsset: json['imageAsset'] as String? ?? '',
+      remoteImageUrl: json['remoteImageUrl'] as String?,
+      lat: lat,
+      lng: lng,
+      apiAccommodationId: (json['apiAccommodationId'] as num?)?.toInt(),
+    );
+  }
 }
 
 class FlightOffer {
@@ -772,8 +814,9 @@ class ItineraryDay {
   final String summary;
   final double lat;
   final double lng;
-  final int wmoWeatherCode;
-  final int tempCelsius;
+  /// From a real forecast for this day's date, or null (no forecast yet).
+  final int? wmoWeatherCode;
+  final int? tempCelsius;
   final TransportMode? transportFromPrevious;
   final String? transportDuration;
   final List<ItineraryStop> stops;
@@ -792,8 +835,8 @@ class ItineraryDay {
     required this.summary,
     required this.lat,
     required this.lng,
-    this.wmoWeatherCode = 2,
-    this.tempCelsius = 29,
+    this.wmoWeatherCode,
+    this.tempCelsius,
     this.transportFromPrevious,
     this.transportDuration,
     required this.stops,
@@ -816,6 +859,7 @@ class ItineraryDay {
     List<ItineraryStop>? stops,
     int? wmoWeatherCode,
     int? tempCelsius,
+    bool clearWeather = false,
     TransportMode? transportFromPrevious,
     String? transportDuration,
     double? visitHours,
@@ -831,8 +875,9 @@ class ItineraryDay {
       summary: summary ?? this.summary,
       lat: lat ?? this.lat,
       lng: lng ?? this.lng,
-      wmoWeatherCode: wmoWeatherCode ?? this.wmoWeatherCode,
-      tempCelsius: tempCelsius ?? this.tempCelsius,
+      wmoWeatherCode:
+          clearWeather ? null : (wmoWeatherCode ?? this.wmoWeatherCode),
+      tempCelsius: clearWeather ? null : (tempCelsius ?? this.tempCelsius),
       transportFromPrevious:
           transportFromPrevious ?? this.transportFromPrevious,
       transportDuration: transportDuration ?? this.transportDuration,
@@ -854,8 +899,8 @@ class ItineraryDay {
         'summary': summary,
         'lat': lat,
         'lng': lng,
-        'wmoWeatherCode': wmoWeatherCode,
-        'tempCelsius': tempCelsius,
+        if (wmoWeatherCode != null) 'forecastCode': wmoWeatherCode,
+        if (tempCelsius != null) 'forecastTempC': tempCelsius,
         if (transportFromPrevious != null)
           'transportFromPrevious': transportFromPrevious!.name,
         if (transportDuration != null) 'transportDuration': transportDuration,
@@ -878,8 +923,9 @@ class ItineraryDay {
         summary: json['summary'] as String? ?? '',
         lat: (json['lat'] as num?)?.toDouble() ?? 7.0731,
         lng: (json['lng'] as num?)?.toDouble() ?? 125.6128,
-        wmoWeatherCode: (json['wmoWeatherCode'] as num?)?.toInt() ?? 2,
-        tempCelsius: (json['tempCelsius'] as num?)?.toInt() ?? 29,
+        // Only forecasts saved by this version; the old 2 / 29 defaults are ignored.
+        wmoWeatherCode: (json['forecastCode'] as num?)?.toInt(),
+        tempCelsius: (json['forecastTempC'] as num?)?.toInt(),
         transportFromPrevious: json['transportFromPrevious'] != null
             ? _transportModeFromName(json['transportFromPrevious'] as String?)
             : null,
@@ -889,7 +935,7 @@ class ItineraryDay {
             .map(ItineraryStop.fromJson)
             .toList(),
         recommendedHotel: json['recommendedHotel'] is Map<String, dynamic>
-            ? HotelOffer.fromJson(
+            ? HotelOffer.tryFromJson(
                 json['recommendedHotel'] as Map<String, dynamic>,
               )
             : null,
@@ -1056,8 +1102,12 @@ class ItineraryTrip {
   final String vibeTag;
   final String overviewText;
   final String bestMonths;
+  /// Today's real weather at the place (for example "29°C • Clear"), or empty.
   final String avgTemp;
-  final int wmoWeatherCode;
+  final int? wmoWeatherCode;
+
+  /// The day the trip starts, or null until the traveler sets it. Needed to show a forecast.
+  final DateTime? startDate;
   final String expertName;
   final String expertAvatarAsset;
   final String expertTip;
@@ -1107,7 +1157,8 @@ class ItineraryTrip {
     required this.overviewText,
     required this.bestMonths,
     required this.avgTemp,
-    this.wmoWeatherCode = 2,
+    this.wmoWeatherCode,
+    this.startDate,
     required this.expertName,
     this.expertAvatarAsset = 'assets/experts/carla.webp',
     required this.expertTip,
@@ -1144,8 +1195,10 @@ class ItineraryTrip {
     }
     final flightTotal =
         flights.isNotEmpty ? flights.first.priceRoundtripUsd * (adults ?? 1) : 0;
-    final hotelTotal = hotels.isNotEmpty && daysCount > 1
-        ? hotels.first.pricePerNightUsd * (daysCount - 1).clamp(1, 30)
+    // Only a stay the catalog prices per night is counted; nothing is assumed.
+    final nightlyUsd = hotels.isEmpty ? null : hotels.first.nightlyUsd(57.0);
+    final hotelTotal = nightlyUsd != null && daysCount > 1
+        ? (nightlyUsd * (daysCount - 1).clamp(1, 30)).round()
         : 0;
     final activityTotal = days
         .expand((d) => d.stops)
@@ -1229,6 +1282,7 @@ class ItineraryTrip {
     List<FlightOffer>? flights,
     String? avgTemp,
     int? wmoWeatherCode,
+    DateTime? startDate,
     List<ItineraryDay>? days,
     String? whatToBring,
     bool? isLocalOnly,
@@ -1263,6 +1317,7 @@ class ItineraryTrip {
       bestMonths: bestMonths,
       avgTemp: avgTemp ?? this.avgTemp,
       wmoWeatherCode: wmoWeatherCode ?? this.wmoWeatherCode,
+      startDate: startDate ?? this.startDate,
       expertName: expertName ?? this.expertName,
       expertAvatarAsset: expertAvatarAsset,
       expertTip: expertTip,
@@ -1312,7 +1367,8 @@ class ItineraryTrip {
         'overviewText': overviewText,
         'bestMonths': bestMonths,
         'avgTemp': avgTemp,
-        'wmoWeatherCode': wmoWeatherCode,
+        if (wmoWeatherCode != null) 'wmoWeatherCode': wmoWeatherCode,
+        if (startDate != null) 'startDate': startDate!.toIso8601String(),
         'expertName': expertName,
         'expertAvatarAsset': expertAvatarAsset,
         'expertTip': expertTip,
@@ -1364,9 +1420,12 @@ class ItineraryTrip {
         remoteImageUrl: json['remoteImageUrl'] as String?,
         vibeTag: json['vibeTag'] as String? ?? 'Davao Region',
         overviewText: json['overviewText'] as String? ?? '',
-        bestMonths: json['bestMonths'] as String? ?? 'Dec – May (Dry)',
-        avgTemp: json['avgTemp'] as String? ?? '29°C / 84°F',
-        wmoWeatherCode: (json['wmoWeatherCode'] as num?)?.toInt() ?? 2,
+        bestMonths: _unlessInvented(json['bestMonths'] as String?, 'Dec – May (Dry)'),
+        avgTemp: _unlessInvented(json['avgTemp'] as String?, '29°C / 84°F'),
+        wmoWeatherCode: _unlessInvented(json['avgTemp'] as String?, '29°C / 84°F').isEmpty
+            ? null
+            : (json['wmoWeatherCode'] as num?)?.toInt(),
+        startDate: DateTime.tryParse((json['startDate'] ?? '').toString()),
         expertName: json['expertName'] as String? ?? 'Lakbay+ AI',
         expertAvatarAsset:
             json['expertAvatarAsset'] as String? ?? 'assets/experts/carla.webp',
@@ -1381,7 +1440,8 @@ class ItineraryTrip {
             .toList(),
         hotels: (json['hotels'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
-            .map(HotelOffer.fromJson)
+            .map(HotelOffer.tryFromJson)
+            .whereType<HotelOffer>()
             .toList(),
         backendTripId: (json['backendTripId'] as num?)?.toInt(),
         backendDestinationId: (json['backendDestinationId'] as num?)?.toInt(),
@@ -2696,3 +2756,9 @@ double _parseDoubleModel(dynamic value) {
   if (value is String) return double.tryParse(value) ?? 0.0;
   return 0.0;
 }
+
+
+/// A value older builds saved as an invented default ("29°C / 84°F",
+/// "Dec – May (Dry)") is treated as not set.
+String _unlessInvented(String? value, String invented) =>
+    (value == null || value.trim() == invented) ? '' : value;

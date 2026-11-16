@@ -166,7 +166,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ],
                   ),
                 ),
-                Image.asset(
+                if (cityObj.wmoWeatherCode != null)
+                  Image.asset(
                   'assets/png/weather/${cityObj.wmoWeatherCode}.png',
                   width: 32,
                   height: 32,
@@ -1599,12 +1600,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           ],
                         ),
                       ),
-                      Image.asset(
-                        'assets/png/weather/${cityObj.wmoWeatherCode}.png',
-                        width: 24,
-                        height: 24,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      ),
+                      if (cityObj.wmoWeatherCode != null)
+                        Image.asset(
+                          'assets/png/weather/${cityObj.wmoWeatherCode}.png',
+                          width: 24,
+                          height: 24,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
                       IconButton(
                         tooltip: 'Save to Bucket List',
                         onPressed: () {

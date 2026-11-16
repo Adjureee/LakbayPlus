@@ -1457,6 +1457,22 @@ class TravelRepository extends ChangeNotifier {
     await refreshMemoriesForSavedTrips();
   }
 
+  /// Sets the day the trip starts (so a forecast can be shown) and reloads the
+  /// live details for it.
+  Future<ItineraryTrip> setTripStartDate(
+    ItineraryTrip trip,
+    DateTime date,
+  ) async {
+    final dated = trip.copyWith(startDate: DateTime(date.year, date.month, date.day));
+    final savedIdx = _savedTrips.indexWhere((t) => t.id == trip.id);
+    if (savedIdx >= 0) {
+      _savedTrips[savedIdx] = dated;
+      _scheduleSaveState();
+      notifyListeners();
+    }
+    return loadLiveDetailsForTrip(dated);
+  }
+
   /// Fetches live accommodations, transport rates, and live weather for a trip's
   /// backend destination(s).
   Future<ItineraryTrip> loadLiveDetailsForTrip(ItineraryTrip trip) async {
@@ -1465,15 +1481,16 @@ class TravelRepository extends ChangeNotifier {
     final destId = destIds.first;
     final phpRate = _currencyRates['PHP'] ?? 57.0;
 
-    final ratesFuture = apiCatalog.fetchDestinationMarketRates(
-      destId,
-      city: trip.destination,
-      fallbackImageAsset: trip.heroAsset,
-      remoteImageUrl: trip.remoteImageUrl,
-      lat: trip.centerLat,
-      lng: trip.centerLng,
-      phpPerUsd: phpRate,
-    );
+    final ratesFuture = Future.wait([
+      for (final id in destIds.take(5))
+        apiCatalog.fetchDestinationMarketRates(
+          id,
+          city: trip.destination,
+          lat: trip.centerLat,
+          lng: trip.centerLng,
+          phpPerUsd: phpRate,
+        ),
+    ]);
     final weatherFuture = isSignedIn
         ? apiCatalog.getCurrentWeather(
             _authSession!.accessToken,
@@ -1481,9 +1498,27 @@ class TravelRepository extends ChangeNotifier {
             lng: trip.centerLng,
           )
         : Future.value(null);
+    final forecastFuture = isSignedIn
+        ? apiCatalog.getWeatherForecast(
+            _authSession!.accessToken,
+            lat: trip.centerLat,
+            lng: trip.centerLng,
+          )
+        : Future.value(
+            const <({DateTime date, int tempC, int wmoCode, String condition})>[],
+          );
 
-    final market = await ratesFuture;
+    final markets = await ratesFuture;
     final weather = await weatherFuture;
+    final forecast = await forecastFuture;
+    // The stays and transport rates of every place, without repeats.
+    final market = (
+      hotels: {
+        for (final m in markets)
+          for (final h in m.hotels) h.id: h,
+      }.values.toList(),
+      transports: [for (final m in markets) ...m.transports],
+    );
 
     if (market.hotels.isNotEmpty) {
       _hotelRatesByDestId[destId] = market.hotels;
@@ -1494,12 +1529,16 @@ class TravelRepository extends ChangeNotifier {
 
     final mergedHotels = market.hotels.isNotEmpty ? market.hotels : trip.hotels;
 
+    // A day gets weather only when the trip has a start date and the forecast
+    // covers that exact date; otherwise it shows none rather than a guess.
     final updatedDays = trip.days.map((d) {
-      if (weather == null || d.dayNumber != 1) return d;
-      return d.copyWith(
-        tempCelsius: weather.tempC,
-        wmoWeatherCode: weather.wmoCode,
-      );
+      final start = trip.startDate;
+      if (start == null) return d.copyWith(clearWeather: true);
+      final date = DateTime(start.year, start.month, start.day)
+          .add(Duration(days: d.dayNumber - 1));
+      final match = forecast.where((f) => f.date == date).firstOrNull;
+      if (match == null) return d.copyWith(clearWeather: true);
+      return d.copyWith(tempCelsius: match.tempC, wmoWeatherCode: match.wmoCode);
     }).toList();
 
     ExploreTrip? matchedCatalog;
@@ -1540,7 +1579,7 @@ class TravelRepository extends ChangeNotifier {
     final enriched = trip.copyWith(
       hotels: mergedHotels,
       avgTemp: weather != null
-          ? '${weather.tempC}°C • ${weather.condition}'
+          ? '${weather.tempC}°C${weather.condition.isEmpty ? '' : ' • ${weather.condition}'}'
           : null,
       wmoWeatherCode: weather?.wmoCode,
       days: updatedDays,
@@ -2114,6 +2153,9 @@ class TravelRepository extends ChangeNotifier {
       );
     }
   }
+
+  /// How many pesos one US dollar buys, for converting catalog prices.
+  double get phpPerUsd => _currencyRates['PHP'] ?? 57.0;
 
   String formatPrice(num usdAmount) {
     final rate = _currencyRates[_currency] ?? 57.0;
@@ -3077,14 +3119,7 @@ class TravelRepository extends ChangeNotifier {
           .join(' '),
       days: builtDays,
       flights: const [],
-      hotels: _buildDavaoHotels(
-        'multi',
-        primary.regionName,
-        primary.localAssetPath,
-        primary.lat,
-        primary.lng,
-        remoteUrl: primary.hasRemoteThumbnail ? primary.thumbnailUrl : null,
-      ),
+      hotels: const <HotelOffer>[],
       backendDestinationId: primary.apiDestinationId,
       backendDestinationIds: destIds,
       whatToBring: orderedPlaces
@@ -3591,13 +3626,11 @@ class TravelRepository extends ChangeNotifier {
         }
       }
 
-      const wmoCycle = [1, 2, 0, 2, 3, 80, 1, 2];
       _cityDescriptions = [
         for (int i = 0; i < shortList.length; i++)
           shortList[i].copyWith(
             longDescription:
                 longMap[shortList[i].city.toLowerCase()] ?? shortList[i].description,
-            wmoWeatherCode: wmoCycle[i % wmoCycle.length],
           ),
       ];
     } catch (e) {
@@ -4652,15 +4685,7 @@ class TravelRepository extends ChangeNotifier {
           firstMatchedCatalog?.travelNotes ?? fallbackTrip?.expertTip ?? '',
       days: parsedDays.isNotEmpty ? parsedDays : (fallbackTrip?.days ?? const []),
       flights: includeFlights ? _defaultDavaoFlights() : const [],
-      hotels: fallbackTrip?.hotels ??
-          _buildDavaoHotels(
-            'ai_$optionNumber',
-            destLabel,
-            heroLocal,
-            firstMatchedCatalog?.lat ?? MapboxService.davaoCenterLat,
-            firstMatchedCatalog?.lng ?? MapboxService.davaoCenterLng,
-            remoteUrl: heroRemote,
-          ),
+      hotels: fallbackTrip?.hotels ?? const <HotelOffer>[],
       backendTripId: fallbackTrip?.backendTripId,
       backendDestinationId:
           discoveredDestIds.isNotEmpty ? discoveredDestIds.first : null,
@@ -4755,13 +4780,7 @@ class TravelRepository extends ChangeNotifier {
       expertTip: '',
       days: days,
       flights: const [],
-      hotels: _buildDavaoHotels(
-        'ai_dvo',
-        dest,
-        currentBackdrop.localAssetPath,
-        fallbackCenter.$1,
-        fallbackCenter.$2,
-      ),
+      hotels: const <HotelOffer>[],
       isLocalOnly: true,
     );
   }
@@ -4967,14 +4986,7 @@ class TravelRepository extends ChangeNotifier {
     );
 
     final lower = destination.toLowerCase();
-    final hotels = _buildDavaoHotels(
-      tripId,
-      destination,
-      effectiveHero,
-      clampedLat,
-      clampedLng,
-      remoteUrl: remoteImageUrl,
-    );
+    final hotels = const <HotelOffer>[];
     final flights = includeFlights ? _defaultDavaoFlights() : const <FlightOffer>[];
 
     // Authentic Davao Region waypoint library
@@ -5205,11 +5217,10 @@ class TravelRepository extends ChangeNotifier {
           summary: wp.summary,
           lat: wp.lat,
           lng: wp.lng,
-          wmoWeatherCode: wp.wmo,
-          tempCelsius: wp.temp,
           transportFromPrevious: wp.mode,
           transportDuration: wp.transit,
-          recommendedHotel: hotels[(d - 1) % hotels.length],
+          recommendedHotel:
+              hotels.isEmpty ? null : hotels[(d - 1) % hotels.length],
           stops: [
             ItineraryStop(
               time: '08:30 AM',
@@ -5269,55 +5280,6 @@ class TravelRepository extends ChangeNotifier {
     );
   }
 
-  List<HotelOffer> _buildDavaoHotels(
-    String tripId,
-    String destination,
-    String effectiveHero,
-    double lat,
-    double lng, {
-    String? remoteUrl,
-  }) {
-    final city = destination.split(',').first.split('(').first.trim();
-    return [
-      HotelOffer(
-        id: 'ht_${tripId}_1',
-        name: '$city Eco Lodge & Resort Stay',
-        city: city,
-        rating: 9.2,
-        stars: 4,
-        pricePerNightUsd: 65,
-        facilities: const [
-          'Breakfast Option',
-          'Air Conditioning',
-          'Wi-Fi',
-          'Near Attraction',
-        ],
-        partnerName: 'Region XI Estimate',
-        imageAsset: effectiveHero,
-        remoteImageUrl: remoteUrl,
-        lat: lat + 0.015,
-        lng: lng - 0.01,
-      ),
-      HotelOffer(
-        id: 'ht_${tripId}_2',
-        name: '$city Budget Traveler Inn',
-        city: city,
-        rating: 8.7,
-        stars: 3,
-        pricePerNightUsd: 35,
-        facilities: const [
-          'Fan / AC Rooms',
-          'Local Transport Access',
-          'Free Wi-Fi',
-        ],
-        partnerName: 'Value Estimate',
-        imageAsset: 'assets/home_backdrops/08-peoples-park.jpg',
-        remoteImageUrl: remoteUrl,
-        lat: lat - 0.018,
-        lng: lng + 0.012,
-      ),
-    ];
-  }
 
   /// Resolves the best origin label from manual selection, reverse-geocoded GPS,
   /// or user profile location. Empty when neither GPS nor manual start is set.

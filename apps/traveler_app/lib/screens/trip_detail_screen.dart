@@ -49,8 +49,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     }
     // Weather-based items only when real weather has been loaded for the trip
     // (avgTemp is empty until then); otherwise only the catalog's own list.
-    if (trip.avgTemp.trim().isNotEmpty) {
-      if (trip.wmoWeatherCode >= 51 ||
+    final weatherCode = trip.wmoWeatherCode;
+    if (trip.avgTemp.trim().isNotEmpty && weatherCode != null) {
+      if (weatherCode >= 51 ||
           trip.avgTemp.toLowerCase().contains('rain') ||
           trip.avgTemp.toLowerCase().contains('shower')) {
         items.addAll(['Compact Umbrella / Rain Poncho', 'Dry Bag for Electronics']);
@@ -656,14 +657,19 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             // Weather and best months are shown only when real data exists.
             if (trip.avgTemp.trim().isNotEmpty) ...[
               _buildInfoChip(
-                iconWidget: Image.asset(
-                  'assets/png/weather/${trip.wmoWeatherCode}.png',
-                  width: 22,
-                  height: 22,
-                  errorBuilder: (_, _, _) => const Icon(Icons.wb_sunny_rounded,
-                      color: LakbayColors.primary, size: 20),
-                ),
-                label: 'Weather',
+                iconWidget: trip.wmoWeatherCode == null
+                    ? const Icon(Icons.wb_sunny_rounded,
+                        color: LakbayColors.primary, size: 20)
+                    : Image.asset(
+                        'assets/png/weather/${trip.wmoWeatherCode}.png',
+                        width: 22,
+                        height: 22,
+                        errorBuilder: (_, _, _) => const Icon(
+                            Icons.wb_sunny_rounded,
+                            color: LakbayColors.primary,
+                            size: 20),
+                      ),
+                label: 'Weather now',
                 value: trip.avgTemp,
               ),
               const SizedBox(width: 10),
@@ -1254,12 +1260,13 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     ],
                   ),
                 ),
-                Image.asset(
-                  'assets/png/weather/${day.wmoWeatherCode}.png',
-                  width: 22,
-                  height: 22,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                ),
+                if (day.wmoWeatherCode != null)
+                  Image.asset(
+                    'assets/png/weather/${day.wmoWeatherCode}.png',
+                    width: 22,
+                    height: 22,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
                 IconButton(
                   tooltip: 'View on Mapbox',
                   onPressed: _openFullRouteMap,
@@ -1453,6 +1460,54 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     }
   }
 
+  /// Says why a day has no weather, and lets the traveler add the start date.
+  Widget _buildForecastNote(ItineraryTrip trip) {
+    final hasWeather = trip.days.any((d) => d.wmoWeatherCode != null);
+    if (hasWeather) return const SizedBox.shrink();
+    final start = trip.startDate;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: LakbayColors.canvasBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.wb_cloudy_outlined,
+              size: 20, color: LakbayColors.tealDeep),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              start == null
+                  ? 'Add your travel date to see the weather forecast.'
+                  : 'The forecast shows within 5 days of travel.',
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: LakbayColors.textSecondary,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              final now = DateTime.now();
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: start ?? now,
+                firstDate: now.subtract(const Duration(days: 1)),
+                lastDate: now.add(const Duration(days: 730)),
+              );
+              if (picked == null || !mounted) return;
+              final updated = await widget.repo.setTripStartDate(_activeTrip, picked);
+              if (mounted) setState(() => _liveTrip = updated);
+            },
+            child: Text(start == null ? 'Set date' : 'Change date'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDayByDayTab(ItineraryTrip trip) {
     return ListView.builder(
       padding: const EdgeInsets.all(20),
@@ -1461,7 +1516,11 @@ class _TripDetailScreenState extends State<TripDetailScreen>
         if (idx == 0) {
           final canOptimize =
               trip.routeWaypoints.length >= 2 || trip.days.length >= 2;
-          return Padding(
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildForecastNote(trip),
+              Padding(
             padding: const EdgeInsets.only(bottom: 14),
             child: Row(
               children: [
@@ -1491,6 +1550,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                 ),
               ],
             ),
+          ),
+            ],
           );
         }
         final index = idx - 1;
@@ -1604,22 +1665,24 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         ),
                         const SizedBox(width: 6),
                       ],
-                      Image.asset(
-                        'assets/png/weather/${day.wmoWeatherCode}.png',
-                        width: 22,
-                        height: 22,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${day.tempCelsius}°C',
-                        style: const TextStyle(
-                          fontFamily: 'FigGrotesk',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12.5,
-                          color: LakbayColors.tealDeep,
+                      if (day.wmoWeatherCode != null && day.tempCelsius != null) ...[
+                        Image.asset(
+                          'assets/png/weather/${day.wmoWeatherCode}.png',
+                          width: 22,
+                          height: 22,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
                         ),
-                      ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${day.tempCelsius}°C',
+                          style: const TextStyle(
+                            fontFamily: 'FigGrotesk',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                            color: LakbayColors.tealDeep,
+                          ),
+                        ),
+                      ],
                       IconButton(
                         tooltip: 'Inspect Day on Mapbox',
                         onPressed: _openFullRouteMap,
@@ -1953,7 +2016,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           ),
         ],
         const Text(
-          'Handpicked Davao Region Stays',
+          'Stays from the Lakbay catalog',
           style: TextStyle(
             fontFamily: 'FigGrotesk',
             fontWeight: FontWeight.w700,
@@ -1961,6 +2024,24 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           ),
         ),
         const SizedBox(height: 12),
+        if (trip.hotels.isEmpty)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: LakbayColors.cardBorder),
+            ),
+            child: const Text(
+              'No stays are listed for this place yet.',
+              style: TextStyle(
+                fontSize: 13.5,
+                color: LakbayColors.textSecondary,
+              ),
+            ),
+          ),
         ...trip.hotels.map(
           (h) => Container(
             margin: const EdgeInsets.only(bottom: 14),
@@ -1973,20 +2054,11 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    height: 120,
-                    width: double.infinity,
-                    child: LakbayNetworkOrAssetImage(
-                      networkUrl: h.remoteImageUrl ?? trip.remoteImageUrl,
-                      assetPath: h.imageAsset,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
                 Row(
                   children: [
+                    const Icon(Icons.hotel_rounded,
+                        color: LakbayColors.tealDeep, size: 20),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         h.name,
@@ -1997,27 +2069,33 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         ),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: LakbayColors.tealDeep,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${h.rating} ★',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
+                    // Only when the catalog has a rating.
+                    if (h.rating != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: LakbayColors.tealDeep,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${h.rating} ★',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${"★" * h.stars} • ${h.partnerName}',
+                  [
+                    if (h.stars != null) '★' * h.stars!,
+                    if (h.capacity != null) 'Sleeps ${h.capacity}',
+                    h.sourceLabel,
+                  ].join(' • '),
                   style: const TextStyle(
                     fontSize: 12.5,
                     color: LakbayColors.primary,
@@ -2053,7 +2131,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '${widget.repo.formatPrice(h.pricePerNightUsd)} / night',
+                      h.pricePhp == null
+                          ? 'Price not listed'
+                          : '${widget.repo.formatPrice(h.pricePhp! / widget.repo.phpPerUsd)}'
+                              ' ${h.chargingUnitLabel ?? '(unit not listed)'}',
                       style: const TextStyle(
                         fontFamily: 'FigGrotesk',
                         fontWeight: FontWeight.w700,
