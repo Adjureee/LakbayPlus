@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
 import '../services/mapbox_service.dart';
+import '../services/route_optimizer.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_image.dart';
@@ -44,177 +46,38 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _openMultiStopBuilderSheet() {
-    var days = widget.repo.tripBuilderStops.length.clamp(2, 7);
-    var travelers = 2;
-    var budgetPhp = days * 3500.0 * travelers;
-    var isGenerating = false;
-
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          final stops = widget.repo.tripBuilderStops;
-          return Padding(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 22,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.route_rounded, color: LakbayColors.primary),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Multi-Stop Davao Builder',
-                        style: TextStyle(
-                          fontFamily: 'FigGrotesk',
-                          fontWeight: FontWeight.w800,
-                          fontSize: 20,
-                          color: LakbayColors.tealDeep,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        widget.repo.clearTripBuilder();
-                        Navigator.of(ctx).pop();
-                        setState(() {});
-                      },
-                      child: const Text('Clear'),
-                    ),
-                  ],
+      builder: (ctx) => _MultiStopPlanSheet(
+        repo: widget.repo,
+        onStopsChanged: () {
+          if (mounted) setState(() {});
+        },
+        onTripBuilt: (built) {
+          if (!mounted) return;
+          setState(() {});
+          final headline = built.optimizationSummary?.savingsHeadline;
+          if (headline != null && headline.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '$headline · ${built.optimizationSummary!.methodLabel}',
                 ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: stops
-                      .map(
-                        (s) => Chip(
-                          label: Text(
-                            s.title.split('—').first.trim(),
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          onDeleted: () {
-                            widget.repo.toggleTripBuilderStop(s);
-                            setSheetState(() {});
-                            setState(() {});
-                          },
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Days: $days',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: days > 1
-                          ? () => setSheetState(() => days--)
-                          : null,
-                      icon: const Icon(Icons.remove_circle_outline),
-                    ),
-                    IconButton(
-                      onPressed: days < 14
-                          ? () => setSheetState(() => days++)
-                          : null,
-                      icon: const Icon(Icons.add_circle_outline),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Travelers: $travelers',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: travelers > 1
-                          ? () => setSheetState(() => travelers--)
-                          : null,
-                      icon: const Icon(Icons.remove_circle_outline),
-                    ),
-                    IconButton(
-                      onPressed: travelers < 15
-                          ? () => setSheetState(() => travelers++)
-                          : null,
-                      icon: const Icon(Icons.add_circle_outline),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Target Budget: ₱${budgetPhp.toStringAsFixed(0)}',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                Slider(
-                  value: budgetPhp.clamp(2000, 60000),
-                  min: 2000,
-                  max: 60000,
-                  divisions: 58,
-                  activeColor: LakbayColors.primary,
-                  onChanged: (v) => setSheetState(() => budgetPhp = v),
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton.icon(
-                  onPressed: isGenerating || stops.isEmpty
-                      ? null
-                      : () async {
-                          setSheetState(() => isGenerating = true);
-                          final built =
-                              await widget.repo.buildMultiStopExploreTrip(
-                            daysCount: days,
-                            budgetPhp: budgetPhp,
-                            travelers: travelers,
-                          );
-                          if (!ctx.mounted) return;
-                          Navigator.of(ctx).pop();
-                          if (!mounted) return;
-                          setState(() {});
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => TripDetailScreen(
-                                trip: built,
-                                repo: widget.repo,
-                              ),
-                            ),
-                          );
-                        },
-                  icon: isGenerating
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.auto_awesome_rounded),
-                  label: Text(
-                    isGenerating
-                        ? 'Building Route...'
-                        : 'Generate $days-Day Davao Route',
-                  ),
-                ),
-              ],
+                backgroundColor: LakbayColors.tealDeep,
+              ),
+            );
+          }
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => TripDetailScreen(
+                trip: built,
+                repo: widget.repo,
+              ),
             ),
           );
         },
@@ -492,7 +355,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     children: [
                       const Expanded(
                         child: Text(
-                          'Region XI routes, Mapbox pins & local destination guides',
+                          'Single Region XI places, Mapbox pins & local guides',
                           style: TextStyle(
                             fontSize: 12.5,
                             color: LakbayColors.textSecondary,
@@ -593,6 +456,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               child: _buildHeroCard(heroTrip),
                             ),
                           ),
+                        if (_searchQuery.isEmpty &&
+                            _selectedFilter == 'All' &&
+                            widget.repo.suggestedRoutes.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: _buildSuggestedRoutesShelf(),
+                          ),
                         if (_searchQuery.isNotEmpty)
                           _buildSearchResultsSliver()
                         else if (_selectedFilter == 'City Guides')
@@ -606,11 +475,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 crossAxisCount: 2,
                                 mainAxisSpacing: 12,
                                 crossAxisSpacing: 12,
-                                childAspectRatio: 0.78,
+                                childAspectRatio: 0.74,
                               ),
                               delegate: SliverChildBuilderDelegate(
                                 (context, idx) {
                                   final trip = _filteredMapTrips()[idx];
+                                  final inTray =
+                                      widget.repo.isInTripBuilder(trip.id);
                                   return GestureDetector(
                                     onTap: () => _openExploreTrip(trip),
                                     child: Container(
@@ -629,23 +500,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                       child: Stack(
                                         fit: StackFit.expand,
                                         children: [
-                                          Image.asset(
-                                            trip.localAssetPath,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, _, _) =>
-                                                Container(
-                                              decoration: const BoxDecoration(
-                                                gradient:
-                                                    LakbayColors.deepTealGradient,
-                                              ),
-                                            ),
+                                          LakbayNetworkOrAssetImage(
+                                            networkUrl: trip.hasRemoteThumbnail
+                                                ? trip.thumbnailUrl
+                                                : null,
+                                            assetPath: trip.localAssetPath,
+                                            fallbackAsset: widget
+                                                .repo.currentBackdrop.localAssetPath,
                                           ),
                                           Container(
                                             decoration: const BoxDecoration(
                                               gradient: LinearGradient(
                                                 colors: [
                                                   Color(0x11000000),
-                                                  Color(0xCC071E26),
+                                                  Color(0xD9071E26),
                                                 ],
                                                 begin: Alignment.topCenter,
                                                 end: Alignment.bottomCenter,
@@ -655,42 +523,120 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                           Positioned(
                                             top: 10,
                                             left: 10,
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 10,
-                                                vertical: 4,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: LakbayColors.primaryLight,
-                                                borderRadius:
-                                                    BorderRadius.circular(14),
-                                              ),
-                                              child: Text(
-                                                '${trip.days} days',
-                                                style: const TextStyle(
-                                                  fontSize: 11.5,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: LakbayColors.primaryDark,
+                                            right: 10,
+                                            child: Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 9,
+                                                  vertical: 4,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: LakbayColors.primaryLight,
+                                                  borderRadius:
+                                                      BorderRadius.circular(14),
+                                                ),
+                                                child: Text(
+                                                  '${trip.tag ?? "Place"} • ${trip.stayDurationLabel}',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: LakbayColors
+                                                        .primaryDark,
+                                                  ),
                                                 ),
                                               ),
                                             ),
                                           ),
                                           Positioned(
-                                            left: 12,
-                                            right: 12,
-                                            bottom: 12,
-                                            child: Text(
-                                              trip.title,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontFamily: 'FigGrotesk',
-                                                fontSize: 14.5,
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.white,
-                                                height: 1.2,
-                                              ),
+                                            left: 10,
+                                            right: 10,
+                                            bottom: 10,
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  trip.title,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontFamily: 'FigGrotesk',
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Colors.white,
+                                                    height: 1.15,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  trip.municipalityLabel,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.white70,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                SizedBox(
+                                                  width: double.infinity,
+                                                  child: InkWell(
+                                                    onTap: () => setState(
+                                                      () => widget.repo
+                                                          .toggleTripBuilderStop(
+                                                              trip),
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            12),
+                                                    child: Container(
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 5,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: inTray
+                                                            ? LakbayColors
+                                                                .primary
+                                                            : Colors.white
+                                                                .withValues(
+                                                                    alpha: 0.92),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(12),
+                                                      ),
+                                                      child: Text(
+                                                        inTray
+                                                            ? '✓ In trip'
+                                                            : '＋ Add to trip',
+                                                        textAlign:
+                                                            TextAlign.center,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 11.5,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color: inTray
+                                                              ? Colors.white
+                                                              : LakbayColors
+                                                                  .tealDeep,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
@@ -778,12 +724,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Multi-Stop Davao Builder ready',
+                        '${widget.repo.tripBuilderStops.length} ${widget.repo.tripBuilderStops.length == 1 ? 'place' : 'places'} selected · Plan trip',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 13.5,
@@ -806,7 +752,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           vertical: 8,
                         ),
                       ),
-                      child: const Text('Build Trip'),
+                      child: const Text('Plan trip'),
                     ),
                   ],
                 ),
@@ -825,35 +771,36 @@ class _ExploreScreenState extends State<ExploreScreen> {
           id: t.id,
           lat: t.lat,
           lng: t.lng,
-          badgeText: '${t.days}d',
+          badgeText: t.stayDurationLabel,
           title: t.title,
-          subtitle: t.regionName,
+          subtitle: '${t.municipalityLabel} • ${t.tag ?? "Place"}',
           imageUrl: t.hasRemoteThumbnail ? t.thumbnailUrl : null,
           imageAsset: t.localAssetPath,
           isPrimary: activeTrip?.id == t.id,
+          isCompact: activeTrip?.id != t.id,
         ),
       ),
-      if (widget.repo.hasUserLocation)
+      if (widget.repo.originLat != null && widget.repo.originLng != null)
         LakbayMapMarker(
           id: 'user_gps',
-          lat: widget.repo.userLat!,
-          lng: widget.repo.userLng!,
+          lat: widget.repo.originLat!,
+          lng: widget.repo.originLng!,
           title: 'You (${widget.repo.effectiveOriginLabel})',
-          subtitle: 'Current GPS location',
+          subtitle: widget.repo.hasManualOrigin
+              ? 'Chosen starting place'
+              : 'Current GPS location',
           isUserLocation: true,
         ),
     ];
 
     final startLat = _selectedMapTrip?.lat ??
-        (widget.repo.hasUserLocation
-            ? widget.repo.userLat!
-            : (activeTrip?.lat ?? MapboxService.davaoCenterLat));
+        (widget.repo.originLat ??
+            (activeTrip?.lat ?? MapboxService.davaoCenterLat));
     final startLng = _selectedMapTrip?.lng ??
-        (widget.repo.hasUserLocation
-            ? widget.repo.userLng!
-            : (activeTrip?.lng ?? MapboxService.davaoCenterLng));
+        (widget.repo.originLng ??
+            (activeTrip?.lng ?? MapboxService.davaoCenterLng));
     final startZoom =
-        _selectedMapTrip == null && widget.repo.hasUserLocation ? 10.5 : 8.3;
+        _selectedMapTrip == null && widget.repo.originLat != null ? 10.5 : 8.3;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -866,7 +813,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             initialZoom: startZoom,
             markers: markers,
             selectedMarkerId: activeTrip?.id,
-            controlsBottomOffset: activeTrip != null ? 132 : 24,
+            controlsBottomOffset: activeTrip != null ? 116 : 24,
             animateRoute: false,
             onMarkerTap: (m) {
               final found = trips.where((t) => t.id == m.id).firstOrNull;
@@ -879,7 +826,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             Positioned(
               left: 14,
               right: 14,
-              bottom: 34,
+              bottom: 16,
               child: InkWell(
                 onTap: () => _openExploreTrip(activeTrip),
                 borderRadius: BorderRadius.circular(20),
@@ -900,15 +847,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: Image.asset(
-                          activeTrip.localAssetPath,
+                        child: SizedBox(
                           width: 72,
                           height: 72,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            width: 72,
-                            height: 72,
-                            color: LakbayColors.tealAccent,
+                          child: LakbayNetworkOrAssetImage(
+                            networkUrl: activeTrip.hasRemoteThumbnail
+                                ? activeTrip.thumbnailUrl
+                                : null,
+                            assetPath: activeTrip.localAssetPath,
+                            fallbackAsset:
+                                widget.repo.currentBackdrop.localAssetPath,
                           ),
                         ),
                       ),
@@ -930,7 +878,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${activeTrip.days} Days • ${activeTrip.regionName} • Est. ${widget.repo.formatPrice(activeTrip.estimatedPriceUsd)}',
+                              '${activeTrip.municipalityLabel} • ${activeTrip.tag ?? "Place"} • ${activeTrip.stayDurationLabel}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: LakbayColors.textSecondary,
@@ -966,8 +916,147 @@ class _ExploreScreenState extends State<ExploreScreen> {
         section.title.toLowerCase().contains(lowerFilter);
   }
 
+  Widget _buildSuggestedRoutesShelf() {
+    final routes = widget.repo.suggestedRoutes;
+    if (routes.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Suggested routes',
+                  style: TextStyle(
+                    fontFamily: 'FigGrotesk',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 20,
+                    color: LakbayColors.tealDeep,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Curated starter combinations — tap one to fill your trip tray',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: LakbayColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 124,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              scrollDirection: Axis.horizontal,
+              itemCount: routes.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final route = routes[index];
+                final firstPlace = route.destinationIds
+                    .map(widget.repo.getTripById)
+                    .whereType<ExploreTrip>()
+                    .firstOrNull;
+                return InkWell(
+                  onTap: () {
+                    final loaded = widget.repo.applySuggestedRoute(route);
+                    setState(() {});
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Loaded $loaded places from "${route.title}". Tap Plan trip below to set your days.',
+                        ),
+                        backgroundColor: LakbayColors.tealDeep,
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    width: 248,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: LakbayColors.cardBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: LakbayColors.primaryLight,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${route.destinationIds.length} places • ~${route.suggestedDays}d',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: LakbayColors.primaryDark,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            const Icon(
+                              Icons.route_rounded,
+                              size: 16,
+                              color: LakbayColors.primary,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          route.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'FigGrotesk',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13.5,
+                            color: LakbayColors.tealDeep,
+                            height: 1.2,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          firstPlace != null
+                              ? 'Starts near ${firstPlace.title} · Use stops →'
+                              : 'Tap to load stops →',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: LakbayColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeroCard(ExploreTrip trip) {
     final isBucketed = widget.repo.isTripInBucketList(trip.id);
+    final inTray = widget.repo.isInTripBuilder(trip.id);
     return InkWell(
       onTap: () => _openExploreTrip(trip),
       borderRadius: BorderRadius.circular(24),
@@ -1059,7 +1148,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          '${trip.days} Days • Region XI • Est. ${widget.repo.formatPrice(trip.estimatedPriceUsd)}',
+                          '${trip.municipalityLabel} • ${trip.tag ?? "Place"} • ${trip.stayDurationLabel}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -1070,20 +1159,27 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
+                      InkWell(
+                        onTap: () => setState(
+                          () => widget.repo.toggleTripBuilderStop(trip),
                         ),
-                        child: const Text(
-                          'View Route →',
-                          style: TextStyle(
-                            fontFamily: 'FigGrotesk',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                            color: LakbayColors.tealDeep,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: inTray ? LakbayColors.primary : Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            inTray ? '✓ In trip' : '＋ Add to trip',
+                            style: TextStyle(
+                              fontFamily: 'FigGrotesk',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color:
+                                  inTray ? Colors.white : LakbayColors.tealDeep,
+                            ),
                           ),
                         ),
                       ),
@@ -1178,10 +1274,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                   child: Text(
-                                    '${trip.tag ?? "✨"} ${trip.days} Days',
+                                    '${trip.tag ?? "Place"} • ${trip.stayDurationLabel}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       color: Colors.white,
-                                      fontSize: 11,
+                                      fontSize: 10.5,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -1257,24 +1355,51 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               ),
                               const SizedBox(height: 6),
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    trip.regionName,
-                                    style: const TextStyle(
-                                      fontSize: 11.5,
-                                      color: LakbayColors.textSecondary,
+                                  Expanded(
+                                    child: Text(
+                                      trip.municipalityLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: LakbayColors.textSecondary,
+                                      ),
                                     ),
                                   ),
-                                  Text(
-                                    widget.repo
-                                        .formatPrice(trip.estimatedPriceUsd),
-                                    style: const TextStyle(
-                                      fontFamily: 'FigGrotesk',
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13.5,
-                                      color: LakbayColors.primary,
+                                  const SizedBox(width: 6),
+                                  InkWell(
+                                    onTap: () => setState(
+                                      () => widget.repo
+                                          .toggleTripBuilderStop(trip),
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: widget.repo
+                                                .isInTripBuilder(trip.id)
+                                            ? LakbayColors.primary
+                                            : LakbayColors.primaryLight,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        widget.repo.isInTripBuilder(trip.id)
+                                            ? '✓ Added'
+                                            : '＋ Add',
+                                        style: TextStyle(
+                                          fontFamily: 'FigGrotesk',
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 11.5,
+                                          color: widget.repo
+                                                  .isInTripBuilder(trip.id)
+                                              ? Colors.white
+                                              : LakbayColors.primaryDark,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1384,11 +1509,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
               ),
               subtitle: Text(
-                '${trip.days} Days • ${trip.regionName} • Est. ${widget.repo.formatPrice(trip.estimatedPriceUsd)}',
+                '${trip.municipalityLabel} • ${trip.tag ?? "Place"} • ${trip.stayDurationLabel}',
                 style: const TextStyle(fontSize: 12.5),
               ),
-              trailing: const Icon(Icons.chevron_right_rounded,
-                  color: LakbayColors.primary),
+              trailing: TextButton(
+                onPressed: () =>
+                    setState(() => widget.repo.toggleTripBuilderStop(trip)),
+                child: Text(
+                  widget.repo.isInTripBuilder(trip.id)
+                      ? '✓ Added'
+                      : '＋ Add to trip',
+                ),
+              ),
             );
           } else {
             final city = matchedCities[index - matchedTrips.length];
@@ -1560,11 +1692,76 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
+  /// Offline Top-5: places whose text or category matches a chosen interest,
+  /// nearest first when GPS is known. No scores are invented.
+  List<TopPlaceRecommendation> _offlineInterestMatches(Set<String> interests) {
+    final repo = widget.repo;
+    const synonyms = <String, List<String>>{
+      'beach': ['beach', 'coast', 'island', 'surf', 'cove', 'sand', 'bay'],
+      'nature': [
+        'nature',
+        'falls',
+        'eco',
+        'forest',
+        'pine',
+        'park',
+        'sanctuary',
+        'cape',
+        'ridge',
+        'mangrove',
+      ],
+      'mountain': ['mountain', 'mt.', 'peak', 'highland', 'ridge', 'clouds', 'camp'],
+      'waterfalls': ['waterfall', 'falls', 'spring'],
+      'culture': ['culture', 'heritage', 'museum', 'cathedral', 'sanctuary'],
+      'food': ['food', 'culinary', 'durian', 'coffee', 'farm'],
+    };
+    bool matches(ExploreTrip t) {
+      final text = [
+        t.title,
+        t.tag ?? '',
+        t.activities ?? '',
+        t.description ?? '',
+      ].join(' ').toLowerCase();
+      return interests.any((i) {
+        final stem = i.endsWith('s') ? i.substring(0, i.length - 1) : i;
+        final keywords = synonyms[i] ?? [stem];
+        return keywords.any(text.contains);
+      });
+    }
+
+    final pool = repo.allTrips.where(matches).toList();
+    if (repo.hasUserLocation) {
+      double km(ExploreTrip t) => MapboxService.haversineKm(
+            repo.userLat!, repo.userLng!, t.lat, t.lng);
+      pool.sort((a, b) => km(a).compareTo(km(b)));
+    }
+    return [
+      for (final (i, t) in pool.take(5).indexed)
+        TopPlaceRecommendation(
+          rank: i + 1,
+          destinationId: t.apiDestinationId ?? 0,
+          name: t.title,
+          district: t.district ?? 'Region XI',
+          category: t.tag,
+          imageUrl: t.thumbnailUrl,
+          estimatedCost: t.estimatedCostPhp,
+          score: 0,
+          reasons: [
+            repo.hasUserLocation
+                ? 'Fits your interests • ${MapboxService.haversineKm(repo.userLat!, repo.userLng!, t.lat, t.lng).toStringAsFixed(0)} km away'
+                : 'Fits your interests',
+          ],
+          routeVerified: false,
+          travelMode: repo.preferredTravelMode,
+        ),
+    ];
+  }
+
   void _openTopPlacesSheet() {
-    var rankingMethod = 'topsis';
     final selectedInterests = <String>{'beach', 'nature'};
     final budgetCtrl = TextEditingController(text: '5000');
     bool loading = false;
+    bool isLive = false;
     TopPlacesResult? result;
 
     showModalBottomSheet<void>(
@@ -1588,38 +1785,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   interests: selectedInterests.toList(),
                   travelMode: widget.repo.preferredTravelMode,
                   totalBudgetPhp: budget,
-                  rankingMethod: rankingMethod,
                   originLat: widget.repo.userLat,
                   originLng: widget.repo.userLng,
                 );
               }
-              if (live == null) {
-                final ranked = widget.repo.allTrips
-                    .take(5)
-                    .toList()
-                    .asMap()
-                    .entries
-                    .map(
-                      (e) => TopPlaceRecommendation(
-                        rank: e.key + 1,
-                        destinationId: e.value.apiDestinationId ?? (e.key + 1),
-                        name: e.value.title,
-                        district: e.value.district ?? 'Region XI',
-                        category: e.value.tag,
-                        imageUrl: e.value.thumbnailUrl,
-                        estimatedCost: e.value.estimatedCostPhp,
-                        score: 92.0 - (e.key * 4.5),
-                        reasons: ['Matches your ${selectedInterests.join(", ")} preferences'],
-                        routeVerified: true,
-                        travelMode: widget.repo.preferredTravelMode,
-                      ),
-                    )
-                    .toList();
-                live = TopPlacesResult(method: rankingMethod, items: ranked);
-              }
+              final gotLive = live != null;
+              // Offline / signed out: no invented scores. Keep places that
+              // mention a chosen interest, nearest first when GPS is known.
+              live ??= TopPlacesResult(
+                method: 'offline',
+                items: _offlineInterestMatches(selectedInterests),
+              );
               if (!sheetCtx.mounted) return;
               setSheetState(() {
                 result = live;
+                isLive = gotLive;
                 loading = false;
               });
             }
@@ -1648,27 +1828,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Rank Region XI destinations by TOPSIS closeness to ideal or Weighted SAW.',
+                    'The Region XI places that best fit your interests, budget and location.',
                     style: TextStyle(fontSize: 13, color: LakbayColors.textSecondary),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      ChoiceChip(
-                        label: const Text('TOPSIS Ranking'),
-                        selected: rankingMethod == 'topsis',
-                        onSelected: (_) =>
-                            setSheetState(() => rankingMethod = 'topsis'),
-                      ),
-                      ChoiceChip(
-                        label: const Text('Weighted SAW'),
-                        selected: rankingMethod == 'simple_additive_weighting',
-                        onSelected: (_) => setSheetState(
-                          () => rankingMethod = 'simple_additive_weighting',
-                        ),
-                      ),
-                    ],
                   ),
                   const SizedBox(height: 10),
                   Wrap(
@@ -1732,15 +1893,26 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
                     )
                   else if (result != null) ...[
-                    Text(
-                      'Method: ${result!.method.toUpperCase()}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: LakbayColors.primary,
+                    if (!isLive)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Offline suggestions. Sign in to get personalized match scores.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: LakbayColors.textSecondary,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
+                    if (result!.items.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          'No places match those interests yet. Try another interest.',
+                          style: TextStyle(color: LakbayColors.textSecondary),
+                        ),
+                      ),
                     for (final item in result!.items)
                       Card(
                         margin: const EdgeInsets.only(bottom: 10),
@@ -1752,7 +1924,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           ),
                           title: Text(item.name),
                           subtitle: Text(
-                            '${item.district ?? "Region XI"} • Score ${item.score.toStringAsFixed(1)}/100'
+                            '${item.district ?? "Region XI"}'
+                            '${isLive ? " • Match ${item.score.toStringAsFixed(1)}/100" : ""}'
                             '${item.reasons.isNotEmpty ? "\n${item.reasons.first}" : ""}',
                           ),
                           isThreeLine: item.reasons.isNotEmpty,
@@ -1783,6 +1956,654 @@ class _ExploreScreenState extends State<ExploreScreen> {
           },
         );
       },
+    );
+  }
+}
+
+class _MultiStopPlanSheet extends StatefulWidget {
+  final TravelRepository repo;
+  final VoidCallback onStopsChanged;
+  final ValueChanged<ItineraryTrip> onTripBuilt;
+
+  const _MultiStopPlanSheet({
+    required this.repo,
+    required this.onStopsChanged,
+    required this.onTripBuilt,
+  });
+
+  @override
+  State<_MultiStopPlanSheet> createState() => _MultiStopPlanSheetState();
+}
+
+class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
+  late int _days;
+  bool _daysManuallyEdited = false;
+  int _travelers = 2;
+  bool _pruneOptionalToFit = false;
+  bool _isGenerating = false;
+  late GeoPoint _selectedHotel;
+  late RoutePlanResult _preview;
+  Timer? _debounceTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedHotel = widget.repo.builderHotelOrigin;
+    _days = widget.repo.suggestedTripBuilderDays().clamp(1, 14);
+    _preview = _computePreview();
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  RoutePlanResult _computePreview() {
+    return widget.repo.previewTripBuilderPlan(
+      days: _days,
+      hotelOrigin: _selectedHotel,
+      pruneOptionalToFit: _pruneOptionalToFit,
+    );
+  }
+
+  void _scheduleRecalc({bool snapDaysToSuggested = false}) {
+    if (snapDaysToSuggested && !_daysManuallyEdited) {
+      _days = widget.repo.suggestedTripBuilderDays().clamp(1, 14);
+    }
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      setState(() {
+        _preview = _computePreview();
+      });
+    });
+    // Also update preview synchronously when few stops (microseconds) so
+    // immediate UI feedback stays responsive for both touch and widget tests.
+    setState(() {
+      _preview = _computePreview();
+    });
+  }
+
+  String _formatHours(double hours) {
+    final totalMin = (hours * 60).round();
+    if (totalMin < 60) return '${totalMin}m';
+    final h = totalMin ~/ 60;
+    final m = totalMin % 60;
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stops = widget.repo.tripBuilderStops;
+    final startMode = widget.repo.builderStartMode;
+    final pace = widget.repo.builderPace;
+    final roundtrip = widget.repo.builderRoundtrip;
+    final lockedId = widget.repo.builderLockedFirstStopId;
+    final suggestedDays = _preview.suggestedDays.clamp(1, 14);
+    final hasOptionalStops =
+        stops.any((s) => !widget.repo.isStopMustVisit(s.id));
+    final overloadedDays =
+        _preview.days.where((d) => d.isOverloaded).toList();
+    final totalBudgetHrs = _preview.days.fold<double>(
+      0.0,
+      (sum, d) => sum + (d.isContinuationDay ? 0.0 : d.totalHours),
+    );
+    final savedKm = _preview.savingsVsInput.distanceSavedKm;
+    final savedPct = _preview.savingsVsInput.distanceSavedPercent;
+
+    return SafeArea(
+      top: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
+        ),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 18,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.route_rounded, color: LakbayColors.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Plan Your Route',
+                          style: TextStyle(
+                            fontFamily: 'FigGrotesk',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 20,
+                            color: LakbayColors.tealDeep,
+                          ),
+                        ),
+                        Text(
+                          '${stops.length} ${stops.length == 1 ? 'place' : 'places'} · You choose the days & pace',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: LakbayColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      widget.repo.clearTripBuilder();
+                      Navigator.of(context).pop();
+                      widget.onStopsChanged();
+                    },
+                    child: const Text('Clear'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Picked places list with Remove, Lock as First, Must-Visit toggle.
+              for (var i = 0; i < stops.length; i++) ...[
+                () {
+                  final stop = stops[i];
+                  final isLocked = lockedId == stop.id;
+                  final isMustVisit = widget.repo.isStopMustVisit(stop.id);
+                  final cleanName = stop.title.split('—').first.trim();
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isLocked
+                          ? LakbayColors.tealWash.withValues(alpha: 0.45)
+                          : LakbayColors.canvasBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isLocked
+                            ? LakbayColors.primary
+                            : LakbayColors.cardBorder,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isLocked
+                                ? LakbayColors.primary
+                                : LakbayColors.tealDeep,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            isLocked ? '1' : '${i + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                cleanName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5,
+                                  color: LakbayColors.tealDeep,
+                                ),
+                              ),
+                              Text(
+                                '${stop.regionName} · ${stop.stayDurationLabel}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: LakbayColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: isLocked
+                              ? 'Unlock start stop'
+                              : 'Lock as first stop',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () {
+                            widget.repo.toggleLockedFirstStop(stop.id);
+                            _scheduleRecalc();
+                          },
+                          icon: Icon(
+                            isLocked
+                                ? Icons.push_pin_rounded
+                                : Icons.push_pin_outlined,
+                            size: 18,
+                            color: isLocked
+                                ? LakbayColors.primary
+                                : LakbayColors.textMuted,
+                          ),
+                        ),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: isLocked
+                              ? null
+                              : () {
+                                  widget.repo.toggleStopMustVisit(stop.id);
+                                  _scheduleRecalc();
+                                },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isMustVisit
+                                  ? LakbayColors.tealDeep
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isMustVisit
+                                    ? LakbayColors.tealDeep
+                                    : LakbayColors.cardBorder,
+                              ),
+                            ),
+                            child: Text(
+                              isMustVisit ? 'Must-visit' : 'Optional',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: isMustVisit
+                                    ? Colors.white
+                                    : LakbayColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        IconButton(
+                          tooltip: 'Remove place',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () {
+                            widget.repo.removeTripBuilderStop(stop.id);
+                            widget.onStopsChanged();
+                            if (widget.repo.tripBuilderStops.isEmpty) {
+                              Navigator.of(context).pop();
+                              return;
+                            }
+                            _scheduleRecalc(snapDaysToSuggested: true);
+                          },
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: LakbayColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }(),
+              ],
+              const SizedBox(height: 8),
+
+              // Start from / End roundtrip selector.
+              const Text(
+                'Start from',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: LakbayColors.tealDeep,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  ChoiceChip(
+                    avatar: const Icon(Icons.my_location_rounded, size: 15),
+                    label: const Text('My location'),
+                    selected: startMode == 'gps',
+                    onSelected: (_) {
+                      widget.repo.setBuilderStartMode('gps');
+                      _scheduleRecalc();
+                    },
+                  ),
+                  ChoiceChip(
+                    avatar: const Icon(Icons.hotel_rounded, size: 15),
+                    label: const Text('Hotel'),
+                    selected: startMode == 'hotel',
+                    onSelected: (_) {
+                      widget.repo.setBuilderStartMode(
+                        'hotel',
+                        hotelOrigin: _selectedHotel,
+                      );
+                      _scheduleRecalc();
+                    },
+                  ),
+                  ChoiceChip(
+                    avatar: const Icon(Icons.place_rounded, size: 15),
+                    label: const Text('First place'),
+                    selected: startMode == 'first_stop',
+                    onSelected: (_) {
+                      widget.repo.setBuilderStartMode('first_stop');
+                      _scheduleRecalc();
+                    },
+                  ),
+                ],
+              ),
+              if (startMode == 'gps' && widget.repo.originLat == null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: Text(
+                    'GPS location not locked yet — ordering will begin at your first stop.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: LakbayColors.textSecondary,
+                    ),
+                  ),
+                ),
+              if (startMode == 'hotel')
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: DropdownButtonFormField<GeoPoint>(
+                    initialValue: _selectedHotel,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Departure / Return Hotel',
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                    items: TravelRepository.davaoHotelPresets
+                        .map(
+                          (h) => DropdownMenuItem<GeoPoint>(
+                            value: h,
+                            child: Text(
+                              h.label ?? 'Davao Hotel',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      _selectedHotel = value;
+                      widget.repo.setBuilderStartMode(
+                        'hotel',
+                        hotelOrigin: value,
+                      );
+                      _scheduleRecalc();
+                    },
+                  ),
+                ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text(
+                  'Return to start (roundtrip)',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  startMode == 'first_stop'
+                      ? 'Pick My location or Hotel above to return to origin'
+                      : (roundtrip
+                          ? 'Route ends back at your starting point'
+                          : 'End at the final destination'),
+                  style: const TextStyle(fontSize: 11.5),
+                ),
+                value: startMode != 'first_stop' && roundtrip,
+                onChanged: startMode == 'first_stop'
+                    ? null
+                    : (v) {
+                        widget.repo.setBuilderRoundtrip(v);
+                        _scheduleRecalc();
+                      },
+              ),
+              const Divider(height: 16),
+
+              // Days stepper (1-14) with Suggested badge.
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Days: $_days',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            color: LakbayColors.tealDeep,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        GestureDetector(
+                          onTap: () {
+                            _daysManuallyEdited = false;
+                            _days = suggestedDays;
+                            _scheduleRecalc();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: LakbayColors.tealWash,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'Suggested: $suggestedDays ${suggestedDays == 1 ? 'day' : 'days'}',
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: LakbayColors.tealDeep,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Fewer days',
+                    onPressed: _days > 1
+                        ? () {
+                            _daysManuallyEdited = true;
+                            _days--;
+                            _scheduleRecalc();
+                          }
+                        : null,
+                    icon: const Icon(Icons.remove_circle_outline),
+                  ),
+                  IconButton(
+                    tooltip: 'More days',
+                    onPressed: _days < 14
+                        ? () {
+                            _daysManuallyEdited = true;
+                            _days++;
+                            _scheduleRecalc();
+                          }
+                        : null,
+                    icon: const Icon(Icons.add_circle_outline),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Pace segmented selector.
+              const Text(
+                'Pace',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: LakbayColors.tealDeep,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: TripPace.values
+                    .map(
+                      (p) => ChoiceChip(
+                        label: Text(
+                          '${p.label} (~${p.hoursPerDay.toStringAsFixed(0)}h)',
+                        ),
+                        selected: pace == p,
+                        onSelected: (_) {
+                          widget.repo.setBuilderPace(p);
+                          _scheduleRecalc(snapDaysToSuggested: true);
+                        },
+                      ),
+                    )
+                    .toList(),
+              ),
+              if (hasOptionalStops)
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text(
+                    'Skip optional stops if over pace',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  value: _pruneOptionalToFit,
+                  onChanged: (v) {
+                    _pruneOptionalToFit = v;
+                    _scheduleRecalc();
+                  },
+                ),
+
+              // Travelers compact row.
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Travelers: $_travelers',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _travelers > 1
+                        ? () => setState(() => _travelers--)
+                        : null,
+                    icon: const Icon(Icons.remove_circle_outline),
+                  ),
+                  IconButton(
+                    onPressed: _travelers < 15
+                        ? () => setState(() => _travelers++)
+                        : null,
+                    icon: const Icon(Icons.add_circle_outline),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Live route summary & overload/savings feedback.
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: overloadedDays.isNotEmpty
+                      ? Colors.amber.shade50
+                      : LakbayColors.tealWash.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: overloadedDays.isNotEmpty
+                        ? Colors.amber.shade300
+                        : LakbayColors.cardBorder,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_preview.totalDistanceKm.toStringAsFixed(0)} km · ${_formatHours(totalBudgetHrs)} active · Suggested: $suggestedDays ${suggestedDays == 1 ? 'day' : 'days'}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: LakbayColors.tealDeep,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      savedKm >= 0.5 && savedPct >= 1.0
+                          ? 'Visit order optimized: ${_preview.savingsVsInput.baselineDistanceKm.toStringAsFixed(0)} km → ${_preview.savingsVsInput.optimizedDistanceKm.toStringAsFixed(0)} km (−${savedPct.toStringAsFixed(0)}%) · ${_preview.orderMethod == 'exact_held_karp' ? 'Exact Held-Karp' : 'NN + 2-opt'}'
+                          : 'Order method: ${_preview.orderMethod == 'exact_held_karp' ? 'Exact Held-Karp' : 'Adaptive NN + 2-opt'}',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: LakbayColors.textSecondary,
+                      ),
+                    ),
+                    if (_preview.warnings.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        _preview.warnings.first,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.deepOrange,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: _isGenerating || stops.isEmpty
+                    ? null
+                    : () async {
+                        setState(() => _isGenerating = true);
+                        final built =
+                            await widget.repo.buildMultiStopExploreTrip(
+                          daysCount: _days,
+                          travelers: _travelers,
+                          pace: pace,
+                          startMode: startMode,
+                          hotelOrigin: _selectedHotel,
+                          roundtrip: startMode != 'first_stop' && roundtrip,
+                          pruneOptionalToFit: _pruneOptionalToFit,
+                        );
+                        if (!context.mounted) return;
+                        Navigator.of(context).pop();
+                        widget.onTripBuilt(built);
+                      },
+                icon: _isGenerating
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.alt_route_rounded),
+                label: Text(
+                  _isGenerating
+                      ? 'Optimizing & Refining Route...'
+                      : 'Optimize & Create $_days-Day Trip',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

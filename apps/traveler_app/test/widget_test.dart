@@ -93,12 +93,26 @@ void main() {
     final sections = jsonDecode(
       File('assets/data/discovery_sections.json').readAsStringSync(),
     ) as Map<String, dynamic>;
-    final csvLines = File('assets/data/explore_trips.csv').readAsLinesSync();
+    final csvLines = File('assets/data/places.csv').readAsLinesSync();
+    final suggestedRoutes = jsonDecode(
+      File('assets/data/suggested_routes.json').readAsStringSync(),
+    ) as List<dynamic>;
 
     expect(shortList.length, equals(24));
     expect(longList.length, equals(24));
     expect((sections['locales']['en']['sections'] as List).length, equals(6));
-    expect(csvLines.length, equals(21)); // header + 20 Davao Region trips
+    expect(csvLines.length, greaterThanOrEqualTo(42)); // header + >=41 single places
+    expect(suggestedRoutes.length, equals(20));
+    final placeIds = {
+      for (final line in csvLines.skip(1)) line.split(',').first.trim(),
+    };
+    for (final route in suggestedRoutes.whereType<Map<String, dynamic>>()) {
+      final ids = (route['destination_ids'] as List).map((e) => e.toString());
+      expect(ids, isNotEmpty);
+      for (final id in ids) {
+        expect(placeIds, contains(id));
+      }
+    }
   });
 
   test('EnvConfig parses API keys and ignores AI keys & configures CloudinaryService', () {

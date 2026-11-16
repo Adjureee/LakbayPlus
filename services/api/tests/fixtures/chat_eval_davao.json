@@ -40,6 +40,12 @@
     {"id": "barge-fare", "message": "How much is the barge fare to Samal for a car?", "intent": ["logistics", "question"], "any_of": ["not sure", "check", "verify", "fare", "₱", "operator"], "none_of": ["exactly"]},
     {"id": "best-sunset", "message": "Best sunset view in the region?", "intent": ["question", "brainstorm"], "any_of": ["sunset", "view", "west", "jack", "samal", "beach"]},
     {"id": "packing-beach", "message": "Packing list for a Samal overnight", "intent": ["question", "logistics"], "any_of": ["sunscreen", "swim", "towel", "cash", "water"]},
-    {"id": "itinerary-request", "message": "Generate an itinerary for 3 days: Samal and Davao City, 2 adults, 15k budget", "intent": ["plan_trip"], "any_of": ["samal", "generate", "itinerary", "plan"], "none_of": ["day 1:", "8:00 am"]}
+    {"id": "itinerary-request", "message": "Generate an itinerary for 3 days: Samal and Davao City, 2 adults, 15k budget", "intent": ["plan_trip"], "any_of": ["samal", "generate", "itinerary", "plan"], "none_of": ["day 1:", "8:00 am"]},
+    {"id": "show-destinations", "message": "Show me destinations in the Davao Region", "intent": ["show_places"], "any_of": ["davao", "samal", "mati", "destination", "place"]},
+    {"id": "show-mountains-de-oro", "message": "Show me mountains in Davao de Oro", "intent": ["show_places"], "any_of": ["davao de oro", "mountain", "maragusan", "nearest", "province"]},
+    {"id": "show-beaches-oriental", "message": "Show me beaches in Davao Oriental", "intent": ["show_places"], "any_of": ["davao oriental", "dahican", "mati", "beach"]},
+    {"id": "show-waterfalls-near-me", "message": "Show me waterfalls near me", "intent": ["show_places"], "any_of": ["waterfall", "falls", "davao"]},
+    {"id": "show-islands-del-norte", "message": "Show me island spots in Davao del Norte", "intent": ["show_places"], "any_of": ["samal", "talikud", "island", "davao del norte"]},
+    {"id": "show-food-davao-city", "message": "Show me food spots in Davao City", "intent": ["show_places"], "any_of": ["davao city", "roxas", "food", "market", "durian"]}
   ]
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'screens/auth_screen.dart';
 import 'screens/explore_screen.dart';
 import 'screens/home_chat_screen.dart';
 import 'screens/memories_screen.dart';
@@ -17,24 +18,46 @@ Future<void> main() async {
 }
 
 class LakbayTravelApp extends StatefulWidget {
-  const LakbayTravelApp({super.key});
+  final TravelRepository? repository;
+
+  const LakbayTravelApp({super.key, this.repository});
 
   @override
   State<LakbayTravelApp> createState() => _LakbayTravelAppState();
 }
 
 class _LakbayTravelAppState extends State<LakbayTravelApp> {
-  final TravelRepository _repo = TravelRepository();
+  late TravelRepository _repo = widget.repository ?? TravelRepository();
+  late bool _ownsRepo = widget.repository == null;
 
   @override
   void initState() {
     super.initState();
-    _repo.initialize();
+    if (!_repo.isInitialized) {
+      _repo.initialize();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant LakbayTravelApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.repository != oldWidget.repository) {
+      if (_ownsRepo) {
+        _repo.dispose();
+      }
+      _repo = widget.repository ?? TravelRepository();
+      _ownsRepo = widget.repository == null;
+      if (!_repo.isInitialized) {
+        _repo.initialize();
+      }
+    }
   }
 
   @override
   void dispose() {
-    _repo.dispose();
+    if (_ownsRepo) {
+      _repo.dispose();
+    }
     super.dispose();
   }
 
@@ -51,7 +74,9 @@ class _LakbayTravelAppState extends State<LakbayTravelApp> {
               ? const _SplashLoadingScreen()
               : (!_repo.hasCompletedOnboarding
                   ? OnboardingScreen(repo: _repo)
-                  : MainNavigationShell(repo: _repo)),
+                  : (!_repo.isSignedIn
+                      ? AuthScreen(repo: _repo, initialRegisterMode: false)
+                      : MainNavigationShell(repo: _repo))),
         );
       },
     );

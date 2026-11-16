@@ -117,3 +117,158 @@ def _distance_to_ring_km(lat: float, lng: float, ring: _Ring) -> float:
         t = 0.0 if length == 0 else max(0.0, min(1.0, -(ax * dx + ay * dy) / length))
         best = min(best, hypot(ax + t * dx, ay + t * dy))
     return best
+
+
+CANONICAL_PROVINCES: tuple[str, ...] = (
+    "Davao City",
+    "Davao del Norte",
+    "Davao del Sur",
+    "Davao Oriental",
+    "Davao Occidental",
+    "Davao de Oro",
+)
+
+_ISLAND_PROVINCE: dict[str, str] = {
+    "samal": "Davao del Norte",
+    "talikud": "Davao del Norte",
+    "kopiat": "Davao de Oro",
+    "balut": "Davao Occidental",
+}
+
+_PROVINCE_ALIASES: dict[str, str] = {
+    "davao city": "Davao City",
+    "toril": "Davao City",
+    "marilog": "Davao City",
+    "buda": "Davao City",
+    "calinan": "Davao City",
+    "mintal": "Davao City",
+    "sasa": "Davao City",
+    "davao del norte": "Davao del Norte",
+    "del norte": "Davao del Norte",
+    "samal": "Davao del Norte",
+    "igacos": "Davao del Norte",
+    "island garden city of samal": "Davao del Norte",
+    "talikud": "Davao del Norte",
+    "tagum": "Davao del Norte",
+    "panabo": "Davao del Norte",
+    "carmen": "Davao del Norte",
+    "kapalong": "Davao del Norte",
+    "davao de oro": "Davao de Oro",
+    "de oro": "Davao de Oro",
+    "compostela valley": "Davao de Oro",
+    "comval": "Davao de Oro",
+    "maragusan": "Davao de Oro",
+    "nabunturan": "Davao de Oro",
+    "maco": "Davao de Oro",
+    "mabini": "Davao de Oro",
+    "kopiat": "Davao de Oro",
+    "new bataan": "Davao de Oro",
+    "monkayo": "Davao de Oro",
+    "pantukan": "Davao de Oro",
+    "davao oriental": "Davao Oriental",
+    "oriental": "Davao Oriental",
+    "mati": "Davao Oriental",
+    "dahican": "Davao Oriental",
+    "cateel": "Davao Oriental",
+    "aliwagwag": "Davao Oriental",
+    "governor generoso": "Davao Oriental",
+    "gov. generoso": "Davao Oriental",
+    "gov generoso": "Davao Oriental",
+    "san isidro": "Davao Oriental",
+    "hamiguitan": "Davao Oriental",
+    "baganga": "Davao Oriental",
+    "lupon": "Davao Oriental",
+    "pujada": "Davao Oriental",
+    "davao del sur": "Davao del Sur",
+    "del sur": "Davao del Sur",
+    "digos": "Davao del Sur",
+    "sta. cruz": "Davao del Sur",
+    "sta cruz": "Davao del Sur",
+    "santa cruz": "Davao del Sur",
+    "bansalan": "Davao del Sur",
+    "kapatagan": "Davao del Sur",
+    "davao occidental": "Davao Occidental",
+    "occidental": "Davao Occidental",
+    "malita": "Davao Occidental",
+    "balut": "Davao Occidental",
+    "sarangani": "Davao Occidental",
+}
+
+
+def canonical_province_name(raw: str | None) -> str | None:
+    """Resolve a province, city, or landmark label into a Region XI province name."""
+    if not raw:
+        return None
+    normalized = " ".join(raw.lower().replace(",", " ").split())
+    if normalized in _PROVINCE_ALIASES:
+        return _PROVINCE_ALIASES[normalized]
+    # Check longest aliases first so "davao del norte" beats shorter words.
+    for alias in sorted(_PROVINCE_ALIASES, key=len, reverse=True):
+        if alias in normalized:
+            return _PROVINCE_ALIASES[alias]
+    return None
+
+
+def province_for_destination(
+    lat: float,
+    lng: float,
+    *,
+    district: str | None = None,
+    location: str | None = None,
+) -> str | None:
+    """Return Region XI province using polygon lookup, island mapping, or boundary text."""
+    province = province_for(lat, lng)
+    if province is not None:
+        return province
+    island = island_group_for(lat, lng)
+    if island is not None and island in _ISLAND_PROVINCE:
+        return _ISLAND_PROVINCE[island]
+    if region_status(lat, lng) != "outside":
+        return canonical_province_name(district) or canonical_province_name(location)
+    return None
+
+
+@lru_cache(maxsize=1)
+def _province_centroids() -> dict[str, tuple[float, float]]:
+    centroids: dict[str, tuple[float, float]] = {}
+    for name, rings in _provinces():
+        points = [pt for _bbox_val, ring in rings for pt in ring]
+        if points:
+            centroids[name] = (
+                sum(p[0] for p in points) / len(points),
+                sum(p[1] for p in points) / len(points),
+            )
+    return centroids
+
+
+def nearest_provinces(
+    province: str | None = None,
+    *,
+    lat: float | None = None,
+    lng: float | None = None,
+    counts: dict[str, int] | None = None,
+) -> list[str]:
+    """Order Region XI provinces by match availability (if supplied) then proximity."""
+    from math import cos, hypot, radians
+
+    centroids = _province_centroids()
+    if lat is not None and lng is not None:
+        ref_lat, ref_lng = lat, lng
+    elif province is not None and province in centroids:
+        ref_lat, ref_lng = centroids[province]
+    else:
+        all_pts = list(centroids.values())
+        ref_lat = sum(p[0] for p in all_pts) / len(all_pts)
+        ref_lng = sum(p[1] for p in all_pts) / len(all_pts)
+
+    kx = 111.32 * cos(radians(ref_lat))
+    ky = 110.54
+    candidates = [name for name in CANONICAL_PROVINCES if name != province and name in centroids]
+
+    def sort_key(name: str) -> tuple[int, float, str]:
+        c_lat, c_lng = centroids[name]
+        dist_km = hypot((c_lng - ref_lng) * kx, (c_lat - ref_lat) * ky)
+        has_matches = 0 if (counts is None or counts.get(name, 0) > 0) else 1
+        return (has_matches, dist_km, name)
+
+    return sorted(candidates, key=sort_key)

@@ -1,0 +1,122 @@
+[
+  {
+    "id": "01KJKDPNA1XT4W2RHRA6GQVNVX",
+    "title": "Samal & Talikud Island Hopping Escape",
+    "destination_ids": ["api_4", "api_16", "api_34", "api_40"],
+    "suggested_days": 4
+  },
+  {
+    "id": "01KJKFBHH37GN1QH73WDQ2SD2H",
+    "title": "Mati Dahican Surf & Pujada Bay Loop",
+    "destination_ids": ["api_6", "api_39", "api_18"],
+    "suggested_days": 4
+  },
+  {
+    "id": "01KJM3TKYANT9JXGA1FC7SRNE8",
+    "title": "Davao City, Malagos Eagle & Eden Highlands",
+    "destination_ids": ["api_1", "api_2", "api_31", "api_3"],
+    "suggested_days": 3
+  },
+  {
+    "id": "01KJM4BF5FNY1S27CTBRYBSCX9",
+    "title": "Buda Pine Cabins & Marilog Sea of Clouds",
+    "destination_ids": ["api_38", "api_2", "api_3"],
+    "suggested_days": 3
+  },
+  {
+    "id": "01KJMAJ5EB54NMC8C1NZV52R87",
+    "title": "Aliwagwag Falls & Baganga Pacific Coast",
+    "destination_ids": ["api_13", "api_22", "api_6"],
+    "suggested_days": 4
+  },
+  {
+    "id": "01KJMEF0DZ0WQGZG3RZ49XJ7YC",
+    "title": "Kapatagan Highlands & Mt. Apo Basecamp",
+    "destination_ids": ["api_17", "api_5", "api_12"],
+    "suggested_days": 3
+  },
+  {
+    "id": "01KJMF5AWGF8N1YC7JWRJ1S2S4",
+    "title": "Maragusan Sea of Clouds & Mainit Hot Springs",
+    "destination_ids": ["api_36", "api_8", "api_26", "api_9"],
+    "suggested_days": 4
+  },
+  {
+    "id": "01KJMG8QD9S6D8Q6694NRECS2Y",
+    "title": "Grand Davao Region Coastal & Highland Roadtrip",
+    "destination_ids": ["api_1", "api_2", "api_4", "api_6", "api_8", "api_5"],
+    "suggested_days": 7
+  },
+  {
+    "id": "01KJMMPYEQJGNWH18JDBGW4RTB",
+    "title": "Cape San Agustin Lighthouse & Pink Sand",
+    "destination_ids": ["api_24", "api_37"],
+    "suggested_days": 3
+  },
+  {
+    "id": "01KJMN2S1TAGN3A0FJSASQVYT5",
+    "title": "Tagum Palm City & Highlands Retreat",
+    "destination_ids": ["api_20", "api_19", "api_41"],
+    "suggested_days": 2
+  },
+  {
+    "id": "01KJMNR2GHAVTWJV7SF6G5HMCK",
+    "title": "Digos, Sta. Cruz & Mountain Waterfalls Loop",
+    "destination_ids": ["api_23", "api_21", "api_12"],
+    "suggested_days": 3
+  },
+  {
+    "id": "01KJMPFG7TJW8YSW17YKP77523",
+    "title": "Davao City Culinary, Museums & Heritage Trail",
+    "destination_ids": ["api_14", "api_15", "api_33", "api_35"],
+    "suggested_days": 3
+  },
+  {
+    "id": "01KJMQQ341XJM79PZM11BQSQSF",
+    "title": "Talaingod Highlands & Tagum Eco Tour",
+    "destination_ids": ["api_41", "api_20", "api_7"],
+    "suggested_days": 3
+  },
+  {
+    "id": "01KJMSF6HH0XZT5NMR9ZXMG9MS",
+    "title": "Balut & Sarangani Islands Southern Frontier",
+    "destination_ids": ["api_11", "api_28", "api_30"],
+    "suggested_days": 5
+  },
+  {
+    "id": "01KJMSRDYN8PTZE8W1FGDMTHG0",
+    "title": "Samal Cove Resorts & Talikud White Sand",
+    "destination_ids": ["api_32", "api_4", "api_40"],
+    "suggested_days": 3
+  },
+  {
+    "id": "01KJMVFT934RQ9F8C6Z93YZMPD",
+    "title": "Lake Leonard & Maco Hot Springs Loop",
+    "destination_ids": ["api_27", "api_25", "api_9"],
+    "suggested_days": 3
+  },
+  {
+    "id": "01KJMX6NA18NAM8FW70K4BD0PM",
+    "title": "Davao Gulf & Pacific Coast Twin-Bay Explorer",
+    "destination_ids": ["api_4", "api_6", "api_24", "api_37"],
+    "suggested_days": 6
+  },
+  {
+    "id": "01KJMYK0VWHJ7R3V3NG67Y8PYX",
+    "title": "Panabo Mangrove Coast & Tagum Food Trip",
+    "destination_ids": ["api_19", "api_7", "api_20"],
+    "suggested_days": 2
+  },
+  {
+    "id": "01KJMYXGMQDPZ98T1TV55VJ7FT",
+    "title": "Mt. Apo Summit Trek via Sta. Cruz & Kapatagan",
+    "destination_ids": ["api_5", "api_12", "api_17"],
+    "suggested_days": 4
+  },
+  {
+    "id": "01KJMZ3RQR0ZRA3G196B14ABQ2",
+    "title": "Davao Oriental Surfing, Falls & Bays Adventure",
+    "destination_ids": ["api_39", "api_13", "api_22", "api_24"],
+    "suggested_days": 5
+  }
+]

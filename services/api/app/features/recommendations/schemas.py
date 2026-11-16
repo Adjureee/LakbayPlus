@@ -194,6 +194,7 @@ class TopPlacesResponse(BaseModel):
 class PlanningRecommendationItem(RecommendationItem):
     """A Top 5 place in the planning chat; `score` is the 0-100 weighted score."""
 
+    image_url: str | None = None
     route_provider: str | None = None
     travel_mode: TravelMode
     route_distance_km: Decimal | None = None
@@ -201,6 +202,15 @@ class PlanningRecommendationItem(RecommendationItem):
     route_verified: bool = False
     travel_basis: TopPlaceTravelBasis = "unknown"
     breakdown: TopPlaceBreakdown | None = None
+
+
+class PlaceQueryResult(BaseModel):
+    items: list[TopPlaceItem] = Field(default_factory=list)
+    total_candidates: int = 0
+    target_province: str | None = None
+    other_province_counts: dict[str, int] = Field(default_factory=dict)
+    nearest_provinces: list[str] = Field(default_factory=list)
+    shortfall_reason: str | None = None
 
 
 class DestinationInteractionCreate(BaseModel):

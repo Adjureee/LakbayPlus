@@ -4,6 +4,7 @@ import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_image.dart';
+import '../widgets/origin_picker_sheet.dart';
 import 'trip_detail_screen.dart';
 
 class HomeChatScreen extends StatefulWidget {
@@ -51,11 +52,14 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final backdrop = widget.repo.currentBackdrop;
-    final messages = widget.repo.chatMessages;
-    final isLanding = messages.isEmpty && !widget.repo.isAiTyping;
+    return ListenableBuilder(
+      listenable: widget.repo,
+      builder: (context, _) {
+        final backdrop = widget.repo.currentBackdrop;
+        final messages = widget.repo.chatMessages;
+        final isLanding = messages.isEmpty && !widget.repo.isAiTyping;
 
-    return Scaffold(
+        return Scaffold(
       key: _scaffoldKey,
       drawer: _buildChatHistoryDrawer(context),
       body: Stack(
@@ -145,8 +149,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      widget.repo.hasUserLocation
-                                          ? 'Near ${widget.repo.effectiveOriginLabel} • ${backdrop.place}'
+                                      widget.repo.hasOrigin
+                                          ? 'Start: ${widget.repo.effectiveOriginLabel} • ${backdrop.place}'
                                           : "Today's view • ${backdrop.place}",
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -220,6 +224,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           ),
         ],
       ),
+        );
+      },
     );
   }
 
@@ -490,6 +496,12 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
             runSpacing: 8,
             children: [
               _HeroChip(
+                label: widget.repo.hasOrigin
+                    ? 'Start: ${widget.repo.effectiveOriginLabel}'
+                    : 'Set starting place (search or pin)',
+                onTap: () => showOriginPickerSheet(context, widget.repo),
+              ),
+              _HeroChip(
                 label: 'A few days in ${backdrop.place}',
                 onTap: () => _handleSend(
                   'Plan a 3-day trip to ${backdrop.place} in Davao Region',
@@ -498,13 +510,31 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               _HeroChip(
                 label: 'Surprise me',
                 onTap: () => _handleSend(
-                  widget.repo.hasUserLocation
+                  widget.repo.hasOrigin
                       ? 'Surprise me with a fresh 4-day Davao Region route starting from ${widget.repo.effectiveOriginLabel}'
                       : 'Surprise me with a 4-day Davao Region adventure route',
                 ),
               ),
             ],
           ),
+          if (widget.repo.originRegionNote != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                widget.repo.originRegionNote!,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: LakbayColors.tealDeep,
+                ),
+              ),
+            ),
+          ],
 
           const SizedBox(height: 36),
 
@@ -905,7 +935,13 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                           height: 1.45,
                         ),
                       ),
-                      if (msg.aiOptions.isNotEmpty) ...[
+                      if (msg.recommendedPlaces.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _buildRecommendedPlacesPicker(
+                          context,
+                          msg.recommendedPlaces,
+                        ),
+                      ] else if (msg.aiOptions.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         _buildAiOptionsPicker(context, msg.aiOptions),
                       ] else if (msg.attachedTrip != null) ...[
@@ -948,6 +984,207 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildRecommendedPlacesPicker(
+    BuildContext context,
+    List<TopPlaceRecommendation> places,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Recommended Destinations',
+          style: TextStyle(
+            fontFamily: 'FigGrotesk',
+            fontWeight: FontWeight.w700,
+            fontSize: 13.5,
+            color: LakbayColors.tealDeep,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 224,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: places.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final place = places[index];
+              final resolved =
+                  widget.repo.resolveExploreTripForRecommendation(place);
+              final isAdded = widget.repo.isInTripBuilder(resolved.id);
+              final locationLine = [
+                if (place.district != null && place.district!.trim().isNotEmpty)
+                  place.district!.trim(),
+                if (place.travelMinutes != null) '~${place.travelMinutes} min',
+              ].join(' • ');
+              final subtitle = locationLine.isNotEmpty
+                  ? locationLine
+                  : (place.reasons.isNotEmpty
+                      ? place.reasons.first
+                      : 'Davao Region destination');
+              final networkImg = (place.imageUrl != null &&
+                      place.imageUrl!.startsWith('http'))
+                  ? place.imageUrl
+                  : (resolved.hasRemoteThumbnail ? resolved.thumbnailUrl : null);
+
+              return Container(
+                width: 230,
+                decoration: BoxDecoration(
+                  color: LakbayColors.canvasBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isAdded
+                        ? LakbayColors.primary
+                        : LakbayColors.cardBorder,
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: 86,
+                      width: double.infinity,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          LakbayNetworkOrAssetImage(
+                            networkUrl: networkImg,
+                            assetPath: resolved.localAssetPath,
+                          ),
+                          if (place.category != null &&
+                              place.category!.trim().isNotEmpty)
+                            Positioned(
+                              top: 8,
+                              left: 8,
+                              right: 8,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: LakbayColors.tealDeep,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    place.category!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              place.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontFamily: 'FigGrotesk',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13.5,
+                                color: LakbayColors.tealDeep,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              subtitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: LakbayColors.textSecondary,
+                                height: 1.3,
+                              ),
+                            ),
+                            const Spacer(),
+                            Row(
+                              children: [
+                                OutlinedButton(
+                                  onPressed: () {
+                                    final trip = widget.repo
+                                        .buildDetailedItineraryFromExplore(
+                                      resolved,
+                                    );
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => TripDetailScreen(
+                                          trip: trip,
+                                          repo: widget.repo,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    minimumSize: Size.zero,
+                                  ),
+                                  child: const Text(
+                                    'Open',
+                                    style: TextStyle(fontSize: 11.5),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () => widget.repo
+                                        .toggleTripBuilderStop(resolved),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: isAdded
+                                          ? LakbayColors.primaryLight
+                                          : LakbayColors.primary,
+                                      foregroundColor: isAdded
+                                          ? LakbayColors.tealDeep
+                                          : Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      minimumSize: Size.zero,
+                                    ),
+                                    child: Text(
+                                      isAdded ? 'Added' : '+ Add',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 11.5),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1005,23 +1242,29 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                           Positioned(
                             top: 8,
                             left: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: opt.isOverBudget
-                                    ? Colors.red.shade700
-                                    : LakbayColors.tealDeep,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                'Option ${opt.optionNumber} • ${trip.vibeTag}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
+                            right: 8,
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: opt.isOverBudget
+                                      ? Colors.red.shade700
+                                      : LakbayColors.tealDeep,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'Option ${opt.optionNumber} • ${trip.vibeTag}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1172,19 +1415,25 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                   Positioned(
                     top: 10,
                     left: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: LakbayColors.primary,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${trip.daysCount} DAYS • ${trip.vibeTag.toUpperCase()}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
+                    right: 10,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: LakbayColors.primary,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${trip.daysCount} DAYS • ${trip.vibeTag.toUpperCase()}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),

@@ -73,3 +73,23 @@ def test_google_auth_rejects_unverified_or_wrong_audience(client, monkeypatch) -
     finally:
         monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_IDS", "")
         get_settings.cache_clear()
+
+
+def test_google_auth_rejects_missing_or_placeholder_name(client, monkeypatch) -> None:
+    for bad_name in ("", "   ", "Lakbay Traveler"):
+        async def missing_name(
+            id_token: str, *, http_client=None, _name: str = bad_name
+        ) -> dict[str, object]:
+            return {
+                "email": "noname@gmail.com",
+                "email_verified": "true",
+                "name": _name,
+            }
+
+        monkeypatch.setattr(auth_service_module, "_verify_google_id_token", missing_name)
+        res = client.post(
+            "/api/v1/auth/google",
+            json={"id_token": "google-token-without-name-value"},
+        )
+        assert res.status_code == 400
+        assert res.json()["error"]["code"] == "missing_google_name"

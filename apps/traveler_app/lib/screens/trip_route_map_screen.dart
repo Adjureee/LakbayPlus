@@ -9,6 +9,8 @@ import '../services/route_progress.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
+import '../services/access_notices.dart';
+import '../widgets/access_notice_card.dart';
 
 class TripRouteMapScreen extends StatefulWidget {
   final ItineraryTrip trip;
@@ -26,9 +28,53 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
       GlobalKey<LakbayMapboxMapState>();
 
   int _selectedDayIndex = 0;
-  bool _showHotelsOnMap = true;
+  bool _showHotelsOnMap = false;
+  ItineraryTrip? _liveTrip;
   BackendRouteResult? _backendRoute;
   bool _loadingRoadRoute = false;
+  bool _fittedRouteOnce = false;
+
+  ItineraryTrip get _activeTrip => _liveTrip ?? widget.trip;
+
+  BackendRouteResult? _routeResultFromTrip(ItineraryTrip trip) {
+    final segs = trip.routeSegments;
+    if (segs.isEmpty) return null;
+    final summary = trip.optimizationSummary;
+    return BackendRouteResult(
+      routeProvider: summary?.costSource ?? 'cached',
+      isEstimated: segs.every((s) => s.isEstimated),
+      totalDistanceKm: summary?.optimizedDistanceKm ??
+          MapboxService.calculateRouteDistanceKm(trip.routeWaypoints),
+      totalDurationMinutes: summary?.optimizedTransitMinutes.round() ?? 0,
+      geometryPoints: [for (final s in segs) ...s.points],
+      warnings: trip.routeWarnings,
+      orderedDestinationIds: trip.effectiveBackendDestinationIds,
+      segments: segs,
+      seaCrossings: trip.seaCrossings,
+    );
+  }
+
+  int _markerDayNumberForIndex(int idx) {
+    final days = _activeTrip.days;
+    if (days.isEmpty) return 1;
+    var k = idx.clamp(0, days.length - 1);
+    while (k > 0 && days[k].isContinuationDay) {
+      k--;
+    }
+    return days[k].dayNumber;
+  }
+
+  String _primaryMarkerIdForSelectedDay() {
+    final days = _activeTrip.days;
+    if (days.isEmpty) return 'day_1';
+    final dayNum = _markerDayNumberForIndex(_selectedDayIndex);
+    final day = days.firstWhere(
+      (d) => d.dayNumber == dayNum,
+      orElse: () => days.first,
+    );
+    final hasStops = day.stops.any((s) => s.category != 'stay');
+    return hasStops ? 'stop_${day.dayNumber}_0' : 'day_${day.dayNumber}';
+  }
 
   // Live tracking
   bool _liveTracking = false;
@@ -42,6 +88,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
   @override
   void initState() {
     super.initState();
+    _backendRoute = _routeResultFromTrip(_activeTrip);
     _loadRoadRoute(optimize: false);
     widget.repo.addListener(_onRepoChanged);
     widget.repo.startLiveTracking().then((started) {
@@ -56,15 +103,45 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
 
   /// The drawn route the traveler is expected to follow: provider geometry
   /// only. Estimated (straight) parts are excluded so they never trigger a
-  /// reroute or a remaining-distance figure.
+  /// reroute or a remaining-distance figure. A dashed off-road last stretch
+  /// next to a real road keeps the road part followable.
   List<GeoPoint> get _followableRoute {
     final route = _backendRoute;
     if (route == null) return const [];
     if (route.segments.isNotEmpty) {
-      if (route.segments.any((segment) => segment.isEstimated)) return const [];
-      return [for (final segment in route.segments) ...segment.points];
+      if (route.isEstimated) return const [];
+      return [
+        for (final segment in route.segments)
+          if (!segment.isEstimated) ...segment.points,
+      ];
     }
     return route.geometryPoints;
+  }
+
+  /// The API's own explanation for dashed parts, shown on the map instead of
+  /// a generic message. Null while loading or when the route has no gaps.
+  String? _routeNoticeText() {
+    final route = _backendRoute;
+    if (route == null) {
+      if (_loadingRoadRoute) return 'Finding the road route…';
+      return null;
+    }
+    const keywords = [
+      'road ends',
+      'starting point is about',
+      'could not be routed',
+      'Haversine',
+      'straight-line',
+    ];
+    for (final warning in route.warnings) {
+      if (keywords.any(warning.contains)) {
+        if (warning.contains('Haversine')) {
+          return 'No road reaches every stop yet — dashed lines show stop order only.';
+        }
+        return warning;
+      }
+    }
+    return null;
   }
 
   void _onRepoChanged() {
@@ -137,14 +214,50 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     setState(() => _loadingRoadRoute = true);
     try {
       final result = await widget.repo.fetchRoadRouteForTrip(
-        widget.trip,
+        _activeTrip,
         optimize: optimize,
         destinationIds: destinationIds,
       );
       if (!mounted) return;
+      final hadSegments = _backendRoute?.segments.isNotEmpty ?? false;
       setState(() {
         if (result != null) _backendRoute = result;
         _loadingRoadRoute = false;
+      });
+      if (result != null && result.segments.isNotEmpty && (!hadSegments || !_fittedRouteOnce)) {
+        _fittedRouteOnce = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _mapKey.currentState?.fitBounds();
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingRoadRoute = false);
+    }
+  }
+
+  Future<void> _handleOptimizeOrder() async {
+    if (_loadingRoadRoute) return;
+    setState(() => _loadingRoadRoute = true);
+    try {
+      final updated = await widget.repo.optimizeStopsForTrip(_activeTrip);
+      if (!mounted) return;
+      final cached = _routeResultFromTrip(updated);
+      final routeResult = cached ??
+          await widget.repo.fetchRoadRouteForTrip(
+            updated,
+            optimize: true,
+          );
+      if (!mounted) return;
+      setState(() {
+        _liveTrip = updated;
+        _selectedDayIndex = updated.days.isEmpty
+            ? 0
+            : _selectedDayIndex.clamp(0, updated.days.length - 1);
+        if (routeResult != null) _backendRoute = routeResult;
+        _loadingRoadRoute = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _mapKey.currentState?.fitBounds();
       });
     } catch (_) {
       if (mounted) setState(() => _loadingRoadRoute = false);
@@ -197,6 +310,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
             badgeText: '⚓',
             title: name,
             subtitle: crossing.vesselLabel,
+            isCompact: true,
           ),
         );
       }
@@ -220,7 +334,9 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
   }
 
   void _advanceTourStep() {
-    final nextIdx = (_selectedDayIndex + 1) % widget.trip.days.length;
+    final days = _activeTrip.days;
+    if (days.isEmpty) return;
+    final nextIdx = (_selectedDayIndex + 1) % days.length;
     setState(() => _selectedDayIndex = nextIdx);
     if (_pageController.hasClients) {
       _pageController.animateToPage(
@@ -229,31 +345,82 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
         curve: Curves.easeOutCubic,
       );
     }
-    final day = widget.trip.days[nextIdx];
+    final day = days[nextIdx];
     _mapKey.currentState?.flyTo(day.lat, day.lng, zoom: 10.2);
   }
 
   List<LakbayMapMarker> _buildMarkers() {
-    final markers = <LakbayMapMarker>[];
-    for (int i = 0; i < widget.trip.days.length; i++) {
-      final d = widget.trip.days[i];
-      final media = widget.repo.resolveDayMarkerMedia(widget.trip, d);
-      markers.add(
-        LakbayMapMarker(
-          id: 'day_${d.dayNumber}',
-          lat: d.lat,
-          lng: d.lng,
-          badgeText: 'D${d.dayNumber}',
-          title: d.cityTitle,
-          subtitle: d.summary,
-          imageUrl: media.imageUrl,
-          imageAsset: media.imageAsset,
-          isPrimary: i == _selectedDayIndex,
-          isOrigin: i == 0,
-          isDestination: i == widget.trip.days.length - 1,
-        ),
-      );
+    final trip = _activeTrip;
+    final activeDayNum = _markerDayNumberForIndex(_selectedDayIndex);
+    final stopMarkers = <LakbayMapMarker>[];
+    for (int i = 0; i < trip.days.length; i++) {
+      final d = trip.days[i];
+      if (d.isContinuationDay) continue;
+      final dayStops = d.stops.where((s) => s.category != 'stay').toList();
+      if (dayStops.isNotEmpty) {
+        for (int sIdx = 0; sIdx < dayStops.length; sIdx++) {
+          final stop = dayStops[sIdx];
+          final media = widget.repo.resolveDayMarkerMedia(
+            trip,
+            ItineraryDay(
+              dayNumber: d.dayNumber,
+              cityTitle: stop.title,
+              summary: stop.description,
+              lat: stop.lat,
+              lng: stop.lng,
+              stops: const [],
+              apiDestinationId: stop.destinationId,
+            ),
+          );
+          final badge =
+              dayStops.length == 1 ? 'D${d.dayNumber}' : 'D${d.dayNumber}.${sIdx + 1}';
+          stopMarkers.add(
+            LakbayMapMarker(
+              id: 'stop_${d.dayNumber}_$sIdx',
+              lat: stop.lat,
+              lng: stop.lng,
+              badgeText: badge,
+              title: stop.title,
+              subtitle: stop.description.isNotEmpty ? stop.description : d.cityTitle,
+              imageUrl: media.imageUrl,
+              imageAsset: media.imageAsset,
+              isPrimary: d.dayNumber == activeDayNum,
+            ),
+          );
+        }
+      } else {
+        final media = widget.repo.resolveDayMarkerMedia(trip, d);
+        stopMarkers.add(
+          LakbayMapMarker(
+            id: 'day_${d.dayNumber}',
+            lat: d.lat,
+            lng: d.lng,
+            badgeText: 'D${d.dayNumber}',
+            title: d.cityTitle,
+            subtitle: d.summary,
+            imageUrl: media.imageUrl,
+            imageAsset: media.imageAsset,
+            isPrimary: d.dayNumber == activeDayNum,
+          ),
+        );
+      }
     }
+    final markers = <LakbayMapMarker>[
+      for (int i = 0; i < stopMarkers.length; i++)
+        LakbayMapMarker(
+          id: stopMarkers[i].id,
+          lat: stopMarkers[i].lat,
+          lng: stopMarkers[i].lng,
+          badgeText: stopMarkers[i].badgeText,
+          title: stopMarkers[i].title,
+          subtitle: stopMarkers[i].subtitle,
+          imageUrl: stopMarkers[i].imageUrl,
+          imageAsset: stopMarkers[i].imageAsset,
+          isPrimary: stopMarkers[i].isPrimary,
+          isOrigin: i == 0,
+          isDestination: i == stopMarkers.length - 1,
+        ),
+    ];
     if (_showHotelsOnMap) {
       for (final h in widget.trip.hotels) {
         final hotelUrl =
@@ -280,14 +447,16 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
         );
       }
     }
-    if (widget.repo.hasUserLocation) {
+    if (widget.repo.originLat != null && widget.repo.originLng != null) {
       markers.add(
         LakbayMapMarker(
           id: 'user_gps',
-          lat: widget.repo.userLat!,
-          lng: widget.repo.userLng!,
+          lat: widget.repo.originLat!,
+          lng: widget.repo.originLng!,
           title: 'You (${widget.repo.effectiveOriginLabel})',
-          subtitle: 'Current GPS location',
+          subtitle: widget.repo.hasManualOrigin
+              ? 'Chosen starting place'
+              : 'Current GPS location',
           isUserLocation: true,
         ),
       );
@@ -425,11 +594,87 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     );
   }
 
+  (double lat, double lng, double zoom) _initialCameraFrame(
+    ItineraryTrip trip,
+    List<GeoPoint> waypoints,
+  ) {
+    final pts = <GeoPoint>[
+      ...waypoints,
+      for (final seg in _backendRoute?.segments ?? const <RouteSegmentGeometry>[])
+        ...seg.points,
+    ];
+    final originLat = widget.repo.originLat;
+    final originLng = widget.repo.originLng;
+    if (originLat != null &&
+        originLng != null &&
+        (pts.isEmpty ||
+            pts.any(
+              (p) =>
+                  MapboxService.haversineKm(p.lat, p.lng, originLat, originLng) <=
+                  120.0,
+            ))) {
+      pts.add(GeoPoint(lat: originLat, lng: originLng));
+    }
+    if (pts.isEmpty) {
+      final first = trip.days.firstOrNull;
+      return (
+        first?.lat ?? MapboxService.davaoCenterLat,
+        first?.lng ?? MapboxService.davaoCenterLng,
+        8.8,
+      );
+    }
+    return MapboxService.computeBoundsCenterAndZoom(pts);
+  }
+
+  void _showSeaCrossingsSheet(List<SeaCrossingInfo> crossings) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              crossings.length == 1
+                  ? 'Boat Crossing Details'
+                  : 'Boat Crossings (${crossings.length})',
+              style: const TextStyle(
+                fontFamily: 'FigGrotesk',
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: LakbayColors.tealDeep,
+              ),
+            ),
+            const SizedBox(height: 10),
+            for (final crossing in crossings) _SeaCrossingCard(crossing: crossing),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final waypoints = widget.trip.routeWaypoints;
+    final trip = _activeTrip;
+    final waypoints = trip.routeWaypoints;
     final totalKm = MapboxService.calculateRouteDistanceKm(waypoints);
-    final selectedDay = widget.trip.days[_selectedDayIndex];
+    final (initLat, initLng, initZoom) = _initialCameraFrame(trip, waypoints);
 
     return Scaffold(
       appBar: AppBar(
@@ -439,7 +684,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.trip.title,
+              trip.title,
               style: const TextStyle(
                 fontFamily: 'FigGrotesk',
                 fontWeight: FontWeight.w700,
@@ -448,8 +693,8 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
             ),
             Text(
               _backendRoute != null
-                  ? '${widget.trip.daysCount} Stops • ${_backendRoute!.totalDistanceKm.toStringAsFixed(1)} km • ${_backendRoute!.totalDurationMinutes} min ${_backendRoute!.geometryPoints.length >= 2 ? 'road route' : 'estimate'}'
-                  : '${widget.trip.daysCount} Stops • ${totalKm.toStringAsFixed(0)} km Region XI Route',
+                  ? '${waypoints.length} Stops • ${_backendRoute!.totalDistanceKm.toStringAsFixed(1)} km • ${_backendRoute!.totalDurationMinutes} min ${_backendRoute!.geometryPoints.length >= 2 ? 'road route' : 'estimate'}'
+                  : '${waypoints.length} Stops • ${totalKm.toStringAsFixed(0)} km Region XI Route',
               style: const TextStyle(fontSize: 11.5, color: Colors.white70),
             ),
           ],
@@ -487,26 +732,39 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
           LakbayMapboxMap(
             key: _mapKey,
             repo: widget.repo,
-            initialLat: selectedDay.lat,
-            initialLng: selectedDay.lng,
-            initialZoom: 8.8,
+            initialLat: initLat,
+            initialLng: initLng,
+            initialZoom: initZoom,
             routePoints: waypoints,
             roadGeometry: _backendRoute?.geometryPoints ?? const [],
             routeSegments: _backendRoute?.segments ?? const [],
+            routeNotice: _routeNoticeText(),
             markers: [..._buildMarkers(), ..._pierMarkers()],
             livePosition: widget.repo.livePosition,
             followUser: _followUser,
             onFollowUserChanged: (follow) =>
                 setState(() => _followUser = follow),
-            selectedMarkerId: 'day_${selectedDay.dayNumber}',
+            selectedMarkerId: _primaryMarkerIdForSelectedDay(),
             borderRadius: 0,
-            controlsBottomOffset: 210,
+            controlsBottomOffset: 170,
             onMarkerTap: (marker) {
+              int? dayNum;
               if (marker.id.startsWith('day_')) {
-                final dayNum =
-                    int.tryParse(marker.id.replaceFirst('day_', '')) ?? 1;
-                final idx = (dayNum - 1).clamp(0, widget.trip.days.length - 1);
+                dayNum = int.tryParse(marker.id.replaceFirst('day_', ''));
+              } else if (marker.id.startsWith('stop_')) {
+                final parts = marker.id.split('_');
+                if (parts.length >= 2) {
+                  dayNum = int.tryParse(parts[1]);
+                }
+              }
+              if (dayNum != null) {
+                final days = _activeTrip.days;
+                final matchedIdx = days.indexWhere((d) => d.dayNumber == dayNum);
+                final idx = matchedIdx >= 0
+                    ? matchedIdx
+                    : (dayNum - 1).clamp(0, days.length - 1);
                 setState(() => _selectedDayIndex = idx);
+                _mapKey.currentState?.seekTrailToDay(days[idx].dayNumber);
                 _pageController.animateToPage(
                   idx,
                   duration: const Duration(milliseconds: 320),
@@ -516,86 +774,123 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
             },
           ),
 
-          // Floating pills, live status and boat crossings, stacked top-down.
+          // Compact single-strip quick actions without cluttering the map.
           Positioned(
-            top: 62,
+            top: 50,
             left: 12,
             right: 12,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
               children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ActionChip(
-                      onPressed: _toggleRouteTour,
-                      backgroundColor: _isTourPlaying
-                          ? LakbayColors.primary
-                          : Colors.black.withValues(alpha: 0.75),
-                      side: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.28),
-                      ),
-                      avatar: Icon(
-                        _isTourPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                      label: Text(
-                        _isTourPlaying
-                            ? 'Playing Route Tour...'
-                            : 'Play Route Tour',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontFamily: 'FigGrotesk',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
+                if (trip.effectiveBackendDestinationIds.length >= 2 ||
+                    trip.days.length >= 2)
+                  Material(
+                    color: Colors.white.withValues(alpha: 0.94),
+                    borderRadius: BorderRadius.circular(18),
+                    elevation: 2,
+                    child: InkWell(
+                      onTap: _loadingRoadRoute ? null : _handleOptimizeOrder,
+                      borderRadius: BorderRadius.circular(18),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.alt_route_rounded,
+                              color: LakbayColors.tealDeep,
+                              size: 15,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _loadingRoadRoute
+                                  ? 'Routing...'
+                                  : 'Optimize Order',
+                              style: const TextStyle(
+                                color: LakbayColors.tealDeep,
+                                fontFamily: 'FigGrotesk',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    if (widget.repo.isSignedIn &&
-                        widget.trip.effectiveBackendDestinationIds.length >= 2)
-                      ActionChip(
-                        onPressed: _loadingRoadRoute
-                            ? null
-                            : () => _loadRoadRoute(optimize: true),
-                        backgroundColor: Colors.black.withValues(alpha: 0.75),
-                        side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.28),
-                        ),
-                        avatar: const Icon(
-                          Icons.alt_route_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        label: Text(
-                          _loadingRoadRoute ? 'Routing...' : 'Optimize Order',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontFamily: 'FigGrotesk',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                if (_liveTracking && widget.repo.livePosition != null) ...[
-                  const SizedBox(height: 8),
+                  ),
+                if (_liveTracking && widget.repo.livePosition != null)
                   _LiveStatusChip(
                     rerouting: _rerouting,
                     remainingText: _remainingText(),
                     accuracyMeters: widget.repo.livePosition!.accuracyMeters,
                   ),
-                ],
-                for (final crossing
-                    in _backendRoute?.seaCrossings ??
-                        const <SeaCrossingInfo>[]) ...[
-                  const SizedBox(height: 6),
-                  _SeaCrossingCard(crossing: crossing),
-                ],
+                if ((_backendRoute?.seaCrossings ?? const <SeaCrossingInfo>[])
+                    .isNotEmpty)
+                  Builder(
+                    builder: (context) {
+                      final crossings = _backendRoute!.seaCrossings;
+                      final mins = crossings.fold<int>(
+                        0,
+                        (sum, c) => sum + c.crossingMinutes,
+                      );
+                      String shortPort(String name) => name
+                          .split('(')
+                          .first
+                          .trim()
+                          .replaceFirst(
+                            RegExp(r'\s+(?:RoRo\s+)?(?:Wharf|Landing|Pier).*$'),
+                            '',
+                          );
+                      final label = crossings.length == 1
+                          ? '${shortPort(crossings.first.boardPort)} → ${shortPort(crossings.first.landPort)} · ${mins}m'
+                          : '${crossings.length} Crossings · ${mins}m';
+                      return Material(
+                        color: const Color(0xFF1E88E5).withValues(alpha: 0.94),
+                        borderRadius: BorderRadius.circular(18),
+                        elevation: 2,
+                        child: InkWell(
+                          onTap: () => _showSeaCrossingsSheet(crossings),
+                          borderRadius: BorderRadius.circular(18),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.directions_boat_rounded,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  label,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontFamily: 'FigGrotesk',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11.5,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                const Icon(
+                                  Icons.expand_more_rounded,
+                                  color: Colors.white70,
+                                  size: 14,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
               ],
             ),
           ),
@@ -604,24 +899,27 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 28,
-            height: 170,
+            bottom: 14,
+            height: 144,
             child: PageView.builder(
               controller: _pageController,
-              itemCount: widget.trip.days.length,
+              itemCount: trip.days.length,
               onPageChanged: (idx) {
                 setState(() => _selectedDayIndex = idx);
+                if (idx >= 0 && idx < trip.days.length) {
+                  _mapKey.currentState?.seekTrailToDay(trip.days[idx].dayNumber);
+                }
               },
               itemBuilder: (context, index) {
-                final day = widget.trip.days[index];
+                final day = trip.days[index];
                 final isSelected = index == _selectedDayIndex;
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 220),
                   margin: EdgeInsets.symmetric(
                     horizontal: 8,
-                    vertical: isSelected ? 0 : 8,
+                    vertical: isSelected ? 0 : 6,
                   ),
-                  padding: const EdgeInsets.all(15),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.96),
                     borderRadius: BorderRadius.circular(22),
@@ -711,6 +1009,10 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                         ),
                       ),
                       const Spacer(),
+                      if (accessNoticeForDay(day) case final notice?)
+                        // A permit rule matters more than the stop list here.
+                        AccessNoticePill(notice: notice)
+                      else
                       Row(
                         children: [
                           const Icon(

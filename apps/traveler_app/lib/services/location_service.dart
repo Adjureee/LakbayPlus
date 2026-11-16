@@ -58,12 +58,27 @@ class LivePosition {
   }
 }
 
+/// One place candidate returned by forward geocoding for manual origin search.
+class PlaceSuggestion {
+  final String label;
+  final double lat;
+  final double lng;
+
+  const PlaceSuggestion({
+    required this.label,
+    required this.lat,
+    required this.lng,
+  });
+}
+
 /// Captures device or browser GPS coordinates with OS/Web permission prompts
 /// and reverse-geocodes them into a human-readable city/region label.
 class LocationService {
   LocationService({
     this.customFetcher,
     this.customPositionStream,
+    this.customPlaceSearcher,
+    this.customReverseGeocoder,
     http.Client? httpClient,
   }) : _httpClient = httpClient ?? http.Client();
 
@@ -71,6 +86,13 @@ class LocationService {
 
   /// Test hook replacing the device position stream.
   final Stream<LivePosition> Function()? customPositionStream;
+
+  /// Test hook replacing forward geocoding search.
+  final Future<List<PlaceSuggestion>> Function(String query)?
+      customPlaceSearcher;
+
+  /// Test hook replacing reverse geocoding.
+  final Future<String> Function(double lat, double lng)? customReverseGeocoder;
   final http.Client _httpClient;
 
   Future<bool> hasGrantedPermission() async {
@@ -208,6 +230,9 @@ class LocationService {
   }
 
   Future<String> reverseGeocode(double lat, double lng) async {
+    if (customReverseGeocoder != null) {
+      return customReverseGeocoder!(lat, lng);
+    }
     final mapboxToken = EnvConfig.mapboxAccessToken.trim();
     if (mapboxToken.isNotEmpty) {
       try {
@@ -260,5 +285,75 @@ class LocationService {
     } catch (_) {}
 
     return '${lat.toStringAsFixed(3)}°, ${lng.toStringAsFixed(3)}°';
+  }
+
+  /// Searches for starting places by name via Mapbox Geocoding or Nominatim.
+  Future<List<PlaceSuggestion>> searchPlaces(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+    if (customPlaceSearcher != null) {
+      return customPlaceSearcher!(trimmed);
+    }
+    final encoded = Uri.encodeQueryComponent(trimmed);
+    final mapboxToken = EnvConfig.mapboxAccessToken.trim();
+    if (mapboxToken.isNotEmpty) {
+      try {
+        final uri = Uri.parse(
+          'https://api.mapbox.com/geocoding/v5/mapbox.places/$encoded.json'
+          '?types=place,locality,neighborhood,poi,address&limit=5&access_token=$mapboxToken',
+        );
+        final res =
+            await _httpClient.get(uri).timeout(const Duration(seconds: 6));
+        if (res.statusCode == 200) {
+          final decoded = jsonDecode(res.body);
+          if (decoded is Map<String, dynamic>) {
+            final features = decoded['features'] as List<dynamic>? ?? const [];
+            final results = <PlaceSuggestion>[];
+            for (final raw in features) {
+              if (raw is! Map) continue;
+              final center = raw['center'] as List<dynamic>?;
+              final label = (raw['place_name'] ?? raw['text'] ?? '').toString().trim();
+              if (center != null && center.length >= 2 && label.isNotEmpty) {
+                final lng = (center[0] as num?)?.toDouble();
+                final lat = (center[1] as num?)?.toDouble();
+                if (lat != null && lng != null) {
+                  results.add(PlaceSuggestion(label: label, lat: lat, lng: lng));
+                }
+              }
+            }
+            if (results.isNotEmpty) return results;
+          }
+        }
+      } catch (_) {}
+    }
+
+    try {
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/search'
+        '?format=jsonv2&q=$encoded&limit=5',
+      );
+      final res =
+          await _httpClient.get(uri).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is List) {
+          final results = <PlaceSuggestion>[];
+          for (final raw in decoded) {
+            if (raw is! Map) continue;
+            final label = (raw['display_name'] ?? '').toString().trim();
+            final lat = double.tryParse((raw['lat'] ?? '').toString());
+            final lng = double.tryParse((raw['lon'] ?? '').toString());
+            if (lat != null && lng != null && label.isNotEmpty) {
+              // Trim long Nominatim tails to the first 3 comma segments for readability.
+              final shortLabel = label.split(',').take(3).map((s) => s.trim()).join(', ');
+              results.add(PlaceSuggestion(label: shortLabel, lat: lat, lng: lng));
+            }
+          }
+          return results;
+        }
+      }
+    } catch (_) {}
+
+    return const [];
   }
 }
