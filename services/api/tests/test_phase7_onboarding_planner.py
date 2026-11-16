@@ -155,3 +155,42 @@ def test_onboarding_prompt_version_and_rules_applied_to_guest_chat(
         )
     )
     assert "state_updates immediately" in built[0]["content"]
+
+
+def test_show_places_broad_browse_does_not_filter_to_origin_city_and_parser_handles_wrapped_json(
+    client, monkeypatch
+) -> None:
+    configure_ai(monkeypatch)
+    samal = create_destination(
+        client,
+        name="Samal Coral Beach",
+        district="Davao del Norte",
+        location="Samal Island",
+        category="beach",
+        lat=7.087,
+        lng=125.667,
+    )
+    # Simulates a fallback model wrapping JSON in prose and omitting state_updates.
+    wrapped_reply = (
+        'Here you go:\n'
+        '{"chat_response": "Try Samal Coral Beach across the gulf!", '
+        '"intent": "show_places", '
+        '"place_query": {"categories": ["beach"], "limit": 5}, '
+        '"suggested_replies": ["How do I take the ferry?"]}'
+    )
+    client.app.dependency_overrides[get_groq_client] = lambda: FakeGroqClient([wrapped_reply])
+
+    resp = client.post(
+        "/api/v1/ai/chat/guest",
+        json={
+            "message": "Show me nice beaches",
+            "is_onboarding": True,
+            "use_rag": False,
+            "planning_state": {"origin": {"label": "Davao City", "lat": 7.0731, "lng": 125.6128}},
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "Samal Coral Beach" in body["chat_response"]
+    recs = body["planning"]["recommendations"]
+    assert [item["destination_id"] for item in recs] == [samal["destination_id"]]

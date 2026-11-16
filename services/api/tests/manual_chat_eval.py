@@ -20,6 +20,7 @@ Optional: LAKBAY_EVAL_LIMIT=10 to run only the first N cases.
 import json
 import os
 import re
+import time
 from pathlib import Path
 
 import pytest
@@ -40,6 +41,8 @@ CASES = json.loads(
     (Path(__file__).parent / "fixtures" / "chat_eval_davao.json").read_text(encoding="utf-8")
 )["cases"]
 LIMIT = int(os.environ.get("LAKBAY_EVAL_LIMIT", "0") or 0)
+OFFSET = int(os.environ.get("LAKBAY_EVAL_OFFSET", "0") or 0)
+CONTAINS_FILTER = (os.environ.get("LAKBAY_EVAL_FILTER", "") or "").strip().lower()
 CANNED_OPENERS = ("great question", "certainly!", "as an ai", "i'd be happy to")
 DAY_BY_DAY = re.compile(r"\bday\s*1\s*[:\-–]", re.IGNORECASE)
 
@@ -71,6 +74,9 @@ def test_chat_eval_davao(client, monkeypatch):
     settings = get_settings()
     if not settings.groq_api_key and not settings.fallback_llm_api_key:
         pytest.skip("No GROQ_API_KEY or FALLBACK_LLM_API_KEY in the local .env")
+    monkeypatch.setenv("GROQ_USER_REQUESTS_PER_MINUTE", "120")
+    monkeypatch.setenv("GROQ_USER_REQUESTS_PER_DAY", "1000")
+    get_settings.cache_clear()
     monkeypatch.setattr(ai_router_module, "get_osrm_client", lambda: CandidateOSRM())
 
     admin = client.post("/api/v1/auth/register/admin", json={
@@ -89,12 +95,23 @@ def test_chat_eval_davao(client, monkeypatch):
         create_destination(client, headers=admin_auth, **place)
     traveler = user_headers(client)
 
-    cases = CASES[:LIMIT] if LIMIT else CASES
+    cases = CASES
+    if CONTAINS_FILTER:
+        cases = [c for c in cases if CONTAINS_FILTER in c["id"].lower()]
+    if OFFSET:
+        cases = cases[OFFSET:]
+    if LIMIT:
+        cases = cases[:LIMIT]
     totals = {"valid": 0, "intent": 0, "content": 0, "interest": 0, "style": 0}
-    for case in cases:
+    cards_shown = 0
+    delay_sec = float(os.environ.get("LAKBAY_EVAL_DELAY", "0") or 0)
+    for idx, case in enumerate(cases):
+        if idx > 0 and delay_sec > 0:
+            time.sleep(delay_sec)
         response = client.post("/api/v1/ai/chat", headers=traveler, json={
             "message": case["message"],
             "use_rag": True,
+            "is_onboarding": bool(case.get("is_onboarding", False)),
             "input_revision": 1,
             "planning_state": {
                 "origin": {"label": "Davao City"},
@@ -107,6 +124,9 @@ def test_chat_eval_davao(client, monkeypatch):
             print(f"\n[{case['id']}] HTTP {response.status_code}: {response.text[:160]}")
             continue
         body = response.json()
+        planning = body.get("planning") or {}
+        if planning.get("recommendations"):
+            cards_shown += 1
         checks = score_reply(case, body)
         for key, passed in checks.items():
             totals[key] += passed
@@ -119,6 +139,7 @@ def test_chat_eval_davao(client, monkeypatch):
     count = len(cases)
     overall = sum(totals.values()) / (len(totals) * count) * 100 if count else 0
     print("\n=== Lakbay chat eval ===")
+    print(f"  cards    {cards_shown}/{count}")
     for key, value in totals.items():
         print(f"  {key:8s} {value}/{count}")
     print(f"  overall  {overall:.0f}%")

@@ -1267,14 +1267,22 @@ async def _build_planning_chat_result(
                     break
 
         if target_province is None and outside_province is None:
-            if origin_coord is not None:
-                target_province = province_for_destination(
-                    origin_coord.lat,
-                    origin_coord.lng,
-                    district=origin_coord.label,
+            wants_nearby_origin = bool(
+                re.search(
+                    r"\b(near\s+me|nearby|around\s+here|here|closest|in\s+my\s+city|in\s+town)\b",
+                    data.message,
+                    flags=re.IGNORECASE,
                 )
-            elif next_state.origin is not None and next_state.origin.label:
-                target_province = canonical_province_name(next_state.origin.label)
+            )
+            if wants_nearby_origin:
+                if origin_coord is not None:
+                    target_province = province_for_destination(
+                        origin_coord.lat,
+                        origin_coord.lng,
+                        district=origin_coord.label,
+                    )
+                elif next_state.origin is not None and next_state.origin.label:
+                    target_province = canonical_province_name(next_state.origin.label)
 
         if outside_province is not None:
             nearby = nearest_provinces(
@@ -1467,6 +1475,17 @@ def _strip_json_fence(content: str) -> str:
     value = content.strip()
     if value.startswith("```") and value.endswith("```"):
         value = value.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    elif "```" in value:
+        fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", value, flags=re.DOTALL)
+        if fenced:
+            return fenced.group(1).strip()
+    if not value.startswith("{") and "{" in value and "}" in value:
+        start = value.find("{")
+        end = value.rfind("}")
+        if end > start:
+            candidate = value[start : end + 1].strip()
+            if '"chat_response"' in candidate:
+                return candidate
     return value
 
 
@@ -1484,11 +1503,13 @@ def _parse_planning_chat_output(
         raw = json.loads(cleaned)
     except (TypeError, ValueError):
         return None, []
-    required = {"chat_response", "state_updates"}
-    optional = {"intent", "suggested_replies", "place_query"}
+    required = {"chat_response"}
+    optional = {"state_updates", "intent", "suggested_replies", "place_query"}
     if not isinstance(raw, dict) or not required <= set(raw) <= required | optional:
         return None, []
-    updates = raw["state_updates"]
+    updates = raw.get("state_updates", {})
+    if updates is None:
+        updates = {}
     if not isinstance(updates, dict):
         return None, []
     allowed_fields = set(AIPlanningStateUpdates.model_fields)
