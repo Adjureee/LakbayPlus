@@ -78,8 +78,6 @@ class EnvConfig {
   static String get cloudinaryCloudName => _defineCloudName.isNotEmpty
       ? _defineCloudName
       : get('CLOUDINARY_CLOUD_NAME');
-  static String get cloudinaryApiKey => get('CLOUDINARY_API_KEY');
-  static String get cloudinaryApiSecret => get('CLOUDINARY_API_SECRET');
   static String get cloudinaryUploadPreset => get('CLOUDINARY_UPLOAD_PRESET');
 
   // Optional OpenWeather & Lakbay+ Backend API
@@ -93,8 +91,8 @@ class EnvConfig {
   static bool get hasLakbayApi => lakbayApiBaseUrl.trim().isNotEmpty;
   static bool get hasGoogleOAuth => googleOAuthClientId.trim().isNotEmpty;
 
-  static bool get hasCloudinaryConfig =>
-      cloudinaryCloudName.trim().isNotEmpty &&
-      (cloudinaryUploadPreset.trim().isNotEmpty ||
-          cloudinaryApiKey.trim().isNotEmpty);
+  /// The cloud name is public and only builds delivery URLs. Uploads go
+  /// through the Lakbay API, which holds the Cloudinary key and secret; they
+  /// must never be bundled into the app's `.env` asset.
+  static bool get hasCloudinaryConfig => cloudinaryCloudName.trim().isNotEmpty;
 }
