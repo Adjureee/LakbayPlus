@@ -41,16 +41,26 @@ async def run(apply: bool) -> None:
             old = (float(row["old_lat"]), float(row["old_lng"]))
             new = (float(row["new_lat"]), float(row["new_lng"]))
             current = (destination.lat, destination.lng)
-            if haversine_meters(*current, *new) <= SAME_PIN_METERS:
-                print(f"  done {label} already at the corrected pin")
+            arrival = (_optional(row["arrival_lat"]), _optional(row["arrival_lng"]))
+            has_arrival = arrival[0] is not None and arrival[1] is not None
+            arrival_done = not has_arrival or (
+                destination.route_ready
+                and destination.arrival_lat is not None
+                and haversine_meters(
+                    destination.arrival_lat, destination.arrival_lng, *arrival,
+                ) <= SAME_PIN_METERS
+            )
+            at_new_pin = haversine_meters(*current, *new) <= SAME_PIN_METERS
+            if at_new_pin and arrival_done:
+                print(f"  done {label} already corrected")
                 continue
-            if haversine_meters(*current, *old) > SAME_PIN_METERS:
+            if not at_new_pin and haversine_meters(*current, *old) > SAME_PIN_METERS:
                 print(f"  skip {label} pin changed since review: {current}")
                 continue
             moved = haversine_meters(*old, *new)
-            values: dict = {"lat": new[0], "lng": new[1]}
-            arrival = (_optional(row["arrival_lat"]), _optional(row["arrival_lng"]))
-            if arrival[0] is not None and arrival[1] is not None:
+            # Same old/new pin: only the arrival point changes.
+            values: dict = {} if at_new_pin else {"lat": new[0], "lng": new[1]}
+            if has_arrival:
                 values.update(
                     arrival_lat=arrival[0],
                     arrival_lng=arrival[1],
@@ -67,7 +77,8 @@ async def run(apply: bool) -> None:
                     arrival_verified_at=None, route_ready=False,
                 )
             extra = " + arrival point" if "arrival_lat" in values and values["arrival_lat"] else ""
-            print(f"  move {label} {moved / 1000:5.2f} km -> {new}{extra}")
+            action = f"move {moved / 1000:5.2f} km -> {new}" if values.get("lat") else "pin kept"
+            print(f"  set  {label} {action}{extra}")
             if apply:
                 await repo.update(destination, values)
         if apply:

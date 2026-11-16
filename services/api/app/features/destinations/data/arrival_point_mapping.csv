@@ -2,7 +2,7 @@ destination_id,dataset_row,destination_name,dataset_name,review_note,dataset_poi
 1,31,People's Park,Davao People's Park,Same park; dataset point is the Palma Gil St gate.,use
 2,1,Philippine Eagle Center,Philippine Eagle Center,Same center; dataset keeps route_ready=False (biosecurity/relocation).,use
 3,2,Eden Nature Park,Eden Nature Park and Resort,Same resort; dataset gate is approximate.,reject
-5,5,Mount Apo Trail Area,Mount Apo via Kapatagan Trail,DB is a generic trail area; dataset is the Kapatagan trailhead.,use
+5,5,Mount Apo Trail Area,Mount Apo via Kapatagan Trail,DB is a generic trail area; dataset is the Kapatagan trailhead.,reject
 6,22,Dahican Beach,Dahican Beach,Same beach; pins 3.7 km apart.,use
 8,18,Tagbibinta Falls,Tagbibinta Falls,Same falls; pins 3.2 km apart although parking is ~250 m from the falls.,reject
 9,17,Mainit Hot Springs,Mainit Sulfuric Hot Springs,Same springs (Nabunturan); pins 4.4 km apart.,reject

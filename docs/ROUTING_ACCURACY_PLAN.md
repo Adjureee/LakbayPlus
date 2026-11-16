@@ -179,8 +179,8 @@ New: `services/api/scripts/import_arrival_points.py` +
   OSM reception area as route-ready arrival), Dahican Beach (dataset gate
   then passed → route-ready), Tagbibinta Falls, Mainit Hot Springs, Little
   Boracay, Tudaya Falls, Aliwagwag Falls. Seed file and `places.csv` updated.
-  Still open: Mount Apo Trail Area — summit pin is correct; whether routes
-  should end at the Kapatagan registration centre is a permit/policy call.
+  Mount Apo Trail Area: summit pin kept; routes end at the OSM "Trekkers'
+  Information Center" in Kapatagan (route-ready, applied 2026-11-16).
 - **Phase 4 done.** Route requests time out after 30 s with one retry; the map
   notice shows the API's reason (`routeNotice`); live tracking follows the
   solid road part even when a dashed last stretch exists.
