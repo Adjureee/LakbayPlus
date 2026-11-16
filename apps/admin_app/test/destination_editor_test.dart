@@ -274,6 +274,126 @@ void main() {
     expect(find.text('Saved destination'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'saving a sourced route endpoint sends it with a confirmation time',
+    (tester) async {
+      final requests = <http.Request>[];
+      final api = _api((request) async {
+        requests.add(request);
+        return http.Response(jsonEncode(_destination), 200);
+      });
+      addTearDown(api.close);
+      await _pumpEditor(tester, api);
+      await _enter(tester, 'Endpoint latitude', '7.0304604');
+      await _enter(tester, 'Endpoint longitude', '125.3979848');
+      await _enter(
+        tester,
+        'Source link',
+        'https://www.openstreetmap.org/node/538858577',
+      );
+      expect(find.textContaining('from the pin'), findsOneWidget);
+      await _tapVisible(
+        tester,
+        find.widgetWithText(SwitchListTile, 'Route-ready'),
+      );
+      await _tapVisible(
+        tester,
+        find.widgetWithText(FilledButton, 'Save destination'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(requests, hasLength(1));
+      final body = jsonDecode(requests.single.body) as Map<String, dynamic>;
+      expect(body['arrival_lat'], 7.0304604);
+      expect(body['arrival_lng'], 125.3979848);
+      expect(
+        body['arrival_source_url'],
+        'https://www.openstreetmap.org/node/538858577',
+      );
+      expect(body['route_ready'], isTrue);
+      expect(
+        DateTime.tryParse(body['arrival_verified_at'] as String),
+        isNotNull,
+      );
+      expect(body.containsKey('name'), isFalse);
+    },
+  );
+
+  testWidgets('route-ready without a source link is blocked', (tester) async {
+    var requests = 0;
+    final api = _api((request) async {
+      requests++;
+      return http.Response(jsonEncode(_destination), 200);
+    });
+    addTearDown(api.close);
+    await _pumpEditor(tester, api);
+    await _enter(tester, 'Endpoint latitude', '7.03');
+    await _enter(tester, 'Endpoint longitude', '125.39');
+    await _tapVisible(
+      tester,
+      find.widgetWithText(SwitchListTile, 'Route-ready'),
+    );
+    await _tapVisible(
+      tester,
+      find.widgetWithText(FilledButton, 'Save destination'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(requests, 0);
+    expect(find.text('Route-ready needs a source link.'), findsOneWidget);
+  });
+
+  testWidgets('clearing an existing endpoint removes it and route-ready', (
+    tester,
+  ) async {
+    final requests = <http.Request>[];
+    final api = _api((request) async {
+      requests.add(request);
+      return http.Response(jsonEncode(_destination), 200);
+    });
+    addTearDown(api.close);
+    await _pumpEditor(
+      tester,
+      api,
+      destination: {
+        ..._destination,
+        'arrival_lat': 7.0,
+        'arrival_lng': 125.43,
+        'arrival_source_url': 'https://example.org/gate',
+        'arrival_verified_at': '2026-11-16T00:10:20Z',
+        'route_ready': true,
+      },
+    );
+    expect(find.textContaining('Last confirmed'), findsOneWidget);
+    await _tapVisible(
+      tester,
+      find.widgetWithText(TextButton, 'Clear endpoint'),
+    );
+    await _tapVisible(
+      tester,
+      find.widgetWithText(FilledButton, 'Save destination'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(jsonDecode(requests.single.body), {
+      'arrival_lat': null,
+      'arrival_lng': null,
+      'arrival_source_url': null,
+      'arrival_verified_at': null,
+      'route_ready': false,
+    });
+  });
+
+  testWidgets('endpoint far from the pin shows a warning', (tester) async {
+    final api = _api((request) async => http.Response('{}', 200));
+    addTearDown(api.close);
+    await _pumpEditor(tester, api);
+    await _enter(tester, 'Endpoint latitude', '7.10');
+    await _enter(tester, 'Endpoint longitude', '125.43');
+    await tester.pump();
+    expect(find.textContaining('clear it if the pin moved'), findsOneWidget);
+  });
 }
 
 ApiService _api(Future<http.Response> Function(http.Request) handler) =>

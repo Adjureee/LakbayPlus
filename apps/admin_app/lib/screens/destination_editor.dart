@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/admin_map_pin_picker.dart';
@@ -36,6 +38,7 @@ class _DestinationEditorState extends State<DestinationEditor> {
   final _form = GlobalKey<FormState>();
   final _controllers = <String, TextEditingController>{};
   final _suitability = <String, bool>{};
+  bool _routeReady = false;
   late Map<String, dynamic> _initial;
   bool _dirty = false;
   bool _saving = false;
@@ -69,17 +72,29 @@ class _DestinationEditorState extends State<DestinationEditor> {
     'image_url',
   ];
 
+  /// Where road routes end (gate, parking, trailhead). Sent separately from
+  /// [_textKeys] because the API validates them together.
+  static const _arrivalKeys = [
+    'arrival_lat',
+    'arrival_lng',
+    'arrival_source_url',
+  ];
+
+  /// Farther than this, the endpoint probably belongs to an old pin.
+  static const _arrivalWarnMeters = 2000.0;
+
   @override
   void initState() {
     super.initState();
     final record = widget.destination ?? <String, dynamic>{};
-    for (final key in _textKeys) {
+    for (final key in [..._textKeys, ..._arrivalKeys]) {
       final value = record[key]?.toString() ?? '';
       _controllers[key] = TextEditingController(text: value);
     }
     for (final key in destinationSuitability.keys) {
       _suitability[key] = record[key] == true;
     }
+    _routeReady = record['route_ready'] == true;
     _initial = _snapshot();
     for (final controller in _controllers.values) {
       controller.addListener(_changed);
@@ -101,6 +116,7 @@ class _DestinationEditorState extends State<DestinationEditor> {
     for (final entry in _controllers.entries)
       entry.key: entry.value.text.trim(),
     ..._suitability,
+    'route_ready': _routeReady,
   };
 
   void _changed() {
@@ -123,6 +139,73 @@ class _DestinationEditorState extends State<DestinationEditor> {
     if (picked == null || !mounted) return;
     _controllers['lat']!.text = picked.latitude.toStringAsFixed(6);
     _controllers['lng']!.text = picked.longitude.toStringAsFixed(6);
+  }
+
+  Future<void> _pickArrivalOnMap() async {
+    double? read(String key) => double.tryParse(_controllers[key]!.text.trim());
+    final picked = await showAdminMapPinPickerDialog(
+      context,
+      initialLat: read('arrival_lat') ?? read('lat'),
+      initialLng: read('arrival_lng') ?? read('lng'),
+    );
+    if (picked == null || !mounted) return;
+    _controllers['arrival_lat']!.text = picked.latitude.toStringAsFixed(6);
+    _controllers['arrival_lng']!.text = picked.longitude.toStringAsFixed(6);
+  }
+
+  void _clearArrival() {
+    for (final key in _arrivalKeys) {
+      _controllers[key]!.clear();
+    }
+    setState(() => _routeReady = false);
+    _changed();
+  }
+
+  /// Route-endpoint fields for the request body, or empty when unchanged.
+  Map<String, dynamic> _arrivalPayload(Map<String, dynamic> current) {
+    final changed = [
+      ..._arrivalKeys,
+      'route_ready',
+    ].any((key) => current[key] != _initial[key]);
+    if (widget.destination != null && !changed) return const {};
+    final lat = double.tryParse(_controllers['arrival_lat']!.text.trim());
+    final lng = double.tryParse(_controllers['arrival_lng']!.text.trim());
+    final source = _controllers['arrival_source_url']!.text.trim();
+    if (lat == null || lng == null) {
+      if (widget.destination == null) return const {};
+      return {
+        'arrival_lat': null,
+        'arrival_lng': null,
+        'arrival_source_url': null,
+        'arrival_verified_at': null,
+        'route_ready': false,
+      };
+    }
+    return {
+      'arrival_lat': lat,
+      'arrival_lng': lng,
+      'arrival_source_url': source.isEmpty ? null : source,
+      // Saving a sourced endpoint is the admin's confirmation of it.
+      'arrival_verified_at': source.isEmpty
+          ? null
+          : DateTime.now().toUtc().toIso8601String(),
+      'route_ready': _routeReady,
+    };
+  }
+
+  /// Meters between the destination pin and the route endpoint, if both set.
+  double? _arrivalGapMeters() {
+    double? read(String key) => double.tryParse(_controllers[key]!.text.trim());
+    final lat = read('lat'), lng = read('lng');
+    final aLat = read('arrival_lat'), aLng = read('arrival_lng');
+    if (lat == null || lng == null || aLat == null || aLng == null) return null;
+    double rad(double degrees) => degrees * math.pi / 180;
+    final h =
+        math.pow(math.sin(rad(aLat - lat) / 2), 2) +
+        math.cos(rad(lat)) *
+            math.cos(rad(aLat)) *
+            math.pow(math.sin(rad(aLng - lng) / 2), 2);
+    return 2 * 6371000 * math.asin(math.sqrt(h));
   }
 
   Future<void> _cancel() async {
@@ -160,6 +243,7 @@ class _DestinationEditorState extends State<DestinationEditor> {
         payload[entry.key] = entry.value;
       }
     }
+    payload.addAll(_arrivalPayload(current));
     try {
       final saved = widget.destination == null
           ? await widget.api.createDestination(payload)
@@ -289,9 +373,13 @@ class _DestinationEditorState extends State<DestinationEditor> {
                             Align(
                               alignment: Alignment.centerLeft,
                               child: OutlinedButton.icon(
-                                onPressed: _saving ? null : _pickCoordinatesOnMap,
+                                onPressed: _saving
+                                    ? null
+                                    : _pickCoordinatesOnMap,
                                 icon: const Icon(Icons.pin_drop_outlined),
-                                label: const Text('Pick pin on Davao Region map'),
+                                label: const Text(
+                                  'Pick pin on Davao Region map',
+                                ),
                               ),
                             ),
                             _pair(
@@ -319,6 +407,12 @@ class _DestinationEditorState extends State<DestinationEditor> {
                             _field('travel_notes', 'Travel notes', lines: 3),
                             _field('what_to_bring', 'What to bring', lines: 3),
                           ],
+                        ),
+                        _section(
+                          'Route endpoint',
+                          'Where road routes end: the public gate, parking area, trailhead or '
+                              'registration point. Leave blank to route to the pin itself.',
+                          _arrivalFields(),
                         ),
                         _section(
                           'Activities & traveler suitability',
@@ -490,6 +584,138 @@ class _DestinationEditorState extends State<DestinationEditor> {
         ),
       ),
     );
+  }
+
+  List<Widget> _arrivalFields() {
+    final verifiedAt = DateTime.tryParse(
+      widget.destination?['arrival_verified_at']?.toString() ?? '',
+    );
+    final confirmed = verifiedAt == null
+        ? ''
+        : 'Last confirmed ${verifiedAt.toLocal().toString().substring(0, 16)}. ';
+    return [
+      _pair(
+        _field(
+          'arrival_lat',
+          'Endpoint latitude',
+          numeric: true,
+          validator: (value) => _arrivalCoordinate(value, -90, 90, 'latitude'),
+        ),
+        _field(
+          'arrival_lng',
+          'Endpoint longitude',
+          numeric: true,
+          validator: (value) =>
+              _arrivalCoordinate(value, -180, 180, 'longitude'),
+        ),
+      ),
+      Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        children: [
+          OutlinedButton.icon(
+            onPressed: _saving ? null : _pickArrivalOnMap,
+            icon: const Icon(Icons.local_parking_outlined),
+            label: const Text('Pick endpoint on map'),
+          ),
+          TextButton.icon(
+            onPressed: _saving ? null : _clearArrival,
+            icon: const Icon(Icons.backspace_outlined),
+            label: const Text('Clear endpoint'),
+          ),
+        ],
+      ),
+      ListenableBuilder(
+        listenable: Listenable.merge([
+          for (final key in ['lat', 'lng', 'arrival_lat', 'arrival_lng'])
+            _controllers[key]!,
+        ]),
+        builder: (context, _) {
+          final gap = _arrivalGapMeters();
+          if (gap == null) return const SizedBox.shrink();
+          final far = gap > _arrivalWarnMeters;
+          final distance = gap >= 1000
+              ? '${(gap / 1000).toStringAsFixed(1)} km'
+              : '${gap.round()} m';
+          final scheme = Theme.of(context).colorScheme;
+          return Row(
+            children: [
+              Icon(
+                far ? Icons.warning_amber_rounded : Icons.straighten,
+                size: 18,
+                color: far ? scheme.error : scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  far
+                      ? 'Endpoint is $distance from the pin. Check it still belongs '
+                            'to this place, or clear it if the pin moved.'
+                      : 'Endpoint is $distance from the pin.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: far ? scheme.error : null,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+      _field(
+        'arrival_source_url',
+        'Source link',
+        maxLength: 2048,
+        validator: _sourceUrl,
+        helper:
+            "Where this point comes from, such as an OpenStreetMap node or the operator's directions page.",
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Route-ready'),
+        subtitle: Text(
+          'Routes end at this endpoint instead of the pin. Needs coordinates '
+          'and a source link. ${confirmed}Saving confirms it again.',
+        ),
+        value: _routeReady,
+        onChanged: (value) {
+          setState(() => _routeReady = value);
+          _changed();
+          _form.currentState?.validate();
+        },
+      ),
+    ];
+  }
+
+  String? _arrivalCoordinate(
+    String? value,
+    double minimum,
+    double maximum,
+    String label,
+  ) {
+    final text = value?.trim() ?? '';
+    final otherKey = label == 'latitude' ? 'arrival_lng' : 'arrival_lat';
+    final otherEmpty = _controllers[otherKey]!.text.trim().isEmpty;
+    if (text.isEmpty) {
+      if (!otherEmpty) return 'Enter both endpoint coordinates, or neither.';
+      if (_routeReady) return 'Route-ready needs an endpoint.';
+      return null;
+    }
+    return _coordinate(text, minimum, maximum, label);
+  }
+
+  String? _sourceUrl(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) {
+      return _routeReady ? 'Route-ready needs a source link.' : null;
+    }
+    final uri = Uri.tryParse(text);
+    if (uri == null ||
+        !uri.hasAuthority ||
+        uri.host.isEmpty ||
+        !['http', 'https'].contains(uri.scheme)) {
+      return 'Enter a complete http:// or https:// link.';
+    }
+    return null;
   }
 
   Widget _section(String title, String description, List<Widget> children) =>
