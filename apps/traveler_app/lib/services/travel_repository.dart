@@ -11,6 +11,7 @@ import 'lakbay_ai_service.dart';
 import 'mapbox_service.dart';
 import 'lakbay_api_catalog_service.dart';
 import 'location_service.dart';
+import 'notification_routing.dart';
 import 'push_notification_service.dart';
 import 'route_optimizer.dart';
 
@@ -1289,6 +1290,9 @@ class TravelRepository extends ChangeNotifier {
     }
   }
 
+  /// Set when the traveler taps a push; cleared once the screen has handled it.
+  final ValueNotifier<PushOpenRequest?> pushOpenRequest = ValueNotifier(null);
+
   Future<void> _syncPushNotifications() async {
     if (!isSignedIn || !apiCatalog.isConfigured) return;
     pushService.listen(
@@ -1304,10 +1308,12 @@ class TravelRepository extends ChangeNotifier {
       onForegroundMessage: (_) {
         if (isSignedIn) refreshNotifications();
       },
-      // Tapping a push opens the app on Trips, where invitations and the
-      // notification bell are, and refreshes them.
-      onOpenedMessage: (_) {
+      // Tapping a push opens what it was about (the trip, its tasks or money
+      // sheet, or the invitation). The shell reads this and navigates.
+      onOpenedMessage: (data) {
         setActiveNavIndex(0);
+        final request = PushOpenRequest.fromPushData(data);
+        if (request != null) pushOpenRequest.value = request;
         if (isSignedIn) refreshNotifications();
       },
     );
