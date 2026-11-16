@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../core/image_urls.dart';
 import '../services/api_service.dart';
 import '../widgets/admin_widgets.dart';
 import '../widgets/destination_photo_upload.dart';
@@ -37,7 +39,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
     super.initState();
     _selected = widget.initialDestination;
     _needsReload = _selected != null;
-    _future = _selected == null ? _api.getDestinations() : Future.value([]);
+    _future = _selected == null ? _fetch() : Future.value([]);
   }
 
   @override
@@ -49,14 +51,56 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
     super.dispose();
   }
 
+  /// The last loaded list, so one saved record can be swapped in without
+  /// refetching everything and rebuilding the map.
+  List<dynamic>? _loaded;
+
+  Future<List<dynamic>> _fetch() async {
+    final rows = await _api.getDestinations();
+    _loaded = rows;
+    return rows;
+  }
+
+  /// Puts [saved] into the loaded list in place (or appends a new one) and
+  /// shows it without a loading state. Returns false when nothing is loaded
+  /// yet, so the caller should reload instead.
+  bool _mergeSaved(Map<String, dynamic> saved) {
+    final loaded = _loaded;
+    if (loaded == null) return false;
+    final id = saved['destination_id']?.toString();
+    var found = false;
+    final merged = <dynamic>[
+      for (final row in loaded)
+        if (row is Map && row['destination_id']?.toString() == id)
+          () {
+            found = true;
+            return saved;
+          }()
+        else
+          row,
+      if (!found) saved,
+    ];
+    _loaded = merged;
+    // A SynchronousFuture completes at once: no spinner, the map stays up.
+    _future = SynchronousFuture<List<dynamic>>(merged);
+    return true;
+  }
+
+  /// After an edit on the map: swap the record in, or reload if we cannot.
+  void _applySaved(Map<String, dynamic> saved) {
+    setState(() {
+      if (!_mergeSaved(saved)) _future = _fetch();
+    });
+  }
+
   void _refresh() => setState(() {
-    _future = _api.getDestinations();
+    _future = _fetch();
   });
 
   void _showList() => setState(() {
     _selected = null;
     if (_needsReload) {
-      _future = _api.getDestinations();
+      _future = _fetch();
       _needsReload = false;
     }
   });
@@ -72,7 +116,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
       _selected = record;
       _editing = false;
       _creating = false;
-      _needsReload = true;
+      _needsReload = !_mergeSaved(record);
     });
     ScaffoldMessenger.of(
       context,
@@ -324,7 +368,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                             ),
                           ),
                         );
-                        _refresh();
+                        _applySaved(saved);
                       },
                       onCandidateQueued: (saved) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -344,7 +388,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                       },
                       onPhotoReplaced: (saved) {
                         _mapSelectedId = saved['destination_id']?.toString();
-                        _refresh();
+                        _applySaved(saved);
                       },
                       onRouteAdjusted: (saved) {
                         _mapSelectedId = saved['destination_id']?.toString();
@@ -355,7 +399,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                             ),
                           ),
                         );
-                        _refresh();
+                        _applySaved(saved);
                       },
                     )
                   else
@@ -549,7 +593,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                 destination: record,
                 onUploaded: (saved) => setState(() {
                   _selected = saved;
-                  _needsReload = true;
+                  _needsReload = !_mergeSaved(saved);
                 }),
               ),
             ),
@@ -561,7 +605,11 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  record['image_url'].toString(),
+                  cloudinarySized(
+                    record['image_url'].toString(),
+                    width: 800,
+                    height: 200,
+                  ),
                   height: 200,
                   width: double.infinity,
                   fit: BoxFit.cover,
@@ -718,7 +766,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
       if (!mounted) return;
       setState(() {
         _selected = null;
-        _future = _api.getDestinations();
+        _future = _fetch();
       });
       ScaffoldMessenger.of(
         context,

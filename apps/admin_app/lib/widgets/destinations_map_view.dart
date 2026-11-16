@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../core/davao_region_boundaries.dart';
+import '../core/image_urls.dart';
 import '../core/map_tiles.dart';
 import '../core/polyline5.dart';
 import '../services/api_service.dart';
@@ -693,7 +694,8 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Image.network(
-                imageUrl,
+                // Panel-sized rendition, not the multi-megabyte original.
+                cloudinarySized(imageUrl, width: 360, height: 150),
                 height: 150,
                 width: double.infinity,
                 fit: BoxFit.cover,
@@ -1059,8 +1061,11 @@ class _PhotoPin extends StatelessWidget {
           child: imageUrl == null
               ? placeholder
               : Image.network(
-                  imageUrl!,
+                  // A pin is at most 52 px: load a pin-sized rendition.
+                  cloudinarySized(imageUrl!, width: 56, height: 56),
                   fit: BoxFit.cover,
+                  // Non-Cloudinary images are at least decoded small.
+                  cacheWidth: 112,
                   errorBuilder: (_, _, _) => placeholder,
                 ),
         ),
