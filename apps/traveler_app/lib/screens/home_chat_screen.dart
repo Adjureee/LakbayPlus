@@ -413,51 +413,17 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 12),
-          // Personalized Headline with Coral Highlight Pill
+          // One calm headline; the composer below is the main thing on screen.
           Text(
-            'Hi $firstName,\nwhere do you want to',
+            '${firstName.trim().isEmpty ? 'Hi there' : 'Hi ${firstName.trim()}'},\nwhere to next?',
             style: const TextStyle(
               fontFamily: 'FigGrotesk',
-              fontSize: 30,
+              fontSize: 28,
               fontWeight: FontWeight.w800,
               color: Colors.white,
               height: 1.15,
-              letterSpacing: -0.6,
+              letterSpacing: -0.5,
             ),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: LakbayColors.primary,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Text(
-                  'wake up',
-                  style: TextStyle(
-                    fontFamily: 'FigGrotesk',
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    height: 1.1,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'next?',
-                style: TextStyle(
-                  fontFamily: 'FigGrotesk',
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  height: 1.15,
-                ),
-              ),
-            ],
           ),
           const SizedBox(height: 18),
 
@@ -498,37 +464,71 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Material(
-                      color: LakbayColors.canvasBg,
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        tooltip: 'New chat',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: widget.repo.startNewChat,
-                        icon: const Icon(
-                          Icons.add_rounded,
-                          color: LakbayColors.tealDeep,
-                        ),
+                    PopupMenuButton<String>(
+                      key: const ValueKey('composer-plus-menu'),
+                      tooltip: 'More options',
+                      icon: const Icon(
+                        Icons.add_rounded,
+                        color: LakbayColors.tealDeep,
                       ),
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'new_chat':
+                            widget.repo.startNewChat();
+                          case 'budget':
+                            widget.repo.setStrictBudgetFilter(
+                              !widget.repo.strictBudgetFilter,
+                            );
+                          case 'origin':
+                            showOriginPickerSheet(context, widget.repo);
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'new_chat',
+                          child: Text('New chat'),
+                        ),
+                        CheckedPopupMenuItem(
+                          value: 'budget',
+                          checked: widget.repo.strictBudgetFilter,
+                          child: const Text('Within budget'),
+                        ),
+                        const PopupMenuItem(
+                          value: 'origin',
+                          child: Text('Set starting place'),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: FilterChip(
+                    // A filter that is on stays visible; one that is off does not
+                    // take up room.
+                    if (widget.repo.strictBudgetFilter)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: InputChip(
+                          key: const ValueKey('budget-chip'),
                           visualDensity: VisualDensity.compact,
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,
                           label: const Text(
                             'Within budget',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: 12),
                           ),
-                          selected: widget.repo.strictBudgetFilter,
-                          onSelected: (val) =>
-                              widget.repo.setStrictBudgetFilter(val),
+                          onDeleted: () =>
+                              widget.repo.setStrictBudgetFilter(false),
                         ),
+                      ),
+                    const Spacer(),
+                    IconButton(
+                      key: const ValueKey('composer-mic'),
+                      tooltip: _isListeningVoice ? 'Listening…' : 'Speak',
+                      onPressed: () => _startVoice(context),
+                      icon: Icon(
+                        _isListeningVoice
+                            ? Icons.graphic_eq_rounded
+                            : Icons.mic_none_rounded,
+                        color: _isListeningVoice
+                            ? LakbayColors.primary
+                            : LakbayColors.tealDeep,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -613,72 +613,28 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
             ),
           ],
 
-          const SizedBox(height: 36),
-
-          // Central Glowing Voice Mic Button ("Tap and tell Lakbay+")
-          Center(
-            child: Column(
-              children: [
-                GestureDetector(
-                  onTap: () async {
-                    if (_isListeningVoice) return;
-                    if (_voiceInput.isSupported) {
-                      setState(() => _isListeningVoice = true);
-                      final transcript = await _voiceInput.listenOnce();
-                      if (!mounted) return;
-                      setState(() => _isListeningVoice = false);
-                      if (transcript != null && transcript.isNotEmpty) {
-                        _inputController.text = transcript;
-                        _handleSend(transcript);
-                        return;
-                      }
-                    }
-                    if (!context.mounted) return;
-                    _showVoicePromptFallbackSheet(context);
-                  },
-                  child: Container(
-                    width: 78,
-                    height: 78,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LakbayColors.brandGradient,
-                      boxShadow: [
-                        BoxShadow(
-                          color: (_isListeningVoice
-                                  ? LakbayColors.tealAccent
-                                  : LakbayColors.primary)
-                              .withValues(alpha: _isListeningVoice ? 0.72 : 0.45),
-                          blurRadius: _isListeningVoice ? 32 : 24,
-                          spreadRadius: _isListeningVoice ? 8 : 4,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      _isListeningVoice
-                          ? Icons.graphic_eq_rounded
-                          : Icons.mic_none_rounded,
-                      color: Colors.white,
-                      size: 34,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  _isListeningVoice
-                      ? 'Listening… speak your Davao trip'
-                      : 'Tap and tell Lakbay+',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
+  }
+
+  /// Speaks a request: listens once, sends what was heard, or falls back to a
+  /// typed prompt when the phone cannot listen.
+  Future<void> _startVoice(BuildContext context) async {
+    if (_isListeningVoice) return;
+    if (_voiceInput.isSupported) {
+      setState(() => _isListeningVoice = true);
+      final transcript = await _voiceInput.listenOnce();
+      if (!mounted) return;
+      setState(() => _isListeningVoice = false);
+      if (transcript != null && transcript.isNotEmpty) {
+        _inputController.text = transcript;
+        _handleSend(transcript);
+        return;
+      }
+    }
+    if (!context.mounted) return;
+    _showVoicePromptFallbackSheet(context);
   }
 
   Widget _buildActiveChatThread(
