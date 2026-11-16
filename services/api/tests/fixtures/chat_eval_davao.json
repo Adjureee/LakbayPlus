@@ -1,51 +1,980 @@
 {
   "about": "Davao Region chat evaluation. Each case is scored by tests/manual_chat_eval.py: valid planning JSON, expected intent, any_of keywords present (case-insensitive), none_of absent, length, and no canned openers. Keywords are deliberately loose; read the printed replies for tone.",
   "cases": [
-    {"id": "samal-car", "message": "How do I get to Samal with my car?", "intent": ["logistics"], "any_of": ["barge", "roro", "ferry", "sasa", "pier", "wharf"], "none_of": ["drive across", "bridge is open"]},
-    {"id": "samal-commute", "message": "Commute lang ko pa-Samal, unsaon man?", "intent": ["logistics", "question"], "any_of": ["boat", "ferry", "barge", "pier", "wharf", "sakay"]},
-    {"id": "talikud", "message": "Is Talikud worth it for snorkeling?", "intent": ["question", "brainstorm"], "any_of": ["talikud", "snorkel", "reef", "coral", "boat"]},
-    {"id": "mati-cheap", "message": "Cheap 2-day Mati trip for 4 people", "intent": ["plan_trip", "brainstorm"], "any_of": ["dahican", "mati", "pujada"], "none_of": ["day 1:", "day 2:"]},
-    {"id": "rainy-city", "message": "It's raining, what can we do in Davao City today?", "intent": ["question", "brainstorm"], "any_of": ["museum", "indoor", "mall", "museo", "cafe", "food"]},
-    {"id": "eagle", "message": "When is the best time to visit the Philippine Eagle Center?", "intent": ["question"], "any_of": ["morning", "eagle"]},
-    {"id": "apo-beginner", "message": "Can a beginner climb Mt. Apo?", "intent": ["question"], "any_of": ["guide", "permit", "trail", "fitness", "days", "kapatagan", "sta. cruz"]},
-    {"id": "apo-pack", "message": "What should I bring for a Mt. Apo hike?", "intent": ["question", "logistics"], "any_of": ["jacket", "water", "rain", "layer", "headlamp", "food"]},
-    {"id": "family-kids", "message": "Family with two kids aged 5 and 8, where should we go this weekend?", "intent": ["brainstorm", "plan_trip"], "any_of": ["eden", "park", "kid", "family", "crocodile", "beach"]},
-    {"id": "couple", "message": "Romantic spot for an anniversary near Davao City", "intent": ["brainstorm", "question"], "any_of": ["sunset", "view", "jack", "eden", "samal", "dinner", "resort"]},
-    {"id": "aliwagwag", "message": "How far is Aliwagwag Falls from Davao City?", "intent": ["logistics", "question"], "any_of": ["hour", "km", "cateel", "davao oriental"]},
-    {"id": "budget-3d", "message": "3 days in Davao for 8000 pesos, possible?", "intent": ["plan_trip", "question"], "any_of": ["8,000", "8000", "budget", "₱", "php"]},
-    {"id": "durian", "message": "Where can I try durian?", "intent": ["question"], "any_of": ["durian", "magsaysay", "market", "roxas"]},
-    {"id": "food-trip", "message": "Food trip ideas in Davao City", "intent": ["brainstorm", "question"], "any_of": ["roxas", "night market", "durian", "kinilaw", "tuna", "food"]},
-    {"id": "dahican-surf", "message": "Can I learn surfing in Dahican?", "intent": ["question"], "any_of": ["surf", "lesson", "dahican", "board", "season", "waves"]},
-    {"id": "hamiguitan", "message": "Tell me about Mt. Hamiguitan", "intent": ["question"], "any_of": ["unesco", "hamiguitan", "bonsai", "sanctuary", "davao oriental"]},
-    {"id": "kopiat", "message": "How do I get to Kopiat Island?", "intent": ["logistics"], "any_of": ["boat", "mabini", "davao de oro", "pier", "not sure", "check"]},
-    {"id": "balut", "message": "Can I visit Balut Island?", "intent": ["question", "logistics"], "any_of": ["boat", "davao occidental", "sarangani", "balut", "far"]},
-    {"id": "outside-region", "message": "Plan a Siargao trip for me", "intent": ["plan_trip", "brainstorm", "question"], "any_of": ["davao", "region", "instead", "outside"], "none_of": ["day 1:"]},
-    {"id": "lake-sebu", "message": "Is Lake Sebu in your list?", "intent": ["question"], "any_of": ["outside", "davao region", "not in", "south cotabato", "instead"]},
-    {"id": "thanks", "message": "Salamat kaayo!", "intent": ["smalltalk"], "any_of": ["walay", "welcome", "salamat", "anytime", "enjoy"], "max_words": 60},
-    {"id": "hello", "message": "Hi!", "intent": ["smalltalk", "brainstorm"], "any_of": ["davao", "trip", "help", "maayong", "hello", "hi"], "max_words": 80},
-    {"id": "tagalog", "message": "Saan maganda mag-beach malapit sa Davao City?", "intent": ["brainstorm", "question"], "any_of": ["samal", "beach", "dagat", "isla", "talikud"]},
-    {"id": "solo-female", "message": "Is Davao safe for a solo female traveler?", "intent": ["question"], "any_of": ["safe", "tip", "night", "taxi", "grab"]},
-    {"id": "airport-downtown", "message": "Airport to downtown, how much is a taxi?", "intent": ["logistics"], "any_of": ["taxi", "meter", "minutes", "₱", "php", "grab"]},
-    {"id": "eden-kids", "message": "Is Eden Nature Park good for kids?", "intent": ["question"], "any_of": ["eden", "kid", "zipline", "garden", "family", "yes"]},
-    {"id": "change-days", "message": "Make my trip 4 days instead", "intent": ["modify_trip", "plan_trip"], "any_of": ["4", "four", "day"]},
-    {"id": "add-stop", "message": "Add a waterfall to my plan", "intent": ["modify_trip", "plan_trip", "brainstorm"], "any_of": ["falls", "waterfall"]},
-    {"id": "weather-dec", "message": "Is December a good month for Davao beaches?", "intent": ["question"], "any_of": ["december", "rain", "weather", "dry", "typhoon"]},
-    {"id": "pwd", "message": "Wheelchair-friendly places in Davao City?", "intent": ["question", "brainstorm"], "any_of": ["wheelchair", "accessible", "ramp", "park", "museum", "mall"]},
-    {"id": "nightlife", "message": "Where's a chill spot at night with live music?", "intent": ["brainstorm", "question"], "any_of": ["music", "bar", "night", "roxas", "lanang"]},
-    {"id": "island-hop", "message": "Island hopping in Samal, what can we see?", "intent": ["brainstorm", "question"], "any_of": ["vanishing", "island", "snorkel", "boat", "hagimit", "bat"]},
-    {"id": "monfort", "message": "What's special about the Monfort bat cave?", "intent": ["question"], "any_of": ["bat", "fruit bat", "monfort", "samal"]},
-    {"id": "malagos", "message": "Malagos chocolate, worth a visit?", "intent": ["question"], "any_of": ["chocolate", "malagos", "cacao", "tour"]},
-    {"id": "two-cities", "message": "Davao City and Tagum in one day, too much?", "intent": ["question", "plan_trip"], "any_of": ["tagum", "hour", "drive", "doable", "tight"]},
-    {"id": "no-car", "message": "No car, how do we get around Davao Oriental?", "intent": ["logistics"], "any_of": ["bus", "van", "terminal", "ecoland", "habal", "tricycle"]},
-    {"id": "barge-fare", "message": "How much is the barge fare to Samal for a car?", "intent": ["logistics", "question"], "any_of": ["not sure", "check", "verify", "fare", "₱", "operator"], "none_of": ["exactly"]},
-    {"id": "best-sunset", "message": "Best sunset view in the region?", "intent": ["question", "brainstorm"], "any_of": ["sunset", "view", "west", "jack", "samal", "beach"]},
-    {"id": "packing-beach", "message": "Packing list for a Samal overnight", "intent": ["question", "logistics"], "any_of": ["sunscreen", "swim", "towel", "cash", "water"]},
-    {"id": "itinerary-request", "message": "Generate an itinerary for 3 days: Samal and Davao City, 2 adults, 15k budget", "intent": ["plan_trip"], "any_of": ["samal", "generate", "itinerary", "plan"], "none_of": ["day 1:", "8:00 am"]},
-    {"id": "show-destinations", "message": "Show me destinations in the Davao Region", "intent": ["show_places"], "any_of": ["davao", "samal", "mati", "destination", "place"]},
-    {"id": "show-mountains-de-oro", "message": "Show me mountains in Davao de Oro", "intent": ["show_places"], "any_of": ["davao de oro", "mountain", "maragusan", "nearest", "province"]},
-    {"id": "show-beaches-oriental", "message": "Show me beaches in Davao Oriental", "intent": ["show_places"], "any_of": ["davao oriental", "dahican", "mati", "beach"]},
-    {"id": "show-waterfalls-near-me", "message": "Show me waterfalls near me", "intent": ["show_places"], "any_of": ["waterfall", "falls", "davao"]},
-    {"id": "show-islands-del-norte", "message": "Show me island spots in Davao del Norte", "intent": ["show_places"], "any_of": ["samal", "talikud", "island", "davao del norte"]},
-    {"id": "show-food-davao-city", "message": "Show me food spots in Davao City", "intent": ["show_places"], "any_of": ["davao city", "roxas", "food", "market", "durian"]}
+    {
+      "id": "samal-car",
+      "message": "How do I get to Samal with my car?",
+      "intent": [
+        "logistics"
+      ],
+      "any_of": [
+        "barge",
+        "roro",
+        "ferry",
+        "sasa",
+        "pier",
+        "wharf"
+      ],
+      "none_of": [
+        "drive across",
+        "bridge is open"
+      ]
+    },
+    {
+      "id": "samal-commute",
+      "message": "Commute lang ko pa-Samal, unsaon man?",
+      "intent": [
+        "logistics",
+        "question"
+      ],
+      "any_of": [
+        "boat",
+        "ferry",
+        "barge",
+        "pier",
+        "wharf",
+        "sakay"
+      ]
+    },
+    {
+      "id": "talikud",
+      "message": "Is Talikud worth it for snorkeling?",
+      "intent": [
+        "question",
+        "brainstorm"
+      ],
+      "any_of": [
+        "talikud",
+        "snorkel",
+        "reef",
+        "coral",
+        "boat"
+      ]
+    },
+    {
+      "id": "mati-cheap",
+      "message": "Cheap 2-day Mati trip for 4 people",
+      "intent": [
+        "plan_trip",
+        "brainstorm"
+      ],
+      "any_of": [
+        "dahican",
+        "mati",
+        "pujada"
+      ],
+      "none_of": [
+        "day 1:",
+        "day 2:"
+      ]
+    },
+    {
+      "id": "rainy-city",
+      "message": "It's raining, what can we do in Davao City today?",
+      "intent": [
+        "question",
+        "brainstorm"
+      ],
+      "any_of": [
+        "museum",
+        "indoor",
+        "mall",
+        "museo",
+        "cafe",
+        "food"
+      ]
+    },
+    {
+      "id": "eagle",
+      "message": "When is the best time to visit the Philippine Eagle Center?",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "morning",
+        "eagle"
+      ]
+    },
+    {
+      "id": "apo-beginner",
+      "message": "Can a beginner climb Mt. Apo?",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "guide",
+        "permit",
+        "trail",
+        "fitness",
+        "days",
+        "kapatagan",
+        "sta. cruz"
+      ]
+    },
+    {
+      "id": "apo-pack",
+      "message": "What should I bring for a Mt. Apo hike?",
+      "intent": [
+        "question",
+        "logistics"
+      ],
+      "any_of": [
+        "jacket",
+        "water",
+        "rain",
+        "layer",
+        "headlamp",
+        "food"
+      ]
+    },
+    {
+      "id": "family-kids",
+      "message": "Family with two kids aged 5 and 8, where should we go this weekend?",
+      "intent": [
+        "brainstorm",
+        "plan_trip"
+      ],
+      "any_of": [
+        "eden",
+        "park",
+        "kid",
+        "family",
+        "crocodile",
+        "beach"
+      ]
+    },
+    {
+      "id": "couple",
+      "message": "Romantic spot for an anniversary near Davao City",
+      "intent": [
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "sunset",
+        "view",
+        "jack",
+        "eden",
+        "samal",
+        "dinner",
+        "resort"
+      ]
+    },
+    {
+      "id": "aliwagwag",
+      "message": "How far is Aliwagwag Falls from Davao City?",
+      "intent": [
+        "logistics",
+        "question"
+      ],
+      "any_of": [
+        "hour",
+        "km",
+        "cateel",
+        "davao oriental"
+      ]
+    },
+    {
+      "id": "budget-3d",
+      "message": "3 days in Davao for 8000 pesos, possible?",
+      "intent": [
+        "plan_trip",
+        "question"
+      ],
+      "any_of": [
+        "8,000",
+        "8000",
+        "budget",
+        "₱",
+        "php"
+      ]
+    },
+    {
+      "id": "durian",
+      "message": "Where can I try durian?",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "durian",
+        "magsaysay",
+        "market",
+        "roxas"
+      ]
+    },
+    {
+      "id": "food-trip",
+      "message": "Food trip ideas in Davao City",
+      "intent": [
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "roxas",
+        "night market",
+        "durian",
+        "kinilaw",
+        "tuna",
+        "food"
+      ]
+    },
+    {
+      "id": "dahican-surf",
+      "message": "Can I learn surfing in Dahican?",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "surf",
+        "lesson",
+        "dahican",
+        "board",
+        "season",
+        "waves"
+      ]
+    },
+    {
+      "id": "hamiguitan",
+      "message": "Tell me about Mt. Hamiguitan",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "unesco",
+        "hamiguitan",
+        "bonsai",
+        "sanctuary",
+        "davao oriental"
+      ]
+    },
+    {
+      "id": "kopiat",
+      "message": "How do I get to Kopiat Island?",
+      "intent": [
+        "logistics"
+      ],
+      "any_of": [
+        "boat",
+        "mabini",
+        "davao de oro",
+        "pier",
+        "not sure",
+        "check"
+      ]
+    },
+    {
+      "id": "balut",
+      "message": "Can I visit Balut Island?",
+      "intent": [
+        "question",
+        "logistics"
+      ],
+      "any_of": [
+        "boat",
+        "davao occidental",
+        "sarangani",
+        "balut",
+        "far"
+      ]
+    },
+    {
+      "id": "outside-region",
+      "message": "Plan a Siargao trip for me",
+      "intent": [
+        "plan_trip",
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "davao",
+        "region",
+        "instead",
+        "outside"
+      ],
+      "none_of": [
+        "day 1:"
+      ]
+    },
+    {
+      "id": "lake-sebu",
+      "message": "Is Lake Sebu in your list?",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "outside",
+        "davao region",
+        "not in",
+        "south cotabato",
+        "instead"
+      ]
+    },
+    {
+      "id": "thanks",
+      "message": "Salamat kaayo!",
+      "intent": [
+        "smalltalk"
+      ],
+      "any_of": [
+        "walay",
+        "welcome",
+        "salamat",
+        "anytime",
+        "enjoy"
+      ],
+      "max_words": 60
+    },
+    {
+      "id": "hello",
+      "message": "Hi!",
+      "intent": [
+        "smalltalk",
+        "brainstorm"
+      ],
+      "any_of": [
+        "davao",
+        "trip",
+        "help",
+        "maayong",
+        "hello",
+        "hi"
+      ],
+      "max_words": 80
+    },
+    {
+      "id": "tagalog",
+      "message": "Saan maganda mag-beach malapit sa Davao City?",
+      "intent": [
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "samal",
+        "beach",
+        "dagat",
+        "isla",
+        "talikud"
+      ]
+    },
+    {
+      "id": "solo-female",
+      "message": "Is Davao safe for a solo female traveler?",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "safe",
+        "tip",
+        "night",
+        "taxi",
+        "grab"
+      ]
+    },
+    {
+      "id": "airport-downtown",
+      "message": "Airport to downtown, how much is a taxi?",
+      "intent": [
+        "logistics"
+      ],
+      "any_of": [
+        "taxi",
+        "meter",
+        "minutes",
+        "₱",
+        "php",
+        "grab"
+      ]
+    },
+    {
+      "id": "eden-kids",
+      "message": "Is Eden Nature Park good for kids?",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "eden",
+        "kid",
+        "zipline",
+        "garden",
+        "family",
+        "yes"
+      ]
+    },
+    {
+      "id": "change-days",
+      "message": "Make my trip 4 days instead",
+      "intent": [
+        "modify_trip",
+        "plan_trip"
+      ],
+      "any_of": [
+        "4",
+        "four",
+        "day"
+      ]
+    },
+    {
+      "id": "add-stop",
+      "message": "Add a waterfall to my plan",
+      "intent": [
+        "modify_trip",
+        "plan_trip",
+        "brainstorm"
+      ],
+      "any_of": [
+        "falls",
+        "waterfall"
+      ]
+    },
+    {
+      "id": "weather-dec",
+      "message": "Is December a good month for Davao beaches?",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "december",
+        "rain",
+        "weather",
+        "dry",
+        "typhoon"
+      ]
+    },
+    {
+      "id": "pwd",
+      "message": "Wheelchair-friendly places in Davao City?",
+      "intent": [
+        "question",
+        "brainstorm"
+      ],
+      "any_of": [
+        "wheelchair",
+        "accessible",
+        "ramp",
+        "park",
+        "museum",
+        "mall"
+      ]
+    },
+    {
+      "id": "nightlife",
+      "message": "Where's a chill spot at night with live music?",
+      "intent": [
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "music",
+        "bar",
+        "night",
+        "roxas",
+        "lanang"
+      ]
+    },
+    {
+      "id": "island-hop",
+      "message": "Island hopping in Samal, what can we see?",
+      "intent": [
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "vanishing",
+        "island",
+        "snorkel",
+        "boat",
+        "hagimit",
+        "bat"
+      ]
+    },
+    {
+      "id": "monfort",
+      "message": "What's special about the Monfort bat cave?",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "bat",
+        "fruit bat",
+        "monfort",
+        "samal"
+      ]
+    },
+    {
+      "id": "malagos",
+      "message": "Malagos chocolate, worth a visit?",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "chocolate",
+        "malagos",
+        "cacao",
+        "tour"
+      ]
+    },
+    {
+      "id": "two-cities",
+      "message": "Davao City and Tagum in one day, too much?",
+      "intent": [
+        "question",
+        "plan_trip"
+      ],
+      "any_of": [
+        "tagum",
+        "hour",
+        "drive",
+        "doable",
+        "tight"
+      ]
+    },
+    {
+      "id": "no-car",
+      "message": "No car, how do we get around Davao Oriental?",
+      "intent": [
+        "logistics"
+      ],
+      "any_of": [
+        "bus",
+        "van",
+        "terminal",
+        "ecoland",
+        "habal",
+        "tricycle"
+      ]
+    },
+    {
+      "id": "barge-fare",
+      "message": "How much is the barge fare to Samal for a car?",
+      "intent": [
+        "logistics",
+        "question"
+      ],
+      "any_of": [
+        "not sure",
+        "check",
+        "verify",
+        "fare",
+        "₱",
+        "operator"
+      ],
+      "none_of": [
+        "exactly"
+      ]
+    },
+    {
+      "id": "best-sunset",
+      "message": "Best sunset view in the region?",
+      "intent": [
+        "question",
+        "brainstorm"
+      ],
+      "any_of": [
+        "sunset",
+        "view",
+        "west",
+        "jack",
+        "samal",
+        "beach"
+      ]
+    },
+    {
+      "id": "packing-beach",
+      "message": "Packing list for a Samal overnight",
+      "intent": [
+        "question",
+        "logistics"
+      ],
+      "any_of": [
+        "sunscreen",
+        "swim",
+        "towel",
+        "cash",
+        "water"
+      ]
+    },
+    {
+      "id": "itinerary-request",
+      "message": "Generate an itinerary for 3 days: Samal and Davao City, 2 adults, 15k budget",
+      "intent": [
+        "plan_trip"
+      ],
+      "any_of": [
+        "samal",
+        "generate",
+        "itinerary",
+        "plan"
+      ],
+      "none_of": [
+        "day 1:",
+        "8:00 am"
+      ]
+    },
+    {
+      "id": "show-destinations",
+      "message": "Show me destinations in the Davao Region",
+      "intent": [
+        "show_places"
+      ],
+      "any_of": [
+        "davao",
+        "samal",
+        "mati",
+        "destination",
+        "place"
+      ]
+    },
+    {
+      "id": "show-mountains-de-oro",
+      "message": "Show me mountains in Davao de Oro",
+      "intent": [
+        "show_places"
+      ],
+      "any_of": [
+        "davao de oro",
+        "mountain",
+        "maragusan",
+        "nearest",
+        "province"
+      ]
+    },
+    {
+      "id": "show-beaches-oriental",
+      "message": "Show me beaches in Davao Oriental",
+      "intent": [
+        "show_places"
+      ],
+      "any_of": [
+        "davao oriental",
+        "dahican",
+        "mati",
+        "beach"
+      ]
+    },
+    {
+      "id": "show-waterfalls-near-me",
+      "message": "Show me waterfalls near me",
+      "intent": [
+        "show_places"
+      ],
+      "any_of": [
+        "waterfall",
+        "falls",
+        "davao"
+      ]
+    },
+    {
+      "id": "show-islands-del-norte",
+      "message": "Show me island spots in Davao del Norte",
+      "intent": [
+        "show_places"
+      ],
+      "any_of": [
+        "samal",
+        "talikud",
+        "island",
+        "davao del norte"
+      ]
+    },
+    {
+      "id": "show-food-davao-city",
+      "message": "Show me food spots in Davao City",
+      "intent": [
+        "show_places"
+      ],
+      "any_of": [
+        "davao city",
+        "roxas",
+        "food",
+        "market",
+        "durian"
+      ]
+    },
+    {
+      "id": "nature-waterfalls-hikes",
+      "message": "I want waterfalls and hikes",
+      "intent": [
+        "show_places",
+        "brainstorm",
+        "plan_trip"
+      ],
+      "any_of": [
+        "waterfall",
+        "falls",
+        "hike",
+        "trail",
+        "nature"
+      ],
+      "expect_interest": "nature_attractions"
+    },
+    {
+      "id": "nature-quiet-kids",
+      "message": "Somewhere quiet in nature with kids",
+      "intent": [
+        "show_places",
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "quiet",
+        "nature",
+        "kid",
+        "family",
+        "easy",
+        "park",
+        "falls"
+      ],
+      "none_of": [
+        "challenging climb"
+      ]
+    },
+    {
+      "id": "nature-no-boats",
+      "message": "Nature spots but no boats please",
+      "intent": [
+        "show_places",
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "road",
+        "drive",
+        "land",
+        "mountain",
+        "falls",
+        "park",
+        "nature"
+      ],
+      "none_of": [
+        "take a boat",
+        "island hopping"
+      ]
+    },
+    {
+      "id": "mountains-digos",
+      "message": "Mountains near Digos",
+      "intent": [
+        "show_places",
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "digos",
+        "apo",
+        "sta. cruz",
+        "davao del sur",
+        "mountain",
+        "kapatagan"
+      ]
+    },
+    {
+      "id": "stage-collect-ask-one",
+      "message": "I want to plan a trip",
+      "intent": [
+        "plan_trip",
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "?"
+      ],
+      "max_words": 90,
+      "planning_state": {
+        "interests": [],
+        "destination_ids": []
+      },
+      "max_questions": 1
+    },
+    {
+      "id": "stage-ask-activity",
+      "message": "Nature, please",
+      "intent": [
+        "show_places",
+        "brainstorm",
+        "plan_trip",
+        "question"
+      ],
+      "any_of": [
+        "easy",
+        "moderate",
+        "challenging",
+        "active",
+        "hike",
+        "trek",
+        "nature"
+      ],
+      "planning_state": {
+        "interests": [
+          "nature_attractions"
+        ],
+        "traveler_count": 2,
+        "day_count": 2,
+        "total_budget": "6000.00"
+      }
+    },
+    {
+      "id": "stage-picking",
+      "message": "I picked a few, what now?",
+      "intent": [
+        "plan_trip",
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "add more",
+        "plan",
+        "itinerary",
+        "trip",
+        "picked"
+      ],
+      "none_of": [
+        "day 1:",
+        "8:00 am"
+      ],
+      "planning_state": {
+        "interests": [
+          "nature_attractions"
+        ],
+        "traveler_count": 2,
+        "day_count": 2,
+        "total_budget": "6000.00",
+        "destination_ids": []
+      }
+    },
+    {
+      "id": "no-repeat-known",
+      "message": "We are 3 people, 2 days, 9000 pesos",
+      "intent": [
+        "plan_trip",
+        "brainstorm",
+        "question",
+        "show_places"
+      ],
+      "any_of": [
+        "samal",
+        "davao",
+        "nature",
+        "beach",
+        "trip",
+        "budget",
+        "9,000",
+        "9000"
+      ],
+      "none_of": [
+        "how many people",
+        "how many days"
+      ],
+      "planning_state": {
+        "interests": [
+          "beaches"
+        ],
+        "destination_ids": []
+      }
+    },
+    {
+      "id": "bisaya-nature",
+      "message": "Gusto nako ug lugar nga hilom ug nindot tan-awon",
+      "intent": [
+        "show_places",
+        "brainstorm",
+        "question"
+      ],
+      "any_of": [
+        "falls",
+        "park",
+        "bukid",
+        "nature",
+        "hilom",
+        "quiet",
+        "view",
+        "eden",
+        "mountain"
+      ]
+    },
+    {
+      "id": "compare-two",
+      "message": "Which is better for a family, Eden Nature Park or Philippine Eagle Center?",
+      "intent": [
+        "question",
+        "brainstorm"
+      ],
+      "any_of": [
+        "eden",
+        "eagle"
+      ],
+      "max_words": 200
+    },
+    {
+      "id": "refine-cheaper",
+      "message": "Can you make it cheaper?",
+      "intent": [
+        "modify_trip",
+        "question",
+        "brainstorm"
+      ],
+      "any_of": [
+        "budget",
+        "cheaper",
+        "cost",
+        "save",
+        "public",
+        "fare",
+        "free"
+      ]
+    },
+    {
+      "id": "missing-fact",
+      "message": "What time does the Samal ferry leave tomorrow?",
+      "intent": [
+        "logistics",
+        "question"
+      ],
+      "any_of": [
+        "check",
+        "verify",
+        "operator",
+        "not sure",
+        "schedule",
+        "varies"
+      ],
+      "none_of": [
+        "leaves at exactly"
+      ]
+    },
+    {
+      "id": "hike-difficulty-unknown",
+      "message": "How hard is the trail to Tudaya Falls?",
+      "intent": [
+        "question"
+      ],
+      "any_of": [
+        "tudaya",
+        "trail",
+        "falls",
+        "not sure",
+        "check",
+        "easy",
+        "moderate",
+        "hike"
+      ]
+    },
+    {
+      "id": "out-of-region-nature",
+      "message": "Best waterfalls in Bohol?",
+      "intent": [
+        "question",
+        "brainstorm",
+        "show_places"
+      ],
+      "any_of": [
+        "davao",
+        "region",
+        "outside",
+        "instead"
+      ],
+      "none_of": [
+        "chocolate hills are"
+      ]
+    }
   ]
 }

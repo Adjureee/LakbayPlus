@@ -1,4 +1,4 @@
-"""Opt-in live evaluation of Lakbay AI chat quality on 40 Davao questions.
+"""Opt-in live evaluation of Lakbay AI chat quality on Davao questions.
 
 Runs every case in tests/fixtures/chat_eval_davao.json through the real
 /api/v1/ai/chat planning path (RAG over a seeded test catalog, the model in your
@@ -7,6 +7,7 @@ local .env) and scores each reply on simple, explainable checks:
 - valid:   the model returned usable planning JSON (not "invalid_output")
 - intent:  the model's intent is one of the expected ones
 - content: at least one expected keyword appears; no forbidden phrase appears
+- interest: when the case names one, the model recorded that preference key
 - style:   within the word limit, no canned opener, no day-by-day schedule
 
 It prints each reply and a summary score. Run it before and after a prompt
@@ -53,7 +54,14 @@ def score_reply(case: dict, body: dict) -> dict[str, bool]:
         "intent": planning.get("intent") in case.get("intent", []),
         "content": any(k.casefold() in text for k in case.get("any_of", []))
         and not any(k.casefold() in text for k in case.get("none_of", [])),
+        "interest": (
+            case["expect_interest"] in [
+                i.casefold() for i in (planning.get("state_updates") or {}).get("interests", [])
+            ]
+            if "expect_interest" in case else True
+        ),
         "style": words <= case.get("max_words", 220)
+        and reply.count("?") <= case.get("max_questions", 3)
         and not text.lstrip().startswith(CANNED_OPENERS)
         and not DAY_BY_DAY.search(reply),
     }
@@ -82,7 +90,7 @@ def test_chat_eval_davao(client, monkeypatch):
     traveler = user_headers(client)
 
     cases = CASES[:LIMIT] if LIMIT else CASES
-    totals = {"valid": 0, "intent": 0, "content": 0, "style": 0}
+    totals = {"valid": 0, "intent": 0, "content": 0, "interest": 0, "style": 0}
     for case in cases:
         response = client.post("/api/v1/ai/chat", headers=traveler, json={
             "message": case["message"],
@@ -92,6 +100,7 @@ def test_chat_eval_davao(client, monkeypatch):
                 "origin": {"label": "Davao City"},
                 "destination_ids": [],
                 "interests": [],
+                **case.get("planning_state", {}),
             },
         })
         if response.status_code != 200:
@@ -108,7 +117,7 @@ def test_chat_eval_davao(client, monkeypatch):
         print(f"  A: {reply[:400].encode('ascii', 'replace').decode()}")
 
     count = len(cases)
-    overall = sum(totals.values()) / (4 * count) * 100 if count else 0
+    overall = sum(totals.values()) / (len(totals) * count) * 100 if count else 0
     print("\n=== Lakbay chat eval ===")
     for key, value in totals.items():
         print(f"  {key:8s} {value}/{count}")
