@@ -1176,17 +1176,34 @@ class TravelRepository extends ChangeNotifier {
     _applyAuthSession(session);
   }
 
-  Future<void> signInWithGoogleBackend() async {
+  /// Signs in with Google. When there is no Lakbay account for that Google
+  /// email, this throws [GoogleAccountNotRegistered] (carrying the Google
+  /// token) so the screen can ask; call again with `existingIdToken` and
+  /// `confirmNewAccount: true` to create it.
+  Future<void> signInWithGoogleBackend({
+    String? existingIdToken,
+    bool confirmNewAccount = false,
+  }) async {
     if (!apiCatalog.isConfigured) {
       throw const LakbayApiException(
         'Connect LAKBAY_API_BASE_URL in .env to authenticate with Google against your Lakbay+ account.',
       );
     }
-    final idToken = await googleAuthService.requestGoogleIdToken();
+    final idToken =
+        existingIdToken ?? await googleAuthService.requestGoogleIdToken();
     if (idToken == null || idToken.isEmpty) {
       throw const LakbayApiException('Google sign-in did not return a token.');
     }
-    final session = await apiCatalog.googleLogin(idToken: idToken);
+    final LakbayAuthSession session;
+    try {
+      session = await apiCatalog.googleLogin(
+        idToken: idToken,
+        confirmNewAccount: confirmNewAccount,
+      );
+    } on GoogleAccountNotRegistered catch (e) {
+      e.idToken = idToken;
+      rethrow;
+    }
     _applyAuthSession(session);
     await syncTripsFromBackend();
   }
@@ -1398,7 +1415,7 @@ class TravelRepository extends ChangeNotifier {
           title: base.title,
           destination: row['description']?.toString() ?? base.destination,
           daysCount: parsedDays.isNotEmpty ? parsedDays.length : base.daysCount,
-          adults: (row['traveler_count'] as num?)?.toInt() ?? 2,
+          adults: (row['traveler_count'] as num?)?.toInt(),
           centerLat: base.centerLat,
           centerLng: base.centerLng,
           heroAsset: base.heroAsset,
@@ -1500,7 +1517,7 @@ class TravelRepository extends ChangeNotifier {
         state: {
           'destination_ids': destIds.take(10).toList(),
           'day_count': trip.daysCount.clamp(1, 30),
-          'traveler_count': (trip.adults + trip.children).clamp(1, 100),
+          'traveler_count': (trip.travelerCount ?? 1).clamp(1, 100),
           if (trip.backendBudgetPhp != null && trip.backendBudgetPhp! > 0)
             'total_budget': trip.backendBudgetPhp!.toStringAsFixed(2),
           if (market.hotels.isNotEmpty &&
@@ -2487,7 +2504,7 @@ class TravelRepository extends ChangeNotifier {
               _authSession!.accessToken,
               title: trip.title,
               description: trip.destination,
-              travelerCount: trip.adults + trip.children,
+              travelerCount: trip.travelerCount ?? 1,
               totalBudgetPhp: trip.backendBudgetPhp ?? totalPhp,
               estimatedTotalCostPhp: totalPhp,
               destinationIds: trip.effectiveBackendDestinationIds,
@@ -2520,7 +2537,7 @@ class TravelRepository extends ChangeNotifier {
         _authSession!.accessToken,
         updated.backendTripId!,
         title: updated.title,
-        travelerCount: updated.adults + updated.children,
+        travelerCount: updated.travelerCount ?? 1,
         totalBudgetPhp:
             updated.backendBudgetPhp ?? (updated.totalEstimatedCostUsd * phpRate),
         estimatedTotalCostPhp:
@@ -2594,7 +2611,7 @@ class TravelRepository extends ChangeNotifier {
       plan: localPlan,
       placeById: extracted.byInputId,
       daysCount: targetDays,
-      travelers: (trip.adults + trip.children).clamp(1, 30),
+      travelers: trip.travelerCount?.clamp(1, 30),
       existingTrip: trip,
     );
 
@@ -2650,7 +2667,7 @@ class TravelRepository extends ChangeNotifier {
         totalBudgetPhp:
             trip.backendBudgetPhp ??
             (trip.totalEstimatedCostUsd * phpRate).clamp(1500, 500000),
-        travelerCount: (trip.adults + trip.children).clamp(1, 100),
+        travelerCount: (trip.travelerCount ?? 1).clamp(1, 100),
         dayCount: trip.daysCount.clamp(1, 30),
         destinationIds: destIds,
         specialRequirements: instruction,
@@ -2696,7 +2713,7 @@ class TravelRepository extends ChangeNotifier {
   Future<ItineraryTrip> buildMultiStopExploreTrip({
     int? daysCount,
     double? budgetPhp,
-    int travelers = 2,
+    int? travelers,
     TripPace? pace,
     String? startMode,
     GeoPoint? hotelOrigin,
@@ -2833,7 +2850,7 @@ class TravelRepository extends ChangeNotifier {
     required RoutePlanResult plan,
     required Map<String, ExploreTrip> placeById,
     required int daysCount,
-    required int travelers,
+    required int? travelers,
     double? budgetPhp,
     String? lockedFirstDestinationId,
     ItineraryTrip? existingTrip,
@@ -2992,7 +3009,6 @@ class TravelRepository extends ChangeNotifier {
         .map((s) => s.apiDestinationId)
         .whereType<int>()
         .toList();
-    final avgBudgetPhp = budgetPhp ?? (daysCount * 3800.0 * travelers);
     final shortNames = orderedPlaces
         .map((s) => s.title.split('—').first.trim())
         .where((s) => s.isNotEmpty)
@@ -3077,7 +3093,7 @@ class TravelRepository extends ChangeNotifier {
           .where((w) => w.isNotEmpty)
           .join(', '),
       isLocalOnly: true,
-      backendBudgetPhp: avgBudgetPhp,
+      backendBudgetPhp: budgetPhp,
       optimizationSummary: summary,
       routeWarnings: plan.warnings,
       pace: plan.pace.key,
@@ -4609,7 +4625,7 @@ class TravelRepository extends ChangeNotifier {
       daysCount: parsedDays.isNotEmpty
           ? parsedDays.length
           : (fallbackTrip?.daysCount ?? 3),
-      adults: fallbackTrip?.adults ?? 2,
+      adults: fallbackTrip?.adults,
       children: fallbackTrip?.children ?? 0,
       centerLat:
           firstMatchedCatalog?.lat ??

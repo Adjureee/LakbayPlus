@@ -129,6 +129,14 @@ class AuthService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                 )
             full_name = raw_name[:255]
+            if not data.confirm_new_account:
+                # Ask first: signing in with Google must not register someone by surprise.
+                raise LakbayAPIError(
+                    "No Lakbay account uses this Google email yet.",
+                    code="google_account_not_registered",
+                    status_code=status.HTTP_409_CONFLICT,
+                    details={"email": email, "full_name": full_name},
+                )
             picture = str(token_info.get("picture") or "").strip() or None
             user = await self.users.create(
                 full_name=full_name,

@@ -527,7 +527,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       ),
                     ),
                     Text(
-                      '${widget.repo.formatPrice(trip.totalEstimatedCostUsd)} • ${trip.adults + trip.children} pax',
+                      trip.travelerCount == null
+                          ? widget.repo.formatPrice(trip.totalEstimatedCostUsd)
+                          : '${widget.repo.formatPrice(trip.totalEstimatedCostUsd)} • ${trip.travelerCount} pax',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

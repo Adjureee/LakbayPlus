@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
+import '../widgets/onboarding_preferences.dart';
 import '../widgets/origin_picker_sheet.dart';
 import 'yes_ai_onboarding_flow.dart';
 import 'auth_screen.dart';
@@ -17,7 +18,7 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen>
     with SingleTickerProviderStateMixin {
-  int _stepIndex = 0; // 0: Welcome, 1: Trip Decision, 2: Social Proof, 3: Brief, 4: Location
+  int _stepIndex = 0; // 0: Welcome, 1: Trip Decision, 2: Social Proof, 3: Brief, 4: Preferences, 5: Location
   bool _hasUpcomingTrip = true;
   bool _inYesAiFlow = false;
   bool _requestingLocation = false;
@@ -26,7 +27,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   String? _locationFeedback;
   late final AnimationController _pulseController;
 
-  static const int _totalSteps = 5;
+  static const int _totalSteps = 6;
 
   @override
   void initState() {
@@ -45,7 +46,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   void _nextStep() {
     if (_stepIndex == 1 && _hasUpcomingTrip) {
-      // Collect starting location permission/choice BEFORE entering AI chat.
+      // Ask what they enjoy, then the starting location, BEFORE the AI chat.
       setState(() => _stepIndex = 4);
       return;
     }
@@ -205,6 +206,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   1 => _buildTripDecisionStep(context),
                   2 => _buildSocialProofStep(context),
                   3 => _buildBriefMockupStep(context),
+                  4 => OnboardingPreferencesStep(
+                      key: const ValueKey('step_preferences'),
+                      repo: widget.repo,
+                      onContinue: _nextStep,
+                    ),
                   _ => _buildLocationShareStep(context),
                 },
               ),
@@ -754,7 +760,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   // Step 4: "First, share your location" (Image 5)
   Widget _buildLocationShareStep(BuildContext context) {
     return Padding(
-      key: const ValueKey('step_4'),
+      key: const ValueKey('step_5'),
       padding: const EdgeInsets.fromLTRB(22, 12, 22, 18),
       child: Column(
         children: [

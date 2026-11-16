@@ -98,6 +98,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
+  /// Pull-to-refresh: reload the live catalog (and rates) in one smooth gesture.
+  Future<void> _refreshCatalog() async {
+    try {
+      await widget.repo.syncCatalogWithApi();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Couldn't refresh. Showing the places already on your phone."),
+        ),
+      );
+      return;
+    }
+    if (mounted) setState(() {});
+  }
+
   void _openCityEncyclopediaSheet(CityDescription cityObj) {
     showModalBottomSheet(
       context: context,
@@ -246,36 +262,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           ),
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Sync Live Catalog',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: widget.repo.isSyncingCatalog
-                            ? null
-                            : () async {
-                                final count =
-                                    await widget.repo.syncCatalogWithApi();
-                                if (!context.mounted) return;
-                                setState(() {});
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      count > 0
-                                          ? 'Synced $count live Region XI destination(s) from Lakbay+ Admin.'
-                                          : 'Catalog refreshed (offline curated mode active).',
-                                    ),
-                                    backgroundColor: LakbayColors.tealDeep,
-                                  ),
-                                );
-                              },
-                        icon: widget.repo.isSyncingCatalog
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.sync_rounded),
-                      ),
-                      const SizedBox(width: 2),
                       FilledButton.tonalIcon(
                         onPressed: () {
                           setState(() {
@@ -315,39 +301,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             fontFamily: 'FigGrotesk',
                             fontWeight: FontWeight.w700,
                             fontSize: 12.5,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      PopupMenuButton<String>(
-                        onSelected: (curr) {
-                          widget.repo.setCurrency(curr);
-                          setState(() {});
-                        },
-                        itemBuilder: (_) =>
-                            const ['PHP', 'USD', 'EUR', 'GBP', 'AUD', 'JPY']
-                                .map(
-                                  (c) => PopupMenuItem(
-                                    value: c,
-                                    child: Text(c),
-                                  ),
-                                )
-                                .toList(),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: LakbayColors.cardBorder),
-                          ),
-                          child: Text(
-                            widget.repo.currency,
-                            style: const TextStyle(
-                              fontFamily: 'FigGrotesk',
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12.5,
-                            ),
                           ),
                         ),
                       ),
@@ -447,7 +400,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
             Expanded(
               child: _isMapView
                   ? _buildInteractiveMapboxExplorer()
-                  : CustomScrollView(
+                  : RefreshIndicator(
+                      onRefresh: _refreshCatalog,
+                      color: LakbayColors.primary,
+                      backgroundColor: Colors.white,
+                      displacement: 48,
+                      child: CustomScrollView(
+                      // Always scrollable, so a short list can still be pulled down to refresh.
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
                       slivers: [
                         if (_searchQuery.isEmpty &&
                             _selectedFilter == 'All' &&
@@ -686,6 +648,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ],
                       ],
                     ),
+                    ),
             ),
           ],
         ),
@@ -920,7 +883,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Widget _buildSuggestedRoutesShelf() {
-    final routes = widget.repo.suggestedRoutes;
+    // Only routes whose places are in the catalog right now; a route that
+    // loads nothing would be a dead card.
+    final routes = widget.repo.suggestedRoutes
+        .where(
+          (r) => r.destinationIds.any((id) => widget.repo.getTripById(id) != null),
+        )
+        .toList();
     if (routes.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 10, bottom: 6),
@@ -962,18 +931,34 @@ class _ExploreScreenState extends State<ExploreScreen> {
               separatorBuilder: (_, _) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final route = routes[index];
-                final firstPlace = route.destinationIds
+                final places = route.destinationIds
                     .map(widget.repo.getTripById)
                     .whereType<ExploreTrip>()
-                    .firstOrNull;
+                    .toList();
+                final firstPlace = places.firstOrNull;
+                // Straight-line distance from where the traveler is starting;
+                // road distances come with the real routing work.
+                final awayKm = (firstPlace != null &&
+                        widget.repo.originLat != null &&
+                        widget.repo.originLng != null)
+                    ? MapboxService.haversineKm(
+                        widget.repo.originLat!,
+                        widget.repo.originLng!,
+                        firstPlace.lat,
+                        firstPlace.lng,
+                      )
+                    : null;
                 return InkWell(
                   onTap: () {
                     final loaded = widget.repo.applySuggestedRoute(route);
                     setState(() {});
+                    final missing = route.destinationIds.length - loaded;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          'Loaded $loaded places from "${route.title}". Tap Plan trip below to set your days.',
+                          missing > 0
+                              ? 'Loaded $loaded of ${route.destinationIds.length} places from "${route.title}" ($missing not in the catalog right now). Tap Plan trip below to set your days.'
+                              : 'Loaded $loaded places from "${route.title}". Tap Plan trip below to set your days.',
                         ),
                         backgroundColor: LakbayColors.tealDeep,
                       ),
@@ -1003,7 +988,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
-                                '${route.destinationIds.length} places • ~${route.suggestedDays}d',
+                                route.suggestedDays == null
+                                    ? '${places.length} places'
+                                    : '${places.length} places • ~${route.suggestedDays}d',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
@@ -1034,9 +1021,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                         const Spacer(),
                         Text(
-                          firstPlace != null
-                              ? 'Starts near ${firstPlace.title} · Use stops →'
-                              : 'Tap to load stops →',
+                          firstPlace == null
+                              ? 'Tap to load stops →'
+                              : awayKm == null
+                                  ? 'Starts at ${firstPlace.title} · Use stops →'
+                                  : 'First stop ~${awayKm.round()} km from you · Use stops →',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -1810,7 +1799,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           controller: budgetCtrl,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            labelText: 'Budget per trip, PHP (optional)',
+                            labelText: 'Budget per trip, ₱ (optional)',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -1935,7 +1924,7 @@ class _MultiStopPlanSheet extends StatefulWidget {
 class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
   late int _days;
   bool _daysManuallyEdited = false;
-  int _travelers = 2;
+  int? _travelers;
   bool _pruneOptionalToFit = false;
   bool _isGenerating = false;
   late GeoPoint _selectedHotel;
@@ -2452,19 +2441,20 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Travelers: $_travelers',
+                      _travelers == null ? 'Travelers: not set' : 'Travelers: $_travelers',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
                   IconButton(
-                    onPressed: _travelers > 1
-                        ? () => setState(() => _travelers--)
+                    onPressed: _travelers != null
+                        ? () => setState(
+                            () => _travelers = _travelers! > 1 ? _travelers! - 1 : null)
                         : null,
                     icon: const Icon(Icons.remove_circle_outline),
                   ),
                   IconButton(
-                    onPressed: _travelers < 15
-                        ? () => setState(() => _travelers++)
+                    onPressed: (_travelers ?? 0) < 15
+                        ? () => setState(() => _travelers = (_travelers ?? 0) + 1)
                         : null,
                     icon: const Icon(Icons.add_circle_outline),
                   ),
@@ -2572,7 +2562,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                               .map((s) => s.title.split('—').first.trim())
                               .join(', ');
                           final prompt = widget.aiFallbackPrompt ??
-                              'Plan a $_days-day trip for $_travelers travelers visiting $names.';
+                              'Plan a $_days-day trip${_travelers == null ? '' : ' for $_travelers travelers'} visiting $names.';
                           Navigator.of(context).pop();
                           widget.repo.planInChat(prompt);
                         },

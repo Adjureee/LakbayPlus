@@ -352,7 +352,12 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              '${heroTrip.daysCount} Days • ${heroTrip.adults + heroTrip.children} travellers • ${heroTrip.destination}',
+                              [
+                                '${heroTrip.daysCount} Days',
+                                if (heroTrip.travelerCount != null)
+                                  '${heroTrip.travelerCount} travellers',
+                                heroTrip.destination,
+                              ].join(' • '),
                               style: TextStyle(
                                 fontSize: 12.5,
                                 color: Colors.white.withValues(alpha: 0.9),

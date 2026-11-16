@@ -23,6 +23,23 @@ class LakbayApiException implements Exception {
   String toString() => message;
 }
 
+/// Google sign-in worked, but there is no Lakbay account for that email yet.
+/// The app asks the traveler before creating one.
+class GoogleAccountNotRegistered extends LakbayApiException {
+  final String email;
+  final String fullName;
+
+  /// The Google token to send again once the traveler confirms.
+  String idToken = '';
+
+  GoogleAccountNotRegistered({required this.email, required this.fullName})
+      : super(
+          'No Lakbay account uses this Google email yet.',
+          statusCode: 409,
+          code: 'google_account_not_registered',
+        );
+}
+
 sealed class AiItineraryResult {
   const AiItineraryResult();
 }
@@ -449,10 +466,18 @@ class LakbayApiCatalogService {
     );
   }
 
-  Future<LakbayAuthSession> googleLogin({required String idToken}) async {
+  Future<LakbayAuthSession> googleLogin({
+    required String idToken,
+    bool confirmNewAccount = false,
+  }) async {
     return _postAuth(
       path: '/auth/google',
-      body: {'id_token': idToken},
+      body: {
+        'id_token': idToken,
+        // Only sent when the traveler confirmed, so an older server that does
+        // not know the field behaves as before.
+        if (confirmNewAccount) 'confirm_new_account': true,
+      },
     );
   }
 
@@ -499,6 +524,16 @@ class LakbayApiCatalogService {
 
     final decoded = _tryDecodeJson(res.body);
     if (res.statusCode < 200 || res.statusCode >= 300) {
+      final error = decoded is Map ? decoded['error'] : null;
+      if (res.statusCode == 409 &&
+          error is Map &&
+          error['code'] == 'google_account_not_registered') {
+        final details = error['details'];
+        throw GoogleAccountNotRegistered(
+          email: details is Map ? (details['email'] ?? '').toString() : '',
+          fullName: details is Map ? (details['full_name'] ?? '').toString() : '',
+        );
+      }
       throw LakbayApiException(
         _extractErrorMessage(decoded, res.statusCode),
         statusCode: res.statusCode,
