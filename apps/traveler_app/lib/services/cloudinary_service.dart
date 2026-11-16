@@ -21,9 +21,10 @@ class CloudinaryUploadResult {
   });
 }
 
-/// Cloudinary media client modeled on Lakbay's `CloudinaryStorageClient`.
-/// Reads `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`,
-/// and `CLOUDINARY_UPLOAD_PRESET` from [EnvConfig].
+/// Cloudinary delivery-URL helper. Reads only the public
+/// `CLOUDINARY_CLOUD_NAME` (and an optional unsigned `CLOUDINARY_UPLOAD_PRESET`)
+/// from [EnvConfig]. Trip photos are uploaded through the Lakbay API, which
+/// keeps the Cloudinary API key and secret server-side.
 class CloudinaryService {
   final http.Client _httpClient;
 
@@ -31,7 +32,6 @@ class CloudinaryService {
       : _httpClient = httpClient ?? http.Client();
 
   String get cloudName => EnvConfig.cloudinaryCloudName.trim();
-  String get apiKey => EnvConfig.cloudinaryApiKey.trim();
   String get uploadPreset => EnvConfig.cloudinaryUploadPreset.trim();
 
   bool get isConfigured => EnvConfig.hasCloudinaryConfig;
