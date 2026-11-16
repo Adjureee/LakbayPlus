@@ -1516,12 +1516,18 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 450));
 
-      expect(find.text('Recommended Destinations'), findsOneWidget);
+      expect(find.text('Recommended places'), findsOneWidget);
       expect(find.text('Maragusan Sea of Clouds'), findsOneWidget);
       expect(find.text('Mountain'), findsOneWidget);
-      // Location and travel time, then why it fits, in the server's words.
+      // The card carries location and travel time; why it fits, in the
+      // server's words, is one tap away.
       expect(find.textContaining('Maragusan • ~95 min'), findsOneWidget);
+      expect(find.textContaining('Matches mountain'), findsNothing);
+      await tester.tap(find.text('Why this?'));
+      await tester.pumpAndSettle();
       expect(find.textContaining('Matches mountain'), findsOneWidget);
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('+ Add'));
       await tester.pump();
