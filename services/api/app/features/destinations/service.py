@@ -1,5 +1,12 @@
-from fastapi import status
+from fastapi import UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import Settings, get_settings
+from app.integrations.storage.client import CloudinaryStorageClient
+from app.integrations.storage.uploads import (
+    read_validated_image,
+    reserve_cloudinary_upload,
+)
 
 from app.features.destinations.region import island_group_for
 from app.core.exceptions import LakbayAPIError
@@ -13,9 +20,56 @@ from app.features.destinations.schemas import (
 
 
 class DestinationService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        *,
+        storage_client: CloudinaryStorageClient | None = None,
+        settings: Settings | None = None,
+    ) -> None:
         self.session = session
         self.destinations = DestinationRepository(session)
+        self.storage_client = storage_client
+        self.settings = settings or get_settings()
+
+    async def upload_photo(
+        self,
+        destination_id: int,
+        *,
+        file: UploadFile,
+        admin_user_id: int,
+    ) -> DestinationResponse:
+        """Upload a new destination photo to Cloudinary and use it as image_url.
+
+        The previous image is left in Cloudinary: the traveler app's bundled
+        catalog may still point at it until the next export.
+        """
+        destination = await self.destinations.get_by_id(
+            destination_id,
+            include_inactive=True,
+        )
+        if destination is None:
+            raise LakbayAPIError(
+                "Destination was not found.",
+                code="destination_not_found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        file_bytes = await read_validated_image(file, self.settings)
+        reserve_cloudinary_upload(user_id=admin_user_id, settings=self.settings)
+        storage = self.storage_client or CloudinaryStorageClient(self.settings)
+        result = await storage.upload_image(
+            file_bytes=file_bytes,
+            filename=file.filename,
+            content_type=(file.content_type or "").lower(),
+            folder_suffix=f"destinations/{destination_id}",
+        )
+        updated = await self.destinations.update(
+            destination,
+            {"image_url": result.image_url},
+        )
+        await self.session.commit()
+        await self.session.refresh(updated)
+        return DestinationResponse.model_validate(updated)
 
     async def list_destinations(
         self,
