@@ -1,17 +1,17 @@
 id,name,district,category,lat,lng,island_group,stay_duration_type,thumbnail
 api_1,People's Park,"Poblacion District, Davao City",Park,7.070700,125.609600,,short,https://res.cloudinary.com/bh2rda7z/image/upload/v1794350058/lakbay/destinations/1/peoples_park-9d2874c9.jpg
 api_2,Philippine Eagle Center,"Baguio District, Davao City",Wildlife,7.185400,125.416900,,half_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794350061/lakbay/destinations/2/philippine_eagle_center-db8d171d.jpg
-api_3,Eden Nature Park,"Toril, Davao City",Nature Resort,7.008800,125.399200,,half_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794350042/lakbay/destinations/3/eden_nature_park-8e3c86e1.jpg
+api_3,Eden Nature Park,"Toril, Davao City",Nature Resort,7.028240,125.401755,,half_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794350042/lakbay/destinations/3/eden_nature_park-8e3c86e1.jpg
 api_4,Samal Island Beach Area,"Samal (IGaCoS), Davao del Norte",Beach,7.074400,125.708700,samal,full_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723929/lakbay/destinations/4/samal_island_beach_area-0b3e955f.jpg
 api_5,Mount Apo Trail Area,"Sta. Cruz / Kapatagan area, Davao del Sur",Mountain,6.987500,125.270800,,multi_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794350044/lakbay/destinations/5/mount_apo_trail_area-e533214c.jpg
-api_6,Dahican Beach,"Mati City, Davao Oriental",Beach,6.948700,126.254200,,overnight,https://res.cloudinary.com/bh2rda7z/image/upload/v1794350034/lakbay/destinations/6/dahican_beach-0852ca2e.jpg
+api_6,Dahican Beach,"Mati City, Davao Oriental",Beach,6.924349,126.280899,,overnight,https://res.cloudinary.com/bh2rda7z/image/upload/v1794350034/lakbay/destinations/6/dahican_beach-0852ca2e.jpg
 api_7,Panabo City Parks and Plaza,"Panabo City, Davao del Norte",Park,7.308100,125.684200,,short,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723930/lakbay/destinations/7/panabo_city_parks_and_plaza-b840db78.jpg
-api_8,Tagbibinta Falls,"Maragusan, Davao de Oro",Waterfall,7.347600,126.151400,,full_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723931/lakbay/destinations/8/tagbibinta_falls-fa0d8a8d.jpg
-api_9,Mainit Hot Springs,"Maco, Davao de Oro",Hot Spring,7.363600,125.949400,,half_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723933/lakbay/destinations/9/mainit_hot_springs-a7a5af66.jpg
-api_10,Little Boracay Beach,"Santa Maria, Davao Occidental",Beach,6.536100,125.469300,,full_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723934/lakbay/destinations/10/little_boracay_beach-4ac3f99a.jpg
+api_8,Tagbibinta Falls,"Maragusan, Davao de Oro",Waterfall,7.316397,126.171868,,full_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723931/lakbay/destinations/8/tagbibinta_falls-fa0d8a8d.jpg
+api_9,Mainit Hot Springs,"Maco, Davao de Oro",Hot Spring,7.401358,126.028868,,half_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723933/lakbay/destinations/9/mainit_hot_springs-a7a5af66.jpg
+api_10,Little Boracay Beach,"Santa Maria, Davao Occidental",Beach,6.565168,125.496813,,full_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723934/lakbay/destinations/10/little_boracay_beach-4ac3f99a.jpg
 api_11,Balut Island,"Sarangani, Davao Occidental",Island,5.404700,125.376500,balut,multi_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723935/lakbay/destinations/11/balut_island-0ff5ada7.jpg
-api_12,Tudaya Falls,"Sta. Cruz, Davao del Sur",Waterfall,6.984200,125.391200,,full_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723937/lakbay/destinations/12/tudaya_falls-6cf66a35.jpg
-api_13,Aliwagwag Falls,"Cateel, Davao Oriental",Waterfall,7.743100,126.421800,,overnight,https://res.cloudinary.com/bh2rda7z/image/upload/v1794350017/lakbay/destinations/13/aliwagwag_falls-727a22dd.jpg
+api_12,Tudaya Falls,"Sta. Cruz, Davao del Sur",Waterfall,6.959080,125.355459,,full_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723937/lakbay/destinations/12/tudaya_falls-6cf66a35.jpg
+api_13,Aliwagwag Falls,"Cateel, Davao Oriental",Waterfall,7.740450,126.301498,,overnight,https://res.cloudinary.com/bh2rda7z/image/upload/v1794350017/lakbay/destinations/13/aliwagwag_falls-727a22dd.jpg
 api_14,Museo Dabawenyo,"Mabini Street, Davao City",Museum,7.079390,125.604490,,short,https://res.cloudinary.com/bh2rda7z/image/upload/v1794350051/lakbay/destinations/14/museo_dabawenyo-404d9b3d.jpg
 api_15,National Museum of the Philippines - Davao,"J. Palma Gil Street, Davao City",Museum,7.070160,125.609140,,short,https://res.cloudinary.com/bh2rda7z/image/upload/v1794350055/lakbay/destinations/15/national_museum_of_the_philippines_davao-49467369.jpg
 api_16,Aqua Water Park,"Island Garden City of Samal, Davao del Norte",Water Park,7.087050,125.666620,samal,full_day,https://res.cloudinary.com/bh2rda7z/image/upload/v1794723937/lakbay/destinations/16/aqua_water_park-2e2420e4.jpg

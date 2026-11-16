@@ -13,7 +13,8 @@ Outcomes per mapped destination:
   (approximate point, wharf jump-off, or restricted access).
 - ``held``: nothing written; the dataset point is too far from the current
   pin to be the same entrance. A person must check which one is right.
-- ``skipped``: nothing written (already has an arrival point, bad row, ...).
+- ``skipped``: nothing written (already has an arrival point, dataset point
+  rejected in review, bad row, ...).
 
 The attraction pin (``lat``/``lng``, shown on the map) is never changed.
 """
@@ -121,6 +122,11 @@ def decide_arrival_updates(
         seen.add(destination_id)
         if pin is None:
             decisions.append(decision("skipped", "destination not in database"))
+            continue
+        if entry.get("dataset_point", "use").strip().lower() == "reject":
+            decisions.append(decision(
+                "skipped", "dataset point rejected in review (see pin_corrections.csv)",
+            ))
             continue
         if row is None:
             decisions.append(decision("skipped", "dataset row not found"))
