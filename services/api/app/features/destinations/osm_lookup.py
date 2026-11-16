@@ -123,6 +123,12 @@ class OSMLookupService:
                 code="candidate_not_staged",
                 status_code=status.HTTP_409_CONFLICT,
             )
+        if candidate.osm_type is None or candidate.osm_id is None:
+            raise LakbayAPIError(
+                "This candidate was pinned on the admin map and has no OSM object to read.",
+                code="candidate_has_no_osm_source",
+                status_code=status.HTTP_409_CONFLICT,
+            )
         return await self._suggestions(candidate.osm_type, candidate.osm_id, candidate=candidate)
 
     async def _suggestions(

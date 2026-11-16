@@ -1,6 +1,6 @@
 # Admin map, photo editing and nearby places — implementation plan
 
-Date: 2026-11-16 · Status: Phases 1, 2, 3, 5 and 6 implemented; Phase 4 proposed
+Date: 2026-11-16 · Status: all phases (1–6) implemented
 
 ## Your request, rewritten as a prompt
 
@@ -70,22 +70,26 @@ Date: 2026-11-16 · Status: Phases 1, 2, 3, 5 and 6 implemented; Phase 4 propose
   Save / Cancel through the existing PATCH).
 - Route endpoints shown as small secondary markers with a line to their pin.
 
-### Phase 4 — Add unrecognized places from the map
-- Search box on the map. The **API** proxies the search (new
-  `GET /admin/places/search?q=`), using the existing OSM lookup and, if
-  wanted, Mapbox Search with the server token. The admin app never holds a
-  secret token.
-- **Licensing note:** Mapbox's standard (temporary) geocoding results may not
-  be stored permanently; saving them into the catalog needs Mapbox's
-  permanent geocoding. OpenStreetMap results can be stored with attribution.
-  Recommendation: use Mapbox search to *find* the spot and OSM for the stored
-  coordinates, or enable permanent geocoding.
-- "Drop a pin" mode: click anywhere → opens the destination editor prefilled
-  with coordinates (and name/district if search found them).
-- Duplicate guard: warn when an existing destination is within 500 m or has a
-  similar name.
-- New places go through the existing candidate review → publish flow, or
-  straight to a destination for admins (your choice; see decisions).
+### Phase 4 — Add unrecognized places from the map (implemented)
+Decisions: **OpenStreetMap search**, new places go to the **review queue**.
+
+- **Why not Mapbox search:** Mapbox Geocoding (including paid permanent
+  geocoding) returns no points of interest, and Mapbox Search Box results
+  (which do have POIs) may not be stored. Mapbox stays as map imagery only.
+- Search box on the admin map: OpenStreetMap places by name within 30 km of
+  the map center (existing `GET /admin/destination-candidates/osm/search`,
+  radius limit raised from 5 km to 50 km). Results show whether the OSM
+  object is already a destination or in review.
+- "Add a place": drop a pin for a place missing from OpenStreetMap
+  (`POST /admin/destination-candidates/manual`, source = `manual`).
+- Duplicate guard: `GET /admin/destination-candidates/nearby` lists
+  destinations and staged candidates within 500 m; under 150 m shows in red.
+- **Database change:** migration `2026_11_16_1000` makes the candidate OSM
+  identity optional and adds `source` (`osm` | `manual`); OSM rows keep a
+  required, unique OSM identity.
+- **Deploy order:** run `alembic upgrade head` against Neon **before**
+  deploying the API, because the new model reads the `source` column. Render
+  does not run migrations itself.
 
 ### Phase 5 — Destination photo upload
 - API: `POST /destinations/{id}/image` (admin only, multipart), reusing

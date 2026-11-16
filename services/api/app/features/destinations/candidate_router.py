@@ -12,6 +12,8 @@ from app.features.destinations.candidate_schemas import (
     CandidateResponse,
     CandidateStatus,
     CandidateUpdate,
+    ManualCandidateCreate,
+    NearbyPlacesResponse,
 )
 from app.features.destinations.candidate_service import CandidateService
 from app.features.destinations.osm_lookup import OSMLookupService
@@ -46,13 +48,40 @@ async def search_osm_places(
     name: str = Query(min_length=2, max_length=80),
     lat: float = Query(ge=-90, le=90),
     lng: float = Query(ge=-180, le=180),
-    radius_m: int = Query(default=3000, ge=100, le=5000),
+    # Up to 50 km so the admin map can search around its visible area.
+    radius_m: int = Query(default=3000, ge=100, le=50000),
 ) -> list[OSMMatch]:
     if len(name.strip()) < 2:
         raise LakbayAPIError("Enter at least two non-space name characters.", code="invalid_osm_search")
     return await _osm_lookup(session, admin).search(
         name=name, lat=lat, lng=lng, radius_m=radius_m
     )
+
+
+@router.get("/nearby", response_model=NearbyPlacesResponse)
+async def nearby_places(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    admin: Annotated[User, Depends(require_admin)],
+    lat: float = Query(ge=-90, le=90),
+    lng: float = Query(ge=-180, le=180),
+    radius_m: int = Query(default=500, ge=50, le=5000),
+) -> NearbyPlacesResponse:
+    """Destinations and staged candidates near a point: a duplicate check."""
+    return await CandidateService(session).nearby(lat=lat, lng=lng, radius_m=radius_m)
+
+
+@router.post(
+    "/manual",
+    response_model=CandidateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def stage_manual_candidate(
+    data: ManualCandidateCreate,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    admin: Annotated[User, Depends(require_admin)],
+) -> CandidateResponse:
+    """Queue a pin dropped on the admin map for a place missing from OSM."""
+    return await CandidateService(session).create_manual(data)
 
 
 @router.get("/osm/{osm_type}/{osm_id}/suggestions", response_model=OSMSuggestionResponse)

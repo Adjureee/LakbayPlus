@@ -307,6 +307,53 @@ class ApiService {
     ),
   );
 
+  /// OpenStreetMap places whose name matches, around a point (up to 50 km).
+  Future<List<dynamic>> searchOsmPlaces({
+    required String name,
+    required double lat,
+    required double lng,
+    int radiusM = 30000,
+  }) async {
+    final params = Uri(
+      queryParameters: {
+        'name': name.trim(),
+        'lat': lat.toStringAsFixed(6),
+        'lng': lng.toStringAsFixed(6),
+        'radius_m': '$radiusM',
+      },
+    ).query;
+    return _list(
+      await _request('GET', '/admin/destination-candidates/osm/search?$params'),
+    );
+  }
+
+  /// Destinations and staged candidates near a point, for duplicate warnings.
+  Future<Map<String, dynamic>> nearbyPlaces({
+    required double lat,
+    required double lng,
+    int radiusM = 500,
+  }) async => _object(
+    await _request(
+      'GET',
+      '/admin/destination-candidates/nearby?lat=${lat.toStringAsFixed(6)}'
+          '&lng=${lng.toStringAsFixed(6)}&radius_m=$radiusM',
+    ),
+  );
+
+  /// Queue an OpenStreetMap place for review.
+  Future<Map<String, dynamic>> stageOsmCandidate(
+    Map<String, dynamic> data,
+  ) async => _object(
+    await _request('POST', '/admin/destination-candidates', data: data),
+  );
+
+  /// Queue a pin dropped on the admin map (no OpenStreetMap object).
+  Future<Map<String, dynamic>> stageManualCandidate(
+    Map<String, dynamic> data,
+  ) async => _object(
+    await _request('POST', '/admin/destination-candidates/manual', data: data),
+  );
+
   Future<Map<String, dynamic>> publishDestinationCandidate(int id) async =>
       _object(
         await _request('POST', '/admin/destination-candidates/$id/publish'),

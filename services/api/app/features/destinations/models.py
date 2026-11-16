@@ -126,7 +126,11 @@ class Destination(Base):
 
 
 class DestinationCandidate(Base):
-    """Unpublished OSM place awaiting an administrator's visitor review."""
+    """Unpublished place awaiting an administrator's visitor review.
+
+    source = 'osm' for an OpenStreetMap object (OSM identity required and
+    unique); 'manual' for a pin an admin dropped on the admin map.
+    """
 
     __tablename__ = "destination_candidates"
     __table_args__ = (
@@ -135,13 +139,20 @@ class DestinationCandidate(Base):
         CheckConstraint("lng >= -180 AND lng <= 180", name="ck_destination_candidates_lng_range"),
         CheckConstraint("estimated_cost IS NULL OR estimated_cost >= 0", name="ck_destination_candidates_cost_non_negative"),
         CheckConstraint("review_status IN ('staged', 'rejected', 'published')", name="ck_destination_candidates_review_status"),
+        CheckConstraint("source IN ('osm', 'manual')", name="ck_destination_candidates_source"),
+        CheckConstraint(
+            "source <> 'osm' OR "
+            "(osm_type IS NOT NULL AND osm_id IS NOT NULL AND osm_url IS NOT NULL)",
+            name="ck_destination_candidates_osm_identity_for_osm",
+        ),
         Index("ix_destination_candidates_review_status", "review_status"),
     )
 
     candidate_id: Mapped[int] = mapped_column(primary_key=True)
-    osm_type: Mapped[str] = mapped_column(String(16), nullable=False)
-    osm_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    osm_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="osm", server_default="osm")
+    osm_type: Mapped[str | None] = mapped_column(String(16))
+    osm_id: Mapped[int | None] = mapped_column(BigInteger)
+    osm_url: Mapped[str | None] = mapped_column(String(2048))
     source_area: Mapped[str] = mapped_column(String(100), nullable=False)
     source_tag: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)

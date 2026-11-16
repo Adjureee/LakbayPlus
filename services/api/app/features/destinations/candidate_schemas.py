@@ -29,6 +29,42 @@ class CandidateCreate(BaseModel):
         return self
 
 
+class ManualCandidateCreate(BaseModel):
+    """A place an admin pinned on the admin map; it has no OSM identity."""
+
+    name: str = Field(min_length=2, max_length=255)
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    suggested_category: str | None = Field(default=None, max_length=500)
+    district: str | None = Field(default=None, max_length=255)
+    review_notes: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 2:
+            raise ValueError("name must have at least two characters")
+        return value
+
+
+class NearbyPlace(BaseModel):
+    kind: Literal["destination", "candidate"]
+    id: int
+    name: str
+    distance_m: float
+    review_status: str | None = None
+
+
+class NearbyPlacesResponse(BaseModel):
+    """Existing destinations and candidates near a point, nearest first."""
+
+    lat: float
+    lng: float
+    radius_m: int
+    places: list[NearbyPlace]
+
+
 class CandidateUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=255)
     lat: float | None = Field(default=None, ge=-90, le=90)
@@ -74,9 +110,10 @@ class CandidateReject(BaseModel):
 
 class CandidateResponse(BaseModel):
     candidate_id: int
-    osm_type: str
-    osm_id: int
-    osm_url: str
+    source: Literal["osm", "manual"] = "osm"
+    osm_type: str | None
+    osm_id: int | None
+    osm_url: str | None
     source_area: str
     source_tag: str
     name: str
