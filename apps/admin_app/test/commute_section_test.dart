@@ -112,4 +112,66 @@ void main() {
     expect(step['charging_unit'], isNull);
     expect(posts.single['is_verified'], isFalse);
   });
+
+  testWidgets('editing a route and switching Verified on sends a PUT with the steps', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 2400);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final puts = <Map<String, dynamic>>[];
+    final api = ApiService(
+      tokenProvider: () async => 't',
+      apiBaseUrl: 'http://lakbay.test/api/v1',
+      client: MockClient((request) async {
+        final path = request.url.path;
+        if (path == '/api/v1/admin/destinations/3/commute' &&
+            request.method == 'GET') {
+          return http.Response(
+            jsonEncode({'destination_id': 3, 'routes': [_route()]}),
+            200,
+          );
+        }
+        if (path == '/api/v1/admin/commute/7' && request.method == 'PUT') {
+          puts.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response(jsonEncode(_route(verified: true)), 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    addTearDown(api.close);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: CommuteSection(api: api, destinationId: '3'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Edit'));
+    await tester.pump();
+    await tester.pump();
+
+    final verified = find.byType(Switch);
+    await tester.ensureVisible(verified);
+    await tester.tap(verified);
+    await tester.pump();
+    await tester.tap(find.text('Save route'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(puts, hasLength(1));
+    expect(puts.single['is_verified'], isTrue);
+    expect(puts.single['is_active'], isTrue);
+    expect((puts.single['steps'] as List).length, 2);
+    // The dialog closed: the save worked.
+    expect(find.text('Save route'), findsNothing);
+  });
 }
