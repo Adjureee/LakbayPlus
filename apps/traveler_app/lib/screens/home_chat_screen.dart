@@ -303,9 +303,19 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
 
                 // Main Content: Hero Landing (Image 6) or Active Chat Thread
                 Expanded(
-                  child: isLanding
-                      ? _buildHeroLanding(context, backdrop)
-                      : _buildActiveChatThread(context, messages),
+                  child: AnimatedSwitcher(
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 220),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: KeyedSubtree(
+                      key: ValueKey(isLanding ? 'landing' : 'thread'),
+                      child: isLanding
+                          ? _buildHeroLanding(context, backdrop)
+                          : _buildActiveChatThread(context, messages),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -697,11 +707,6 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
             },
           ),
         ),
-        if (widget.repo.categoryFacets.isNotEmpty && !widget.repo.isAiTyping)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: _buildBrowseCategoriesStrip(context, compact: true),
-          ),
         if (widget.repo.chatPickCount > 0 && !widget.repo.isAiTyping)
           _buildPlanWithPicksBar(context),
         // Bottom Chat Input Bar (above floating nav bar)
@@ -721,8 +726,48 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           ),
           child: Row(
             children: [
-              const LakbayAvatar(size: 32),
-              const SizedBox(width: 10),
+              PopupMenuButton<String>(
+                key: const ValueKey('chat-plus-menu'),
+                tooltip: 'More options',
+                icon: const Icon(
+                  Icons.add_rounded,
+                  color: LakbayColors.tealDeep,
+                ),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'categories':
+                      _showCategoriesSheet(context);
+                    case 'new_chat':
+                      widget.repo.startNewChat();
+                    case 'budget':
+                      widget.repo.setStrictBudgetFilter(
+                        !widget.repo.strictBudgetFilter,
+                      );
+                    case 'origin':
+                      showOriginPickerSheet(context, widget.repo);
+                  }
+                },
+                itemBuilder: (_) => [
+                  if (widget.repo.categoryFacets.isNotEmpty)
+                    const PopupMenuItem(
+                      value: 'categories',
+                      child: Text('Browse categories'),
+                    ),
+                  const PopupMenuItem(
+                    value: 'new_chat',
+                    child: Text('New chat'),
+                  ),
+                  CheckedPopupMenuItem(
+                    value: 'budget',
+                    checked: widget.repo.strictBudgetFilter,
+                    child: const Text('Within budget'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'origin',
+                    child: Text('Set starting place'),
+                  ),
+                ],
+              ),
               Expanded(
                 child: TextField(
                   controller: _inputController,
@@ -751,6 +796,52 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// The category chips, for the chat's + menu (they no longer sit above
+  /// the composer while a reply is being read).
+  void _showCategoriesSheet(BuildContext context) {
+    final categories = widget.repo.categoryFacets;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Browse by category',
+              style: TextStyle(
+                fontFamily: 'FigGrotesk',
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: LakbayColors.tealDeep,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final cat in categories)
+                  ActionChip(
+                    label: Text('${cat.label} (${cat.count})'),
+                    onPressed: () {
+                      Navigator.of(sheetContext).pop();
+                      widget.repo.browseCategoryInChat(cat);
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -946,15 +1037,18 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16, right: 20),
+      padding: const EdgeInsets.only(bottom: 16, right: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const LakbayAvatar(size: 34),
-              const SizedBox(width: 10),
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: LakbayAvatar(size: 22),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(15),
@@ -1043,7 +1137,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               widget.repo.chatMessages.last.id == msg.id) ...[
             const SizedBox(height: 8),
             Padding(
-              padding: const EdgeInsets.only(left: 44),
+              padding: const EdgeInsets.only(left: 30),
               child: Wrap(
                 spacing: 6,
                 runSpacing: 6,
@@ -1054,7 +1148,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           if (msg.suggestedReplies.isNotEmpty) ...[
             const SizedBox(height: 8),
             Padding(
-              padding: const EdgeInsets.only(left: 44),
+              padding: const EdgeInsets.only(left: 30),
               child: Wrap(
                 spacing: 6,
                 runSpacing: 6,
@@ -1320,7 +1414,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Recommended Destinations',
+          'Recommended places',
           style: TextStyle(
             fontFamily: 'FigGrotesk',
             fontWeight: FontWeight.w700,
@@ -1329,201 +1423,292 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 262,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: places.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              final place = places[index];
-              final resolved =
-                  widget.repo.resolveExploreTripForRecommendation(place);
-              final isAdded = widget.repo.isInTripBuilder(resolved.id);
-              final locationLine = [
-                if (place.district != null && place.district!.trim().isNotEmpty)
-                  place.district!.trim(),
-                if (place.travelMinutes != null) '~${place.travelMinutes} min',
-              ].join(' • ');
-              // Why this place fits, in the server's words. A near match leads
-              // with the limit it relaxes (for example "About ₱200 over budget").
-              final subtitle = [
-                if (locationLine.isNotEmpty) locationLine,
-                ...place.reasons.take(3),
-              ].join('\n');
-              final networkImg = (place.imageUrl != null &&
-                      place.imageUrl!.startsWith('http'))
-                  ? place.imageUrl
-                  : (resolved.hasRemoteThumbnail ? resolved.thumbnailUrl : null);
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // About four fifths of the answer, so the next card peeks in.
+            final cardWidth = (constraints.maxWidth * 0.82).clamp(210.0, 300.0);
+            return SizedBox(
+              height: 256,
+              child: ListView.separated(
+                key: const ValueKey('place-carousel'),
+                scrollDirection: Axis.horizontal,
+                itemCount: places.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (context, index) =>
+                    _buildPlaceCard(context, places[index], cardWidth),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
 
-              return Container(
-                width: 230,
-                decoration: BoxDecoration(
-                  color: LakbayColors.canvasBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isAdded
-                        ? LakbayColors.primary
-                        : LakbayColors.cardBorder,
-                  ),
+  /// The one line about cost: the server's own "Cost not listed" or price
+  /// wording, never a number made up here.
+  static String? _priceLine(List<String> reasons) {
+    for (final reason in reasons) {
+      final lower = reason.toLowerCase();
+      if (lower.startsWith('cost') ||
+          lower.contains('₱') ||
+          lower.contains('budget') ||
+          lower.contains('price')) {
+        return reason.trim();
+      }
+    }
+    return null;
+  }
+
+  Widget _buildPlaceCard(
+    BuildContext context,
+    TopPlaceRecommendation place,
+    double width,
+  ) {
+    final resolved = widget.repo.resolveExploreTripForRecommendation(place);
+    final isAdded = widget.repo.isInTripBuilder(resolved.id);
+    final infoLine = [
+      if (place.district != null && place.district!.trim().isNotEmpty)
+        place.district!.trim(),
+      if (place.travelMinutes != null) '~${place.travelMinutes} min',
+    ].join(' • ');
+    final price = _priceLine(place.reasons);
+    final networkImg =
+        (place.imageUrl != null && place.imageUrl!.startsWith('http'))
+            ? place.imageUrl
+            : (resolved.hasRemoteThumbnail ? resolved.thumbnailUrl : null);
+
+    return Container(
+      key: ValueKey('place-card-${place.name}'),
+      width: width,
+      decoration: BoxDecoration(
+        color: LakbayColors.canvasBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isAdded ? LakbayColors.primary : LakbayColors.cardBorder,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 92,
+            width: double.infinity,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                LakbayNetworkOrAssetImage(
+                  networkUrl: networkImg,
+                  assetPath: resolved.localAssetPath,
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      height: 86,
-                      width: double.infinity,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          LakbayNetworkOrAssetImage(
-                            networkUrl: networkImg,
-                            assetPath: resolved.localAssetPath,
-                          ),
-                          if (place.category != null &&
-                              place.category!.trim().isNotEmpty)
-                            Positioned(
-                              top: 8,
-                              left: 8,
-                              right: 8,
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: LakbayColors.tealDeep,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    place.category!,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
+                if (place.category != null && place.category!.trim().isNotEmpty)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
                       ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              place.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontFamily: 'FigGrotesk',
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13.5,
-                                color: LakbayColors.tealDeep,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              subtitle,
-                              maxLines: 5,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: place.matchTier > 1
-                                    ? const Color(0xFFB45309)
-                                    : LakbayColors.textSecondary,
-                                height: 1.3,
-                              ),
-                            ),
-                            const Spacer(),
-                            Row(
-                              children: [
-                                OutlinedButton(
-                                  onPressed: () {
-                                    final trip = widget.repo
-                                        .buildDetailedItineraryFromExplore(
-                                      resolved,
-                                    );
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => TripDetailScreen(
-                                          trip: trip,
-                                          repo: widget.repo,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    minimumSize: Size.zero,
-                                  ),
-                                  child: const Text(
-                                    'Open',
-                                    style: TextStyle(fontSize: 11.5),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () {
-                                      if (!widget.repo
-                                          .toggleChatPick(resolved)) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'You can pick up to ${TravelRepository.maxChatPicks} places for one plan.',
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: isAdded
-                                          ? LakbayColors.primaryLight
-                                          : LakbayColors.primary,
-                                      foregroundColor: isAdded
-                                          ? LakbayColors.tealDeep
-                                          : Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      minimumSize: Size.zero,
-                                    ),
-                                    child: Text(
-                                      isAdded ? 'Added' : '+ Add',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 11.5),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                      decoration: BoxDecoration(
+                        color: LakbayColors.tealDeep,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        place.category!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    place.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'FigGrotesk',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: LakbayColors.tealDeep,
+                    ),
+                  ),
+                  if (infoLine.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      infoLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: LakbayColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                  if (price != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      price,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: place.matchTier > 1
+                            ? const Color(0xFFB45309)
+                            : LakbayColors.tealDeep,
+                      ),
+                    ),
+                  ],
+                  if (place.reasons.isNotEmpty)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        key: ValueKey('why-${place.name}'),
+                        onPressed: () => _showWhyThisSheet(context, place),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          minimumSize: const Size(0, 28),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'Why this?',
+                          style: TextStyle(fontSize: 12.5),
+                        ),
+                      ),
+                    ),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      OutlinedButton(
+                        onPressed: () {
+                          final trip = widget.repo
+                              .buildDetailedItineraryFromExplore(resolved);
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => TripDetailScreen(
+                                trip: trip,
+                                repo: widget.repo,
+                              ),
+                            ),
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          minimumSize: const Size(0, 36),
+                        ),
+                        child: const Text(
+                          'View',
+                          style: TextStyle(fontSize: 12.5),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (!widget.repo.toggleChatPick(resolved)) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'You can pick up to ${TravelRepository.maxChatPicks} places for one plan.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isAdded
+                                ? LakbayColors.primaryLight
+                                : LakbayColors.primary,
+                            foregroundColor: isAdded
+                                ? LakbayColors.tealDeep
+                                : Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            minimumSize: const Size(0, 36),
+                          ),
+                          child: Text(
+                            isAdded ? 'Added' : '+ Add',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12.5),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// All the reasons a place matched, in the server's words.
+  void _showWhyThisSheet(BuildContext context, TopPlaceRecommendation place) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Why ${place.name}?',
+              style: const TextStyle(
+                fontFamily: 'FigGrotesk',
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: LakbayColors.tealDeep,
+              ),
+            ),
+            const SizedBox(height: 10),
+            for (final reason in place.reasons)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2, right: 8),
+                      child: Icon(
+                        Icons.check_circle_outline_rounded,
+                        size: 16,
+                        color: LakbayColors.primary,
+                      ),
+                    ),
+                    Expanded(child: Text(reason)),
                   ],
                 ),
-              );
-            },
-          ),
+              ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
