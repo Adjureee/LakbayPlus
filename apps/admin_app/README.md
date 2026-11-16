@@ -21,6 +21,16 @@ flutter build web --dart-define=API_BASE_URL=https://your-api.example/api/v1
 
 Deploy the generated `build/web` directory. Localhost refers to the computer running the browser; it is only suitable for local development.
 
+### Map tiles (Mapbox)
+
+Admin maps use Mapbox (Streets and Satellite) when a **public** Mapbox token is passed at build time, and OpenStreetMap tiles otherwise:
+
+```powershell
+flutter run -d chrome --web-port=5173 --dart-define=API_BASE_URL=... --dart-define=MAPBOX_PUBLIC_TOKEN=pk.your_token
+```
+
+The admin site is a web build, so anyone who opens it can read this token. Create a token used only for the admin, with only the default public scopes, and set **URL restrictions** in the Mapbox account to the admin site's address (and `http://localhost:5173` for local work). A secret `sk.` token is ignored and must never be passed here. The required Mapbox and OpenStreetMap attribution, including "Improve this map", is shown on every map.
+
 ## Implemented workflows
 
 - **Overview:** live active-destination count and direct links to the five admin jobs.
