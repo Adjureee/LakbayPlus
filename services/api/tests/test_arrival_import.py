@@ -85,4 +85,7 @@ def test_pin_corrections_file_is_well_formed():
         assert 5.0 < new[0] < 8.5 and 125.0 < new[1] < 127.0  # Region XI
         if row["arrival_lat"]:
             gap = haversine_meters(*new, float(row["arrival_lat"]), float(row["arrival_lng"]))
-            assert gap < 1500
+            pin_kept = (row["old_lat"], row["old_lng"]) == (row["new_lat"], row["new_lng"])
+            # A moved pin must sit near its entrance. A kept pin may have a
+            # distant staging point (Mt. Apo summit -> Kapatagan registration).
+            assert gap < (25_000 if pin_kept else 1500)
