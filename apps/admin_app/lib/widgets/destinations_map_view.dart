@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import '../core/davao_region_boundaries.dart';
 import '../core/map_tiles.dart';
 import '../services/api_service.dart';
+import 'add_place.dart';
 import 'admin_widgets.dart';
 import 'destination_photo_upload.dart';
 
@@ -22,8 +23,12 @@ class DestinationsMapView extends StatefulWidget {
     required this.onEdit,
     required this.onPinMoved,
     required this.onPhotoReplaced,
+    required this.onCandidateQueued,
     this.initialSelectedId,
   });
+
+  /// Called with the new review-queue candidate after "Add to review queue".
+  final ValueChanged<Map<String, dynamic>> onCandidateQueued;
 
   /// Called with the saved record after "Replace photo" succeeds.
   final ValueChanged<Map<String, dynamic>> onPhotoReplaced;
@@ -48,6 +53,10 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
   AdminMapStyle _style = AdminMapStyle.streets;
   late String? _selectedId = widget.initialSelectedId;
   bool _moving = false;
+
+  /// A place being added (search result or dropped pin), and pin-drop mode.
+  PlaceDraft? _draft;
+  bool _dropping = false;
   LatLng? _movedTo;
   bool _saving = false;
   String? _error;
@@ -67,8 +76,25 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
     setState(() {
       _selectedId = _id(record);
       _error = null;
+      _draft = null;
+      _dropping = false;
     });
   }
+
+  void _showOsmResult(Map<String, dynamic> match) {
+    final draft = PlaceDraft.fromOsm(match);
+    setState(() {
+      _draft = draft;
+      _dropping = false;
+      _selectedId = null;
+    });
+    _map.move(draft.point, math.max(_map.camera.zoom, 14));
+  }
+
+  void _clearDraft() => setState(() {
+    _draft = null;
+    _dropping = false;
+  });
 
   void _startMove() => setState(() {
     _moving = true;
@@ -144,7 +170,15 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
                         : points.first,
                     initialZoom: 8.5,
                     onTap: (_, point) {
-                      if (_moving) setState(() => _movedTo = point);
+                      if (_moving) {
+                        setState(() => _movedTo = point);
+                      } else if (_dropping) {
+                        setState(() {
+                          _draft = PlaceDraft.pin(point);
+                          _dropping = false;
+                          _selectedId = null;
+                        });
+                      }
                     },
                   ),
                   children: [
@@ -169,9 +203,79 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
                           ),
                         ],
                       ),
+                    if (_draft != null)
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            key: const ValueKey('new-place-pin'),
+                            point: _draft!.point,
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.topCenter,
+                            child: const Icon(
+                              Icons.add_location_alt_rounded,
+                              size: 42,
+                              color: Color(0xFF7B3FC4),
+                            ),
+                          ),
+                        ],
+                      ),
                     AdminMapTiles.attribution(),
                   ],
                 ),
+                if (!_moving && !_dropping)
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    right: AdminMapTiles.usesMapbox ? 230 : 10,
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: MapPlaceSearch(
+                          api: widget.api,
+                          center: () => _map.camera.center,
+                          onSelected: _showOsmResult,
+                          onDropPin: () => setState(() {
+                            _dropping = true;
+                            _draft = null;
+                            _selectedId = null;
+                          }),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_dropping)
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    right: AdminMapTiles.usesMapbox ? 230 : 10,
+                    child: Material(
+                      color: const Color(0xFFEDE3F8),
+                      borderRadius: BorderRadius.circular(10),
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Click the map where the new place is. '
+                                'Switch to Satellite to find the exact spot.',
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _clearDraft,
+                              child: const Text('Cancel'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   top: 10,
                   right: 10,
@@ -194,7 +298,20 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
             ),
           ),
         );
-        final panel = _panel(context, selected);
+        final panel = _draft != null
+            ? AddPlacePanel(
+                key: ValueKey(
+                  'add-place-${_draft!.point.latitude}-${_draft!.point.longitude}',
+                ),
+                api: widget.api,
+                draft: _draft!,
+                onCancel: _clearDraft,
+                onQueued: (saved) {
+                  _clearDraft();
+                  widget.onCandidateQueued(saved);
+                },
+              )
+            : _panel(context, selected);
         if (!wide) {
           return Column(children: [map, const SizedBox(height: 16), panel]);
         }

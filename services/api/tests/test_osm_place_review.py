@@ -62,7 +62,7 @@ def test_search_requires_admin_and_returns_reviewable_matches(client, monkeypatc
     headers = admin_headers(client)
     assert client.get(path, params=params).status_code == 401
     assert client.get(path, params=params, headers=user_headers(client)).status_code == 403
-    assert client.get(path, params={**params, "radius_m": 50000}, headers=headers).status_code == 422
+    assert client.get(path, params={**params, "radius_m": 50001}, headers=headers).status_code == 422
     assert client.get(path, params={**params, "name": "  "}, headers=headers).json()["error"]["code"] == "invalid_osm_search"
     candidate_id = _stage_candidate(client)
     result = client.get(path, params=params, headers=headers)

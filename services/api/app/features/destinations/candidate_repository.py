@@ -92,6 +92,37 @@ class CandidateRepository:
             if distance_meters(lat, lng, candidate.lat, candidate.lng) <= radius_m
         ]
 
+    async def nearby(
+        self, lat: float, lng: float, radius_m: int
+    ) -> list[tuple[str, Destination | DestinationCandidate, float]]:
+        """Active destinations and staged candidates within radius_m, nearest first."""
+        # A bounding box narrows the query; the exact distance decides.
+        d_lat = radius_m / 111_320
+        d_lng = radius_m / (111_320 * max(cos(radians(lat)), 0.01))
+        destinations = await self.session.execute(
+            select(Destination).where(
+                Destination.is_active.is_(True),
+                Destination.lat.between(lat - d_lat, lat + d_lat),
+                Destination.lng.between(lng - d_lng, lng + d_lng),
+            )
+        )
+        candidates = await self.session.execute(
+            select(DestinationCandidate).where(
+                DestinationCandidate.review_status == "staged",
+                DestinationCandidate.lat.between(lat - d_lat, lat + d_lat),
+                DestinationCandidate.lng.between(lng - d_lng, lng + d_lng),
+            )
+        )
+        found: list[tuple[str, Destination | DestinationCandidate, float]] = [
+            *(("destination", row, distance_meters(lat, lng, row.lat, row.lng))
+              for row in destinations.scalars()),
+            *(("candidate", row, distance_meters(lat, lng, row.lat, row.lng))
+              for row in candidates.scalars()),
+        ]
+        return sorted(
+            (item for item in found if item[2] <= radius_m), key=lambda item: item[2]
+        )
+
     async def nearby_same_name(self, candidate: DestinationCandidate) -> Destination | None:
         return (await self.nearby_same_names([(candidate.name, candidate.lat, candidate.lng)]))[0]
 

@@ -326,6 +326,22 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                         );
                         _refresh();
                       },
+                      onCandidateQueued: (saved) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '${_value(saved, 'name')} added to the review queue.',
+                            ),
+                            action: SnackBarAction(
+                              label: 'Open review queue',
+                              onPressed: () => Navigator.pushNamed(
+                                context,
+                                '/destination-candidates',
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                       onPhotoReplaced: (saved) {
                         _mapSelectedId = saved['destination_id']?.toString();
                         _refresh();

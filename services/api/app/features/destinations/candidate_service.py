@@ -7,7 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.destinations.region import island_group_for, region_status
 from app.core.exceptions import LakbayAPIError
 from app.features.destinations.candidate_repository import CandidateRepository
-from app.features.destinations.candidate_schemas import CandidateCreate, CandidateResponse, CandidateUpdate
+from app.features.destinations.candidate_schemas import (
+    CandidateCreate,
+    CandidateResponse,
+    CandidateUpdate,
+    ManualCandidateCreate,
+    NearbyPlace,
+    NearbyPlacesResponse,
+)
 from app.features.destinations.models import DestinationCandidate
 from app.features.destinations.repository import DestinationRepository
 from app.features.destinations.schemas import DestinationCreate
@@ -56,6 +63,45 @@ class CandidateService:
             ) from exc
         await self.session.refresh(candidate)
         return CandidateResponse.model_validate(candidate)
+
+    async def create_manual(self, data: ManualCandidateCreate) -> CandidateResponse:
+        """Queue a pin dropped on the admin map for a place missing from OSM."""
+        candidate = DestinationCandidate(
+            source="manual",
+            source_area="Admin map",
+            source_tag="manual:pin",
+            name=data.name,
+            lat=data.lat,
+            lng=data.lng,
+            suggested_category=data.suggested_category,
+            district=data.district,
+            review_notes=data.review_notes,
+            island_group=island_group_for(data.lat, data.lng),
+            review_status="staged",
+        )
+        self.session.add(candidate)
+        await self.session.commit()
+        await self.session.refresh(candidate)
+        return CandidateResponse.model_validate(candidate)
+
+    async def nearby(self, *, lat: float, lng: float, radius_m: int) -> NearbyPlacesResponse:
+        """What already exists near a point, to warn before adding a duplicate."""
+        rows = await self.candidates.nearby(lat, lng, radius_m)
+        return NearbyPlacesResponse(
+            lat=lat,
+            lng=lng,
+            radius_m=radius_m,
+            places=[
+                NearbyPlace(
+                    kind=kind,
+                    id=row.destination_id if kind == "destination" else row.candidate_id,
+                    name=row.name,
+                    distance_m=round(meters, 1),
+                    review_status=None if kind == "destination" else row.review_status,
+                )
+                for kind, row, meters in rows
+            ],
+        )
 
     async def update(self, candidate_id: int, data: CandidateUpdate) -> CandidateResponse:
         candidate = await self._get_or_404(candidate_id, lock=True)

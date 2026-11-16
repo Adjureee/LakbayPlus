@@ -330,14 +330,17 @@ class _DestinationCandidatesScreenState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'OSM source: ${candidate['osm_type']} ${candidate['osm_id']}',
+                candidate['source'] == 'manual' || candidate['osm_id'] == null
+                    ? 'Source: pin dropped on the admin map (not in OpenStreetMap)'
+                    : 'OSM source: ${candidate['osm_type']} ${candidate['osm_id']}',
               ),
               Text('Source tag: ${candidate['source_tag']}'),
               Text('Source area: ${candidate['source_area']}'),
               Text(
                 'Suggested category: ${candidate['suggested_category'] ?? 'None'}',
               ),
-              SelectableText(candidate['osm_url']?.toString() ?? ''),
+              if (candidate['osm_url'] != null)
+                SelectableText(candidate['osm_url'].toString()),
               if (candidate['region_status'] == 'outside')
                 const Text(
                   'Outside the Davao Region (Region XI): this cannot be published.',
