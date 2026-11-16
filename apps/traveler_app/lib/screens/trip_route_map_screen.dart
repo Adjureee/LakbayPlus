@@ -1,3 +1,4 @@
+import '../core/day_labels.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -690,7 +691,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                   const SizedBox(height: 4),
                   Text(
                     [
-                      '${widget.trip.daysCount} Days',
+                      DayLabels.countTitle(widget.trip.daysCount),
                       RouteSummaryText.line(
                             route: _backendRoute,
                             stops: waypoints,
