@@ -32,6 +32,12 @@ from app.features.routes.sea_planner import (
     haversine_km,
 )
 from app.features.sea_links.models import MAINLAND, SeaLink
+from app.features.routes.snap_policy import (
+    last_stretch_gaps,
+    last_stretch_segment,
+    last_stretch_warning,
+    snap_limits,
+)
 from app.integrations.osrm.errors import OSRMClientError
 from app.integrations.osrm.schemas import OSRMRouteResult
 
@@ -168,10 +174,17 @@ async def build_multimodal_response(
             run.estimated = True
             continue
         try:
-            result = await road_client.preview_route(
-                travel_mode=travel_mode,
-                coordinates=[stop.coordinate for stop in run.stops],
-            )
+            if hasattr(road_client, "preview_route_with_snap_limits"):
+                result = await road_client.preview_route_with_snap_limits(
+                    travel_mode=travel_mode,
+                    coordinates=[stop.coordinate for stop in run.stops],
+                    max_snap_meters=snap_limits(run.stops),
+                )
+            else:
+                result = await road_client.preview_route(
+                    travel_mode=travel_mode,
+                    coordinates=[stop.coordinate for stop in run.stops],
+                )
             if len(result.legs) != len(run.stops) - 1:
                 raise ValueError("Road router leg count did not match the run.")
             run.result = result
@@ -274,6 +287,17 @@ async def build_multimodal_response(
             if len(run.stops) < 2:
                 continue
             routed = not run.estimated and run.result is not None and run.result.polyline
+            gaps = last_stretch_gaps(run.stops, run.result) if routed else []
+            gap_by_index = {index: point for index, point, _ in gaps}
+            for message in (
+                last_stretch_warning(run.stops[index], meters) for index, _, meters in gaps
+            ):
+                if message not in warnings:
+                    warnings.append(message)
+            if 0 in gap_by_index:
+                segments.append(last_stretch_segment(
+                    run.stops[0], gap_by_index.pop(0), order=len(segments) + 1,
+                ))
             segments.append(RouteSegment(
                 order=len(segments) + 1, mode="road",
                 from_name=run.stops[0].name, to_name=run.stops[-1].name,
@@ -285,6 +309,10 @@ async def build_multimodal_response(
                 ),
                 is_estimated=not routed,
             ))
+            for index in sorted(gap_by_index):
+                segments.append(last_stretch_segment(
+                    run.stops[index], gap_by_index[index], order=len(segments) + 1,
+                ))
         else:
             hop = crossings[index].hop
             segments.append(RouteSegment(
@@ -300,8 +328,12 @@ async def build_multimodal_response(
     road_providers = [run.result.provider for run in runs if run.result is not None]
     any_estimated = any(estimated) or not road_providers
     combined = None
-    if segments and all(not segment.is_estimated for segment in segments):
-        combined = join_polylines5([segment.polyline for segment in segments])
+    # Dashed off-road last stretches do not stop the drivable parts from being
+    # one combined road line; an unrouted road run does.
+    if segments and not any(run.estimated for run in runs if len(run.stops) >= 2):
+        combined = join_polylines5(
+            [segment.polyline for segment in segments if not segment.is_estimated]
+        )
 
     total_distance = sum(distance, Decimal("0.00")).quantize(Decimal("0.01"))
     sea_distance = sum(

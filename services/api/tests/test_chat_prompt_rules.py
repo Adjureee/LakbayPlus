@@ -25,7 +25,7 @@ def test_plain_chat_keeps_its_original_scope():
 
 
 def test_the_prompt_version_changed_with_the_rules():
-    assert CHAT_PROMPT_VERSION == "phase5_chat_v7_local_guide_intent"
+    assert CHAT_PROMPT_VERSION == "phase5_chat_v8_show_places"
 
 
 def test_prompt_answers_first_in_a_local_voice():
@@ -40,5 +40,6 @@ def test_planning_prompt_asks_for_intent_and_suggested_replies():
     prompt = _system_prompt(planning_state={"origin": {"label": "Davao City"}})
 
     assert "`intent`" in prompt and "plan_trip" in prompt
+    assert "show_places" in prompt and "`place_query`" in prompt
     assert "`suggested_replies`" in prompt
     assert "do not turn every reply into a planning checklist" in prompt

@@ -7,6 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import LakbayAPIError
 from app.features.destinations.candidate_repository import distance_meters
 from app.features.destinations.models import Destination
+from app.features.destinations.region import (
+    nearest_provinces,
+    province_for_destination,
+)
 from app.features.planning.routing import _has_non_road_access_hint
 from app.features.recommendations import scoring
 from app.features.recommendations.models import (
@@ -18,6 +22,7 @@ from app.features.recommendations.schemas import (
     DestinationInteractionCreate,
     DestinationInteractionResponse,
     DestinationPopularityResponse,
+    PlaceQueryResult,
     PreferenceSignalResponse,
     PlanningRecommendationItem,
     RecommendationItem,
@@ -165,6 +170,187 @@ class RecommendationService:
         # Route only the strongest candidates, so one table request stays small.
         # A straight-line estimate stands in for travel while shortlisting, so
         # distant places cannot crowd out nearby ones before the road check.
+        qualified, skipped, warnings = await self._score_and_rank_candidates(
+            data=data,
+            candidates=candidates,
+            skipped=skipped,
+            max_minutes=max_minutes,
+            budget_per_person=budget_per_person,
+            osrm_client=osrm_client,
+            enforce_max_distance=True,
+        )
+        items = [
+            item.model_copy(update={"rank": index})
+            for index, item in enumerate(qualified[: data.limit], start=1)
+        ]
+        approximate = sum(1 for item in items if not item.route_verified)
+        if data.origin is None:
+            warnings.append("Set a start point on the map to rank places by travel time.")
+        elif approximate:
+            warnings.append(
+                f"{approximate} of these places {'has' if approximate == 1 else 'have'} "
+                "no verified road route to a visitor entrance yet, so travel times are approximate."
+            )
+        if data.total_budget is not None:
+            warnings.append(
+                "Costs are catalog estimates per person; transport, lodging and meals are not included."
+            )
+
+        if save_preference:
+            await self.session.commit()
+        return TopPlacesResponse(
+            method=data.ranking_method,
+            weights=scoring.WEIGHTS,
+            max_travel_minutes=max_minutes,
+            preference_signal_id=preference_signal_id,
+            total_candidates=len(qualified),
+            verified_count=sum(1 for item in qualified if item.route_verified),
+            items=items,
+            skipped=skipped,
+            shortfall_reason=_top_place_shortfall(
+                data=data,
+                qualified=len(qualified),
+                interest_match_count=interest_match_count,
+                skipped=skipped,
+            ),
+            warnings=warnings,
+        )
+
+    async def rank_place_query(
+        self,
+        *,
+        categories: list[str],
+        province: str | None,
+        origin: RouteCoordinate | None,
+        travel_mode: str = "driving",
+        total_budget: Decimal | None = None,
+        budget_scope: str = "whole_trip",
+        traveler_count: int | None = None,
+        adult_count: int | None = None,
+        child_ages: list[int] | None = None,
+        day_count: int | None = None,
+        limit: int = 5,
+        osrm_client: OSRMClient | None = None,
+    ) -> PlaceQueryResult:
+        """Resolve an explicit show-places query using Region XI province filtering and SAW ranking."""
+        norm_cats = _normalize_category_terms(categories)
+        query_request = TopPlacesRequest(
+            interests=norm_cats[:15],
+            origin=origin,
+            travel_mode=travel_mode if travel_mode in {"driving", "public_transport", "walking"} else "driving",
+            total_budget=total_budget,
+            budget_scope="per_person" if budget_scope == "per_person" else "whole_trip",
+            traveler_count=traveler_count,
+            adult_count=adult_count,
+            child_ages=list(child_ages or []),
+            day_count=day_count or 2,
+            limit=max(1, min(10, limit)),
+            ranking_method="simple_additive_weighting",
+        )
+        destinations = await self.recommendations.list_active_destinations()
+        popularity = await self.recommendations.list_popularity()
+        party = query_request.party_size
+        budget_per_person = (
+            None if query_request.total_budget is None
+            else query_request.total_budget if query_request.budget_scope == "per_person"
+            else query_request.total_budget / party
+        )
+        max_minutes = scoring.max_travel_minutes(query_request.day_count)
+
+        candidates: list[_TopPlaceCandidate] = []
+        other_province_counts: dict[str, int] = {}
+        for destination in destinations:
+            dest_province = province_for_destination(
+                destination.lat,
+                destination.lng,
+                district=destination.district,
+                location=destination.location,
+            )
+            if dest_province is None:
+                continue
+
+            matched, matched_fields = _match_place_categories(norm_cats, destination)
+            if norm_cats and not matched:
+                continue
+
+            if province is not None and dest_province != province:
+                other_province_counts[dest_province] = other_province_counts.get(dest_province, 0) + 1
+                continue
+
+            cost = destination.estimated_cost
+            if cost is not None and budget_per_person is not None and cost > budget_per_person:
+                continue
+
+            record = popularity.get(destination.destination_id)
+            candidates.append(_TopPlaceCandidate(
+                destination=destination,
+                matched=matched,
+                matched_fields=matched_fields,
+                values={
+                    "interest": scoring.interest_score(len(norm_cats), len(matched)),
+                    "budget": scoring.budget_score(cost, budget_per_person),
+                    "group_fit": scoring.group_fit_score(
+                        has_children=bool(query_request.child_ages),
+                        traveler_count=party,
+                        is_kid_friendly=destination.is_kid_friendly,
+                        group_friendly=destination.group_friendly,
+                    ),
+                    "popularity": scoring.popularity_score(
+                        record.popularity_score if record else None
+                    ),
+                },
+            ))
+
+        qualified, _, _ = await self._score_and_rank_candidates(
+            data=query_request,
+            candidates=candidates,
+            skipped=TopPlacesSkipped(),
+            max_minutes=max_minutes,
+            budget_per_person=budget_per_person,
+            osrm_client=osrm_client,
+            enforce_max_distance=False,
+        )
+        items = [
+            item.model_copy(update={"rank": index})
+            for index, item in enumerate(qualified[: query_request.limit], start=1)
+        ]
+
+        nearby = nearest_provinces(
+            province,
+            lat=origin.lat if origin is not None else None,
+            lng=origin.lng if origin is not None else None,
+            counts=other_province_counts if province is not None else None,
+        )
+        shortfall_reason: str | None = None
+        if len(items) < query_request.limit and (province is not None or len(items) == 0):
+            shortfall_reason = _place_query_shortfall(
+                categories=categories,
+                province=province,
+                found=len(items),
+                nearby=nearby,
+                other_province_counts=other_province_counts,
+            )
+
+        return PlaceQueryResult(
+            items=items,
+            total_candidates=len(qualified),
+            target_province=province,
+            other_province_counts=other_province_counts,
+            nearest_provinces=nearby,
+            shortfall_reason=shortfall_reason,
+        )
+
+    async def _score_and_rank_candidates(
+        self,
+        *,
+        data: TopPlacesRequest,
+        candidates: list[_TopPlaceCandidate],
+        skipped: TopPlacesSkipped,
+        max_minutes: int,
+        budget_per_person: Decimal | None,
+        osrm_client: OSRMClient | None,
+        enforce_max_distance: bool,
+    ) -> tuple[list[TopPlaceItem], TopPlacesSkipped, list[str]]:
         candidates.sort(key=lambda item: (
             -_shortlist_score(data, item, max_minutes),
             item.destination.destination_id,
@@ -180,7 +366,7 @@ class RecommendationService:
             if not trip.reachable:
                 skipped.no_route += 1
                 continue
-            if trip.minutes is not None and trip.minutes > max_minutes:
+            if enforce_max_distance and trip.minutes is not None and trip.minutes > max_minutes:
                 skipped.too_far += 1
                 continue
             values = {**candidate.values, "travel": scoring.travel_score(trip.minutes, max_minutes)}
@@ -234,42 +420,7 @@ class RecommendationService:
             item.travel_minutes if item.travel_minutes is not None else float("inf"),
             item.destination_id,
         ))
-        items = [
-            item.model_copy(update={"rank": index})
-            for index, item in enumerate(qualified[: data.limit], start=1)
-        ]
-        approximate = sum(1 for item in items if not item.route_verified)
-        if data.origin is None:
-            warnings.append("Set a start point on the map to rank places by travel time.")
-        elif approximate:
-            warnings.append(
-                f"{approximate} of these places {'has' if approximate == 1 else 'have'} "
-                "no verified road route to a visitor entrance yet, so travel times are approximate."
-            )
-        if data.total_budget is not None:
-            warnings.append(
-                "Costs are catalog estimates per person; transport, lodging and meals are not included."
-            )
-
-        if save_preference:
-            await self.session.commit()
-        return TopPlacesResponse(
-            method=data.ranking_method,
-            weights=scoring.WEIGHTS,
-            max_travel_minutes=max_minutes,
-            preference_signal_id=preference_signal_id,
-            total_candidates=len(qualified),
-            verified_count=sum(1 for item in qualified if item.route_verified),
-            items=items,
-            skipped=skipped,
-            shortfall_reason=_top_place_shortfall(
-                data=data,
-                qualified=len(qualified),
-                interest_match_count=interest_match_count,
-                skipped=skipped,
-            ),
-            warnings=warnings,
-        )
+        return qualified, skipped, warnings
 
     async def recommend_destinations(
         self,
@@ -725,6 +876,7 @@ def planning_recommendation_from_top_place(item: TopPlaceItem) -> PlanningRecomm
         name=item.name,
         district=item.district,
         category=item.category,
+        image_url=item.image_url,
         estimated_cost=item.estimated_cost,
         score=item.score,
         matched_fields=item.matched_fields,
@@ -737,6 +889,100 @@ def planning_recommendation_from_top_place(item: TopPlaceItem) -> PlanningRecomm
         travel_basis=item.travel_basis,
         breakdown=item.breakdown,
     )
+
+
+_SINGULAR_CATEGORIES: dict[str, str] = {
+    "beaches": "beach",
+    "mountains": "mountain",
+    "waterfalls": "waterfall",
+    "falls": "waterfall",
+    "islands": "island",
+    "resorts": "resort",
+    "parks": "park",
+    "caves": "cave",
+    "farms": "farm",
+    "cafes": "cafe",
+    "restaurants": "restaurant",
+    "museums": "museum",
+    "lakes": "lake",
+    "hills": "hill",
+    "springs": "spring",
+}
+
+
+def _normalize_category_terms(categories: list[str]) -> list[str]:
+    terms: list[str] = []
+    for raw in categories:
+        cleaned = raw.strip().lower()
+        if not cleaned:
+            continue
+        stem = _SINGULAR_CATEGORIES.get(cleaned)
+        if stem is None and len(cleaned) > 4 and cleaned.endswith("s") and not cleaned.endswith(("ss", "us", "is")):
+            stem = cleaned[:-1]
+        value = stem or cleaned
+        if value not in terms:
+            terms.append(value)
+    return terms
+
+
+def _match_place_categories(
+    categories: list[str],
+    destination: Destination,
+) -> tuple[list[str], list[str]]:
+    if not categories:
+        return [], []
+    matched, matched_fields = scoring.interest_matches(
+        categories,
+        {
+            "category": destination.category,
+            "vibes": destination.vibes,
+            "activities": destination.activities,
+        },
+    )
+    if "island" in categories and "island" not in [m.lower() for m in matched] and destination.island_group:
+        matched.append("island")
+        if "island_group" not in matched_fields:
+            matched_fields.append("island_group")
+    return matched, matched_fields
+
+
+def _place_query_shortfall(
+    *,
+    categories: list[str],
+    province: str | None,
+    found: int,
+    nearby: list[str],
+    other_province_counts: dict[str, int],
+) -> str:
+    cat_label = ", ".join(categories).strip()
+    cat_phrase = f"{cat_label} " if cat_label else ""
+    with_matches = [p for p in nearby if other_province_counts.get(p, 0) > 0][:3]
+    if found == 0:
+        if province is None:
+            return f"No active {cat_phrase}destinations in Davao Region match your request yet."
+        if with_matches:
+            return (
+                f"No active {cat_phrase}destinations in {province} are in our catalog yet. "
+                f"Nearest provinces with options: {', '.join(with_matches)}."
+            )
+        fallback = nearby[:3]
+        if fallback:
+            return (
+                f"No active {cat_phrase}destinations in {province} match your request yet. "
+                f"Nearest provinces to explore: {', '.join(fallback)}."
+            )
+        return f"No active {cat_phrase}destinations in {province} are in our catalog yet."
+
+    noun = "destination" if found == 1 else "destinations"
+    verb = "is" if found == 1 else "are"
+    if with_matches:
+        return (
+            f"Only {found} active {cat_phrase}{noun} in {province} {verb} listed right now. "
+            f"Nearest provinces with more options: {', '.join(with_matches)}."
+        )
+    fallback = nearby[:3]
+    extra = f" Nearest provinces to explore: {', '.join(fallback)}." if fallback else ""
+    return f"Only {found} active {cat_phrase}{noun} in {province} {verb} listed right now.{extra}"
 
 
 def _route_point(destination: Destination) -> RouteCoordinate:

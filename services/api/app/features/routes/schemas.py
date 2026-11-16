@@ -176,3 +176,60 @@ class RouteSummaryResponse(BaseModel):
     segments: list[RouteSegment] = Field(default_factory=list)
     # Island groups a stop is on that no active sea link reaches.
     unconnected_island_groups: list[str] = Field(default_factory=list)
+
+
+TripPaceLiteral = Literal["relaxed", "balanced", "packed"]
+CostSourceLiteral = Literal["haversine", "osrm", "mapbox", "google_routes"]
+
+
+class RoutePlanRequest(RouteBaseRequest):
+    days: int = Field(default=3, ge=1, le=14)
+    pace: TripPaceLiteral = "balanced"
+    preserve_first_destination: bool = False
+    locked_first_destination_id: int | None = None
+    must_visit_destination_ids: list[int] | None = None
+    prune_optional_to_fit: bool = False
+
+
+class RoutePlanStopSummary(BaseModel):
+    destination_id: int | None = None
+    name: str
+    lat: float
+    lng: float
+    island_group: str | None = None
+    stay_duration_type: str
+    visit_hours: float
+
+
+class RoutePlanDay(BaseModel):
+    day_number: int
+    stops: list[RoutePlanStopSummary]
+    visit_hours: float
+    transit_hours: float
+    total_hours: float
+    is_continuation_day: bool = False
+    continuation_of_name: str | None = None
+    is_overloaded: bool = False
+    overload_warning: str | None = None
+
+
+class RoutePlanSavings(BaseModel):
+    baseline_distance_km: float
+    optimized_distance_km: float
+    distance_saved_km: float
+    distance_saved_percent: float
+    baseline_transit_minutes: float
+    optimized_transit_minutes: float
+    minutes_saved: float
+
+
+class RoutePlanResponse(BaseModel):
+    order_method: OrderMethod
+    cost_source: CostSourceLiteral
+    suggested_days: int
+    pace: TripPaceLiteral
+    savings_vs_input: RoutePlanSavings
+    warnings: list[str]
+    skipped_destination_ids: list[int] = Field(default_factory=list)
+    days: list[RoutePlanDay]
+    route: RouteSummaryResponse

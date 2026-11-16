@@ -1,6 +1,13 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lakbay_travel/models/travel_models.dart';
+import 'package:lakbay_travel/screens/explore_screen.dart';
+import 'package:lakbay_travel/services/lakbay_api_catalog_service.dart';
 import 'package:lakbay_travel/services/travel_repository.dart';
 
 void main() {
@@ -54,9 +61,25 @@ void main() {
     }
   });
 
-  test('Manifest & explore_trips.csv contain zero legacy foreign destinations', () {
+  test('Manifest & places.csv contain zero legacy foreign destinations and no days column', () {
     final manifest = File('assets/home_backdrops/manifest.json').readAsStringSync();
-    final csv = File('assets/data/explore_trips.csv').readAsStringSync();
+    final csv = File('assets/data/places.csv').readAsStringSync();
+    final header = const LineSplitter().convert(csv).first.split(',');
+    expect(
+      header,
+      equals([
+        'id',
+        'name',
+        'district',
+        'category',
+        'lat',
+        'lng',
+        'island_group',
+        'stay_duration_type',
+        'thumbnail',
+      ]),
+    );
+    expect(header, isNot(contains('days')));
     for (final forbidden in [
       'zakynthos',
       'thoddoo',
@@ -176,7 +199,7 @@ void main() {
         'https://res.cloudinary.com/bh2rda7z/image/upload/v1/lakbay/mati.jpg');
   });
 
-  test('Thesis models parse expense age-split, 80% alert, TOPSIS ranking, and memories', () {
+  test('Thesis models parse expense age-split, 80% alert, weighted SAW ranking default, and memories', () {
     final summary = TripExpenseSummary.fromJson({
       'trip_id': 7,
       'total_budget': '1000.00',
@@ -199,8 +222,7 @@ void main() {
     expect(summary.adultShare, closeTo(340.0, 0.01));
     expect(summary.childShare, closeTo(170.0, 0.01));
 
-    final top = TopPlacesResult.fromJson({
-      'method': 'topsis',
+    final topDefault = TopPlacesResult.fromJson({
       'items': [
         {
           'rank': 1,
@@ -215,9 +237,15 @@ void main() {
         },
       ],
     });
-    expect(top.method, 'topsis');
-    expect(top.items.single.name, 'Dahican Beach');
-    expect(top.items.single.score, closeTo(94.5, 0.01));
+    expect(topDefault.method, 'simple_additive_weighting');
+    expect(topDefault.items.single.name, 'Dahican Beach');
+    expect(topDefault.items.single.score, closeTo(94.5, 0.01));
+
+    final topSaw = TopPlacesResult.fromJson({
+      'method': 'simple_additive_weighting',
+      'items': const [],
+    });
+    expect(topSaw.method, 'simple_additive_weighting');
 
     final memory = TripMemoryItem.fromJson({
       'trip_memory_id': 11,
@@ -231,5 +259,61 @@ void main() {
     });
     expect(memory.caption, 'Sunset swim');
     expect(memory.likeCount, 3);
+  });
+
+  test('fetchTopPlaces sends simple_additive_weighting by default', () async {
+    String? sentRankingMethod;
+    final client = MockClient((req) async {
+      final body = jsonDecode(req.body) as Map<String, dynamic>;
+      sentRankingMethod = body['ranking_method'] as String?;
+      return http.Response(
+        jsonEncode({
+          'method': 'simple_additive_weighting',
+          'items': const [],
+        }),
+        200,
+      );
+    });
+    final api = LakbayApiCatalogService(
+      client: client,
+      baseUrlOverride: 'https://api.lakbay.test',
+    );
+    final result = await api.fetchTopPlaces('token', interests: ['beach']);
+    expect(sentRankingMethod, 'simple_additive_weighting');
+    expect(result?.method, 'simple_additive_weighting');
+  });
+
+  testWidgets('Top-5 Match sheet hides TOPSIS/SAW method chips and scores offline matches fairly', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = TravelRepository(
+      apiCatalog: LakbayApiCatalogService(baseUrlOverride: ''),
+    );
+    await tester.runAsync(() async {
+      await repo.initialize();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExploreScreen(repo: repo),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Top-5 Match'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Personalized Top-5 Match'), findsOneWidget);
+    expect(find.textContaining('TOPSIS'), findsNothing);
+    expect(find.textContaining('Weighted SAW'), findsNothing);
+    expect(find.textContaining('Method:'), findsNothing);
+
+    await tester.tap(find.text('Rank Top 5'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Method:'), findsNothing);
+    expect(find.textContaining('TOPSIS'), findsNothing);
+    expect(find.textContaining('Offline suggestions'), findsOneWidget);
+    expect(find.textContaining('Match '), findsNothing);
+    expect(find.textContaining('Fits your interests'), findsWidgets);
   });
 }

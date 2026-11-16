@@ -1,78 +1,82 @@
 {
-  "version": 2,
+  "version": 3,
   "region": "Davao Region (Region XI, Philippines)",
   "locales": {
     "en": {
       "hero": {
-        "tripId": "01KJMG8QD9S6D8Q6694NRECS2Y",
-        "tag": "DAVAO REGION SIGNATURE"
+        "tripId": "api_4",
+        "tag": "TOP DAVAO PICK"
       },
       "sections": [
         {
           "id": "trending_davao",
           "title": "Trending in Davao Region",
-          "subtitle": "Most-saved Region XI escapes right now",
+          "subtitle": "Single-place highlights across Region XI",
           "items": [
-            { "tripId": "01KJKDPNA1XT4W2RHRA6GQVNVX", "tag": "🏝️" },
-            { "tripId": "01KJKFBHH37GN1QH73WDQ2SD2H", "tag": "🏄" },
-            { "tripId": "01KJM4BF5FNY1S27CTBRYBSCX9", "tag": "🌲" },
-            { "tripId": "01KJMAJ5EB54NMC8C1NZV52R87", "tag": "💦" },
-            { "tripId": "01KJMEF0DZ0WQGZG3RZ49XJ7YC", "tag": "⛰️" }
+            { "tripId": "api_4", "tag": "Beach" },
+            { "tripId": "api_6", "tag": "Beach" },
+            { "tripId": "api_38", "tag": "Farm" },
+            { "tripId": "api_13", "tag": "Waterfall" },
+            { "tripId": "api_5", "tag": "Mountain" }
           ]
         },
         {
           "id": "davao_city_highlands",
           "title": "Davao City & Buda Highlands",
-          "subtitle": "San Pedro heritage, Philippine Eagles, Eden & Marilog pines",
+          "subtitle": "Poblacion heritage, Philippine Eagles, Eden & Marilog",
           "items": [
-            { "tripId": "01KJM3TKYANT9JXGA1FC7SRNE8", "tag": "🦅" },
-            { "tripId": "01KJM4BF5FNY1S27CTBRYBSCX9", "tag": "☕" },
-            { "tripId": "01KJMPFG7TJW8YSW17YKP77523", "tag": "🍽️" },
-            { "tripId": "01KJMG8QD9S6D8Q6694NRECS2Y", "tag": "✨" }
+            { "tripId": "api_2", "tag": "Wildlife" },
+            { "tripId": "api_3", "tag": "Nature Resort" },
+            { "tripId": "api_38", "tag": "Farm" },
+            { "tripId": "api_1", "tag": "Park" },
+            { "tripId": "api_14", "tag": "Museum" }
           ]
         },
         {
           "id": "samal_davao_del_norte",
           "title": "Samal Island (IGaCoS) & Davao del Norte",
-          "subtitle": "Coral reefs, Pearl Farm coves, Tagum & Kapalong caves",
+          "subtitle": "Island coves, bat caves, Tagum & Talaingod ridges",
           "items": [
-            { "tripId": "01KJKDPNA1XT4W2RHRA6GQVNVX", "tag": "🐚" },
-            { "tripId": "01KJMSRDYN8PTZE8W1FGDMTHG0", "tag": "✨" },
-            { "tripId": "01KJMN2S1TAGN3A0FJSASQVYT5", "tag": "🌴" },
-            { "tripId": "01KJMQQ341XJM79PZM11BQSQSF", "tag": "🦇" },
-            { "tripId": "01KJMYK0VWHJ7R3V3NG67Y8PYX", "tag": "🌾" }
+            { "tripId": "api_4", "tag": "Beach" },
+            { "tripId": "api_40", "tag": "Beach Resort" },
+            { "tripId": "api_34", "tag": "Nature Reserve" },
+            { "tripId": "api_16", "tag": "Water Park" },
+            { "tripId": "api_20", "tag": "Church" }
           ]
         },
         {
           "id": "davao_oriental",
           "title": "Mati & Davao Oriental Pacific Coast",
-          "subtitle": "Dahican surf, Pujada Bay, Aliwagwag Falls & Cape San Agustin",
+          "subtitle": "Dahican surf, Aliwagwag Falls, Hamiguitan & Cape San Agustin",
           "items": [
-            { "tripId": "01KJKFBHH37GN1QH73WDQ2SD2H", "tag": "🌊" },
-            { "tripId": "01KJMAJ5EB54NMC8C1NZV52R87", "tag": "🌈" },
-            { "tripId": "01KJMMPYEQJGNWH18JDBGW4RTB", "tag": "🗼" },
-            { "tripId": "01KJMX6NA18NAM8FW70K4BD0PM", "tag": "🧭" },
-            { "tripId": "01KJMZ3RQR0ZRA3G196B14ABQ2", "tag": "🐢" }
+            { "tripId": "api_6", "tag": "Beach" },
+            { "tripId": "api_13", "tag": "Waterfall" },
+            { "tripId": "api_24", "tag": "Scenic Cape" },
+            { "tripId": "api_37", "tag": "Nature Reserve" },
+            { "tripId": "api_39", "tag": "Beach Resort" }
           ]
         },
         {
           "id": "davao_del_sur",
           "title": "Mt. Apo & Davao del Sur",
-          "subtitle": "Kapatagan coffee ridges, Lake Venado & Passig Islet",
+          "subtitle": "Kapatagan highlands, Tudaya Falls & Digos parks",
           "items": [
-            { "tripId": "01KJMEF0DZ0WQGZG3RZ49XJ7YC", "tag": "🌋" },
-            { "tripId": "01KJMYXGMQDPZ98T1TV55VJ7FT", "tag": "🥾" },
-            { "tripId": "01KJMNR2GHAVTWJV7SF6G5HMCK", "tag": "🏖️" }
+            { "tripId": "api_5", "tag": "Mountain" },
+            { "tripId": "api_17", "tag": "Mountain Resort" },
+            { "tripId": "api_12", "tag": "Waterfall" },
+            { "tripId": "api_21", "tag": "Nature Park" }
           ]
         },
         {
           "id": "davao_de_oro_occidental",
           "title": "Davao de Oro & Davao Occidental",
-          "subtitle": "Maragusan Sea of Clouds, Kopiat Island & Balut frontier",
+          "subtitle": "Maragusan waterfalls, Mainit springs & Balut Island",
           "items": [
-            { "tripId": "01KJMF5AWGF8N1YC7JWRJ1S2S4", "tag": "☁️" },
-            { "tripId": "01KJMVFT934RQ9F8C6Z93YZMPD", "tag": "💧" },
-            { "tripId": "01KJMSF6HH0XZT5NMR9ZXMG9MS", "tag": "⛵" }
+            { "tripId": "api_8", "tag": "Waterfall" },
+            { "tripId": "api_36", "tag": "Viewpoint" },
+            { "tripId": "api_9", "tag": "Hot Spring" },
+            { "tripId": "api_10", "tag": "Beach" },
+            { "tripId": "api_11", "tag": "Island" }
           ]
         }
       ]

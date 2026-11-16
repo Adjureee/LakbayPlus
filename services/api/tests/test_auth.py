@@ -239,3 +239,18 @@ def test_logout_revokes_refresh_token(client) -> None:
     )
 
     assert refresh_response.status_code == 401
+
+
+def test_register_rejects_blank_or_placeholder_full_name(client) -> None:
+    for bad_name in ("  ", "Lakbay Traveler", " lakbay   traveler "):
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "full_name": bad_name,
+                "email": "valid.user@example.com",
+                "password": "password123",
+                "confirm_password": "password123",
+            },
+        )
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "validation_error"

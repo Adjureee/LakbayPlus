@@ -132,6 +132,9 @@ class ChainedRoutingClient(OSRMClient):
     async def preview_route(self, **kwargs) -> OSRMRouteResult:
         return await self._first("preview_route", kwargs)
 
+    async def preview_route_with_snap_limits(self, **kwargs) -> OSRMRouteResult:
+        return await self._first("preview_route_with_snap_limits", kwargs)
+
     async def optimize_route(self, **kwargs) -> OSRMRouteResult:
         return await self._first("optimize_route", kwargs)
 

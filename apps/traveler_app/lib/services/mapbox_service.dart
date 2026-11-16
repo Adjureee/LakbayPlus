@@ -33,6 +33,13 @@ class MapboxService {
     _customToken = token.trim();
   }
 
+  static bool isInsideDavaoRegion(double lat, double lng) {
+    return lat >= davaoMinLat &&
+        lat <= davaoMaxLat &&
+        lng >= davaoMinLng &&
+        lng <= davaoMaxLng;
+  }
+
   static (double lat, double lng) clampToDavaoRegion(double lat, double lng) {
     return (
       lat.clamp(davaoMinLat, davaoMaxLat),

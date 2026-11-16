@@ -22,6 +22,12 @@ from app.features.routes.multimodal import (
     spans_island_groups,
 )
 from app.features.routes.repository import RouteRepository
+from app.features.routes.snap_policy import (
+    last_stretch_gaps,
+    last_stretch_segment,
+    last_stretch_warning,
+    snap_limits,
+)
 from app.features.sea_links.repository import SeaLinkRepository
 from app.features.routes.schemas import (
     OrderMethod,
@@ -31,6 +37,7 @@ from app.features.routes.schemas import (
     RouteLeg,
     RouteOptimizeRequest,
     RoutePreviewRequest,
+    RouteSegment,
     RouteStop,
     RouteSummaryResponse,
     RouteTrafficSummary,
@@ -70,6 +77,7 @@ class RoutePlanStop:
     coordinate_basis: Literal["origin", "verified_arrival", "attraction"] = "attraction"
     # None means the mainland; see app.features.sea_links.
     island_group: str | None = None
+    is_port: bool = False
 
     @property
     def coordinate(self) -> RouteCoordinate:
@@ -133,10 +141,7 @@ class RouteService:
         warnings = [live_traffic_warning] if live_traffic_warning else []
 
         try:
-            osrm_result = await self.osrm_client.preview_route(
-                travel_mode=data.travel_mode,
-                coordinates=[stop.coordinate for stop in route_stops],
-            )
+            osrm_result = await self._road_preview(data.travel_mode, route_stops)
 
             return _osrm_response(
                 travel_mode=data.travel_mode,
@@ -277,6 +282,185 @@ class RouteService:
             osrm_response.warnings.insert(0, live_traffic_warning)
         return _with_order_method(osrm_response, "osrm_trip")
 
+    async def plan_route(self, data) -> "RoutePlanResponse":
+        """Optimize visit order, partition multi-place days, and build geometry."""
+        from app.features.routes.day_planner import (
+            StopPlanInput,
+            normalize_island_group,
+            plan_multi_day_route,
+        )
+        from app.features.routes.schemas import (
+            RouteCoordinate,
+            RoutePlanDay,
+            RoutePlanResponse,
+            RoutePlanSavings,
+            RoutePlanStopSummary,
+            RoutePreviewRequest,
+        )
+        from app.features.routes.sea_planner import PlannerPoint
+
+        stops = await self._build_stops(data)
+        destinations = await self.routes.list_active_destinations_by_ids(
+            list(data.destination_ids),
+        )
+        stay_by_id = {
+            dest.destination_id: dest.stay_duration_type for dest in destinations
+        }
+
+        origin_stop = stops[0] if stops and stops[0].is_origin else None
+        dest_stops = [stop for stop in stops if not stop.is_origin]
+        must_set = (
+            set(data.must_visit_destination_ids)
+            if data.must_visit_destination_ids is not None
+            else None
+        )
+
+        plan_inputs = [
+            StopPlanInput(
+                destination_id=stop.destination_id,
+                name=stop.name,
+                lat=stop.lat,
+                lng=stop.lng,
+                island_group=stop.island_group,
+                stay_duration_type=stay_by_id.get(stop.destination_id, "half_day"),
+                must_visit=True if must_set is None else (stop.destination_id in must_set),
+            )
+            for stop in dest_stops
+        ]
+
+        override_by_pair: dict[tuple[int | None, int | None], tuple[float, float]] = {}
+        matrix_provider = getattr(self.osrm_client, "provider_name", "osrm")
+
+        if data.travel_mode in ("driving", "walking") and self.osrm_client is not None:
+            grouped: dict[str, list[tuple[int | None, RouteCoordinate]]] = {}
+            if origin_stop is not None:
+                grouped.setdefault(
+                    normalize_island_group(origin_stop.island_group),
+                    [],
+                ).append((None, origin_stop.coordinate))
+            for s in plan_inputs:
+                grouped.setdefault(s.normalized_island, []).append(
+                    (
+                        s.destination_id,
+                        RouteCoordinate(
+                            label=s.name,
+                            lat=s.lat,
+                            lng=s.lng,
+                            island_group=s.island_group,
+                        ),
+                    )
+                )
+
+            for island, entries in grouped.items():
+                if len(entries) < 2:
+                    continue
+                try:
+                    matrix_res = await self.osrm_client.matrix(
+                        travel_mode=data.travel_mode,
+                        coordinates=[coord for _, coord in entries],
+                    )
+                    for i, (key_a, _) in enumerate(entries):
+                        for j, (key_b, _) in enumerate(entries):
+                            if i == j:
+                                continue
+                            dur_s = matrix_res.durations_seconds[i][j]
+                            dist_m = matrix_res.distances_meters[i][j]
+                            if dur_s is not None and dur_s > 0:
+                                mins = dur_s / 60.0
+                                km = (dist_m / 1000.0) if dist_m is not None else 0.0
+                                override_by_pair[(key_a, key_b)] = (mins, max(0.0, km))
+                except (OSRMClientError, ValueError) as exc:
+                    logger.info("Matrix lookup skipped for %s: %s", island, exc)
+
+        network = await self._sea_network()
+        origin_pt = (
+            PlannerPoint(origin_stop.lat, origin_stop.lng, origin_stop.island_group)
+            if origin_stop is not None
+            else None
+        )
+        plan = plan_multi_day_route(
+            stops=plan_inputs,
+            days=data.days,
+            pace=data.pace,
+            origin=origin_pt,
+            roundtrip=data.return_to_origin,
+            locked_first_destination_id=data.locked_first_destination_id,
+            preserve_first_destination=data.preserve_first_destination,
+            driving=data.travel_mode == "driving",
+            prune_optional_to_fit=data.prune_optional_to_fit,
+            network=network,
+            override_by_pair=override_by_pair or None,
+            cost_source=matrix_provider,
+        )
+
+        ordered_ids = [
+            s.destination_id for s in plan.ordered_stops if s.destination_id is not None
+        ]
+        preview_req = RoutePreviewRequest(
+            destination_ids=ordered_ids or list(data.destination_ids[:1]),
+            travel_mode=data.travel_mode,
+            origin=data.origin,
+            return_to_origin=data.return_to_origin,
+            use_live_traffic=data.use_live_traffic,
+        )
+        route_summary = await self.preview_route(preview_req)
+        route_summary = _with_order_method(route_summary, plan.order_method)
+
+        merged_warnings = list(plan.warnings)
+        for w in route_summary.warnings:
+            if w not in merged_warnings:
+                merged_warnings.append(w)
+
+        cost_source = plan.cost_source
+        if cost_source not in ("haversine", "osrm", "mapbox", "google_routes"):
+            cost_source = "haversine"
+
+        return RoutePlanResponse(
+            order_method=plan.order_method,
+            cost_source=cost_source,
+            suggested_days=plan.suggested_days,
+            pace=data.pace,
+            savings_vs_input=RoutePlanSavings(
+                baseline_distance_km=plan.savings_vs_input.baseline_distance_km,
+                optimized_distance_km=plan.savings_vs_input.optimized_distance_km,
+                distance_saved_km=plan.savings_vs_input.distance_saved_km,
+                distance_saved_percent=plan.savings_vs_input.distance_saved_percent,
+                baseline_transit_minutes=plan.savings_vs_input.baseline_transit_minutes,
+                optimized_transit_minutes=plan.savings_vs_input.optimized_transit_minutes,
+                minutes_saved=plan.savings_vs_input.minutes_saved,
+            ),
+            warnings=merged_warnings,
+            skipped_destination_ids=[
+                s.destination_id for s in plan.skipped_stops if s.destination_id is not None
+            ],
+            days=[
+                RoutePlanDay(
+                    day_number=day.day_number,
+                    stops=[
+                        RoutePlanStopSummary(
+                            destination_id=s.destination_id,
+                            name=s.name,
+                            lat=s.lat,
+                            lng=s.lng,
+                            island_group=s.island_group,
+                            stay_duration_type=s.normalized_stay_type,
+                            visit_hours=s.visit_hours,
+                        )
+                        for s in day.stops
+                    ],
+                    visit_hours=round(day.visit_hours, 2),
+                    transit_hours=round(day.transit_hours, 2),
+                    total_hours=round(day.total_hours, 2),
+                    is_continuation_day=day.is_continuation_day,
+                    continuation_of_name=day.continuation_of_name,
+                    is_overloaded=day.is_overloaded,
+                    overload_warning=day.overload_warning,
+                )
+                for day in plan.days
+            ],
+            route=route_summary,
+        )
+
     async def _sea_network(self):
         return network_from_links(await self.sea_links.list_active_links())
 
@@ -380,10 +564,7 @@ class RouteService:
             "comparing every possible order with OSRM travel times."
         )
         try:
-            osrm_result = await self.osrm_client.preview_route(
-                travel_mode=data.travel_mode,
-                coordinates=[stop.coordinate for stop in route_stops],
-            )
+            osrm_result = await self._road_preview(data.travel_mode, route_stops)
             osrm_response = _osrm_response(
                 travel_mode=data.travel_mode,
                 stops=route_stops,
@@ -404,6 +585,21 @@ class RouteService:
         if live_traffic_warning:
             osrm_response.warnings.insert(0, live_traffic_warning)
         return _with_order_method(osrm_response, "exact")
+
+    async def _road_preview(
+        self, travel_mode: TravelMode, stops: list[RoutePlanStop],
+    ):
+        """Road route where off-road attraction pins may snap farther than gates."""
+        coordinates = [stop.coordinate for stop in stops]
+        if hasattr(self.osrm_client, "preview_route_with_snap_limits"):
+            return await self.osrm_client.preview_route_with_snap_limits(
+                travel_mode=travel_mode,
+                coordinates=coordinates,
+                max_snap_meters=snap_limits(stops),
+            )
+        return await self.osrm_client.preview_route(
+            travel_mode=travel_mode, coordinates=coordinates,
+        )
 
     async def _try_live_traffic(
         self,
@@ -537,6 +733,7 @@ def _port_stop(port) -> RoutePlanStop:
         lng=port.lng,
         coordinate_basis="verified_arrival" if port.verified else "attraction",
         island_group=port.island_group,
+        is_port=True,
     )
 
 
@@ -591,11 +788,14 @@ def _osrm_response(
         )
     ]
     ferries = [_ferry_crossing(item) for item in osrm_result.ferry_crossings]
+    gaps = last_stretch_gaps(stops, osrm_result)
     response_warnings = [
         *(warnings or []),
+        *(last_stretch_warning(stops[index], meters) for index, _, meters in gaps),
         *_arrival_warnings(stops),
         *(_ferry_warning(item) for item in ferries),
     ]
+    segments = _last_stretch_segments(stops, osrm_result, gaps)
 
     return RouteSummaryResponse(
         travel_mode=travel_mode,
@@ -610,7 +810,38 @@ def _osrm_response(
         arrival_points_verified=verified,
         warnings=response_warnings,
         ferry_crossings=ferries,
+        segments=segments,
     )
+
+
+def _last_stretch_segments(
+    stops: list[RoutePlanStop],
+    osrm_result: OSRMRouteResult,
+    gaps: list[tuple[int, tuple[float, float], float]],
+) -> list[RouteSegment]:
+    """Road segment plus dashed off-road connectors; empty when none are needed.
+
+    Without gaps the app draws ``polyline`` directly, as before.
+    """
+    if not gaps or not osrm_result.polyline:
+        return []
+    gap_by_index = {index: road_point for index, road_point, _ in gaps}
+    segments: list[RouteSegment] = []
+    first = gap_by_index.pop(0, None)
+    if first is not None:
+        segments.append(last_stretch_segment(stops[0], first, order=1))
+    segments.append(RouteSegment(
+        order=len(segments) + 1,
+        mode="road",
+        from_name=stops[0].name,
+        to_name=stops[-1].name,
+        polyline=osrm_result.polyline,
+    ))
+    for index in sorted(gap_by_index):
+        segments.append(last_stretch_segment(
+            stops[index], gap_by_index[index], order=len(segments) + 1,
+        ))
+    return segments
 
 
 def _ferry_crossing(crossing: OSRMFerryCrossing) -> RouteFerryCrossing:
