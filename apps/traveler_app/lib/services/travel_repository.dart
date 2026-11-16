@@ -849,15 +849,8 @@ class TravelRepository extends ChangeNotifier {
         _tripsById[trip.id] = trip;
         _allTrips.insert(0, trip);
         changed = true;
-      } else if (existing.title != trip.title ||
-          existing.lat != trip.lat ||
-          existing.lng != trip.lng ||
-          existing.thumbnailUrl != trip.thumbnailUrl ||
-          existing.estimatedCostPhp != trip.estimatedCostPhp ||
-          existing.description != trip.description ||
-          existing.islandGroup != trip.islandGroup ||
-          existing.normalizedStayDurationType !=
-              trip.normalizedStayDurationType) {
+      } else if (_catalogFingerprint(existing) != _catalogFingerprint(trip)) {
+        // Any admin edit (fees, hours, notes, activities, ...) must land.
         _tripsById[trip.id] = trip;
         final idx = _allTrips.indexWhere((t) => t.id == trip.id);
         if (idx >= 0) {
@@ -874,10 +867,100 @@ class TravelRepository extends ChangeNotifier {
       }
     }
 
+    if (_followMovedCatalogPins()) changed = true;
+
     _lastCatalogSyncAt = DateTime.now();
     if (changed) {
       notifyListeners();
     }
+  }
+
+  /// Every field an admin can edit, so a change to any of them is applied.
+  static String _catalogFingerprint(ExploreTrip t) => [
+        t.title,
+        t.lat,
+        t.lng,
+        t.thumbnailUrl,
+        t.tag,
+        t.district,
+        t.description,
+        t.activities,
+        t.estimatedCostPhp,
+        t.entranceFee,
+        t.overnightFee,
+        t.operatingHours,
+        t.bestTimeToVisit,
+        t.travelNotes,
+        t.whatToBring,
+        t.islandGroup,
+        t.normalizedStayDurationType,
+      ].join('\u0001');
+
+  /// Saved trips keep their own copy of each stop's coordinates. When an admin
+  /// moves a destination's pin, move matching stops too and drop the cached
+  /// road geometry, which ended at the old point. Returns true if any trip
+  /// changed.
+  bool _followMovedCatalogPins() {
+    const movedMeters = 25.0;
+    var anyChanged = false;
+    for (var i = 0; i < _savedTrips.length; i++) {
+      final trip = _savedTrips[i];
+      var tripChanged = false;
+      ExploreTrip? pinFor(int? destinationId) => destinationId == null
+          ? null
+          : _tripsById['api_$destinationId'];
+      bool moved(ExploreTrip place, double lat, double lng) =>
+          MapboxService.calculateRouteDistanceKm([
+            GeoPoint(lat: lat, lng: lng),
+            GeoPoint(lat: place.lat, lng: place.lng),
+          ]) *
+              1000 >
+          movedMeters;
+
+      final days = [
+        for (final day in trip.days)
+          () {
+            var dayChanged = false;
+            final stops = [
+              for (final stop in day.stops)
+                () {
+                  final place = pinFor(stop.destinationId);
+                  if (place == null || !moved(place, stop.lat, stop.lng)) {
+                    return stop;
+                  }
+                  dayChanged = true;
+                  return stop.copyWith(lat: place.lat, lng: place.lng);
+                }(),
+            ];
+            final dayPlace = pinFor(day.apiDestinationId);
+            final dayMoved =
+                dayPlace != null && moved(dayPlace, day.lat, day.lng);
+            if (!dayChanged && !dayMoved) return day;
+            tripChanged = true;
+            return day.copyWith(
+              stops: stops,
+              lat: dayMoved ? dayPlace.lat : null,
+              lng: dayMoved ? dayPlace.lng : null,
+            );
+          }(),
+      ];
+      if (!tripChanged) continue;
+      _savedTrips[i] = trip.copyWith(days: days, routeSegments: const []);
+      anyChanged = true;
+    }
+    if (anyChanged) _scheduleSaveState();
+    return anyChanged;
+  }
+
+  /// Catalog refresh when the app returns to the foreground, at most every
+  /// [maxAge], so admin edits reach a long-open app without a restart.
+  Future<void> refreshCatalogIfStale({
+    Duration maxAge = const Duration(minutes: 15),
+  }) async {
+    if (!apiCatalog.isConfigured) return;
+    final last = _lastCatalogSyncAt;
+    if (last != null && DateTime.now().difference(last) < maxAge) return;
+    await refreshFromApi();
   }
 
   Future<int> syncCatalogWithApi() async {

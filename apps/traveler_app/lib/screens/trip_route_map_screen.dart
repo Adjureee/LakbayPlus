@@ -10,6 +10,7 @@ import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
 import '../services/access_notices.dart';
+import '../services/nearby_places.dart';
 import '../widgets/access_notice_card.dart';
 
 class TripRouteMapScreen extends StatefulWidget {
@@ -33,6 +34,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
   BackendRouteResult? _backendRoute;
   bool _loadingRoadRoute = false;
   bool _fittedRouteOnce = false;
+  bool _showNearby = true;
 
   ItineraryTrip get _activeTrip => _liveTrip ?? widget.trip;
 
@@ -290,6 +292,117 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
         (route.totalDurationMinutes * progress.remainingMeters / totalMeters)
             .ceil();
     return '$text · ~$minutes min left';
+  }
+
+  List<NearbyPlace> _nearbyPlaces() =>
+      nearbyPlacesForTrip(_activeTrip, widget.repo.allTrips);
+
+  List<LakbayMapMarker> _nearbyMarkers(List<NearbyPlace> nearby) => [
+        if (_showNearby)
+          for (final item in nearby)
+            LakbayMapMarker(
+              id: 'nearby_${item.place.id}',
+              lat: item.place.lat,
+              lng: item.place.lng,
+              title: item.place.title,
+              subtitle:
+                  '${item.distanceKm.toStringAsFixed(1)} km from ${item.nearestStopName}',
+              imageUrl:
+                  item.place.hasRemoteThumbnail ? item.place.thumbnailUrl : null,
+              isNearby: true,
+            ),
+      ];
+
+  Future<void> _showNearbySheet(String markerId) async {
+    final placeId = markerId.replaceFirst('nearby_', '');
+    final item =
+        _nearbyPlaces().where((n) => n.place.id == placeId).firstOrNull;
+    if (item == null) return;
+    final place = item.place;
+    final add = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (place.hasRemoteThumbnail)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.network(
+                    place.thumbnailUrl,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Text(
+                place.title,
+                style: const TextStyle(
+                  fontFamily: 'FigGrotesk',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                  color: LakbayColors.tealDeep,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${place.municipalityLabel} · '
+                '${item.distanceKm.toStringAsFixed(1)} km from ${item.nearestStopName}',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: LakbayColors.textSecondary,
+                ),
+              ),
+              if (place.description?.isNotEmpty == true) ...[
+                const SizedBox(height: 8),
+                Text(
+                  place.description!,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, height: 1.4),
+                ),
+              ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  icon: const Icon(Icons.add_location_alt_rounded),
+                  label: const Text('Add to trip'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (add == true && mounted) _addNearbyToTrip(place);
+  }
+
+  void _addNearbyToTrip(ExploreTrip place) {
+    final before = _activeTrip;
+    final updated = addPlaceToTrip(before, place);
+    if (identical(updated, before)) return;
+    widget.repo.updateTripDetails(updated);
+    final day = updated.days.firstWhere(
+      (d) => d.stops.any((s) => s.title == place.title),
+      orElse: () => updated.days.first,
+    );
+    setState(() {
+      _liveTrip = updated;
+      _backendRoute = null;
+      _fittedRouteOnce = false;
+    });
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text('Added ${place.title} to Day ${day.dayNumber}.')),
+    );
+    _loadRoadRoute(optimize: false);
   }
 
   List<LakbayMapMarker> _pierMarkers() {
@@ -673,6 +786,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
   Widget build(BuildContext context) {
     final trip = _activeTrip;
     final waypoints = trip.routeWaypoints;
+    final nearby = _nearbyPlaces();
     final totalKm = MapboxService.calculateRouteDistanceKm(waypoints);
     final (initLat, initLng, initZoom) = _initialCameraFrame(trip, waypoints);
 
@@ -739,7 +853,12 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
             roadGeometry: _backendRoute?.geometryPoints ?? const [],
             routeSegments: _backendRoute?.segments ?? const [],
             routeNotice: _routeNoticeText(),
-            markers: [..._buildMarkers(), ..._pierMarkers()],
+            // Nearby first so trip pins draw on top of them.
+            markers: [
+              ..._nearbyMarkers(nearby),
+              ..._buildMarkers(),
+              ..._pierMarkers(),
+            ],
             livePosition: widget.repo.livePosition,
             followUser: _followUser,
             onFollowUserChanged: (follow) =>
@@ -748,6 +867,10 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
             borderRadius: 0,
             controlsBottomOffset: 170,
             onMarkerTap: (marker) {
+              if (marker.id.startsWith('nearby_')) {
+                _showNearbySheet(marker.id);
+                return;
+              }
               int? dayNum;
               if (marker.id.startsWith('day_')) {
                 dayNum = int.tryParse(marker.id.replaceFirst('day_', ''));
@@ -821,6 +944,34 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                         ),
                       ),
                     ),
+                  ),
+                if (nearby.isNotEmpty)
+                  FilterChip(
+                    avatar: Icon(
+                      Icons.travel_explore_rounded,
+                      size: 15,
+                      color: _showNearby
+                          ? LakbayColors.tealDeep
+                          : LakbayColors.textSecondary,
+                    ),
+                    label: Text(
+                      'Nearby (${nearby.length})',
+                      style: const TextStyle(
+                        fontFamily: 'FigGrotesk',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11.5,
+                        color: LakbayColors.tealDeep,
+                      ),
+                    ),
+                    selected: _showNearby,
+                    showCheckmark: false,
+                    backgroundColor: Colors.white.withValues(alpha: 0.94),
+                    selectedColor: Colors.white,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: _showNearby
+                        ? 'Hide other places near this trip'
+                        : 'Show other places near this trip',
+                    onSelected: (value) => setState(() => _showNearby = value),
                   ),
                 if (_liveTracking && widget.repo.livePosition != null)
                   _LiveStatusChip(

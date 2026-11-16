@@ -26,15 +26,25 @@ class LakbayTravelApp extends StatefulWidget {
   State<LakbayTravelApp> createState() => _LakbayTravelAppState();
 }
 
-class _LakbayTravelAppState extends State<LakbayTravelApp> {
+class _LakbayTravelAppState extends State<LakbayTravelApp>
+    with WidgetsBindingObserver {
   late TravelRepository _repo = widget.repository ?? TravelRepository();
   late bool _ownsRepo = widget.repository == null;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (!_repo.isInitialized) {
       _repo.initialize();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Pick up admin edits made while the app sat in the background.
+    if (state == AppLifecycleState.resumed && _repo.isInitialized) {
+      _repo.refreshCatalogIfStale();
     }
   }
 
@@ -55,6 +65,7 @@ class _LakbayTravelAppState extends State<LakbayTravelApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     if (_ownsRepo) {
       _repo.dispose();
     }
