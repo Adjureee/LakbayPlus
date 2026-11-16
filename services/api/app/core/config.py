@@ -116,8 +116,10 @@ class Settings(BaseSettings):
     upload_max_image_bytes: int = Field(default=5_242_880, ge=1)
     upload_allowed_image_types: str = "image/jpeg,image/png,image/webp"
 
+    # Firebase Cloud Messaging (HTTP v1). The old server key no longer works.
+    # FCM_SERVICE_ACCOUNT_JSON is the service account key file's JSON text;
+    # FCM_PROJECT_ID is optional (it defaults to project_id inside that JSON).
     fcm_project_id: str | None = None
-    fcm_server_key: str | None = None
     fcm_service_account_json: str | None = None
 
     model_config = SettingsConfigDict(
