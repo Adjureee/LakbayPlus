@@ -610,3 +610,37 @@ def build_trip_draft_messages(
         "content": json.dumps(payload, default=_json_default, separators=(",", ":")),
     })
     return messages
+
+
+COMMUTE_DRAFT_PROMPT_VERSION = "commute_draft_v1"
+
+
+def build_commute_draft_messages(
+    *, name: str, district: str | None, notes: str,
+) -> list[dict[str, str]]:
+    """Messages that turn one place's "how to get there" notes into commute steps.
+
+    An admin reviews and verifies the result before any traveler sees it, so the
+    prompt is strict about not adding anything the notes do not say.
+    """
+    system_prompt = (
+        "You turn one place's \"how to get there\" notes into structured public-transport "
+        "steps. Use ONLY the notes provided. Do not add vehicles, stops, fares or times "
+        "that the notes do not state. If the notes give no fare or time for a step, set it "
+        "to null. If the notes do not say whether a fare is per person or per trip, set "
+        "charging_unit to null. Put anything ambiguous in \"unclear\" instead of guessing. "
+        "Return exactly one JSON object, with no markdown, shaped like: "
+        "{\"routes\":[{\"start_area\":string|null,\"steps\":[{\"vehicle\":"
+        "\"jeepney|tricycle|habal_habal|van|bus|taxi|ferry|walk|fee\",\"from_place\":"
+        "string|null,\"to_place\":string|null,\"get_off_at\":string|null,\"minutes\":"
+        "integer|null,\"fare_php\":number|null,\"charging_unit\":"
+        "\"per_person|per_trip|null\",\"notes\":string|null}]}],\"unclear\":[string]}. "
+        "Use vehicle \"fee\" for an entrance or community fee that is paid without a ride. "
+        "If the notes describe only driving or contain no public-transport way, return "
+        "{\"routes\":[],\"unclear\":[\"...why...\"]}."
+    )
+    payload = {"place": name, "district": district, "notes": notes}
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": json.dumps(payload, default=_json_default, separators=(",", ":"))},
+    ]
