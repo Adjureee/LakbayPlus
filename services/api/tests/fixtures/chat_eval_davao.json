@@ -975,6 +975,30 @@
       "none_of": [
         "chocolate hills are"
       ]
-    }
+    },
+    { "id": "cat-beach-resort", "message": "Show me beach resorts in Davao", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["beach", "resort"] },
+    { "id": "cat-museum", "message": "Show me museums in Davao City", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["museum"] },
+    { "id": "cat-waterfall", "message": "Where are the waterfalls here?", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["falls", "waterfall"] },
+    { "id": "cat-beach", "message": "Show me nice beaches", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["beach"] },
+    { "id": "cat-resort", "message": "Recommend resorts for a weekend", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["resort"] },
+    { "id": "cat-church", "message": "Historic churches to visit in Davao", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["church", "cathedral"] },
+    { "id": "cat-mountain-resort", "message": "Show mountain resorts around Buda", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["mountain", "resort", "cool"] },
+    { "id": "cat-nature-park", "message": "Show nature parks nearby", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["park", "nature"] },
+    { "id": "cat-nature-reserve", "message": "Any nature reserves in Region XI?", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["reserve", "sanctuary", "wildlife"] },
+    { "id": "cat-farm", "message": "Are there farms we can tour?", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["farm"] },
+    { "id": "cat-flower-farm", "message": "Show flower farms in Davao", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["flower", "garden", "farm"] },
+    { "id": "cat-hot-spring", "message": "Where can we visit hot springs?", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["spring", "warm"] },
+    { "id": "cat-island", "message": "Show islands to visit from Davao", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["island", "boat", "ferry"] },
+    { "id": "cat-lake-park", "message": "Show lake parks to visit", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["lake"] },
+    { "id": "cat-mountain", "message": "Mountains to hike around Davao", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["mountain", "hike", "apo"] },
+    { "id": "cat-nature-resort", "message": "Any nature resorts for families?", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["resort", "nature"] },
+    { "id": "cat-religious-landmark", "message": "Religious landmarks to visit", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["church", "shrine", "landmark", "religious"] },
+    { "id": "cat-scenic-cape", "message": "Show scenic capes in Davao Oriental", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["cape", "oriental", "coastal"] },
+    { "id": "cat-sea-of-clouds", "message": "Where can I see sea of clouds viewpoints?", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["clouds", "viewpoint", "morning"] },
+    { "id": "cat-water-park", "message": "Water parks for kids", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["water park", "kids", "swim"] },
+    { "id": "cat-wildlife", "message": "Show wildlife sanctuaries or eagle centers", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["wildlife", "eagle"] },
+    { "id": "cat-park", "message": "Show parks in Davao", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["park"] },
+    { "id": "cat-city-park", "message": "Nice city parks to walk in", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["park"] },
+    { "id": "cat-public-plaza", "message": "Public plazas in downtown Davao", "planning_state": {}, "intent": ["show_places", "brainstorm"], "any_of": ["plaza", "park"] }
   ]
 }

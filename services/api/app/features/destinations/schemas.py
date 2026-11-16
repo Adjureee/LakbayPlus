@@ -191,11 +191,21 @@ class FacetGroup(BaseModel):
     subtypes: list[FacetSubtype]
 
 
+class FacetCategory(BaseModel):
+    key: str
+    label: str
+    count: int
+    group: str
+    groups: list[str] = Field(default_factory=list)
+    examples: list[str] = Field(default_factory=list)
+
+
 class DestinationFacetsResponse(BaseModel):
-    """Preference groups with live counts, for the traveler's preference chips."""
+    """Preference groups and live categories, for the traveler's preference and browse chips."""
 
     total_places: int
     groups: list[FacetGroup]
+    categories: list[FacetCategory] = Field(default_factory=list)
 
 
 class DestinationListQuery(BaseModel):

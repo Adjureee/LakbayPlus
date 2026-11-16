@@ -12,7 +12,7 @@ from app.features.recommendations.schemas import RecommendationItem
 
 PROMPT_VERSION = "phase5_itinerary_picks_only_v4"
 PLANNING_PROMPT_VERSION = "phase15e_picks_compact_v7"
-CHAT_PROMPT_VERSION = "phase5_chat_v11_available_interests"
+CHAT_PROMPT_VERSION = "phase5_chat_v12_live_categories"
 
 _LANGUAGE_LABELS: dict[str, str] = {
     "english": "English",
@@ -281,6 +281,7 @@ def build_chat_messages(
     retrieved_context: list[dict[str, Any]] | None = None,
     retrieval_coverage: dict[str, Any] | None = None,
     picked_places: list[dict[str, Any]] | None = None,
+    available_categories: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, str]]:
     system_prompt = (
         # Persona and voice: what makes the answers feel like a real local guide.
@@ -404,6 +405,18 @@ def build_chat_messages(
             "\"nature_attractions\"), never free text; use free text only when "
             "nothing in the list fits. Do not remove interests the traveler did "
             "not ask to change."
+            " available_categories lists every kind of place in the Lakbay catalog "
+            "right now: [{key, label, count, examples}]. When the traveler names a "
+            "kind of place in any wording or language (English, Filipino, Bisaya; "
+            "singular or plural; \"falls\", \"talon\", \"museo\", \"swimming\"), "
+            "map it to the closest `key` and answer with intent \"show_places\" and "
+            "place_query.categories set to that key. Use only keys from the list; "
+            "never invent one. If a place word fits two keys (for example \"resort\"), "
+            "use both. If the matching category has count 0 or nothing in the list "
+            "fits, say plainly that Lakbay has no places of that kind listed, and "
+            "offer the two closest categories by label. Do not describe places that "
+            "are not in retrieved_lakbay_context. Show at most 5 places; the app "
+            "draws the cards so do not list them in prose."
             " The context carries `conversation` with `stage`, `missing_details` "
             "and `ask_next`, computed by the server; follow it. Stage "
             "\"collect\" or \"recommend\": if `ask_next` is set, ask exactly that "
@@ -443,6 +456,7 @@ def build_chat_messages(
         ).as_prompt_payload()
         context_payload["picked_places"] = picked_places or []
         context_payload["available_interests"] = available_interests()
+        context_payload["available_categories"] = available_categories or []
     messages.append(
         {
             "role": "user",

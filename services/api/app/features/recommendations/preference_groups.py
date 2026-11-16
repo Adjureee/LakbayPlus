@@ -15,10 +15,13 @@ import json
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+import re
 from typing import Any, Iterable
 
 DATA_PATH = Path(__file__).parent / "data" / "preference_groups.json"
+ALIASES_PATH = Path(__file__).parent / "data" / "category_aliases.json"
 SENSITIVITIES = ("low", "medium", "high")
+_FUZZY_STOPWORDS = frozenset({"the", "and", "for", "spot", "area", "place", "center", "site"})
 
 
 class PreferenceGroupError(ValueError):
@@ -106,14 +109,22 @@ class PreferenceGroups:
         group = self.groups[group_key]
         if destination_id is not None and destination_id in group.exclude_destination_ids:
             return None
-        text = _norm(category or "")
+        raw_norm = _norm(category or "")
+        alias_norm = normalize_category(category)
+        candidates = [c for c in {raw_norm, alias_norm} if c]
+
+        def matches(text: str, kw: str) -> bool:
+            return kw in text
+
         subtype_hits = frozenset(
             subtype.key
             for subtype in group.subtypes.values()
-            if any(keyword in text for keyword in subtype.categories)
+            if any(matches(c, keyword) for c in candidates for keyword in subtype.categories)
         )
-        in_group = bool(subtype_hits) or any(keyword in text for keyword in group.categories)
-        if in_group and any(excluded in text for excluded in group.exclude_categories):
+        in_group = bool(subtype_hits) or any(
+            matches(c, keyword) for c in candidates for keyword in group.categories
+        )
+        if in_group and any(excluded in raw_norm for excluded in group.exclude_categories):
             in_group = False
         if not in_group and destination_id is not None and destination_id in group.include_destination_ids:
             in_group = True
@@ -125,10 +136,81 @@ class PreferenceGroups:
         sensitivity = max(sensitivities, key=rank.__getitem__) if sensitivities else "medium"
         return Membership(group=group_key, subtypes=subtype_hits, rain_sensitivity=sensitivity)
 
+    def resolve_groups_for_category(
+        self, category: str | None, destination_id: int | None = None
+    ) -> list[str]:
+        """Return claiming group keys for a category, falling back to fuzzy match or ['other']."""
+        matched = [
+            group.key
+            for group in self.groups.values()
+            if self.membership(group.key, category, destination_id) is not None
+        ]
+        if matched:
+            return matched
+
+        norm_cat = normalize_category(category)
+        words = {
+            tok
+            for tok in re.split(r"[^a-z0-9]+", norm_cat)
+            if len(tok) >= 3 and tok not in _FUZZY_STOPWORDS
+        }
+        raw_norm = _norm(category or "")
+        if words:
+            fuzzy: list[str] = []
+            for group in self.groups.values():
+                if any(excluded in raw_norm for excluded in group.exclude_categories):
+                    continue
+                group_words = {
+                    tok
+                    for term in (*group.keywords(), *group.aliases, group.label)
+                    for tok in re.split(r"[^a-z0-9]+", _norm(term))
+                    if len(tok) >= 3 and tok not in _FUZZY_STOPWORDS
+                }
+                if words & group_words:
+                    fuzzy.append(group.key)
+            if fuzzy:
+                return fuzzy
+        return ["other"]
+
+    def categories(self, places: Iterable[Any]) -> list[dict[str, Any]]:
+        """Distinct normalized catalog categories with counts, group assignment, and examples."""
+        buckets: dict[str, dict[str, Any]] = {}
+        for place in places:
+            raw_cat = getattr(place, "category", None)
+            dest_id = getattr(place, "destination_id", None)
+            name = str(getattr(place, "name", "") or "").strip()
+            key = normalize_category(raw_cat)
+            if not key:
+                continue
+            groups = self.resolve_groups_for_category(raw_cat, dest_id)
+            entry = buckets.get(key)
+            if entry is None:
+                entry = {
+                    "key": key,
+                    "label": format_category_label(key),
+                    "count": 0,
+                    "group": groups[0],
+                    "groups": list(groups),
+                    "examples": [],
+                }
+                buckets[key] = entry
+            entry["count"] += 1
+            for g in groups:
+                if g not in entry["groups"]:
+                    entry["groups"].append(g)
+            if name and name not in entry["examples"] and len(entry["examples"]) < 2:
+                entry["examples"].append(name)
+
+        return sorted(
+            buckets.values(),
+            key=lambda item: (-item["count"], item["label"].lower()),
+        )
+
     def facets(self, places: Iterable[Any]) -> list[dict[str, Any]]:
         """Groups with live counts from the catalog, for the preference chips."""
         places = list(places)
         result: list[dict[str, Any]] = []
+        claimed_ids: set[int | None] = set()
         for group in self.groups.values():
             members = [
                 (place, membership)
@@ -138,6 +220,7 @@ class PreferenceGroups:
                     getattr(place, "destination_id", None),
                 )) is not None
             ]
+            claimed_ids.update(getattr(place, "destination_id", None) for place, _ in members)
             result.append({
                 "key": group.key,
                 "label": group.label,
@@ -152,11 +235,70 @@ class PreferenceGroups:
                     for subtype in group.subtypes.values()
                 ],
             })
+
+        other_places = [
+            place for place in places
+            if getattr(place, "destination_id", None) not in claimed_ids
+            and self.resolve_groups_for_category(
+                getattr(place, "category", None),
+                getattr(place, "destination_id", None),
+            ) == ["other"]
+        ]
+        if other_places:
+            result.append({
+                "key": "other",
+                "label": "Other",
+                "description": "Additional catalog places outside fixed groups.",
+                "count": len(other_places),
+                "subtypes": [],
+            })
         return result
 
 
 def _norm(text: str) -> str:
     return " ".join(str(text).lower().split())
+
+
+@lru_cache(maxsize=1)
+def load_category_aliases() -> dict[str, str]:
+    if not ALIASES_PATH.exists():
+        return {}
+    raw = json.loads(ALIASES_PATH.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return {}
+    return {_norm(k): _norm(v) for k, v in raw.items() if isinstance(k, str) and isinstance(v, str)}
+
+
+def normalize_category(raw: str | None) -> str:
+    """Normalize category spelling, plurals, and aliases into a canonical lowercase key."""
+    if not raw:
+        return ""
+    cleaned = _norm(re.sub(r"\s*/\s*", " / ", str(raw)))
+    if not cleaned:
+        return ""
+    aliases = load_category_aliases()
+    if cleaned in aliases:
+        return aliases[cleaned]
+    if len(cleaned) > 4 and cleaned.endswith("ies"):
+        candidate = cleaned[:-3] + "y"
+        return aliases.get(candidate, candidate)
+    if len(cleaned) > 4 and cleaned.endswith("s") and not cleaned.endswith(("ss", "us", "is")):
+        candidate = cleaned[:-1]
+        if candidate in aliases:
+            return aliases[candidate]
+        if "/" not in candidate:
+            return candidate
+    return cleaned
+
+
+def format_category_label(key: str) -> str:
+    """Readable title label from a canonical category key."""
+    minor = {"of", "and", "the", "in"}
+    words = key.split()
+    return " ".join(
+        w if (i > 0 and w in minor) else w.capitalize()
+        for i, w in enumerate(words)
+    )
 
 
 def parse(raw: dict, *, profile_names: Iterable[str]) -> PreferenceGroups:

@@ -25,7 +25,7 @@
         },
         "parks_wildlife": {
           "label": "Parks & wildlife",
-          "categories": ["nature park", "nature reserve", "nature resort", "wildlife", "lake park"],
+          "categories": ["nature", "nature park", "nature reserve", "nature resort", "wildlife", "lake park"],
           "aliases": ["wildlife", "sanctuary", "reserve", "nature park"],
           "rain_sensitivity": "medium"
         },
@@ -76,6 +76,16 @@
       "aliases": ["resort", "resorts", "leisure", "staycation"],
       "categories": ["resort", "water park"],
       "exclude_categories": [],
+      "include_destination_ids": [],
+      "exclude_destination_ids": []
+    },
+    "parks_recreation": {
+      "label": "Parks & recreation",
+      "description": "City parks, public plazas and community recreation spots.",
+      "weight_profile": "default",
+      "aliases": ["park", "parks", "city park", "plaza", "public plaza", "recreation", "playground"],
+      "categories": ["park", "city park", "public plaza", "plaza", "recreation"],
+      "exclude_categories": ["nature park", "water park", "lake park"],
       "include_destination_ids": [],
       "exclude_destination_ids": []
     }

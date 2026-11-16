@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/admin_map_pin_picker.dart';
 import '../widgets/admin_widgets.dart';
+import '../widgets/category_picker_field.dart';
 
 /// Reviews staged OSM places before a deliberate publish or rejection.
 class DestinationCandidatesScreen extends StatefulWidget {
@@ -34,6 +35,7 @@ class _DestinationCandidatesScreenState
   bool _accessChecked = false;
   String? _error;
   String? _accessPolicy;
+  List<Map<String, dynamic>> _categoryFacets = const [];
 
   final _fields = <String, TextEditingController>{
     for (final key in [
@@ -62,6 +64,14 @@ class _DestinationCandidatesScreenState
   void initState() {
     super.initState();
     _future = _load();
+    _api.getDestinationFacets().then((facets) {
+      if (!mounted) return;
+      final cats = (facets['categories'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      setState(() => _categoryFacets = cats);
+    }).catchError((_) {});
   }
 
   Future<List<dynamic>> _load() => _api.getDestinationCandidates(
@@ -373,7 +383,11 @@ class _DestinationCandidatesScreenState
                       ),
                     ),
                   _field('district', 'District'),
-                  _field('category', 'Visitor category'),
+                  CategoryPickerField(
+                    controller: _fields['category']!,
+                    categoryFacets: _categoryFacets,
+                    label: 'Visitor category',
+                  ),
                   _field('vibes', 'Vibes'),
                   _field('island_group', 'Island (blank = mainland)'),
                   _field('visitor_purpose', 'Visitor purpose', lines: 2),

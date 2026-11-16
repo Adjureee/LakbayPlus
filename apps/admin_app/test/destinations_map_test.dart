@@ -87,6 +87,12 @@ void main() {
     var listReads = 0;
     final api = ApiService(
       client: MockClient((request) async {
+        if (request.url.path.endsWith('/destinations/facets')) {
+          return http.Response(
+            jsonEncode({'total_places': 0, 'groups': [], 'categories': []}),
+            200,
+          );
+        }
         if (request.method == 'PATCH') {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           return http.Response(jsonEncode({..._dahican, ...body}), 200);

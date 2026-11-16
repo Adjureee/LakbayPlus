@@ -13,6 +13,13 @@ from app.features.destinations.schemas import (
     DestinationUpdate,
 )
 from app.features.destinations.service import DestinationService
+from app.features.destinations.region import canonical_province_name
+from app.features.recommendations.schemas import PlanningRecommendationItem
+from app.features.recommendations.service import (
+    RecommendationService,
+    planning_recommendation_from_top_place,
+)
+from app.features.routes.schemas import RouteCoordinate
 from app.features.users.models import User
 from app.integrations.storage.client import CloudinaryStorageClient, get_storage_client
 
@@ -99,6 +106,39 @@ async def destination_facets(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DestinationFacetsResponse:
     return await DestinationService(session).facets()
+
+
+@router.get(
+    "/browse",
+    response_model=list[PlanningRecommendationItem],
+    summary="Browse top ranked places by category without AI",
+    description=(
+        "Public. Ranks active catalog destinations matching a normalized category "
+        "using Lakbay's deterministic scoring, returning up to 5 cards with zero AI calls."
+    ),
+)
+async def browse_destinations_by_category(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    category: str | None = Query(default=None, max_length=120),
+    province: str | None = Query(default=None, max_length=120),
+    lat: float | None = Query(default=None, ge=-90, le=90),
+    lng: float | None = Query(default=None, ge=-180, le=180),
+    limit: int = Query(default=5, ge=1, le=5),
+) -> list[PlanningRecommendationItem]:
+    origin = (
+        RouteCoordinate(lat=lat, lng=lng)
+        if lat is not None and lng is not None
+        else None
+    )
+    resolved_province = canonical_province_name(province) if province else None
+    categories = [category.strip()] if category and category.strip() else []
+    result = await RecommendationService(session).rank_place_query(
+        categories=categories,
+        province=resolved_province,
+        origin=origin,
+        limit=limit,
+    )
+    return [planning_recommendation_from_top_place(item) for item in result.items]
 
 
 @router.get(

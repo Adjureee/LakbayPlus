@@ -731,6 +731,7 @@ class TravelRepository extends ChangeNotifier {
         'preferredPaymentMethod': preferredPaymentMethod,
         'selectedVibes': selectedVibes.toList(),
         'preferenceGroups': _preferenceGroups.map((g) => g.toJson()).toList(),
+        'categoryFacets': _categoryFacets.map((c) => c.toJson()).toList(),
         'travelCompanion': travelCompanion,
         'profile': _profile.toJson(),
         'placeholderNameMigrated': _placeholderNameMigrated,
@@ -797,6 +798,14 @@ class TravelRepository extends ChangeNotifier {
         _preferenceGroups = savedGroups
             .whereType<Map<String, dynamic>>()
             .map(PreferenceGroup.fromJson)
+            .toList();
+      }
+      final savedCategories = map['categoryFacets'] as List<dynamic>?;
+      if (savedCategories != null) {
+        _categoryFacets = savedCategories
+            .whereType<Map<String, dynamic>>()
+            .map(CategoryFacet.fromJson)
+            .where((c) => c.key.isNotEmpty && c.label.isNotEmpty)
             .toList();
       }
       travelCompanion =
@@ -1938,15 +1947,88 @@ class TravelRepository extends ChangeNotifier {
   List<PreferenceGroup> _preferenceGroups = const [];
   List<PreferenceGroup> get preferenceGroups => _preferenceGroups;
 
+  List<CategoryFacet> _categoryFacets = const [];
+  List<CategoryFacet> get categoryFacets => List.unmodifiable(_categoryFacets);
+
   Future<void> refreshPreferenceGroups() async {
-    final groups = await apiCatalog.fetchPreferenceGroups();
-    if (groups.isEmpty) return;
-    _preferenceGroups = groups;
-    // Forget preferences the catalog no longer offers.
-    final known = {
-      for (final g in groups) ...[g.key, for (final s in g.subtypes) s.key],
-    };
-    selectedVibes.removeWhere((key) => !known.contains(key));
+    final facets = await apiCatalog.fetchDestinationFacets();
+    if (facets.groups.isEmpty && facets.categories.isEmpty) return;
+    if (facets.groups.isNotEmpty) {
+      _preferenceGroups = facets.groups;
+      // Forget preferences the catalog no longer offers.
+      final known = {
+        for (final g in facets.groups)
+          ...[g.key, for (final s in g.subtypes) s.key],
+      };
+      selectedVibes.removeWhere((key) => !known.contains(key));
+    }
+    if (facets.categories.isNotEmpty) {
+      _categoryFacets = facets.categories;
+    }
+    _scheduleSaveState();
+    notifyListeners();
+  }
+
+  /// Browses up to 5 ranked catalog places in [category] without calling AI.
+  Future<void> browseCategoryInChat(CategoryFacet category) async {
+    _chatMessages.add(
+      ChatMessage(
+        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
+        isUser: true,
+        text: 'Browse ${category.label}',
+        timestamp: DateTime.now(),
+      ),
+    );
+    _isAiTyping = true;
+    _aiTypingStatus = 'Loading ${category.label} spots...';
+    notifyListeners();
+
+    var results = await apiCatalog.browsePlacesByCategory(
+      category: category.key,
+      userLat: originLat,
+      userLng: originLng,
+      limit: 5,
+    );
+
+    // Offline fallback from cached/bundled catalog without inventing places.
+    if (results.isEmpty && !apiCatalog.isConfigured) {
+      final needle = category.key.toLowerCase();
+      var rank = 1;
+      results = [
+        for (final p in _allTrips)
+          if (p.apiDestinationId != null &&
+              (p.tag ?? '').toLowerCase().contains(needle))
+            TopPlaceRecommendation(
+              rank: rank++,
+              destinationId: p.apiDestinationId!,
+              name: p.title,
+              district: p.district ?? p.regionName,
+              category: p.tag,
+              imageUrl: p.hasRemoteThumbnail ? p.thumbnailUrl : null,
+              score: 50.0,
+              reasons: ['Matches ${category.label}'],
+              routeVerified: false,
+              travelMode: 'driving',
+              lat: p.lat,
+              lng: p.lng,
+            ),
+      ].take(5).toList();
+    }
+
+    _chatMessages.add(
+      ChatMessage(
+        id: 'cat_${DateTime.now().millisecondsSinceEpoch}',
+        isUser: false,
+        text: results.isEmpty
+            ? 'Lakbay has no active ${category.label} places listed yet.'
+            : 'Here are top ${category.label} spots from the catalog (tap + Add to plan from them):',
+        timestamp: DateTime.now(),
+        recommendedPlaces: results,
+      ),
+    );
+    _aiTypingStatus = null;
+    _isAiTyping = false;
+    _syncActiveSession(titleHint: category.label);
     _scheduleSaveState();
     notifyListeners();
   }
