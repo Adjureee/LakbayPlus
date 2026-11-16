@@ -199,6 +199,27 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               ),
             ),
           ),
+          // Soft dark fade behind the header so plain icons stay readable.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 170,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.38),
+                      Colors.black.withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
           SafeArea(
             child: Column(
               children: [
@@ -208,17 +229,17 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: Row(
                     children: [
-                      Material(
-                        color: Colors.white.withValues(alpha: 0.94),
-                        shape: const CircleBorder(),
-                        elevation: 2,
+                      SizedBox(
+                        width: 48,
+                        height: 48,
                         child: IconButton(
                           tooltip: 'Chat History',
                           onPressed: () =>
                               _scaffoldKey.currentState?.openDrawer(),
                           icon: const Icon(
                             Icons.menu_rounded,
-                            color: LakbayColors.tealDeep,
+                            size: 26,
+                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -226,37 +247,42 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                       Expanded(
                         child: Center(
                           child: InkWell(
-                            onTap: widget.repo.nextBackdrop,
+                            key: const ValueKey('start-place-pill'),
+                            // Tap sets the starting place; press and hold
+                            // still changes the background photo.
+                            onTap: () =>
+                                showOriginPickerSheet(context, widget.repo),
+                            onLongPress: widget.repo.nextBackdrop,
                             borderRadius: BorderRadius.circular(24),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
+                                horizontal: 14,
+                                vertical: 9,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.94),
+                                color: Colors.black.withValues(alpha: 0.28),
                                 borderRadius: BorderRadius.circular(24),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.12),
-                                    blurRadius: 8,
-                                  ),
-                                ],
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  const Icon(
+                                    Icons.place_outlined,
+                                    size: 15,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 6),
                                   Flexible(
                                     child: Text(
                                       widget.repo.hasOrigin
-                                          ? 'Start: ${widget.repo.effectiveOriginLabel} • ${backdrop.place}'
-                                          : "Today's view • ${backdrop.place}",
+                                          ? 'Start: ${widget.repo.originDisplayName}'
+                                          : 'Set starting place',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        color: LakbayColors.tealDeep,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ),
@@ -267,7 +293,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      NotificationBellButton(repo: widget.repo),
+                      NotificationBellButton(
+                        repo: widget.repo,
+                        iconColor: Colors.white,
+                      ),
                     ],
                   ),
                 ),
@@ -545,12 +574,6 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _HeroChip(
-                label: widget.repo.hasOrigin
-                    ? 'Start: ${widget.repo.effectiveOriginLabel}'
-                    : 'Set starting place (search or pin)',
-                onTap: () => showOriginPickerSheet(context, widget.repo),
-              ),
               _HeroChip(
                 label: 'Things to do in ${backdrop.place}',
                 onTap: () => _handleSend(

@@ -986,8 +986,9 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Set starting place (search or pin)'), findsOneWidget);
-    await tester.tap(find.text('Set starting place (search or pin)'));
+    // One start control, in the header, with a plain label.
+    expect(find.text('Set starting place'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('start-place-pill')));
     await tester.pumpAndSettle();
 
     expect(find.text('Set your starting place'), findsOneWidget);

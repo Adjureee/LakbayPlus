@@ -5126,6 +5126,17 @@ class TravelRepository extends ChangeNotifier {
     return '';
   }
 
+  /// A short name for the starting place to show in the header: a place
+  /// name when there is one, "Pinned location" when only coordinates are
+  /// known, and an empty string when no start is set.
+  String get originDisplayName {
+    final label = effectiveOriginLabel.trim();
+    if (label.isEmpty) return '';
+    final looksLikeCoordinates =
+        RegExp(r'^-?\d+(\.\d+)?°?,\s*-?\d+(\.\d+)?°?$').hasMatch(label);
+    return looksLikeCoordinates ? 'Pinned location' : label;
+  }
+
   String? get resolvedOriginLabel {
     final label = effectiveOriginLabel.trim();
     return label.isEmpty ? null : label;
