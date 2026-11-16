@@ -35,6 +35,7 @@ from app.features.ai.schemas import (
 )
 from app.features.ai.validators import (
     AIItineraryCatalog,
+    AIOutputInvalidJsonError,
     AIOutputValidationError,
     parse_and_validate_itinerary_output,
 )
@@ -83,6 +84,7 @@ from app.integrations.groq.prompts import (
     build_chat_messages,
     build_geo_analytics_context,
     build_itinerary_messages,
+    build_json_retry_nudge_messages,
     build_trip_draft_messages,
     TRIP_DRAFT_PROMPT_VERSION,
 )
@@ -639,6 +641,7 @@ class AIItineraryService:
                     "message_length": len(data.message),
                     "history_count": len(data.history),
                     "has_coordinates": data.user_lat is not None,
+                    "language": data.language,
                 },
                 fallback_used=selection.fallback_used,
             )
@@ -745,7 +748,9 @@ class AIItineraryService:
         await self.session.commit()
         await self.session.refresh(run)
 
+        settings = get_settings()
         started_at = perf_counter()
+        json_retry_used = False
 
         try:
             completion = await self.groq_client.create_chat_completion(
@@ -753,12 +758,36 @@ class AIItineraryService:
                 messages=messages,
                 response_format=ITINERARY_RESPONSE_FORMAT,
                 provider=selection.provider,
+                max_tokens=settings.groq_itinerary_max_tokens,
+                max_rate_limit_wait_seconds=settings.groq_itinerary_rate_limit_max_wait_seconds,
             )
+            prompt_tokens = completion.prompt_tokens
+            completion_tokens = completion.completion_tokens
+            total_tokens = completion.total_tokens
+            try:
+                options = parse_and_validate_itinerary_output(
+                    content=completion.content,
+                    catalog=catalog,
+                )
+            except AIOutputInvalidJsonError:
+                json_retry_used = True
+                nudge_messages = build_json_retry_nudge_messages(messages)
+                completion = await self.groq_client.create_chat_completion(
+                    model=selection.model_id,
+                    messages=nudge_messages,
+                    response_format=ITINERARY_RESPONSE_FORMAT,
+                    provider=selection.provider,
+                    max_tokens=settings.groq_itinerary_max_tokens,
+                    max_rate_limit_wait_seconds=settings.groq_itinerary_rate_limit_max_wait_seconds,
+                )
+                prompt_tokens = _sum_tokens(prompt_tokens, completion.prompt_tokens)
+                completion_tokens = _sum_tokens(completion_tokens, completion.completion_tokens)
+                total_tokens = _sum_tokens(total_tokens, completion.total_tokens)
+                options = parse_and_validate_itinerary_output(
+                    content=completion.content,
+                    catalog=catalog,
+                )
             response_time_ms = _elapsed_ms(started_at)
-            options = parse_and_validate_itinerary_output(
-                content=completion.content,
-                catalog=catalog,
-            )
             options = [
                 option.model_copy(update={"quality_warnings": list(quality_warnings or [])})
                 for option in options
@@ -773,12 +802,13 @@ class AIItineraryService:
                 status="succeeded",
                 validation_status="valid",
                 response_time_ms=response_time_ms,
-                prompt_tokens=completion.prompt_tokens,
-                completion_tokens=completion.completion_tokens,
-                total_tokens=completion.total_tokens,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
                 output_summary={
                     "option_count": len(options),
                     "minimum_option_count": option_count,
+                    **({"json_retry_used": True} if json_retry_used else {}),
                     **({
                         "options": [option.model_dump(mode="json") for option in options],
                         "planning_preview": planning_preview.model_dump(mode="json"),
@@ -791,13 +821,22 @@ class AIItineraryService:
 
             return _build_run_result(run=updated_run, options=options)
         except AIOutputValidationError as exc:
+            failure_cause = (
+                "invalid_json"
+                if isinstance(exc, AIOutputInvalidJsonError)
+                else "validation_failed"
+            )
             updated_run = await self.ai.update_generation_run(
                 run,
                 status="failed",
                 validation_status="invalid",
                 response_time_ms=_elapsed_ms(started_at),
                 error_message=exc.message,
-                output_summary={"validation_errors": exc.details},
+                output_summary={
+                    "validation_errors": exc.details,
+                    "failure_cause": failure_cause,
+                    **({"json_retry_used": True} if json_retry_used else {}),
+                },
             )
             await self.session.commit()
             await self.session.refresh(updated_run)
@@ -810,6 +849,7 @@ class AIItineraryService:
                 validation_status="not_run",
                 response_time_ms=_elapsed_ms(started_at),
                 error_message=exc.message,
+                output_summary={"failure_cause": _classify_groq_error(exc)},
             )
             await self.session.commit()
             await self.session.refresh(updated_run)
@@ -947,6 +987,7 @@ def _build_input_summary(data: AIItineraryGenerateRequest) -> dict:
         "transportation_ids": list(data.transportation_ids),
         "interests": list(data.interests),
         "travel_style": data.travel_style,
+        "language": data.language,
         "compare_models": data.compare_models,
         "planning_enabled": data.planning_state is not None,
         "input_revision": data.input_revision if data.planning_state is not None else None,
@@ -997,6 +1038,7 @@ def _build_chat_input_summary(data: AIChatRequest) -> dict:
         "history_count": len(data.history),
         "context_keys": sorted((data.context or {}).keys()),
         "model_role": data.model_role,
+        "language": data.language,
         "use_rag": data.use_rag,
         "rag_limit": data.rag_limit,
         "planning_enabled": data.planning_state is not None,
@@ -1623,3 +1665,20 @@ def _apply_strict_budget_filter(
 
 def _elapsed_ms(started_at: float) -> int:
     return int((perf_counter() - started_at) * 1000)
+
+
+def _sum_tokens(first: int | None, second: int | None) -> int | None:
+    if first is None and second is None:
+        return None
+    return (first or 0) + (second or 0)
+
+
+def _classify_groq_error(exc: GroqClientError) -> str:
+    if isinstance(exc, GroqRateLimitError):
+        return "rate_limit"
+    msg = exc.message.lower()
+    if "unavailable" in msg or "rejected" in msg:
+        return "model_unavailable"
+    if "server error" in msg:
+        return "provider_server_error"
+    return "provider_request_failed"

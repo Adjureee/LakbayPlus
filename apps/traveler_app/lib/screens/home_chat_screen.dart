@@ -42,6 +42,103 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
     });
   }
 
+  void _retryChatError(ChatMessage msg) {
+    final retryText = msg.retryText;
+    if (retryText == null) return;
+    if (retryText.startsWith('Plan a trip with my ') &&
+        widget.repo.chatPickCount > 0) {
+      widget.repo.planWithPicks();
+      return;
+    }
+    _handleSend(retryText);
+  }
+
+  Future<void> _showRaiseBudgetDialog(BuildContext context) async {
+    final current = widget.repo.planningWholeTripBudgetPhp ?? 5000;
+    final suggested = ((current * 1.5) / 500).ceil() * 500;
+    final controller = TextEditingController(text: suggested.toStringAsFixed(0));
+    final updated = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Raise trip budget'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Whole-trip budget (₱ PHP)',
+            prefixText: '₱ ',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final parsed = double.tryParse(controller.text.trim());
+              if (parsed != null && parsed >= 500) {
+                Navigator.of(ctx).pop(parsed);
+              }
+            },
+            child: const Text('Update & retry'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (updated != null) {
+      await widget.repo.raisePlanningBudgetAndRetry(updated);
+    }
+  }
+
+  Future<void> _showRemovePickSheet(BuildContext context) async {
+    final picks = widget.repo.tripBuilderStops
+        .where((s) => s.apiDestinationId != null)
+        .toList();
+    if (picks.isEmpty) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 6),
+              child: Text(
+                'Remove a place to fit your budget',
+                style: TextStyle(
+                  fontFamily: 'FigGrotesk',
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: LakbayColors.tealDeep,
+                ),
+              ),
+            ),
+            for (final stop in picks)
+              ListTile(
+                title: Text(stop.title),
+                subtitle: Text(stop.regionName),
+                trailing: const Icon(
+                  Icons.remove_circle_outline_rounded,
+                  color: LakbayColors.primary,
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  widget.repo.removePickAndRetry(stop);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _inputController.dispose();
@@ -621,10 +718,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                           color: Colors.white.withValues(alpha: 0.94),
                           borderRadius: BorderRadius.circular(18),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            SizedBox(
+                            const SizedBox(
                               width: 14,
                               height: 14,
                               child: CircularProgressIndicator(
@@ -632,13 +729,16 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                 color: LakbayColors.primary,
                               ),
                             ),
-                            SizedBox(width: 10),
-                            Text(
-                              'Lakbay+ AI is planning your Davao route...',
-                              style: TextStyle(
-                                color: LakbayColors.tealAccent,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                            const SizedBox(width: 10),
+                            Flexible(
+                              child: Text(
+                                widget.repo.aiTypingStatus ??
+                                    'Lakbay+ AI is planning your Davao route...',
+                                style: const TextStyle(
+                                  color: LakbayColors.tealAccent,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
@@ -942,12 +1042,43 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                         const SizedBox(height: 12),
                         _buildAttachedTripCard(context, msg.attachedTrip!),
                       ],
-                      if (msg.isError && msg.retryText != null) ...[
+                      if (msg.isError) ...[
                         const SizedBox(height: 10),
-                        ActionChip(
-                          avatar: const Icon(Icons.refresh_rounded, size: 16),
-                          label: const Text('Try again'),
-                          onPressed: () => _handleSend(msg.retryText!),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            if (msg.errorCode == 'planning_over_budget') ...[
+                              ActionChip(
+                                avatar: const Icon(
+                                  Icons.trending_up_rounded,
+                                  size: 16,
+                                ),
+                                label: const Text('Raise budget'),
+                                onPressed: () =>
+                                    _showRaiseBudgetDialog(context),
+                              ),
+                              if (widget.repo.chatPickCount > 1)
+                                ActionChip(
+                                  avatar: const Icon(
+                                    Icons.remove_circle_outline_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text('Remove a place'),
+                                  onPressed: () =>
+                                      _showRemovePickSheet(context),
+                                ),
+                            ],
+                            if (msg.retryText != null)
+                              ActionChip(
+                                avatar: const Icon(
+                                  Icons.refresh_rounded,
+                                  size: 16,
+                                ),
+                                label: const Text('Try again'),
+                                onPressed: () => _retryChatError(msg),
+                              ),
+                          ],
                         ),
                       ],
                     ],

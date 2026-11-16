@@ -6,22 +6,86 @@ import 'env_config.dart';
 class LakbayApiException implements Exception {
   final int? statusCode;
   final String message;
+  final String? code;
+  final int? retryAfterSeconds;
 
-  const LakbayApiException(this.message, {this.statusCode});
+  const LakbayApiException(
+    this.message, {
+    this.statusCode,
+    this.code,
+    this.retryAfterSeconds,
+  });
 
   @override
   String toString() => message;
+}
+
+sealed class AiItineraryResult {
+  const AiItineraryResult();
+}
+
+class AiItinerarySuccess extends AiItineraryResult {
+  final int? generationRunId;
+  final List<Map<String, dynamic>> options;
+  final Map<String, dynamic>? planningPreview;
+
+  const AiItinerarySuccess({
+    required this.generationRunId,
+    required this.options,
+    this.planningPreview,
+  });
+}
+
+class AiItineraryFailure extends AiItineraryResult {
+  final String code;
+  final String message;
+  final int? statusCode;
+  final int? retryAfterSeconds;
+
+  const AiItineraryFailure({
+    required this.code,
+    required this.message,
+    this.statusCode,
+    this.retryAfterSeconds,
+  });
+
+  String userFacingMessage() => switch (code) {
+        'groq_rate_limit_exceeded' ||
+        'groq_model_rate_limit_exceeded' =>
+          retryAfterSeconds != null && retryAfterSeconds! > 0
+              ? 'The AI is busy right now. Try again in ${retryAfterSeconds}s.'
+              : 'The AI is busy right now. Please try again in a moment.',
+        'planning_over_budget' =>
+          'Your picks cost more than your budget. Raise the budget or remove a place.',
+        'planning_selection_invalid' ||
+        'planning_input_mismatch' =>
+          message.isNotEmpty
+              ? message
+              : 'Please review your trip details and picks before generating.',
+        'ai_user_rate_limit_exceeded' ||
+        'ai_user_daily_limit_exceeded' =>
+          message.isNotEmpty
+              ? message
+              : "You've reached today's AI limit. Please try again later.",
+        'network_error' =>
+          "Couldn't reach Lakbay AI. Check your connection and try again.",
+        _ => "I couldn't draft that one. Try again.",
+      };
 }
 
 /// Bridge connecting `apps/traveler_app` to the Lakbay+ FastAPI backend
 /// (`destinations`, `accommodations`, `transportations`, `auth`, `trips`, `routes`,
 /// `ai`, and `weather`) plus public live FX rates. Fails over cleanly offline.
 class LakbayApiCatalogService {
-  LakbayApiCatalogService({http.Client? client, this.baseUrlOverride})
-      : _client = client ?? http.Client();
+  LakbayApiCatalogService({
+    http.Client? client,
+    this.baseUrlOverride,
+    this.retryDelayOverride,
+  }) : _client = client ?? http.Client();
 
   final http.Client _client;
   final String? baseUrlOverride;
+  final Future<void> Function(Duration delay)? retryDelayOverride;
 
   /// Optional callback invoked when a bearer-authenticated request receives
   /// 401 Unauthorized, returning a refreshed access token for one retry.
@@ -886,6 +950,7 @@ class LakbayApiCatalogService {
     Map<String, dynamic>? planningState,
     int inputRevision = 0,
     String modelRole = 'default',
+    String language = 'auto',
   }) async {
     final base = _base;
     if (base.isEmpty) return null;
@@ -896,6 +961,7 @@ class LakbayApiCatalogService {
         'history': history,
         'use_rag': true,
         'model_role': modelRole,
+        'language': language,
         'planning_state': ?planningState,
         if (planningState != null) 'input_revision': inputRevision,
       };
@@ -943,6 +1009,7 @@ class LakbayApiCatalogService {
     List<String> preferredVibes = const [],
     bool strictBudget = false,
     int defaultDays = 3,
+    String language = 'auto',
   }) async {
     final base = _base;
     if (base.isEmpty) return null;
@@ -957,6 +1024,7 @@ class LakbayApiCatalogService {
         'preferred_vibes': preferredVibes.take(10).toList(),
         'strict_budget': strictBudget,
         'default_days': defaultDays.clamp(1, 14),
+        'language': language,
       });
       Future<http.Response> sendReq(String? tok) => _client
           .post(
@@ -990,11 +1058,7 @@ class LakbayApiCatalogService {
     }
   }
 
-  Future<({
-    int? generationRunId,
-    List<Map<String, dynamic>> options,
-    Map<String, dynamic>? planningPreview,
-  })?> generateAiItineraries(
+  Future<AiItineraryResult> generateAiItineraries(
     String accessToken, {
     required double totalBudgetPhp,
     required int travelerCount,
@@ -1008,10 +1072,16 @@ class LakbayApiCatalogService {
     String? travelStyle,
     String? specialRequirements,
     bool strictBudgetFilter = false,
+    String language = 'auto',
+    void Function(int waitSeconds)? onRateLimitRetry,
+    Future<void> Function(Duration delay)? retryDelay,
   }) async {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty || destinationIds.isEmpty) {
-      return null;
+      return const AiItineraryFailure(
+        code: 'not_configured',
+        message: 'Sign in and pick at least one destination first.',
+      );
     }
     try {
       final encodedPayload = jsonEncode({
@@ -1028,35 +1098,83 @@ class LakbayApiCatalogService {
           'travel_style': travelStyle,
         if (specialRequirements != null && specialRequirements.isNotEmpty)
           'special_requirements': specialRequirements,
+        'language': language,
         'planning_state': ?planningState,
         'input_revision': inputRevision,
         'strict_budget_filter': strictBudgetFilter,
       });
-      final res = await _sendAuthorized(
-        accessToken,
-        (tok) => _client
-            .post(
-              Uri.parse('$base/ai/itineraries/generate'),
-              headers: _authHeaders(tok),
-              body: encodedPayload,
-            )
-            .timeout(const Duration(seconds: 45)),
-      );
-      if (res.statusCode < 200 || res.statusCode >= 300) return null;
-      final decoded = _tryDecodeJson(res.body);
-      if (decoded is! Map<String, dynamic>) return null;
-      return (
+
+      Future<http.Response> sendOnce() => _sendAuthorized(
+            accessToken,
+            (tok) => _client
+                .post(
+                  Uri.parse('$base/ai/itineraries/generate'),
+                  headers: _authHeaders(tok),
+                  body: encodedPayload,
+                )
+                .timeout(const Duration(seconds: 45)),
+          );
+
+      var res = await sendOnce();
+      var decoded = _tryDecodeJson(res.body);
+      var errorCode = _extractErrorCode(decoded);
+
+      if (res.statusCode == 429 &&
+          (errorCode == 'groq_rate_limit_exceeded' ||
+              errorCode == 'groq_model_rate_limit_exceeded' ||
+              errorCode == null)) {
+        final retryAfter =
+            _extractRetryAfterSeconds(decoded, res.headers) ?? 3;
+        final waitSeconds = retryAfter.clamp(1, 10);
+        onRateLimitRetry?.call(waitSeconds);
+        await (retryDelay ?? retryDelayOverride ?? Future<void>.delayed)(
+          Duration(seconds: waitSeconds),
+        );
+        res = await sendOnce();
+        decoded = _tryDecodeJson(res.body);
+        errorCode = _extractErrorCode(decoded);
+      }
+
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return AiItineraryFailure(
+          code: errorCode ??
+              (res.statusCode == 429
+                  ? 'groq_rate_limit_exceeded'
+                  : 'ai_generation_failed'),
+          message: _extractErrorMessage(decoded, res.statusCode),
+          statusCode: res.statusCode,
+          retryAfterSeconds: _extractRetryAfterSeconds(decoded, res.headers),
+        );
+      }
+
+      if (decoded is! Map<String, dynamic>) {
+        return const AiItineraryFailure(
+          code: 'ai_generation_failed',
+          message: 'Unexpected itinerary response.',
+        );
+      }
+      final options = (decoded['options'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      if (options.isEmpty) {
+        return const AiItineraryFailure(
+          code: 'ai_generation_failed',
+          message: "I couldn't draft that one. Try again.",
+        );
+      }
+      return AiItinerarySuccess(
         generationRunId:
             (decoded['selected_generation_run_id'] as num?)?.toInt(),
-        options: (decoded['options'] as List<dynamic>? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .toList(),
+        options: options,
         planningPreview: decoded['planning_preview'] is Map<String, dynamic>
             ? decoded['planning_preview'] as Map<String, dynamic>
             : null,
       );
     } catch (_) {
-      return null;
+      return const AiItineraryFailure(
+        code: 'network_error',
+        message: "Couldn't reach Lakbay AI. Check your connection and try again.",
+      );
     }
   }
 
@@ -1233,6 +1351,40 @@ class LakbayApiCatalogService {
       }
     }
     return 'Request failed with status $statusCode.';
+  }
+
+  static String? _extractErrorCode(dynamic decoded) {
+    if (decoded is Map) {
+      final err = decoded['error'];
+      if (err is Map && err['code'] != null) {
+        return err['code'].toString();
+      }
+      if (decoded['code'] != null) {
+        return decoded['code'].toString();
+      }
+    }
+    return null;
+  }
+
+  static int? _extractRetryAfterSeconds(
+    dynamic decoded,
+    Map<String, String> headers,
+  ) {
+    if (decoded is Map) {
+      final err = decoded['error'];
+      final details = err is Map ? err['details'] : null;
+      if (details is Map && details['retry_after_seconds'] != null) {
+        final v = (details['retry_after_seconds'] as num?)?.toInt();
+        if (v != null && v > 0) return v;
+      }
+    }
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() == 'retry-after') {
+        final v = int.tryParse(entry.value.trim());
+        if (v != null && v > 0) return v;
+      }
+    }
+    return null;
   }
 
   static double? _toDouble(dynamic value) {

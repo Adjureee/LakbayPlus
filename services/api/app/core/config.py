@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     guest_ai_requests_per_day: int = Field(default=40, ge=1, le=1000)
     guest_ai_global_requests_per_day: int = Field(default=1000, ge=1, le=100000)
     groq_max_tokens: int = Field(default=4096, ge=256, le=32768)
+    groq_itinerary_max_tokens: int = Field(default=6000, ge=256, le=32768)
     groq_user_requests_per_minute: int = Field(default=20, ge=1, le=120)
     # Daily AI requests per user, so one account cannot use up the shared free quotas.
     groq_user_requests_per_day: int = Field(default=60, ge=1, le=10000)
@@ -54,6 +55,7 @@ class Settings(BaseSettings):
     groq_model_requests_per_day: int = Field(default=1000, ge=1, le=14400)
     # Short rate-limit waits are slept through and retried instead of failing the request.
     groq_rate_limit_max_wait_seconds: int = Field(default=3, ge=0, le=10)
+    groq_itinerary_rate_limit_max_wait_seconds: int = Field(default=10, ge=0, le=30)
 
     # Optional second OpenAI-compatible provider (e.g. Gemini) used as the fallback
     # when the primary Groq model is rate limited. Needs its own quota to be useful.
@@ -66,7 +68,7 @@ class Settings(BaseSettings):
     # (e.g. qwen) cannot follow the strict itinerary JSON schema or fit its output size.
     groq_fallback_for_itineraries: bool = False
 
-    ai_itinerary_option_count: int = Field(default=5, ge=1, le=10)
+    ai_itinerary_option_count: int = Field(default=2, ge=1, le=10)
     ai_model_comparison_enabled: bool = False
 
     osrm_base_url: str | None = None

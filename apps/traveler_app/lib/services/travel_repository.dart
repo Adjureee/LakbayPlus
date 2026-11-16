@@ -46,6 +46,8 @@ class TravelRepository extends ChangeNotifier {
 
   bool _isAiTyping = false;
   bool get isAiTyping => _isAiTyping;
+  String? _aiTypingStatus;
+  String? get aiTypingStatus => _aiTypingStatus;
 
   MapboxStylePreset _activeMapStyle = MapboxStylePreset.outdoors;
   MapboxStylePreset get activeMapStyle => _activeMapStyle;
@@ -69,6 +71,15 @@ class TravelRepository extends ChangeNotifier {
 
   String _locale = 'en';
   String get locale => _locale;
+
+  static const List<String> supportedAiLanguages = [
+    'auto',
+    'english',
+    'filipino',
+    'bisaya',
+  ];
+  String _aiLanguage = 'auto';
+  String get aiLanguage => _aiLanguage;
 
   String _currency = 'PHP';
   String get currency => _currency;
@@ -653,6 +664,7 @@ class TravelRepository extends ChangeNotifier {
       final payload = <String, dynamic>{
         'hasCompletedOnboarding': _hasCompletedOnboarding,
         'locale': _locale,
+        'aiLanguage': _aiLanguage,
         'currency': _currency,
         'temperatureUnit': temperatureUnit,
         'priceDropAlertsEnabled': priceDropAlertsEnabled,
@@ -695,6 +707,10 @@ class TravelRepository extends ChangeNotifier {
           map['hasCompletedOnboarding'] as bool? ?? _hasCompletedOnboarding;
       final savedLocale = map['locale'] as String?;
       if (savedLocale != null && savedLocale.isNotEmpty) _locale = savedLocale;
+      final savedAiLang = map['aiLanguage'] as String?;
+      if (savedAiLang != null && supportedAiLanguages.contains(savedAiLang)) {
+        _aiLanguage = savedAiLang;
+      }
       final savedCurrency = map['currency'] as String?;
       if (savedCurrency != null && _currencyRates.containsKey(savedCurrency)) {
         _currency = savedCurrency;
@@ -1740,6 +1756,23 @@ class TravelRepository extends ChangeNotifier {
         _ => 'English',
       };
 
+  void setAiLanguage(String language) {
+    if (!supportedAiLanguages.contains(language) || _aiLanguage == language) {
+      return;
+    }
+    _aiLanguage = language;
+    _scheduleSaveState();
+    notifyListeners();
+  }
+
+  String get aiLanguageDisplayName => switch (_aiLanguage) {
+        'auto' => 'Auto',
+        'english' => 'English',
+        'filipino' => 'Filipino',
+        'bisaya' => 'Bisaya / Cebuano',
+        _ => 'Auto',
+      };
+
   int get preferencesCompletionPercent {
     var score = 0;
     if (selectedVibes.isNotEmpty) score += 40;
@@ -2154,8 +2187,9 @@ class TravelRepository extends ChangeNotifier {
         destinationIds: destIds,
         specialRequirements: instruction,
         travelStyle: instruction,
+        language: _aiLanguage,
       );
-      if (generated != null && generated.options.isNotEmpty) {
+      if (generated is AiItinerarySuccess && generated.options.isNotEmpty) {
         final opt = _parseBackendAiOption(
           generated.options.first,
           generationRunId: generated.generationRunId,
@@ -2176,6 +2210,7 @@ class TravelRepository extends ChangeNotifier {
           userLng: originLng,
           preferredVibes: selectedVibes,
           strictBudget: strictBudgetFilter,
+          language: _aiLanguage,
         );
         if (aiRes.hasStructuredItinerary) {
           final refined = _buildItineraryFromAi(aiRes).copyWith(
@@ -3238,12 +3273,153 @@ class TravelRepository extends ChangeNotifier {
 
   bool _prioritySkipped = false;
 
-  /// Asks the AI to plan from exactly the places the traveler picked.
-  Future<void> planWithPicks() => sendChatMessage(
-        chatPickCount == 1
-            ? 'Plan a trip with my pick.'
-            : 'Plan a trip with my $chatPickCount picks.',
+  /// Current whole-trip budget from planning state, if set.
+  double? get planningWholeTripBudgetPhp =>
+      computeWholeTripBudgetPhp(_planningState);
+
+  /// Converts `total_budget` + `budget_scope` in [state] to whole-trip PHP
+  /// so `/ai/itineraries/generate` never sees a per-person amount as total.
+  static double? computeWholeTripBudgetPhp(Map<String, dynamic>? state) {
+    final raw = double.tryParse((state?['total_budget'] ?? '').toString());
+    if (raw == null || raw <= 0) return null;
+    if (state?['budget_scope']?.toString() == 'per_person') {
+      final travelers = (state?['traveler_count'] as num?)?.toInt();
+      if (travelers == null || travelers <= 0) return null;
+      return ((raw * travelers) * 100).roundToDouble() / 100;
+    }
+    return (raw * 100).roundToDouble() / 100;
+  }
+
+  /// Raises the planning state budget and immediately retries itinerary planning.
+  Future<void> raisePlanningBudgetAndRetry(double newWholeTripBudgetPhp) async {
+    final state = _ensurePlanningState();
+    state['total_budget'] = newWholeTripBudgetPhp.toStringAsFixed(2);
+    state['budget_scope'] = 'whole_trip';
+    _planningRevision++;
+    _scheduleSaveState();
+    notifyListeners();
+    await planWithPicks();
+  }
+
+  /// Removes a picked stop and retries itinerary planning with remaining picks.
+  Future<void> removePickAndRetry(ExploreTrip place) async {
+    if (isInTripBuilder(place.id)) {
+      toggleChatPick(place);
+    }
+    notifyListeners();
+    if (chatPickCount > 0) {
+      await planWithPicks();
+    }
+  }
+
+  /// Asks the AI to plan from the traveler's picked places.
+  ///
+  /// When days, party size, and budget are already set, this skips the extra
+  /// chat LLM turn and generates itineraries directly to avoid rate limits.
+  Future<void> planWithPicks() async {
+    final pickLabel = chatPickCount == 1
+        ? 'Plan a trip with my pick.'
+        : 'Plan a trip with my $chatPickCount picks.';
+    final state = _planningState;
+    final targetDestIds = [
+      for (final stop in _tripBuilderStops)
+        if (stop.apiDestinationId != null) stop.apiDestinationId!,
+    ];
+    final daysCount = (state?['day_count'] as num?)?.toInt();
+    final travelerCount = (state?['traveler_count'] as num?)?.toInt();
+    final budgetPhp = computeWholeTripBudgetPhp(state);
+
+    if (!isSignedIn ||
+        !apiCatalog.isConfigured ||
+        targetDestIds.isEmpty ||
+        daysCount == null ||
+        travelerCount == null ||
+        budgetPhp == null ||
+        budgetPhp <= 0) {
+      await sendChatMessage(pickLabel);
+      return;
+    }
+
+    _planningState = {
+      ..._ensurePlanningState(),
+      'destination_ids': targetDestIds,
+    };
+    _chatMessages.add(
+      ChatMessage(
+        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
+        isUser: true,
+        text: pickLabel,
+        timestamp: DateTime.now(),
+      ),
+    );
+    _isAiTyping = true;
+    _aiTypingStatus =
+        'Building your itinerary from $chatPickCount ${chatPickCount == 1 ? 'pick' : 'picks'}...';
+    notifyListeners();
+
+    try {
+      final result = await apiCatalog.generateAiItineraries(
+        _authSession!.accessToken,
+        totalBudgetPhp: budgetPhp,
+        travelerCount: travelerCount,
+        dayCount: daysCount.clamp(1, 30),
+        destinationIds: targetDestIds,
+        planningState: _planningState,
+        inputRevision: _planningRevision,
+        strictBudgetFilter: strictBudgetFilter,
+        language: _aiLanguage,
+        onRateLimitRetry: (waitSeconds) {
+          _aiTypingStatus =
+              'The AI is busy. Trying again in ${waitSeconds}s...';
+          notifyListeners();
+        },
       );
+      if (result is AiItinerarySuccess) {
+        final aiOptions = [
+          for (final rawOpt in result.options)
+            _parseBackendAiOption(
+              rawOpt,
+              generationRunId: result.generationRunId,
+              fallbackDestinationIds: targetDestIds,
+            ),
+        ];
+        final attachedTrip = aiOptions.first.trip;
+        _chatMessages.add(
+          ChatMessage(
+            id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
+            isUser: false,
+            text: aiOptions.length > 1
+                ? 'Here are ${aiOptions.length} itinerary options built from your picks.'
+                : 'Here is an itinerary built from your picks.',
+            timestamp: DateTime.now(),
+            attachedTrip: aiOptions.length <= 1 ? attachedTrip : null,
+            aiOptions: aiOptions,
+          ),
+        );
+        _aiTypingStatus = null;
+        _isAiTyping = false;
+        _syncActiveSession(
+          titleHint: attachedTrip.title,
+          hasTrip: true,
+        );
+        _scheduleSaveState();
+        notifyListeners();
+        return;
+      }
+      final failure = result as AiItineraryFailure;
+      _addChatError(
+        pickLabel,
+        failure.userFacingMessage(),
+        errorCode: failure.code,
+      );
+    } catch (_) {
+      _addChatError(
+        pickLabel,
+        'Something went wrong while building your itinerary. Please try again.',
+        errorCode: 'network_error',
+      );
+    }
+  }
 
   static Map<String, dynamic>? _conversation(Map<String, dynamic>? planning) {
     final value = planning?['conversation'];
@@ -3269,7 +3445,12 @@ class TravelRepository extends ChangeNotifier {
     return value is List ? value.map((e) => e.toString()).toList() : const [];
   }
 
-  void _addChatError(String retryText, String message) {
+  void _addChatError(
+    String retryText,
+    String message, {
+    String? errorCode,
+  }) {
+    _aiTypingStatus = null;
     _chatMessages.add(
       ChatMessage(
         id: 'err_${DateTime.now().millisecondsSinceEpoch}',
@@ -3278,6 +3459,7 @@ class TravelRepository extends ChangeNotifier {
         timestamp: DateTime.now(),
         isError: true,
         retryText: retryText,
+        errorCode: errorCode,
       ),
     );
     _isAiTyping = false;
@@ -3313,6 +3495,7 @@ class TravelRepository extends ChangeNotifier {
       return;
     }
 
+    _aiTypingStatus = null;
     _isAiTyping = true;
     notifyListeners();
     try {
@@ -3334,6 +3517,7 @@ class TravelRepository extends ChangeNotifier {
         history: history,
         planningState: _ensurePlanningState(),
         inputRevision: _planningRevision,
+        language: _aiLanguage,
       );
       if (serverAi == null) {
         _addChatError(
@@ -3404,6 +3588,7 @@ class TravelRepository extends ChangeNotifier {
             userLng: originLng,
             preferredVibes: selectedVibes,
             strictBudget: strictBudgetFilter,
+            language: _aiLanguage,
           );
           if (draft.hasStructuredItinerary) {
             attachedTrip = _buildItineraryFromAi(draft);
@@ -3423,8 +3608,7 @@ class TravelRepository extends ChangeNotifier {
                 .letOrNull(int.tryParse);
         final travelerCount =
             (_planningState?['traveler_count'] as num?)?.toInt();
-        final budgetPhp =
-            double.tryParse((_planningState?['total_budget'] ?? '').toString());
+        final budgetPhp = computeWholeTripBudgetPhp(_planningState);
         if (daysCount != null &&
             travelerCount != null &&
             budgetPhp != null &&
@@ -3439,8 +3623,14 @@ class TravelRepository extends ChangeNotifier {
             inputRevision: _planningRevision,
             specialRequirements: trimmed,
             strictBudgetFilter: strictBudgetFilter,
+            language: _aiLanguage,
+            onRateLimitRetry: (waitSeconds) {
+              _aiTypingStatus =
+                  'The AI is busy. Trying again in ${waitSeconds}s...';
+              notifyListeners();
+            },
           );
-          if (generated != null && generated.options.isNotEmpty) {
+          if (generated is AiItinerarySuccess) {
             aiOptions = [
               for (final rawOpt in generated.options)
                 _parseBackendAiOption(
@@ -3452,9 +3642,11 @@ class TravelRepository extends ChangeNotifier {
             ];
             attachedTrip = aiOptions.first.trip;
           } else {
+            final failure = generated as AiItineraryFailure;
             _addChatError(
               trimmed,
-              "I couldn't build an itinerary from your picks just now. Please try again.",
+              failure.userFacingMessage(),
+              errorCode: failure.code,
             );
             return;
           }
@@ -3477,6 +3669,7 @@ class TravelRepository extends ChangeNotifier {
               _optionalDetails(planning).contains('priority_order'),
         ),
       );
+      _aiTypingStatus = null;
       _isAiTyping = false;
       _syncActiveSession(
         titleHint: attachedTrip?.title ?? trimmed,
@@ -3508,6 +3701,7 @@ class TravelRepository extends ChangeNotifier {
           userLng: originLng,
           preferredVibes: selectedVibes,
           strictBudget: strictBudgetFilter,
+          language: _aiLanguage,
         );
         if (aiResult.hasStructuredItinerary) {
           return _buildItineraryFromAi(aiResult);
