@@ -1290,6 +1290,10 @@ class TravelRepository extends ChangeNotifier {
     }
   }
 
+  /// True while the traveler scrolls down through a chat: the bottom bar
+  /// slides away so the answer has the room. Scrolling up shows it again.
+  final ValueNotifier<bool> chatNavHidden = ValueNotifier(false);
+
   /// Set when the traveler taps a push; cleared once the screen has handled it.
   final ValueNotifier<PushOpenRequest?> pushOpenRequest = ValueNotifier(null);
 
