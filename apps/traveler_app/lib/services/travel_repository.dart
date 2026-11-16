@@ -682,12 +682,40 @@ class TravelRepository extends ChangeNotifier {
   /// Loads this traveler's username from the server (shown in the profile).
   Future<void> refreshUsername() async {
     if (!isSignedIn || !apiCatalog.isConfigured) return;
-    final username =
-        await apiCatalog.fetchMyUsername(_authSession!.accessToken);
-    if (username == null || username == _profile.username) return;
-    _profile = _profile.copyWith(username: username);
+    final account = await apiCatalog.fetchMyAccount(_authSession!.accessToken);
+    if (account == null) return;
+    final username = account.username ?? _profile.username;
+    final avatar = account.avatarUrl ?? _profile.avatarUrl;
+    if (username == _profile.username && avatar == _profile.avatarUrl) return;
+    _profile = _profile.copyWith(username: username, avatarUrl: avatar);
     _scheduleSaveState();
     notifyListeners();
+  }
+
+  /// Uploads a new profile photo. Returns null on success, or the reason it
+  /// failed, in the server's words, to show to the traveler.
+  Future<String?> uploadProfilePhoto({
+    Uint8List? bytes,
+    String? path,
+    String? filename,
+  }) async {
+    if (!isSignedIn) return 'Sign in to add a profile photo.';
+    try {
+      final url = await apiCatalog.uploadMyAvatar(
+        _authSession!.accessToken,
+        fileBytes: bytes,
+        filePath: path,
+        filename: filename,
+      );
+      _profile = _profile.copyWith(avatarUrl: url);
+      _scheduleSaveState();
+      notifyListeners();
+      return null;
+    } on LakbayApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return "Couldn't upload the photo. Please try again.";
+    }
   }
 
   /// Saves a new username. Returns null on success, or the reason it was

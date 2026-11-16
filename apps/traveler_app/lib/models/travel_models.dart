@@ -1668,7 +1668,11 @@ class UserProfile {
   /// kept by the server; empty until it has been loaded or the traveler signs in.
   final String username;
 
+  /// The traveler's profile photo (an https address), or empty for initials.
+  final String avatarUrl;
+
   const UserProfile({
+    this.avatarUrl = '',
     this.firstName = '',
     this.lastName = '',
     this.headline = '',
@@ -1696,8 +1700,10 @@ class UserProfile {
     String? location,
     String? email,
     String? username,
+    String? avatarUrl,
   }) {
     return UserProfile(
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
       headline: headline ?? this.headline,
@@ -1714,6 +1720,7 @@ class UserProfile {
         'location': location,
         'email': email,
         'username': username,
+        'avatarUrl': avatarUrl,
       };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
@@ -1723,6 +1730,7 @@ class UserProfile {
         location: json['location'] as String? ?? '',
         email: json['email'] as String? ?? '',
         username: json['username'] as String? ?? '',
+        avatarUrl: json['avatarUrl'] as String? ?? '',
       );
 }
 
