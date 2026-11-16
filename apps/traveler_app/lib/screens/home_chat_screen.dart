@@ -1,3 +1,4 @@
+import '../core/day_labels.dart';
 import 'package:flutter/material.dart';
 import '../services/voice_input_service.dart';
 import '../models/travel_models.dart';
@@ -1808,7 +1809,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          '${trip.daysCount} DAYS • ${trip.vibeTag.toUpperCase()}',
+                          DayLabels.badge(trip.daysCount, trip.vibeTag),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(

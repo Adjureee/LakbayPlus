@@ -1,3 +1,4 @@
+import '../core/day_labels.dart';
 import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
@@ -353,7 +354,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                             const SizedBox(height: 6),
                             Text(
                               [
-                                '${heroTrip.daysCount} Days',
+                                DayLabels.countTitle(heroTrip.daysCount),
                                 if (heroTrip.travelerCount != null)
                                   '${heroTrip.travelerCount} ${heroTrip.travelerCount == 1 ? 'traveller' : 'travellers'}',
                                 heroTrip.destination,
@@ -551,7 +552,7 @@ class _TripListTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${isPlanning ? 'Planning' : 'Upcoming'} • ${trip.daysCount} Days • ${trip.destination}',
+                    '${isPlanning ? 'Planning' : 'Upcoming'} • ${DayLabels.countTitle(trip.daysCount)} • ${trip.destination}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

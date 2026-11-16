@@ -1,3 +1,4 @@
+import '../core/day_labels.dart';
 import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
 import '../services/mapbox_service.dart';
@@ -458,7 +459,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                '${trip.daysCount} DAYS • ${trip.vibeTag.toUpperCase()}',
+                                DayLabels.badge(trip.daysCount, trip.vibeTag),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
