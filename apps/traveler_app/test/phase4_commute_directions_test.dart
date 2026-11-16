@@ -67,6 +67,28 @@ void main() {
       expect(route.steps.single.fareLabel, isNull);
     });
 
+    test('a route that is only walking is free, not "cost not listed"', () {
+      final walk = CommuteRoute.fromJson({
+        'commute_route_id': 3,
+        'total_minutes': 0,
+        'total_fare_per_person_php': '0.00',
+        'fare_complete': true,
+        'steps': [
+          {'vehicle': 'walk', 'from_place': 'Gaisano', 'to_place': 'The park'},
+        ],
+      });
+      expect(walk.fareLabel, 'Free');
+
+      // A tricycle with no fare is still unknown, never free.
+      final tricycle = CommuteRoute.fromJson({
+        'commute_route_id': 4,
+        'steps': [
+          {'vehicle': 'tricycle'},
+        ],
+      });
+      expect(tricycle.fareLabel, isNull);
+    });
+
     test('directions read as plain sentences', () {
       final route = CommuteRoute.fromJson(_routeJson());
       expect(route.steps[0].instruction, 'Ride a jeepney from Davao City to Toril');
@@ -117,6 +139,8 @@ void main() {
 
     expect(find.text('Getting to Eden Nature Park'), findsOneWidget);
     expect(find.text('Drive'), findsOneWidget);
+    // No starting place is set, so the drive card says what is needed.
+    expect(find.text('Set your starting place to see the drive'), findsOneWidget);
     expect(find.text('≈40 min'), findsOneWidget);
     expect(find.text('₱130 per person'), findsOneWidget);
     expect(find.text('Ride a jeepney from Davao City to Toril'), findsOneWidget);

@@ -42,6 +42,7 @@ class _CommuteDirectionsScreenState extends State<CommuteDirectionsScreen> {
   List<CommuteRoute> _routes = const [];
   BackendRouteResult? _drive;
   bool _driveLoaded = false;
+  bool _noOrigin = false;
   int _selected = 0;
   bool _started = false;
   final Set<int> _done = {};
@@ -72,14 +73,20 @@ class _CommuteDirectionsScreenState extends State<CommuteDirectionsScreen> {
       _failed = routes == null;
       _routes = routes ?? const [];
     });
-    final drive = await widget.repo.fetchRoadRouteForTrip(
-      widget.trip,
-      travelMode: 'driving',
-      destinationIds: [stop.destinationId],
-    );
+    // A drive time needs a place to start from. Without one the route service
+    // has only a single point and no distance, so say that instead of asking.
+    final origin = widget.repo.routeOrigin;
+    final drive = origin == null
+        ? null
+        : await widget.repo.fetchRoadRouteForTrip(
+            widget.trip,
+            travelMode: 'driving',
+            destinationIds: [stop.destinationId],
+          );
     if (!mounted || stop != _stop) return;
     setState(() {
       _drive = drive;
+      _noOrigin = origin == null;
       _driveLoaded = true;
     });
   }
@@ -144,8 +151,10 @@ class _CommuteDirectionsScreenState extends State<CommuteDirectionsScreen> {
     String? qualifier;
     if (!_driveLoaded) {
       value = 'Checking…';
+    } else if (_noOrigin) {
+      value = 'Set your starting place to see the drive';
     } else if (drive == null || drive.totalDistanceKm <= 0) {
-      value = 'Not available';
+      value = 'Not available right now';
     } else {
       value =
           '${drive.totalDistanceKm.toStringAsFixed(1)} km • '
