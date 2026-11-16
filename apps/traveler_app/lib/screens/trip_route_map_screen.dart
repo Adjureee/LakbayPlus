@@ -9,6 +9,8 @@ import '../services/route_progress.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
+import '../services/access_notices.dart';
+import '../widgets/access_notice_card.dart';
 
 class TripRouteMapScreen extends StatefulWidget {
   final ItineraryTrip trip;
@@ -1007,6 +1009,10 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                         ),
                       ),
                       const Spacer(),
+                      if (accessNoticeForDay(day) case final notice?)
+                        // A permit rule matters more than the stop list here.
+                        AccessNoticePill(notice: notice)
+                      else
                       Row(
                         children: [
                           const Icon(
