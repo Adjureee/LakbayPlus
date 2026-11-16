@@ -1371,16 +1371,25 @@ class LakbayApiCatalogService {
   Future<TripMemberItem?> addTripMember(
     String accessToken,
     int tripId, {
-    required String email,
+    String? email,
+    String? username,
     String role = 'member',
   }) async {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return null;
+    assert((email == null) != (username == null),
+        'Invite by email or by username, not both.');
+    // The server sends an invitation (status "invited"); the person joins
+    // when they accept.
     final res = await _client
         .post(
           Uri.parse('$base/trips/$tripId/members'),
           headers: _authHeaders(accessToken),
-          body: jsonEncode({'email': email.trim(), 'role': role}),
+          body: jsonEncode({
+            if (email != null) 'email': email.trim(),
+            if (username != null) 'username': username.trim(),
+            'role': role,
+          }),
         )
         .timeout(const Duration(seconds: 10));
     final decoded = _tryDecodeJson(res.body);
@@ -1394,6 +1403,87 @@ class LakbayApiCatalogService {
       _extractErrorMessage(decoded, res.statusCode),
       statusCode: res.statusCode,
     );
+  }
+
+  /// Travelers matching the start of a username or name (no emails).
+  Future<List<UserSearchItem>> searchUsers(String accessToken, String query) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty || query.trim().length < 2) {
+      return const [];
+    }
+    try {
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .get(
+              Uri.parse('$base/users/search').replace(
+                queryParameters: {'q': query.trim()},
+              ),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 8)),
+      );
+      if (res.statusCode != 200) return const [];
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(UserSearchItem.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<TripInvitationItem>> listTripInvitations(String accessToken) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return const [];
+    try {
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .get(
+              Uri.parse('$base/trips/invitations'),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 8)),
+      );
+      if (res.statusCode != 200) return const [];
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(TripInvitationItem.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Accepts or declines an invitation. True when the server confirmed it.
+  Future<bool> answerTripInvitation(
+    String accessToken,
+    int tripId, {
+    required bool accept,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return false;
+    try {
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .post(
+              Uri.parse(
+                '$base/trips/$tripId/invitation/${accept ? 'accept' : 'decline'}',
+              ),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 10)),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> removeTripMember(

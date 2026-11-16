@@ -262,7 +262,7 @@ class TripMember(Base):
             name="ck_trip_members_role",
         ),
         CheckConstraint(
-            "status IN ('active', 'removed')",
+            "status IN ('active', 'removed', 'invited')",
             name="ck_trip_members_status",
         ),
     )

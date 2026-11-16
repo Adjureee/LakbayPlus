@@ -1716,6 +1716,78 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
     );
   }
 
+  /// The message, plus Accept / Decline while an invitation is still open.
+  Widget _buildNotificationBody(BuildContext context, AppNotificationItem n) {
+    final open = n.eventType == 'trip_invitation' &&
+        widget.repo.hasPendingInvitation(n.tripId);
+    if (!open) return Text(n.message);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(n.message),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            ElevatedButton(
+              onPressed: () => _answerInvitation(context, n, accept: true),
+              style: ElevatedButton.styleFrom(
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              ),
+              child: const Text('Accept'),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton(
+              onPressed: () => _answerInvitation(context, n, accept: false),
+              style: OutlinedButton.styleFrom(
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              ),
+              child: const Text('Decline'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _answerInvitation(
+    BuildContext context,
+    AppNotificationItem n, {
+    required bool accept,
+  }) async {
+    final tripId = n.tripId;
+    if (tripId == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await widget.repo.answerInvitation(tripId, accept: accept);
+    if (n.isRead == false) widget.repo.markNotificationRead(n.notificationId);
+    messenger.showSnackBar(SnackBar(
+      content: Text(
+        !ok
+            ? "That didn't go through. Please try again."
+            : accept
+                ? 'You joined ${n.tripTitle ?? 'the trip'}.'
+                : 'Invitation declined.',
+      ),
+    ));
+  }
+
+  /// Opens the trip a notification is about, when it is one of the traveler's trips.
+  void _openNotifiedTrip(BuildContext context, AppNotificationItem n) {
+    final tripId = n.tripId;
+    if (tripId == null) return;
+    final matches =
+        widget.repo.savedTrips.where((t) => t.backendTripId == tripId);
+    if (matches.isEmpty) return;
+    final navigator = Navigator.of(context);
+    navigator.pop(); // close the notifications sheet
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => TripDetailScreen(trip: matches.first, repo: widget.repo),
+      ),
+    );
+  }
+
   void _openNotificationsSheet(BuildContext context) {
     widget.repo.refreshNotifications();
     showModalBottomSheet<void>(
@@ -1797,7 +1869,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                 n.isRead ? FontWeight.w500 : FontWeight.w700,
                           ),
                         ),
-                        subtitle: Text(n.message),
+                        subtitle: _buildNotificationBody(ctx, n),
                         trailing: n.isRead
                             ? null
                             : const Icon(
@@ -1805,8 +1877,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                 size: 9,
                                 color: LakbayColors.primary,
                               ),
-                        onTap: () =>
-                            widget.repo.markNotificationRead(n.notificationId),
+                        onTap: () {
+                          widget.repo.markNotificationRead(n.notificationId);
+                          _openNotifiedTrip(ctx, n);
+                        },
                       ),
                 ],
               ),

@@ -1,6 +1,6 @@
 # AI chat → recommendations → picks → itinerary, and group invites
 
-Date: 2026-11-16 · Status: Phases 1 and 2 merged to `main`; Phase 3 merged; Phase 4 implemented on branch `feature/ai-prompts-and-eval` (Phases 5-6 still planned) · Based on `9256d3d`
+Date: 2026-11-16 · Status: Phases 1 and 2 merged to `main`; Phase 3 merged; Phase 4 merged; Phase 5 implemented on branch `feature/group-invites` (Phase 6 still planned) · Based on `9256d3d`
 Scoring model: Simple Additive Weighting (SAW), tuned for nature attractions (see "Weighted scoring (SAW) built for nature attractions").
 
 ## The flow you want

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show Uint8List, kIsWeb;
@@ -69,8 +70,10 @@ class _TripCollaborationSheet extends StatefulWidget {
 }
 
 class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
-  final _emailCtrl = TextEditingController();
+  final _inviteCtrl = TextEditingController();
   final _taskCtrl = TextEditingController();
+  Timer? _searchDebounce;
+  List<UserSearchItem> _suggestions = [];
   List<TripMemberItem> _members = [];
   List<TripTaskItem> _tasks = [];
   String _statusFilter = 'all';
@@ -85,29 +88,42 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
+    _searchDebounce?.cancel();
+    _inviteCtrl.dispose();
     _taskCtrl.dispose();
     super.dispose();
+  }
+
+  static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  /// Looks for travelers while the companion types a username or name. An
+  /// email address is not searched; it is sent as typed.
+  void _onInviteChanged(String text) {
+    _searchDebounce?.cancel();
+    final query = text.trim().replaceFirst(RegExp(r'^@'), '');
+    if (query.length < 2 || _emailPattern.hasMatch(text.trim())) {
+      if (_suggestions.isNotEmpty) setState(() => _suggestions = []);
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final session = widget.repo.authSession;
+      if (session == null) return;
+      final found =
+          await widget.repo.apiCatalog.searchUsers(session.accessToken, query);
+      if (!mounted || _inviteCtrl.text.trim().replaceFirst(RegExp(r'^@'), '') != query) {
+        return;
+      }
+      setState(() => _suggestions = found);
+    });
   }
 
   Future<void> _load() async {
     final tripId = widget.trip.backendTripId;
     if (!widget.repo.isSignedIn || tripId == null) {
+      // Nothing is invented: members only exist once the trip is in the cloud.
       setState(() {
         _loading = false;
-        _members = [
-          TripMemberItem(
-            tripMemberId: 1,
-            tripId: 0,
-            userId: 1,
-            fullName: widget.repo.profile.fullName,
-            email: widget.repo.profile.email.isNotEmpty
-                ? widget.repo.profile.email
-                : 'owner@lakbay.local',
-            role: 'owner',
-            status: 'active',
-          ),
-        ];
+        _members = [];
       });
       return;
     }
@@ -124,44 +140,55 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
   }
 
   Future<void> _inviteMember() async {
-    final email = _emailCtrl.text.trim();
-    if (email.isEmpty) return;
+    final typed = _inviteCtrl.text.trim();
+    if (typed.isEmpty) return;
     final tripId = widget.trip.backendTripId;
     if (!widget.repo.isSignedIn || tripId == null) {
-      setState(() {
-        _members = [
-          ..._members,
-          TripMemberItem(
-            tripMemberId: -DateTime.now().millisecondsSinceEpoch,
-            tripId: 0,
-            userId: 0,
-            fullName: email.split('@').first,
-            email: email,
-            role: 'member',
-            status: 'active',
-          ),
-        ];
-        _emailCtrl.clear();
-        _statusMessage = 'Companion added locally (sign in & sync to invite via cloud).';
-      });
+      setState(() => _statusMessage =
+          'Sign in and save this trip to your account to invite companions.');
       return;
     }
+    final isEmail = _emailPattern.hasMatch(typed);
     try {
       final created = await widget.repo.apiCatalog.addTripMember(
         widget.repo.authSession!.accessToken,
         tripId,
-        email: email,
+        email: isEmail ? typed : null,
+        username: isEmail ? null : typed.replaceFirst(RegExp(r'^@'), ''),
       );
-      _emailCtrl.clear();
+      _inviteCtrl.clear();
+      _suggestions = [];
       if (created != null) {
         setState(() {
           _members = [..._members, created];
-          _statusMessage = 'Invited ${created.fullName}!';
+          _statusMessage =
+              'Invitation sent to ${created.fullName}. They can accept it in their notifications.';
         });
       }
     } catch (e) {
+      // The server's own wording, for example "We couldn't find that person."
       setState(() => _statusMessage = e.toString());
     }
+  }
+
+  Future<void> _cancelInvitation(TripMemberItem member) async {
+    final tripId = widget.trip.backendTripId;
+    if (tripId == null) return;
+    final ok = await widget.repo.apiCatalog.removeTripMember(
+      widget.repo.authSession!.accessToken,
+      tripId,
+      member.tripMemberId,
+    );
+    if (!mounted) return;
+    setState(() {
+      if (ok) {
+        _members =
+            _members.where((m) => m.tripMemberId != member.tripMemberId).toList();
+        _statusMessage = 'Invitation cancelled.';
+      } else {
+        _statusMessage = "Couldn't cancel that invitation. Please try again.";
+      }
+    });
   }
 
   Future<void> _addTask() async {
@@ -265,7 +292,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Invite registered companions and track Pending, Ongoing, and Completed tasks.',
+              'Invite companions by @username or email, and track Pending, Ongoing, and Completed tasks.',
               style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
             ),
             if (_statusMessage != null) ...[
@@ -299,10 +326,12 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
               children: [
                 Expanded(
                   child: TextField(
-                    controller: _emailCtrl,
+                    controller: _inviteCtrl,
                     keyboardType: TextInputType.emailAddress,
+                    onChanged: _onInviteChanged,
+                    onSubmitted: (_) => _inviteMember(),
                     decoration: InputDecoration(
-                      hintText: 'Companion email address',
+                      hintText: '@username or email',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -320,11 +349,36 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                 ),
               ],
             ),
+            for (final s in _suggestions)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: LakbayColors.primary.withValues(alpha: 0.15),
+                  child: Text(s.fullName.isNotEmpty ? s.fullName[0].toUpperCase() : '?'),
+                ),
+                title: Text(s.fullName),
+                subtitle: Text('@${s.username}'),
+                onTap: () => setState(() {
+                  _inviteCtrl.text = '@${s.username}';
+                  _suggestions = [];
+                }),
+              ),
             const SizedBox(height: 10),
             if (_loading)
               const Padding(
                 padding: EdgeInsets.all(16),
                 child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_members.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  widget.repo.isSignedIn && widget.trip.backendTripId != null
+                      ? 'No members yet.'
+                      : 'Save this trip to your account to invite companions.',
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
               )
             else
               for (final m in _members)
@@ -332,7 +386,9 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   leading: CircleAvatar(
-                    backgroundColor: LakbayColors.tealDeep,
+                    backgroundColor: m.isPending
+                        ? Colors.grey.shade400
+                        : LakbayColors.tealDeep,
                     foregroundColor: Colors.white,
                     child: Text(
                       m.fullName.isNotEmpty
@@ -341,7 +397,30 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                     ),
                   ),
                   title: Text(m.fullName),
-                  subtitle: Text('${m.email} • ${m.role.toUpperCase()}'),
+                  subtitle: Text([
+                    if (m.username != null && m.username!.isNotEmpty)
+                      '@${m.username}'
+                    else if (m.email.isNotEmpty)
+                      m.email,
+                    m.role.toUpperCase(),
+                  ].join(' • ')),
+                  trailing: m.isPending
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Chip(
+                              label: Text('Pending',
+                                  style: TextStyle(fontSize: 11)),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            IconButton(
+                              tooltip: 'Cancel invitation',
+                              icon: const Icon(Icons.close_rounded, size: 18),
+                              onPressed: () => _cancelInvitation(m),
+                            ),
+                          ],
+                        )
+                      : null,
                 ),
             const Divider(height: 28),
             const Text(

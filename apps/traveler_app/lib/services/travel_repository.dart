@@ -20,6 +20,7 @@ class TravelRepository extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _liveSubscription?.cancel();
+    _notificationTimer?.cancel();
     super.dispose();
   }
 
@@ -1119,6 +1120,7 @@ class TravelRepository extends ChangeNotifier {
 
   Future<void> signOutBackend() async {
     final refreshToken = _authSession?.refreshToken ?? '';
+    _invitations.clear();
     _authSession = null;
     _clearUserSessionData();
     await googleAuthService.signOut();
@@ -1408,15 +1410,60 @@ class TravelRepository extends ChangeNotifier {
 
   Future<void> refreshNotifications() async {
     if (!isSignedIn || !apiCatalog.isConfigured) return;
-    final items = await apiCatalog.fetchNotifications(_authSession!.accessToken);
-    final unread = await apiCatalog.getUnreadNotificationCount(
-      _authSession!.accessToken,
-    );
+    final token = _authSession!.accessToken;
+    final items = await apiCatalog.fetchNotifications(token);
+    final unread = await apiCatalog.getUnreadNotificationCount(token);
+    final invitations = await apiCatalog.listTripInvitations(token);
     _notifications
       ..clear()
       ..addAll(items);
     _unreadNotificationCount = unread;
+    _invitations
+      ..clear()
+      ..addAll(invitations);
     notifyListeners();
+  }
+
+  /// Trips the traveler was invited to and has not answered yet.
+  final List<TripInvitationItem> _invitations = [];
+  List<TripInvitationItem> get invitations => List.unmodifiable(_invitations);
+
+  bool hasPendingInvitation(int? tripId) =>
+      tripId != null && _invitations.any((i) => i.tripId == tripId);
+
+  /// Accepts or declines an invitation. Accepting brings the trip into the
+  /// traveler's trips. Returns true when the server confirmed the answer.
+  Future<bool> answerInvitation(int tripId, {required bool accept}) async {
+    if (!isSignedIn || !apiCatalog.isConfigured) return false;
+    final ok = await apiCatalog.answerTripInvitation(
+      _authSession!.accessToken,
+      tripId,
+      accept: accept,
+    );
+    if (!ok) return false;
+    _invitations.removeWhere((i) => i.tripId == tripId);
+    notifyListeners();
+    if (accept) await syncTripsFromBackend();
+    await refreshNotifications();
+    return true;
+  }
+
+  Timer? _notificationTimer;
+
+  /// Checks for new notifications and invitations every minute while the app
+  /// is open, so an invitation shows up without restarting the app.
+  void startNotificationPolling({
+    Duration interval = const Duration(seconds: 60),
+  }) {
+    _notificationTimer?.cancel();
+    _notificationTimer = Timer.periodic(interval, (_) {
+      if (isSignedIn) refreshNotifications();
+    });
+  }
+
+  void stopNotificationPolling() {
+    _notificationTimer?.cancel();
+    _notificationTimer = null;
   }
 
   Future<void> markNotificationRead(int notificationId) async {

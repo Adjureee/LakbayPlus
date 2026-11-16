@@ -1,11 +1,14 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+from app.features.users.usernames import USERNAME_RULE, is_valid_username, normalize_username
 
 
 class UserResponse(BaseModel):
     user_id: int
     full_name: str
+    username: str | None = None
     email: EmailStr
     role: str
     avatar_url: str | None
@@ -19,6 +22,26 @@ class UserResponse(BaseModel):
 class UserUpdateRequest(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=255)
     avatar_url: str | None = Field(default=None, max_length=2048)
+    username: str | None = Field(default=None, max_length=40)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str | None) -> str | None:
+        if value is None:
+            raise ValueError("username cannot be null.")
+        cleaned = normalize_username(value)
+        if not is_valid_username(cleaned):
+            raise ValueError(USERNAME_RULE)
+        return cleaned
+
+
+class UserSearchItem(BaseModel):
+    """What another traveler may see: never an email address."""
+
+    user_id: int
+    username: str
+    full_name: str
+    avatar_url: str | None = None
 
 
 class AdminUserItem(BaseModel):
