@@ -7,6 +7,7 @@ import 'screens/my_trips_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/profile_screen.dart';
 import 'services/env_config.dart';
+import 'services/firebase_push.dart';
 import 'services/travel_repository.dart';
 import 'theme/lakbay_theme.dart';
 import 'widgets/brand/lakbay_compass_mark.dart';
@@ -14,7 +15,9 @@ import 'widgets/brand/lakbay_compass_mark.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EnvConfig.load();
-  runApp(const LakbayTravelApp());
+  // Push notifications through Firebase; a quiet no-op when Firebase is not set up.
+  final pushService = await FirebasePush.create();
+  runApp(LakbayTravelApp(repository: TravelRepository(pushService: pushService)));
 }
 
 class LakbayTravelApp extends StatefulWidget {
