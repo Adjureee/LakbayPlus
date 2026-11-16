@@ -1,5 +1,6 @@
 import '../core/day_labels.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import '../services/voice_input_service.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
@@ -25,6 +26,29 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
   final VoiceInputService _voiceInput = const VoiceInputService();
   bool _isListeningVoice = false;
   final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onChatScroll);
+  }
+
+  /// Scrolling down through the answer hides the bottom bar; scrolling up, or
+  /// being back at the top, brings it back.
+  void _onChatScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final hidden = widget.repo.chatNavHidden;
+    switch (position.userScrollDirection) {
+      case ScrollDirection.reverse:
+        if (position.pixels > 48 && !hidden.value) hidden.value = true;
+      case ScrollDirection.forward:
+        if (hidden.value) hidden.value = false;
+      case ScrollDirection.idle:
+        break;
+    }
+    if (position.pixels <= 0 && hidden.value) hidden.value = false;
+  }
 
   void _handleSend([String? presetPrompt]) {
     final text = presetPrompt ?? _inputController.text;
@@ -143,6 +167,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onChatScroll);
+    widget.repo.chatNavHidden.value = false;
     _inputController.dispose();
     _drawerSearchController.dispose();
     _scrollController.dispose();
@@ -709,10 +735,19 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
         ),
         if (widget.repo.chatPickCount > 0 && !widget.repo.isAiTyping)
           _buildPlanWithPicksBar(context),
-        // Bottom Chat Input Bar (above floating nav bar)
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 4, 16, 98),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        // Bottom Chat Input Bar (above floating nav bar). It drops down to
+        // take the bar's place while the bar is hidden.
+        ValueListenableBuilder<bool>(
+          valueListenable: widget.repo.chatNavHidden,
+          builder: (context, navHidden, child) => AnimatedContainer(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            margin: EdgeInsets.fromLTRB(16, 4, 16, navHidden ? 16 : 90),
+            child: child,
+          ),
+          child: Container(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.96),
             borderRadius: BorderRadius.circular(28),
@@ -793,6 +828,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 icon: const Icon(Icons.arrow_upward_rounded, size: 20),
               ),
             ],
+          ),
           ),
         ),
       ],

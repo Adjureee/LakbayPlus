@@ -205,16 +205,36 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         index: selectedIndex,
         children: pages,
       ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      bottomNavigationBar: ValueListenableBuilder<bool>(
+        valueListenable: widget.repo.chatNavHidden,
+        builder: (context, chatHidden, child) {
+          final hidden = chatHidden && selectedIndex == 2;
+          final reduce = MediaQuery.disableAnimationsOf(context);
+          return IgnorePointer(
+            ignoring: hidden,
+            child: AnimatedSlide(
+              offset: hidden ? const Offset(0, 1.3) : Offset.zero,
+              duration: reduce ? Duration.zero : const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              child: AnimatedOpacity(
+                opacity: hidden ? 0 : 1,
+                duration:
+                    reduce ? Duration.zero : const Duration(milliseconds: 160),
+                child: child,
+              ),
+            ),
+          );
+        },
+        child: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(14, 0, 14, 8),
         child: SizedBox(
-          height: 76,
+          height: 72,
           child: Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.bottomCenter,
             children: [
               Container(
-                height: 64,
+                height: 60,
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.96),
@@ -232,6 +252,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   children: [
                     _NavItem(
                       icon: Icons.map_outlined,
+                      selectedIcon: Icons.map,
                       label: 'Trips',
                       badgeCount: widget.repo.unreadNotificationCount,
                       selected: selectedIndex == 0,
@@ -239,6 +260,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     ),
                     _NavItem(
                       icon: Icons.ondemand_video_outlined,
+                      selectedIcon: Icons.ondemand_video,
                       label: 'Discover',
                       selected: selectedIndex == 1,
                       onTap: () => widget.repo.setActiveNavIndex(1),
@@ -247,6 +269,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     const SizedBox(width: 62),
                     _NavItem(
                       icon: Icons.photo_library_outlined,
+                      selectedIcon: Icons.photo_library,
                       label: 'Memories',
                       badgeCount: memoriesCount,
                       selected: selectedIndex == 3,
@@ -312,12 +335,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           ),
         ),
       ),
+      ),
     );
   }
 }
 
 class _NavItem extends StatelessWidget {
   final IconData icon;
+  final IconData selectedIcon;
   final String label;
   final bool selected;
   final int badgeCount;
@@ -325,36 +350,42 @@ class _NavItem extends StatelessWidget {
 
   const _NavItem({
     required this.icon,
+    IconData? selectedIcon,
     required this.label,
     required this.selected,
     this.badgeCount = 0,
     required this.onTap,
-  });
+  }) : selectedIcon = selectedIcon ?? icon;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    // Selected: filled icon and bold label in the brand colour. Others:
+    // outline icon at 60% so the current tab reads without a background pill.
+    final color = selected
+        ? LakbayColors.primaryDark
+        : LakbayColors.tealDeep.withValues(alpha: 0.6);
+    // Tabs share the row equally, so labels can never push the bar wider than
+    // a small screen, and each tap area stays at least 48 dp tall.
+    return Expanded(
+      child: GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? LakbayColors.primaryLight : Colors.transparent,
-          borderRadius: BorderRadius.circular(22),
-        ),
+        alignment: Alignment.center,
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Badge(
               isLabelVisible: badgeCount > 0,
               label: Text('$badgeCount'),
               backgroundColor: LakbayColors.primary,
               child: Icon(
-                icon,
-                size: 21,
-                color: selected
-                    ? LakbayColors.primaryDark
-                    : LakbayColors.tealDeep,
+                selected ? selectedIcon : icon,
+                size: 22,
+                color: color,
               ),
             ),
             const SizedBox(height: 2),
@@ -363,13 +394,12 @@ class _NavItem extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                color: selected
-                    ? LakbayColors.primaryDark
-                    : LakbayColors.tealDeep,
+                color: color,
               ),
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -388,15 +418,16 @@ class _ProfileNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    // Tabs share the row equally, so labels can never push the bar wider than
+    // a small screen, and each tap area stays at least 48 dp tall.
+    return Expanded(
+      child: GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: selected ? LakbayColors.primaryLight : Colors.transparent,
-          borderRadius: BorderRadius.circular(22),
-        ),
+        alignment: Alignment.center,
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -422,11 +453,12 @@ class _ProfileNavItem extends StatelessWidget {
                 fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                 color: selected
                     ? LakbayColors.primaryDark
-                    : LakbayColors.tealDeep,
+                    : LakbayColors.tealDeep.withValues(alpha: 0.6),
               ),
             ),
           ],
         ),
+      ),
       ),
     );
   }
