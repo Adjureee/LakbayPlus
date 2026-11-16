@@ -148,6 +148,17 @@ class ProfileScreen extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (profile.username.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '@${profile.username}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: LakbayColors.primaryDark,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Text(
                           profile.headline.isNotEmpty
@@ -354,6 +365,13 @@ class ProfileScreen extends StatelessWidget {
     final headlineCtrl = TextEditingController(text: p.headline);
     final locationCtrl = TextEditingController(text: p.location);
     final emailCtrl = TextEditingController(text: p.email);
+    final usernameCtrl = TextEditingController(text: p.username);
+    // Make sure the field shows the server's current username.
+    repo.refreshUsername().then((_) {
+      if (usernameCtrl.text.isEmpty && repo.profile.username.isNotEmpty) {
+        usernameCtrl.text = repo.profile.username;
+      }
+    });
 
     showModalBottomSheet(
       context: context,
@@ -365,6 +383,8 @@ class ProfileScreen extends StatelessWidget {
       builder: (ctx) {
         var isLocating = false;
         String? gpsNotice;
+        String? usernameError;
+        var isSaving = false;
         return StatefulBuilder(
           builder: (ctx, setSheetState) => Padding(
             padding: EdgeInsets.fromLTRB(
@@ -438,6 +458,28 @@ class ProfileScreen extends StatelessWidget {
                   _ProfileField(label: 'First name', controller: firstCtrl),
                   const SizedBox(height: 10),
                   _ProfileField(label: 'Last name', controller: lastCtrl),
+                  if (repo.isSignedIn) ...[
+                    const SizedBox(height: 10),
+                    _ProfileField(
+                      label: 'Username',
+                      controller: usernameCtrl,
+                      hint: 'e.g. maria_santos',
+                      prefix: '@',
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
+                      child: Text(
+                        usernameError ??
+                            'Friends use this to find and invite you. 3 to 30 letters, numbers, dots or underscores.',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: usernameError != null
+                              ? Colors.red.shade700
+                              : LakbayColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   _ProfileField(
                     label: 'Headline',
@@ -503,16 +545,35 @@ class ProfileScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        repo.updateProfile(
-                          firstName: firstCtrl.text,
-                          lastName: lastCtrl.text,
-                          headline: headlineCtrl.text,
-                          location: locationCtrl.text,
-                          email: emailCtrl.text,
-                        );
-                        Navigator.of(ctx).pop();
-                      },
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              // The username lives on the server, so it is saved
+                              // first; a refusal keeps the sheet open with the reason.
+                              setSheetState(() {
+                                isSaving = true;
+                                usernameError = null;
+                              });
+                              final problem = repo.isSignedIn
+                                  ? await repo.saveUsername(usernameCtrl.text)
+                                  : null;
+                              if (!ctx.mounted) return;
+                              if (problem != null) {
+                                setSheetState(() {
+                                  isSaving = false;
+                                  usernameError = problem;
+                                });
+                                return;
+                              }
+                              repo.updateProfile(
+                                firstName: firstCtrl.text,
+                                lastName: lastCtrl.text,
+                                headline: headlineCtrl.text,
+                                location: locationCtrl.text,
+                                email: emailCtrl.text,
+                              );
+                              Navigator.of(ctx).pop();
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: LakbayColors.tealDeep,
                         foregroundColor: Colors.white,
@@ -669,11 +730,13 @@ class _ProfileField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final String? hint;
+  final String? prefix;
 
   const _ProfileField({
     required this.label,
     required this.controller,
     this.hint,
+    this.prefix,
   });
 
   @override
@@ -703,6 +766,7 @@ class _ProfileField extends StatelessWidget {
               decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: hint,
+                prefixText: prefix,
                 isDense: true,
               ),
               style: const TextStyle(

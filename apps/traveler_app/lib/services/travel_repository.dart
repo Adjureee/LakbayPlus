@@ -585,6 +585,39 @@ class TravelRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Loads this traveler's username from the server (shown in the profile).
+  Future<void> refreshUsername() async {
+    if (!isSignedIn || !apiCatalog.isConfigured) return;
+    final username =
+        await apiCatalog.fetchMyUsername(_authSession!.accessToken);
+    if (username == null || username == _profile.username) return;
+    _profile = _profile.copyWith(username: username);
+    _scheduleSaveState();
+    notifyListeners();
+  }
+
+  /// Saves a new username. Returns null on success, or the reason it was
+  /// refused (taken, not allowed, offline) to show to the traveler.
+  Future<String?> saveUsername(String input) async {
+    final wanted = input.trim().replaceFirst(RegExp(r'^@'), '');
+    if (wanted.isEmpty || wanted == _profile.username) return null;
+    if (!isSignedIn) return 'Sign in to choose a username.';
+    try {
+      final saved = await apiCatalog.updateMyUsername(
+        _authSession!.accessToken,
+        wanted,
+      );
+      _profile = _profile.copyWith(username: saved);
+      _scheduleSaveState();
+      notifyListeners();
+      return null;
+    } on LakbayApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return "Couldn't save your username. Check your connection and try again.";
+    }
+  }
+
   // Conversational AI Chat Sessions & Active Messages
   final List<ChatSession> _chatSessions = [];
   List<ChatSession> get chatSessions => List.unmodifiable(_chatSessions);
@@ -1143,6 +1176,8 @@ class TravelRepository extends ChangeNotifier {
   }
 
   Future<void> syncTripsFromBackend() async {
+    // Cheap, and keeps the profile's username current after signing in.
+    await refreshUsername();
     if (!isSignedIn) return;
     final remoteRows = await apiCatalog.getMyTrips(_authSession!.accessToken);
     if (remoteRows.isEmpty) return;

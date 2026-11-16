@@ -186,6 +186,104 @@ void main() {
     expect(repo.invitations, isEmpty);
   });
 
+  group('username', () {
+    _Api usernameApi({
+      String current = 'friend',
+      int patchStatus = 200,
+      Object? patchBody,
+    }) =>
+        _Api((request, path) {
+          if (path == '/users/me' && request.method == 'GET') {
+            return _json({'user_id': 2, 'username': current});
+          }
+          if (path == '/users/me' && request.method == 'PATCH') {
+            final wanted = (jsonDecode(request.body) as Map)['username'];
+            return _json(patchBody ?? {'user_id': 2, 'username': wanted}, patchStatus);
+          }
+          return _json([]);
+        });
+
+    test('is loaded from the server and kept on the profile', () async {
+      final repo = await _signedInRepo(usernameApi(current: 'trail_walker'));
+
+      await repo.refreshUsername();
+
+      expect(repo.profile.username, 'trail_walker');
+      expect(repo.profile.toJson()['username'], 'trail_walker');
+      expect(UserProfile.fromJson(repo.profile.toJson()).username, 'trail_walker');
+    });
+
+    test('saving sends it without the @ and stores what the server kept', () async {
+      final api = usernameApi();
+      final repo = await _signedInRepo(api);
+      await repo.refreshUsername();
+
+      final problem = await repo.saveUsername('@Trail_Walker');
+
+      expect(problem, isNull);
+      final patch = api.calls.lastWhere((c) => c.method == 'PATCH');
+      expect(patch.body['username'], 'Trail_Walker');
+      expect(repo.profile.username, 'Trail_Walker');
+    });
+
+    test('a taken username is refused with the server message and not saved', () async {
+      final repo = await _signedInRepo(usernameApi(
+        patchStatus: 409,
+        patchBody: {
+          'error': {'code': 'username_taken', 'message': 'That username is already taken.'},
+        },
+      ));
+      await repo.refreshUsername();
+
+      final problem = await repo.saveUsername('someone_else');
+
+      expect(problem, 'That username is already taken.');
+      expect(repo.profile.username, 'friend');
+    });
+
+    test('an invalid username explains the rule', () async {
+      final repo = await _signedInRepo(usernameApi(patchStatus: 422, patchBody: {}));
+
+      final problem = await repo.saveUsername('no');
+
+      expect(problem, contains('3 to 30'));
+    });
+
+    test('an unchanged or empty username makes no request', () async {
+      final api = usernameApi();
+      final repo = await _signedInRepo(api);
+      await repo.refreshUsername();
+      final before = api.calls.length;
+
+      expect(await repo.saveUsername('  '), isNull);
+      expect(await repo.saveUsername('@friend'), isNull);
+
+      expect(api.calls.length, before);
+    });
+
+    test('signed-out travelers are told to sign in', () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = TravelRepository(
+        apiCatalog: LakbayApiCatalogService(baseUrlOverride: ''),
+      );
+      await repo.initialize();
+
+      expect(await repo.saveUsername('someone'), 'Sign in to choose a username.');
+    });
+
+    test('losing the connection gives a retry message', () async {
+      final api = _Api((request, path) {
+        if (request.method == 'PATCH') throw http.ClientException('offline');
+        return _json({'username': 'friend'});
+      });
+      final repo = await _signedInRepo(api);
+
+      final problem = await repo.saveUsername('new_name');
+
+      expect(problem, contains('try again'));
+    });
+  });
+
   group('inviting', () {
     LakbayApiCatalogService service(_Api api) => LakbayApiCatalogService(
           baseUrlOverride: 'https://api.lakbay.test/api/v1',
