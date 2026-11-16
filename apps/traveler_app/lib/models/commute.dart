@@ -162,6 +162,10 @@ class CommuteRoute {
   /// "₱130 per person", "₱130+ per person" when other fares are not listed,
   /// or null when no per-person fare is known.
   String? get fareLabel {
+    // A route that is only walking costs nothing to ride.
+    if (steps.isNotEmpty && steps.every((s) => s.vehicle == 'walk')) {
+      return 'Free';
+    }
     if (totalFarePerPersonPhp <= 0) return null;
     final amount = totalFarePerPersonPhp == totalFarePerPersonPhp.roundToDouble()
         ? totalFarePerPersonPhp.toStringAsFixed(0)
