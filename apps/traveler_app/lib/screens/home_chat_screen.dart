@@ -859,7 +859,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 style: IconButton.styleFrom(
                   backgroundColor: LakbayColors.primary,
                   foregroundColor: Colors.white,
-                  minimumSize: const Size(48, 48),
+                  // A round 44 dp button: roomy enough to tap, and it sits
+                  // inside the composer instead of touching its edge.
+                  fixedSize: const Size(44, 44),
+                  shape: const CircleBorder(),
                 ),
                 icon: const Icon(Icons.arrow_upward_rounded, size: 20),
               ),
