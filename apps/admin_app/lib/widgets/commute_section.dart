@@ -182,31 +182,49 @@ class _CommuteSectionState extends State<CommuteSection> {
     final chain = steps
         .map((s) => commuteVehicles[s['vehicle']] ?? '${s['vehicle']}')
         .join(' → ');
+    final theme = Theme.of(context);
+    // Text takes the full width; the two buttons sit on their own line below,
+    // so a long place name does not get squeezed into a narrow column.
     return Card(
+      key: ValueKey('commute-route-${route['commute_route_id']}'),
       margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        title: Text(chain.isEmpty ? 'No steps' : chain),
-        subtitle: Text(
-          [
-            if ((route['start_area'] ?? '').toString().isNotEmpty)
-              'From ${route['start_area']}',
-            verified ? 'Verified' : 'Not verified (hidden from travelers)',
-            if (!active) 'Switched off',
-          ].join(' · '),
-        ),
-        trailing: Wrap(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            IconButton(
-              tooltip: 'Edit',
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () => _edit(route),
+            Text(
+              chain.isEmpty ? 'No steps' : chain,
+              style: theme.textTheme.titleMedium,
             ),
-            if (active)
-              IconButton(
-                tooltip: 'Switch off',
-                icon: const Icon(Icons.visibility_off_outlined),
-                onPressed: () => _switchOff(route),
+            const SizedBox(height: 4),
+            Text(
+              [
+                if ((route['start_area'] ?? '').toString().isNotEmpty)
+                  'From ${route['start_area']}',
+                verified ? 'Verified' : 'Not verified (hidden from travelers)',
+                if (!active) 'Switched off',
+              ].join(' · '),
+              style: theme.textTheme.bodyMedium,
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                children: [
+                  IconButton(
+                    tooltip: 'Edit',
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: () => _edit(route),
+                  ),
+                  if (active)
+                    IconButton(
+                      tooltip: 'Switch off',
+                      icon: const Icon(Icons.visibility_off_outlined),
+                      onPressed: () => _switchOff(route),
+                    ),
+                ],
               ),
+            ),
           ],
         ),
       ),
