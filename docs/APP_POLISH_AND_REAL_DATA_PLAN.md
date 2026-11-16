@@ -244,3 +244,19 @@ Suggested order: **1, 2, 3, 4, 5, 6, 7, then 8.** Phase 1 and 2 give the most vi
 6. **Commute data:** who verifies the AI-drafted steps before travelers see them as "verified" (you, or an admin account)?
 7. **Profile photo:** upload only, or also allow removing it?
 8. **The photo:** is it from another app, a design, or an older Lakbay version? If you have more screens (the Start flow, the plan view), please send them.
+
+---
+
+## Phase 7 record: smooth and fluid
+
+**What was changed (from reading the code; no frame times were measured):**
+- Photos from Cloudinary are requested at the size shown (`w_<px>,q_auto,f_auto`) and decoded at that size, instead of full camera size (Discover cards, memories grid).
+- A tab (Trips, Discover, Chat, Memories, Profile) is built the first time it is opened and kept afterwards; before, all five were built at start and rebuilt on every repository change.
+- One page transition for every screen (fade-forwards on Android, the platform's own on iOS).
+- Images keep the previous picture while a new one loads (no flash).
+
+**Not done, and why:** a frame-time run. The phone was not connected when this phase was built. To measure, connect the phone and run, for each of Discover, the map, Trip detail and the chat: `adb shell dumpsys gfxinfo com.lakbay.plus.lakbay_plus reset`, scroll for 10 seconds, then `adb shell dumpsys gfxinfo com.lakbay.plus.lakbay_plus` and read "Janky frames".
+
+**Budget to hold:** under 5% janky frames while scrolling Discover and Trip detail; no single frame over 32 ms; the first screen after launch visible in under 2 seconds on the TECNO phone.
+
+**Still open:** the repository still notifies every listener on each change (92 call sites); splitting it needs the frame-time run to show which screens matter.

@@ -1,6 +1,41 @@
 import 'package:flutter/material.dart';
 import '../theme/lakbay_theme.dart';
 
+/// Sizes remote photos to what is shown.
+///
+/// Admin photos live on Cloudinary at full camera size. A list of them decoded
+/// at full size is slow and heavy, so the address is asked for a smaller copy
+/// (`w_<px>,q_auto,f_auto`), and the decoder is told the size too.
+class LakbayImageSizing {
+  LakbayImageSizing._();
+
+  /// Widths are rounded up to these steps so one copy serves many sizes and
+  /// stays cached.
+  static const _steps = [240, 360, 480, 720, 1080, 1440];
+
+  static int stepFor(double logicalWidth, double devicePixelRatio) {
+    final wanted = logicalWidth * devicePixelRatio;
+    for (final step in _steps) {
+      if (wanted <= step) return step;
+    }
+    return _steps.last;
+  }
+
+  /// A smaller copy of a Cloudinary photo, or [url] unchanged when it is not a
+  /// Cloudinary upload or already has a transformation.
+  static String sized(String url, int width) {
+    const marker = '/image/upload/';
+    final at = url.indexOf(marker);
+    if (!url.contains('res.cloudinary.com') || at < 0) return url;
+    final rest = url.substring(at + marker.length);
+    // Already transformed (for example `w_400,c_fill/...`): leave it alone.
+    if (RegExp(r'^[a-z]{1,3}_[^/]+/').hasMatch(rest) && !rest.startsWith('v')) {
+      return url;
+    }
+    return '${url.substring(0, at + marker.length)}w_$width,q_auto,f_auto/$rest';
+  }
+}
+
 /// Shared Davao Region image renderer that prefers verified Cloudinary URLs,
 /// then falls back smoothly to bundled local Davao Region photography.
 class LakbayNetworkOrAssetImage extends StatelessWidget {
@@ -51,11 +86,18 @@ class LakbayNetworkOrAssetImage extends StatelessWidget {
     if (!_hasRemoteUrl) {
       return _buildAssetFallback();
     }
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final target = LakbayImageSizing.stepFor(
+      (width != null && width!.isFinite) ? width! : 480,
+      dpr,
+    );
     return Image.network(
-      networkUrl!.trim(),
+      LakbayImageSizing.sized(networkUrl!.trim(), target),
       width: width,
       height: height,
       fit: fit,
+      cacheWidth: target,
+      gaplessPlayback: true,
       loadingBuilder: (context, child, loadingProgress) {
         if (loadingProgress == null) return child;
         return Stack(
