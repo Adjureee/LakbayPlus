@@ -26,7 +26,17 @@ class RateLimitedThenOkClient:
         self.calls: list[dict] = []
         self.fallback_fails = fallback_fails
 
-    async def create_chat_completion(self, *, model, messages, response_format=None, provider="groq", temperature=None):
+    async def create_chat_completion(
+        self,
+        *,
+        model,
+        messages,
+        response_format=None,
+        provider="groq",
+        temperature=None,
+        max_tokens=None,
+        max_rate_limit_wait_seconds=None,
+    ):
         self.calls.append({"model": model, "provider": provider})
         if provider == "groq" or self.fallback_fails:
             raise GroqRateLimitError("Groq rate limit reached.", retry_after_seconds=30)
@@ -256,7 +266,7 @@ def test_itinerary_skips_groq_fallback_and_uses_second_provider(client, monkeypa
     get_settings.cache_clear()
     destination = create_destination(client)
     fake = FakeGroqClient(
-        ["not json", valid_ai_response(destination_id=destination["destination_id"])]
+        ["not json", "still not json", valid_ai_response(destination_id=destination["destination_id"])]
     )
     client.app.dependency_overrides[get_groq_client] = lambda: fake
 
@@ -268,6 +278,7 @@ def test_itinerary_skips_groq_fallback_and_uses_second_provider(client, monkeypa
 
     assert response.status_code == 200
     assert [(c["model"], c["provider"]) for c in fake.calls] == [
+        ("quality-model", "groq"),
         ("quality-model", "groq"),
         ("gemini-flash", "fallback_llm"),
     ]

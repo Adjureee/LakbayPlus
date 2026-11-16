@@ -29,6 +29,8 @@ class GroqClient:
         response_format: dict | None = None,
         provider: str = "groq",
         temperature: float | None = None,
+        max_tokens: int | None = None,
+        max_rate_limit_wait_seconds: int | None = None,
     ) -> GroqChatCompletion:
         if provider == "fallback_llm":
             api_key = self.settings.fallback_llm_api_key
@@ -51,7 +53,9 @@ class GroqClient:
             "temperature": (
                 self.settings.groq_temperature if temperature is None else temperature
             ),
-            "max_tokens": self.settings.groq_max_tokens,
+            "max_tokens": (
+                self.settings.groq_max_tokens if max_tokens is None else max_tokens
+            ),
         }
         if response_format is not None:
             payload["response_format"] = response_format
@@ -59,6 +63,11 @@ class GroqClient:
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        max_wait = (
+            self.settings.groq_rate_limit_max_wait_seconds
+            if max_rate_limit_wait_seconds is None
+            else max_rate_limit_wait_seconds
+        )
         attempts = self.settings.groq_max_retries + 1
 
         async with httpx.AsyncClient(
@@ -91,10 +100,7 @@ class GroqClient:
                     raise
                 except GroqRateLimitError as exc:
                     # Sleep through short waits so brief bursts don't surface as errors.
-                    if (
-                        exc.retry_after_seconds <= self.settings.groq_rate_limit_max_wait_seconds
-                        and attempt < attempts - 1
-                    ):
+                    if exc.retry_after_seconds <= max_wait and attempt < attempts - 1:
                         await asyncio.sleep(exc.retry_after_seconds)
                         continue
                     raise

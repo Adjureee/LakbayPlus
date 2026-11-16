@@ -25,6 +25,7 @@ PreferenceText = Annotated[
 ]
 ModelRole = Literal["default", "fast", "quality"]
 ChatRole = Literal["user", "assistant"]
+AILanguage = Literal["auto", "english", "filipino", "bisaya"]
 
 
 class AIItineraryGenerateRequest(BaseModel):
@@ -39,6 +40,7 @@ class AIItineraryGenerateRequest(BaseModel):
     interests: list[PreferenceText] = Field(default_factory=list, max_length=15)
     travel_style: str | None = Field(default=None, max_length=100)
     special_requirements: str | None = Field(default=None, max_length=1000)
+    language: AILanguage = "auto"
     model_role: ModelRole = "quality"
     compare_models: bool = False
     allow_fallback: bool = True
@@ -118,6 +120,7 @@ class AIChatRequest(BaseModel):
     context: dict | None = None
     planning_state: PlanningState | None = None
     input_revision: int = Field(default=0, ge=0)
+    language: AILanguage = "auto"
     model_role: ModelRole = "default"
     allow_fallback: bool = True
     use_rag: bool = True
@@ -311,6 +314,7 @@ class AITripDraftRequest(BaseModel):
     )
     strict_budget: bool = False
     default_days: int = Field(default=3, ge=1, le=14)
+    language: AILanguage = "auto"
 
 
 class AITripDraftResponse(BaseModel):

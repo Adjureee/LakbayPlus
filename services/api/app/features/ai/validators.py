@@ -15,6 +15,10 @@ class AIOutputValidationError(Exception):
         self.details = details or []
 
 
+class AIOutputInvalidJsonError(AIOutputValidationError):
+    """Raised when the model output could not be parsed as valid structured JSON."""
+
+
 @dataclass(frozen=True)
 class AIItineraryCatalog:
     destination_ids: set[int]
@@ -40,7 +44,7 @@ def parse_and_validate_itinerary_output(
     raw_options = payload.get("options")
 
     if not isinstance(raw_options, list):
-        raise AIOutputValidationError("AI output must contain an options list.")
+        raise AIOutputInvalidJsonError("AI output must contain an options list.")
 
     if len(raw_options) < catalog.minimum_option_count:
         raise AIOutputValidationError(
@@ -83,26 +87,98 @@ def parse_and_validate_itinerary_output(
 
 
 def _parse_json_payload(content: str) -> dict[str, Any]:
-    cleaned = content.strip()
-
-    if cleaned.startswith("```"):
-        cleaned = _strip_code_fence(cleaned)
+    cleaned = _unwrap_markdown_json(content.strip())
 
     start = cleaned.find("{")
+    if start == -1:
+        raise AIOutputInvalidJsonError("AI output was not valid JSON.")
+
     end = cleaned.rfind("}")
+    if end > start:
+        try:
+            payload = json.loads(cleaned[start : end + 1])
+            if not isinstance(payload, dict):
+                raise AIOutputInvalidJsonError("AI output root must be a JSON object.")
+            return payload
+        except json.JSONDecodeError:
+            pass
 
-    if start == -1 or end == -1 or end <= start:
-        raise AIOutputValidationError("AI output was not valid JSON.")
+    repaired = _repair_truncated_json(cleaned[start:])
+    if repaired is not None:
+        return repaired
 
-    try:
-        payload = json.loads(cleaned[start : end + 1])
-    except json.JSONDecodeError as exc:
-        raise AIOutputValidationError("AI output was not valid JSON.") from exc
+    raise AIOutputInvalidJsonError("AI output was not valid JSON.")
 
-    if not isinstance(payload, dict):
-        raise AIOutputValidationError("AI output root must be a JSON object.")
 
-    return payload
+def _unwrap_markdown_json(value: str) -> str:
+    if value.startswith("```"):
+        return _strip_code_fence(value)
+    fence_start = value.find("```")
+    if fence_start != -1:
+        inner = _strip_code_fence(value[fence_start:])
+        if "{" in inner:
+            return inner
+    return value
+
+
+def _repair_truncated_json(snippet: str) -> dict[str, Any] | None:
+    """Close truncated strings, trim incomplete trailing tokens, and close open brackets."""
+    in_string = False
+    escaped = False
+    stack: list[str] = []
+    last_complete_comma = -1
+    last_complete_stack: list[str] = []
+
+    for idx, ch in enumerate(snippet):
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\" and in_string:
+            escaped = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            stack.append("}")
+        elif ch == "[":
+            stack.append("]")
+        elif ch in ("}", "]"):
+            if not stack or stack[-1] != ch:
+                return None
+            stack.pop()
+            if not stack:
+                break
+        elif ch == ",":
+            last_complete_comma = idx
+            last_complete_stack = list(stack)
+
+    candidates: list[tuple[str, list[str]]] = []
+    base = snippet.rstrip()
+    if in_string:
+        if escaped:
+            base = base[:-1]
+        candidates.append((base + '"', list(stack)))
+    else:
+        trimmed = base.rstrip(",")
+        if trimmed.endswith(":"):
+            trimmed += "null"
+        candidates.append((trimmed, list(stack)))
+
+    if last_complete_comma != -1:
+        candidates.append((snippet[:last_complete_comma], last_complete_stack))
+
+    for prefix, open_closers in candidates:
+        candidate = prefix.rstrip().rstrip(",") + "".join(reversed(open_closers))
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
 
 
 def _strip_code_fence(value: str) -> str:

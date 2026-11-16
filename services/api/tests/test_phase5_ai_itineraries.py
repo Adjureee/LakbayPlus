@@ -46,12 +46,16 @@ class FakeGroqClient:
         response_format: dict | None = None,
         provider: str = "groq",
         temperature: float | None = None,
+        max_tokens: int | None = None,
+        max_rate_limit_wait_seconds: int | None = None,
     ) -> GroqChatCompletion:
         self.calls.append({
             "model": model,
             "messages": messages,
             "response_format": response_format,
             "provider": provider,
+            "max_tokens": max_tokens,
+            "max_rate_limit_wait_seconds": max_rate_limit_wait_seconds,
         })
         content = self.responses.pop(0)
 
@@ -606,6 +610,7 @@ def test_ai_generation_retries_with_fallback_after_invalid_output(
     fake_client = FakeGroqClient(
         [
             "not json",
+            "still not json",
             valid_ai_response(destination_id=destination["destination_id"]),
         ]
     )
@@ -620,6 +625,7 @@ def test_ai_generation_retries_with_fallback_after_invalid_output(
     assert response.status_code == 200
     body = response.json()
     assert [call["model"] for call in fake_client.calls] == [
+        "quality-model",
         "quality-model",
         "fallback-model",
     ]

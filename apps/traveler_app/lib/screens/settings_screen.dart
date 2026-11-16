@@ -94,6 +94,12 @@ class SettingsScreen extends StatelessWidget {
                         onTap: () => _showLanguageSheet(context),
                       ),
                       _SettingsItemCard(
+                        icon: Icons.auto_awesome_outlined,
+                        title: 'AI language',
+                        trailingText: repo.aiLanguageDisplayName,
+                        onTap: () => _showAiLanguageSheet(context),
+                      ),
+                      _SettingsItemCard(
                         icon: Icons.attach_money_rounded,
                         title: 'Currency',
                         trailingText: repo.currencyDisplayName,
@@ -480,6 +486,67 @@ class SettingsScreen extends StatelessWidget {
                     : null,
                 onTap: () {
                   repo.setLocale(code);
+                  Navigator.of(ctx).pop();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAiLanguageSheet(BuildContext context) {
+    const langs = [
+      ('auto', 'Auto', 'Match the language of your message'),
+      ('english', 'English', 'Replies and itineraries in English'),
+      ('filipino', 'Filipino', 'Replies and itineraries in Filipino'),
+      ('bisaya', 'Bisaya / Cebuano', 'Replies and itineraries in Bisaya'),
+    ];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'AI language',
+              style: TextStyle(
+                fontFamily: 'FigGrotesk',
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: LakbayColors.tealDeep,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Choose what language Lakbay AI uses in chat and trip itineraries.',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: LakbayColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final (code, label, subtitle) in langs)
+              ListTile(
+                title: Text(label),
+                subtitle: Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 12),
+                ),
+                trailing: repo.aiLanguage == code
+                    ? const Icon(
+                        Icons.check_circle,
+                        color: LakbayColors.primary,
+                      )
+                    : null,
+                onTap: () {
+                  repo.setAiLanguage(code);
                   Navigator.of(ctx).pop();
                 },
               ),

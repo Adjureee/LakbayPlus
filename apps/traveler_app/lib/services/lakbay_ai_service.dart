@@ -93,6 +93,7 @@ class LakbayAiService {
     double? userLng,
     Set<String> preferredVibes = const {},
     bool strictBudget = false,
+    String language = 'auto',
   }) async {
     final backend = this.backend;
     if (backend == null || !backend.isConfigured) {
@@ -118,6 +119,7 @@ class LakbayAiService {
       preferredVibes: preferredVibes.toList(),
       strictBudget: strictBudget,
       defaultDays: defaultDays,
+      language: language,
     );
     if (result == null) {
       throw StateError('Lakbay AI is unavailable right now.');

@@ -82,7 +82,17 @@ class CappedFake:
         self.caps = {"groq": groq_cap, "fallback_llm": fallback_cap}
         self.served = Counter()
 
-    async def create_chat_completion(self, *, model, messages, response_format=None, provider="groq", temperature=None):
+    async def create_chat_completion(
+        self,
+        *,
+        model,
+        messages,
+        response_format=None,
+        provider="groq",
+        temperature=None,
+        max_tokens=None,
+        max_rate_limit_wait_seconds=None,
+    ):
         with self.lock:
             if self.served[provider] >= self.caps[provider]:
                 raise GroqRateLimitError("Groq rate limit reached.", retry_after_seconds=30)

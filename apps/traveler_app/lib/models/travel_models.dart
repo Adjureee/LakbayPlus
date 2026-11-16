@@ -1480,6 +1480,7 @@ class ChatMessage {
   /// Nothing is invented to cover for a failure.
   final bool isError;
   final String? retryText;
+  final String? errorCode;
 
   /// The detail the AI is asking for next (for example `activity_level`), so
   /// the answer buttons can show under the reply. Not saved: only the latest
@@ -1500,6 +1501,7 @@ class ChatMessage {
     this.suggestedReplies = const [],
     this.isError = false,
     this.retryText,
+    this.errorCode,
     this.askNext,
     this.offerPriorities = false,
   });
@@ -1518,6 +1520,7 @@ class ChatMessage {
         if (suggestedReplies.isNotEmpty) 'suggestedReplies': suggestedReplies,
         if (isError) 'isError': true,
         if (retryText != null) 'retryText': retryText,
+        if (errorCode != null) 'errorCode': errorCode,
       };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
