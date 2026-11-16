@@ -1,4 +1,6 @@
 import '../core/day_labels.dart';
+import '../core/lakbay_motion.dart';
+import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import '../services/voice_input_service.dart';
@@ -26,6 +28,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
   final VoiceInputService _voiceInput = const VoiceInputService();
   bool _isListeningVoice = false;
   final ScrollController _scrollController = ScrollController();
+
+  /// Messages already on screen when the chat was opened (or already
+  /// animated). Only a message that is not in here fades in.
+  Set<String>? _knownMessageIds;
 
   @override
   void initState() {
@@ -330,11 +336,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 // Main Content: Hero Landing (Image 6) or Active Chat Thread
                 Expanded(
                   child: AnimatedSwitcher(
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : const Duration(milliseconds: 220),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
+                    duration:
+                        LakbayMotion.of(context, LakbayMotion.standard),
+                    switchInCurve: LakbayMotion.enter,
+                    switchOutCurve: LakbayMotion.exit,
                     child: KeyedSubtree(
                       key: ValueKey(isLanding ? 'landing' : 'thread'),
                       child: isLanding
@@ -729,7 +734,17 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                   ),
                 );
               }
-              return _buildMessageBubble(context, messages[index]);
+              final message = messages[index];
+              _knownMessageIds ??= {for (final m in messages) m.id};
+              final bubble = _buildMessageBubble(context, message);
+              if (_knownMessageIds!.contains(message.id)) return bubble;
+              // New this build: enter after the messages before it, a beat apart.
+              _knownMessageIds!.add(message.id);
+              return LakbayEntrance(
+                key: ValueKey('enter-${message.id}'),
+                delay: message.isUser ? Duration.zero : LakbayMotion.stagger,
+                child: bubble,
+              );
             },
           ),
         ),
@@ -1502,6 +1517,9 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
   ) {
     final resolved = widget.repo.resolveExploreTripForRecommendation(place);
     final isAdded = widget.repo.isInTripBuilder(resolved.id);
+    // Set by the container each time the card is drawn; the View button uses
+    // it so the card itself grows into the place screen.
+    VoidCallback? openCard;
     final infoLine = [
       if (place.district != null && place.district!.trim().isNotEmpty)
         place.district!.trim(),
@@ -1513,7 +1531,25 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
             ? place.imageUrl
             : (resolved.hasRemoteThumbnail ? resolved.thumbnailUrl : null);
 
-    return Container(
+    return OpenContainer<void>(
+      key: ValueKey('place-open-${place.name}'),
+      transitionType: ContainerTransitionType.fadeThrough,
+      transitionDuration: LakbayMotion.of(context, LakbayMotion.container),
+      tappable: false,
+      closedElevation: 0,
+      openElevation: 0,
+      closedColor: Colors.transparent,
+      middleColor: LakbayColors.canvasBg,
+      closedShape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+      ),
+      openBuilder: (context, _) => TripDetailScreen(
+        trip: widget.repo.buildDetailedItineraryFromExplore(resolved),
+        repo: widget.repo,
+      ),
+      closedBuilder: (context, openContainer) {
+        openCard = openContainer;
+        return Container(
       key: ValueKey('place-card-${place.name}'),
       width: width,
       decoration: BoxDecoration(
@@ -1630,18 +1666,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                   Row(
                     children: [
                       OutlinedButton(
-                        onPressed: () {
-                          final trip = widget.repo
-                              .buildDetailedItineraryFromExplore(resolved);
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => TripDetailScreen(
-                                trip: trip,
-                                repo: widget.repo,
-                              ),
-                            ),
-                          );
-                        },
+                        onPressed: () => openCard?.call(),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -1697,6 +1722,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           ),
         ],
       ),
+    );
+      },
     );
   }
 
