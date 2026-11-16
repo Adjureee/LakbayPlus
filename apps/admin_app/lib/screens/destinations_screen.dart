@@ -54,8 +54,17 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
   /// The last loaded list, so one saved record can be swapped in without
   /// refetching everything and rebuilding the map.
   List<dynamic>? _loaded;
+  List<Map<String, dynamic>> _categoryFacets = const [];
 
   Future<List<dynamic>> _fetch() async {
+    _api.getDestinationFacets().then((facets) {
+      if (!mounted) return;
+      final cats = (facets['categories'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      setState(() => _categoryFacets = cats);
+    }).catchError((_) {});
     final rows = await _api.getDestinations();
     _loaded = rows;
     return rows;
@@ -215,9 +224,46 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                   .skip(page * _pageSize)
                   .take(_pageSize)
                   .toList();
+              final ungroupedCats = _categoryFacets
+                  .where((c) => c['group']?.toString() == 'other')
+                  .toList();
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (ungroupedCats.isNotEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF4E5),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFFFB74D)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.warning_amber_rounded,
+                            color: Color(0xFFE65100),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Categories not in any traveler preference group (showing under Other): '
+                              '${ungroupedCats.map((c) => '${c['label'] ?? c['key']} (${c['count'] ?? 0})').join(', ')}',
+                              style: const TextStyle(
+                                color: Color(0xFF4E2A00),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
                   AdminPanel(
                     child: LayoutBuilder(
                       builder: (context, constraints) => Wrap(

@@ -40,7 +40,13 @@ void main() {
     (tester) async {
       var reads = 0;
       final api = ApiService(
-        client: MockClient((_) async {
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/destinations/facets')) {
+            return http.Response(
+              jsonEncode({'total_places': 0, 'groups': [], 'categories': []}),
+              200,
+            );
+          }
           reads++;
           return http.Response(jsonEncode([destination]), 200);
         }),
@@ -58,7 +64,13 @@ void main() {
     (tester) async {
       var reads = 0;
       final api = ApiService(
-        client: MockClient((_) async {
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/destinations/facets')) {
+            return http.Response(
+              jsonEncode({'total_places': 0, 'groups': [], 'categories': []}),
+              200,
+            );
+          }
           reads++;
           return http.Response(jsonEncode([destination]), 200);
         }),

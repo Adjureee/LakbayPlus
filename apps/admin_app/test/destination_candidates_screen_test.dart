@@ -30,6 +30,12 @@ ApiService _searchableApi(
   return ApiService(
     tokenProvider: () async => 'admin-token',
     client: MockClient((request) async {
+      if (request.url.path.endsWith('/destinations/facets')) {
+        return http.Response(
+          jsonEncode({'total_places': 0, 'groups': [], 'categories': []}),
+          200,
+        );
+      }
       requests.add(request);
       final q = request.url.queryParameters['q']?.toLowerCase();
       final rows = q == null
@@ -73,6 +79,12 @@ void main() {
     final api = ApiService(
       tokenProvider: () async => 'admin-token',
       client: MockClient((request) async {
+        if (request.url.path.endsWith('/destinations/facets')) {
+          return http.Response(
+            jsonEncode({'total_places': 0, 'groups': [], 'categories': []}),
+            200,
+          );
+        }
         requests.add(request);
         if (request.method == 'GET') {
           return http.Response(jsonEncode([candidate]), 200);
@@ -213,6 +225,12 @@ void main() {
       final api = ApiService(
         tokenProvider: () async => 'admin-token',
         client: MockClient((request) async {
+          if (request.url.path.endsWith('/destinations/facets')) {
+            return http.Response(
+              jsonEncode({'total_places': 0, 'groups': [], 'categories': []}),
+              200,
+            );
+          }
           requests.add(request);
           final q = request.url.queryParameters['q'];
           return http.Response(

@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.config import get_settings
 from app.features.ai.service import _ai_user_limiter
+from app.features.destinations.service import clear_facets_cache
 from app.features.users.service import _user_search_limiter
 from app.features.planning.dependencies import _route_limiter as _planning_route_limiter
 from app.features.routes.dependencies import _route_request_limiter
@@ -40,6 +41,7 @@ def clear_settings_cache() -> None:
     _osm_lookup_limiter.clear()
     _user_search_limiter.clear()
     _osm_cache.clear()
+    clear_facets_cache()
     yield
     get_settings.cache_clear()
     _ai_user_limiter.clear()
@@ -49,6 +51,7 @@ def clear_settings_cache() -> None:
     _osm_lookup_limiter.clear()
     _user_search_limiter.clear()
     _osm_cache.clear()
+    clear_facets_cache()
 
 
 @pytest.fixture

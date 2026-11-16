@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import '../widgets/admin_map_pin_picker.dart';
 import '../widgets/admin_trail_editor_dialog.dart';
 import '../widgets/admin_widgets.dart';
+import '../widgets/category_picker_field.dart';
 import '../widgets/destination_photo_upload.dart';
 
 const destinationSuitability = <String, String>{
@@ -88,10 +89,19 @@ class _DestinationEditorState extends State<DestinationEditor> {
 
   /// Farther than this, the endpoint probably belongs to an old pin.
   static const _arrivalWarnMeters = 2000.0;
+  List<Map<String, dynamic>> _categoryFacets = const [];
 
   @override
   void initState() {
     super.initState();
+    widget.api.getDestinationFacets().then((facets) {
+      if (!mounted) return;
+      final cats = (facets['categories'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      setState(() => _categoryFacets = cats);
+    }).catchError((_) {});
     final record = widget.destination ?? <String, dynamic>{};
     for (final key in [..._textKeys, ..._arrivalKeys]) {
       final value = record[key]?.toString() ?? '';
@@ -437,7 +447,10 @@ class _DestinationEditorState extends State<DestinationEditor> {
                             ),
                             _pair(
                               _field('district', 'District', maxLength: 255),
-                              _field('category', 'Category', maxLength: 500),
+                              CategoryPickerField(
+                                controller: _controllers['category']!,
+                                categoryFacets: _categoryFacets,
+                              ),
                             ),
                             _field('description', 'Description', lines: 4),
                             _field(

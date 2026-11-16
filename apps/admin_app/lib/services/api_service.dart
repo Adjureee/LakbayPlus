@@ -255,6 +255,14 @@ class ApiService {
     Map<String, dynamic> data,
   ) async => _object(await _request('PATCH', '/users/me', data: data));
 
+  Future<Map<String, dynamic>> getDestinationFacets() async => _object(
+        await _request(
+          'GET',
+          '/destinations/facets',
+          authenticated: false,
+        ),
+      );
+
   Future<List<dynamic>> getDestinations() async {
     final records = <dynamic>[];
     var offset = 0;

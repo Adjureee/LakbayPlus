@@ -45,6 +45,7 @@ from app.features.destinations.catalog_selection import (
     require_all_transportations,
     require_rates_belong_to_destinations,
 )
+from app.features.destinations.service import DestinationService
 from app.features.destinations.models import Destination
 from app.features.destinations.region import (
     canonical_province_name,
@@ -392,11 +393,20 @@ class AIItineraryService:
                 for destination_id in data.planning_state.destination_ids
                 if destination_id in by_id
             ]
+        available_categories = (
+            [
+                item.model_dump(include={"key", "label", "count", "examples"})
+                for item in (await DestinationService(self.session).facets()).categories
+            ]
+            if data.planning_state is not None
+            else None
+        )
         messages = build_chat_messages(
             request=data,
             retrieved_context=retrieved_context,
             retrieval_coverage=retrieval_coverage,
             picked_places=picked_places,
+            available_categories=available_categories,
         )
         failed_runs: list[dict] = []
         rate_limit_error: GroqRateLimitError | None = None

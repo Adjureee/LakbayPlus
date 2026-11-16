@@ -64,7 +64,13 @@ async def main() -> None:
         print()
 
     outside = [p for p in places if p.destination_id not in in_any_group]
-    print(f"== In no group ({len(outside)}) - check none of these is really nature:")
+    if outside:
+        print(
+            f"== WARNING: In Other / no named group ({len(outside)}) - "
+            "add a synonym or group mapping:"
+        )
+    else:
+        print("== In Other / no named group (0)")
     for place in outside:
         print(f"   #{place.destination_id:<3} {place.name} ({place.category})")
 

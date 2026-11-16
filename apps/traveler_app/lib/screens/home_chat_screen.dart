@@ -605,6 +605,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               ),
             ],
           ),
+          if (widget.repo.categoryFacets.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildBrowseCategoriesStrip(context),
+          ],
           if (widget.repo.originRegionNote != null) ...[
             const SizedBox(height: 8),
             Container(
@@ -752,6 +756,11 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
             },
           ),
         ),
+        if (widget.repo.categoryFacets.isNotEmpty && !widget.repo.isAiTyping)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: _buildBrowseCategoriesStrip(context, compact: true),
+          ),
         if (widget.repo.chatPickCount > 0 && !widget.repo.isAiTyping)
           _buildPlanWithPicksBar(context),
         // Bottom Chat Input Bar (above floating nav bar)
@@ -1131,6 +1140,59 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  /// Horizontal row of live category chips that browse the catalog with no AI.
+  Widget _buildBrowseCategoriesStrip(
+    BuildContext context, {
+    bool compact = false,
+  }) {
+    final categories = widget.repo.categoryFacets;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 2),
+          child: const Text(
+            'Browse by category',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 36,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
+            itemCount: categories.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final cat = categories[index];
+              return ActionChip(
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                backgroundColor: Colors.white.withValues(alpha: 0.92),
+                side: const BorderSide(color: Color(0x330B3C49)),
+                label: Text(
+                  '${cat.label} (${cat.count})',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: LakbayColors.tealDeep,
+                  ),
+                ),
+                onPressed: () => widget.repo.browseCategoryInChat(cat),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

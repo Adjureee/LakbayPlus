@@ -2416,6 +2416,46 @@ class PreferenceSubtype {
   Map<String, dynamic> toJson() => {'key': key, 'label': label, 'count': count};
 }
 
+class CategoryFacet {
+  final String key;
+  final String label;
+  final int count;
+  final String group;
+  final List<String> groups;
+  final List<String> examples;
+
+  const CategoryFacet({
+    required this.key,
+    required this.label,
+    this.count = 0,
+    this.group = 'other',
+    this.groups = const [],
+    this.examples = const [],
+  });
+
+  factory CategoryFacet.fromJson(Map<String, dynamic> json) => CategoryFacet(
+        key: (json['key'] ?? '').toString(),
+        label: (json['label'] ?? '').toString(),
+        count: (json['count'] as num?)?.toInt() ?? 0,
+        group: (json['group'] ?? 'other').toString(),
+        groups: (json['groups'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+        examples: (json['examples'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'label': label,
+        'count': count,
+        'group': group,
+        if (groups.isNotEmpty) 'groups': groups,
+        if (examples.isNotEmpty) 'examples': examples,
+      };
+}
+
 class TopPlaceRecommendation {
   final int rank;
   final int destinationId;

@@ -145,23 +145,82 @@ class LakbayApiCatalogService {
 
   bool get isConfigured => _base.isNotEmpty;
 
-  /// The preference groups travelers can choose, with live counts. Empty when
-  /// the server cannot be reached, so callers keep what they already have.
-  Future<List<PreferenceGroup>> fetchPreferenceGroups() async {
+  /// Live preference groups and normalized categories from `GET /destinations/facets`.
+  Future<({List<PreferenceGroup> groups, List<CategoryFacet> categories})>
+      fetchDestinationFacets() async {
     final base = _base;
-    if (base.isEmpty) return const [];
+    if (base.isEmpty) {
+      return (groups: const <PreferenceGroup>[], categories: const <CategoryFacet>[]);
+    }
     try {
       final res = await _client
           .get(Uri.parse('$base/destinations/facets'))
           .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) {
+        return (groups: const <PreferenceGroup>[], categories: const <CategoryFacet>[]);
+      }
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map) {
+        return (groups: const <PreferenceGroup>[], categories: const <CategoryFacet>[]);
+      }
+      final rawGroups = decoded['groups'];
+      final groups = rawGroups is List
+          ? rawGroups
+              .whereType<Map<String, dynamic>>()
+              .map(PreferenceGroup.fromJson)
+              .where((g) => g.key.isNotEmpty && g.label.isNotEmpty)
+              .toList()
+          : const <PreferenceGroup>[];
+      final rawCategories = decoded['categories'];
+      final categories = rawCategories is List
+          ? rawCategories
+              .whereType<Map<String, dynamic>>()
+              .map(CategoryFacet.fromJson)
+              .where((c) => c.key.isNotEmpty && c.label.isNotEmpty)
+              .toList()
+          : const <CategoryFacet>[];
+      return (groups: groups, categories: categories);
+    } catch (_) {
+      return (groups: const <PreferenceGroup>[], categories: const <CategoryFacet>[]);
+    }
+  }
+
+  /// The preference groups travelers can choose, with live counts. Empty when
+  /// the server cannot be reached, so callers keep what they already have.
+  Future<List<PreferenceGroup>> fetchPreferenceGroups() async {
+    final facets = await fetchDestinationFacets();
+    return facets.groups;
+  }
+
+  /// Fetches up to [limit] ranked places in a catalog category without calling AI.
+  Future<List<TopPlaceRecommendation>> browsePlacesByCategory({
+    String? category,
+    String? province,
+    double? userLat,
+    double? userLng,
+    int limit = 5,
+  }) async {
+    final base = _base;
+    if (base.isEmpty) return const [];
+    try {
+      final params = <String, String>{
+        'limit': limit.clamp(1, 5).toString(),
+        if (category != null && category.trim().isNotEmpty)
+          'category': category.trim(),
+        if (province != null && province.trim().isNotEmpty)
+          'province': province.trim(),
+        if (userLat != null && userLng != null) 'lat': userLat.toString(),
+        if (userLat != null && userLng != null) 'lng': userLng.toString(),
+      };
+      final uri =
+          Uri.parse('$base/destinations/browse').replace(queryParameters: params);
+      final res = await _client.get(uri).timeout(const Duration(seconds: 10));
       if (res.statusCode != 200) return const [];
       final decoded = jsonDecode(res.body);
-      final groups = decoded is Map ? decoded['groups'] : null;
-      if (groups is! List) return const [];
-      return groups
+      if (decoded is! List) return const [];
+      return decoded
           .whereType<Map<String, dynamic>>()
-          .map(PreferenceGroup.fromJson)
-          .where((g) => g.key.isNotEmpty && g.label.isNotEmpty)
+          .map(TopPlaceRecommendation.fromJson)
           .toList();
     } catch (_) {
       return const [];

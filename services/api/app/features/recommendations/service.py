@@ -27,7 +27,9 @@ from app.features.recommendations.limits import (
 from app.features.recommendations.preference_groups import (
     Membership,
     PreferenceGroups,
+    load_category_aliases,
     load_groups,
+    normalize_category,
 )
 from app.features.recommendations.weight_profiles import WeightProfile, get_profile
 from app.features.recommendations.models import (
@@ -1132,11 +1134,15 @@ _SINGULAR_CATEGORIES: dict[str, str] = {
 
 def _normalize_category_terms(categories: list[str]) -> list[str]:
     terms: list[str] = []
+    aliases = load_category_aliases()
     for raw in categories:
         cleaned = raw.strip().lower()
         if not cleaned:
             continue
-        stem = _SINGULAR_CATEGORIES.get(cleaned)
+        aliased = normalize_category(cleaned)
+        if aliased and aliased not in terms:
+            terms.append(aliased)
+        stem = _SINGULAR_CATEGORIES.get(cleaned) or aliases.get(cleaned)
         if stem is None and len(cleaned) > 4 and cleaned.endswith("s") and not cleaned.endswith(("ss", "us", "is")):
             stem = cleaned[:-1]
         value = stem or cleaned
@@ -1151,14 +1157,34 @@ def _match_place_categories(
 ) -> tuple[list[str], list[str]]:
     if not categories:
         return [], []
+    dest_norm_cat = normalize_category(destination.category)
     matched, matched_fields = scoring.interest_matches(
         categories,
         {
-            "category": destination.category,
+            "category": " | ".join(
+                part for part in (destination.category, dest_norm_cat) if part
+            ),
             "vibes": destination.vibes,
             "activities": destination.activities,
         },
     )
+    # Fuzzy shared-word match across normalized category words when exact substring didn't hit.
+    dest_words = {
+        word for word in dest_norm_cat.split() if len(word) >= 3
+    }
+    for term in categories:
+        if term in matched:
+            continue
+        if dest_norm_cat == term or term in dest_norm_cat:
+            matched.append(term)
+            if "category" not in matched_fields:
+                matched_fields.append("category")
+            continue
+        term_words = {w for w in term.split() if len(w) >= 3}
+        if term_words and term_words <= dest_words:
+            matched.append(term)
+            if "category" not in matched_fields:
+                matched_fields.append("category")
     if "island" in categories and "island" not in [m.lower() for m in matched] and destination.island_group:
         matched.append("island")
         if "island_group" not in matched_fields:

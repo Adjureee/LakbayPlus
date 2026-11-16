@@ -449,7 +449,15 @@ void main() {
 
 ApiService _api(Future<http.Response> Function(http.Request) handler) =>
     ApiService(
-      client: MockClient(handler),
+      client: MockClient((request) async {
+        if (request.url.path.endsWith('/destinations/facets')) {
+          return http.Response(
+            jsonEncode({'total_places': 0, 'groups': [], 'categories': []}),
+            200,
+          );
+        }
+        return handler(request);
+      }),
       tokenProvider: () async => 'test-access',
       apiBaseUrl: 'http://lakbay.test/api/v1',
     );

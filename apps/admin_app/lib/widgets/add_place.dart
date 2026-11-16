@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
 import 'admin_widgets.dart';
+import 'category_picker_field.dart';
 
 /// A place about to be added to the review queue: an OpenStreetMap search
 /// result, or a pin the admin dropped on the map.
@@ -234,8 +235,22 @@ class _AddPlacePanelState extends State<AddPlacePanel> {
   final _category = TextEditingController();
   final _notes = TextEditingController();
   late Future<Map<String, dynamic>> _nearby = _loadNearby();
+  List<Map<String, dynamic>> _categoryFacets = const [];
   bool _saving = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.api.getDestinationFacets().then((facets) {
+      if (!mounted) return;
+      final cats = (facets['categories'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      setState(() => _categoryFacets = cats);
+    }).catchError((_) {});
+  }
 
   /// Pins closer than this to an existing place are probably duplicates.
   static const _duplicateMeters = 150.0;
@@ -351,12 +366,10 @@ class _AddPlacePanelState extends State<AddPlacePanel> {
             decoration: const InputDecoration(labelText: 'Place name *'),
           ),
           const SizedBox(height: 12),
-          TextField(
+          CategoryPickerField(
             controller: _category,
-            decoration: InputDecoration(
-              labelText: 'Category',
-              hintText: osm?['category']?.toString() ?? 'e.g. Waterfall',
-            ),
+            categoryFacets: _categoryFacets,
+            hintText: osm?['category']?.toString() ?? 'e.g. Waterfall',
           ),
           if (osm == null) ...[
             const SizedBox(height: 12),

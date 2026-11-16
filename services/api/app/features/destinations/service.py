@@ -1,3 +1,5 @@
+from time import monotonic
+
 from fastapi import UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +21,15 @@ from app.features.destinations.schemas import (
     DestinationResponse,
     DestinationUpdate,
 )
+
+FACETS_CACHE_TTL_SECONDS = 60.0
+_facets_cache: tuple[float, DestinationFacetsResponse] | None = None
+
+
+def clear_facets_cache() -> None:
+    """Clear the cached /destinations/facets response."""
+    global _facets_cache
+    _facets_cache = None
 
 
 class DestinationService:
@@ -71,10 +82,15 @@ class DestinationService:
         )
         await self.session.commit()
         await self.session.refresh(updated)
+        clear_facets_cache()
         return DestinationResponse.model_validate(updated)
 
     async def facets(self) -> DestinationFacetsResponse:
-        """Preference groups (for example Nature attractions) with catalog counts."""
+        """Preference groups and normalized live categories with counts (cached 60s)."""
+        global _facets_cache
+        now = monotonic()
+        if _facets_cache is not None and (now - _facets_cache[0]) < FACETS_CACHE_TTL_SECONDS:
+            return _facets_cache[1]
         places: list[DestinationResponse] = []
         offset = 0
         while True:
@@ -83,10 +99,14 @@ class DestinationService:
             if len(page) < 100:
                 break
             offset += len(page)
-        return DestinationFacetsResponse(
+        groups_registry = load_groups()
+        response = DestinationFacetsResponse(
             total_places=len(places),
-            groups=load_groups().facets(places),
+            groups=groups_registry.facets(places),
+            categories=groups_registry.categories(places),
         )
+        _facets_cache = (now, response)
+        return response
 
     async def list_destinations(
         self,
@@ -128,6 +148,7 @@ class DestinationService:
         destination = await self.destinations.create(data)
         await self.session.commit()
         await self.session.refresh(destination)
+        clear_facets_cache()
 
         return DestinationResponse.model_validate(destination)
 
@@ -197,6 +218,7 @@ class DestinationService:
         updated_destination = await self.destinations.update(destination, values)
         await self.session.commit()
         await self.session.refresh(updated_destination)
+        clear_facets_cache()
 
         return DestinationResponse.model_validate(updated_destination)
 
@@ -216,5 +238,6 @@ class DestinationService:
         deactivated_destination = await self.destinations.deactivate(destination)
         await self.session.commit()
         await self.session.refresh(deactivated_destination)
+        clear_facets_cache()
 
         return DestinationResponse.model_validate(deactivated_destination)
