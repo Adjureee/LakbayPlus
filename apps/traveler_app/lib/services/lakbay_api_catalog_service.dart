@@ -1589,7 +1589,7 @@ class LakbayApiCatalogService {
       final res = await _sendAuthorized(
         accessToken,
         (tok) => _client
-            .post(
+            .patch(
               Uri.parse('$base/notifications/$notificationId/read'),
               headers: _authHeaders(tok, json: false),
             )
@@ -1608,13 +1608,68 @@ class LakbayApiCatalogService {
       final res = await _sendAuthorized(
         accessToken,
         (tok) => _client
-            .post(
+            .patch(
               Uri.parse('$base/notifications/read-all'),
               headers: _authHeaders(tok, json: false),
             )
             .timeout(const Duration(seconds: 6)),
       );
       return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> registerDevicePushToken(
+    String accessToken, {
+    required String deviceToken,
+    String platform = 'android',
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty || deviceToken.trim().isEmpty) {
+      return false;
+    }
+    try {
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .post(
+              Uri.parse('$base/notifications/device-tokens'),
+              headers: _authHeaders(tok),
+              body: jsonEncode({
+                'device_token': deviceToken.trim(),
+                'platform': platform,
+              }),
+            )
+            .timeout(const Duration(seconds: 8)),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> unregisterDevicePushToken(
+    String accessToken, {
+    required String deviceToken,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty || deviceToken.trim().isEmpty) {
+      return false;
+    }
+    try {
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .delete(
+              Uri.parse('$base/notifications/device-tokens').replace(
+                queryParameters: {'device_token': deviceToken.trim()},
+              ),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 8)),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
     } catch (_) {
       return false;
     }
@@ -1812,6 +1867,29 @@ class LakbayApiCatalogService {
               headers: _authHeaders(tok, json: false),
             )
             .timeout(const Duration(seconds: 10)),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> resendTripInvitation(
+    String accessToken,
+    int tripId,
+    int tripMemberId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return false;
+    try {
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .post(
+              Uri.parse('$base/trips/$tripId/members/$tripMemberId/resend'),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 8)),
       );
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (_) {

@@ -11,6 +11,7 @@ import 'lakbay_ai_service.dart';
 import 'mapbox_service.dart';
 import 'lakbay_api_catalog_service.dart';
 import 'location_service.dart';
+import 'push_notification_service.dart';
 import 'route_optimizer.dart';
 
 class TravelRepository extends ChangeNotifier {
@@ -21,6 +22,7 @@ class TravelRepository extends ChangeNotifier {
     _disposed = true;
     _liveSubscription?.cancel();
     _notificationTimer?.cancel();
+    pushService.dispose();
     super.dispose();
   }
 
@@ -28,9 +30,11 @@ class TravelRepository extends ChangeNotifier {
     LakbayApiCatalogService? apiCatalog,
     LocationService? locationService,
     GoogleAuthService? googleAuthService,
+    PushNotificationService? pushService,
   })  : apiCatalog = apiCatalog ?? LakbayApiCatalogService(),
         locationService = locationService ?? LocationService(),
-        googleAuthService = googleAuthService ?? GoogleAuthService() {
+        googleAuthService = googleAuthService ?? GoogleAuthService(),
+        pushService = pushService ?? PushNotificationService() {
     this.apiCatalog.onUnauthorizedRefresh = _refreshAuthAccessToken;
   }
 
@@ -43,6 +47,7 @@ class TravelRepository extends ChangeNotifier {
   final LakbayApiCatalogService apiCatalog;
   final LocationService locationService;
   final GoogleAuthService googleAuthService;
+  final PushNotificationService pushService;
 
   bool _isAiTyping = false;
   bool get isAiTyping => _isAiTyping;
@@ -956,6 +961,7 @@ class TravelRepository extends ChangeNotifier {
       refreshPreferenceGroups();
       if (isSignedIn) {
         syncTripsFromBackend();
+        _syncPushNotifications();
       }
     }
     refreshLiveFxRates();
@@ -1213,6 +1219,36 @@ class TravelRepository extends ChangeNotifier {
     );
     _scheduleSaveState();
     notifyListeners();
+    if (apiCatalog.isConfigured && session.accessToken.isNotEmpty) {
+      _syncPushNotifications();
+    }
+  }
+
+  Future<void> _syncPushNotifications() async {
+    if (!isSignedIn || !apiCatalog.isConfigured) return;
+    pushService.listen(
+      onToken: (tok) async {
+        final session = _authSession;
+        if (session == null) return;
+        await apiCatalog.registerDevicePushToken(
+          session.accessToken,
+          deviceToken: tok,
+          platform: pushService.resolvePlatform(),
+        );
+      },
+      onForegroundMessage: (_) {
+        if (isSignedIn) refreshNotifications();
+      },
+    );
+    final tok = await pushService.fetchToken();
+    final session = _authSession;
+    if (tok != null && session != null && !_disposed) {
+      await apiCatalog.registerDevicePushToken(
+        session.accessToken,
+        deviceToken: tok,
+        platform: pushService.resolvePlatform(),
+      );
+    }
   }
 
   Future<String?>? _refreshTokenInFlight;
@@ -1241,7 +1277,18 @@ class TravelRepository extends ChangeNotifier {
   }
 
   Future<void> signOutBackend() async {
+    final accessToken = _authSession?.accessToken ?? '';
     final refreshToken = _authSession?.refreshToken ?? '';
+    final lastPushTok = pushService.lastRegisteredToken;
+    if (accessToken.isNotEmpty &&
+        lastPushTok != null &&
+        lastPushTok.isNotEmpty &&
+        apiCatalog.isConfigured) {
+      await apiCatalog.unregisterDevicePushToken(
+        accessToken,
+        deviceToken: lastPushTok,
+      );
+    }
     _invitations.clear();
     _authSession = null;
     _clearUserSessionData();

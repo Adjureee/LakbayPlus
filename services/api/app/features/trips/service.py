@@ -665,6 +665,39 @@ class TripService:
 
         return _member_response(reloaded_member)
 
+    async def resend_invitation(
+        self,
+        *,
+        user: User,
+        trip_id: int,
+        member_id: int,
+    ) -> TripMemberResponse:
+        trip = await self._require_trip_manager(user=user, trip_id=trip_id)
+        member = await self.trips.get_trip_member(
+            trip_id=trip_id,
+            trip_member_id=member_id,
+        )
+        if member is None or member.status == "removed":
+            raise LakbayAPIError(
+                "Trip member was not found.",
+                code="trip_member_not_found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        if member.status != "invited":
+            raise LakbayAPIError(
+                "Only pending invitations can be resent.",
+                code="trip_invitation_not_pending",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        await self.notifications.notify_trip_invitation(
+            actor=user,
+            trip=trip,
+            member=member,
+        )
+        await self.session.commit()
+        return _member_response(member)
+
     async def list_tasks(
         self,
         *,

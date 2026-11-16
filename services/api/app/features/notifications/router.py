@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_current_user
 from app.db.session import get_db_session
 from app.features.notifications.schemas import (
+    DeviceTokenRegisterRequest,
+    DeviceTokenResponse,
     NotificationEventType,
     NotificationReadAllResponse,
     NotificationResponse,
@@ -90,6 +92,40 @@ async def mark_all_notifications_read(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> NotificationReadAllResponse:
     return await NotificationService(session).mark_all_read(user=current_user)
+
+
+@router.post(
+    "/device-tokens",
+    response_model=DeviceTokenResponse,
+    summary="Register device push token",
+    description="Protected endpoint that stores an active FCM push token for the current traveler.",
+)
+async def register_device_token(
+    data: DeviceTokenRegisterRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DeviceTokenResponse:
+    return await NotificationService(session).register_device_token(
+        user=current_user,
+        data=data,
+    )
+
+
+@router.delete(
+    "/device-tokens",
+    summary="Deactivate device push token",
+    description="Protected endpoint that disables push delivery for the supplied device token.",
+)
+async def unregister_device_token(
+    device_token: str = Query(min_length=8, max_length=512),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, int]:
+    deactivated = await NotificationService(session).unregister_device_token(
+        user=current_user,
+        device_token=device_token,
+    )
+    return {"deactivated": deactivated}
 
 
 @router.delete(

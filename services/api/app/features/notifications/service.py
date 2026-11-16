@@ -6,9 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import LakbayAPIError
 from app.features.expenses.models import TripExpense
-from app.features.notifications.models import Notification
+from app.features.notifications.models import Notification, UserDeviceToken
 from app.features.notifications.repository import NotificationRepository
 from app.features.notifications.schemas import (
+    DeviceTokenRegisterRequest,
+    DeviceTokenResponse,
     NotificationCreate,
     NotificationEventType,
     NotificationReadAllResponse,
@@ -17,6 +19,7 @@ from app.features.notifications.schemas import (
 )
 from app.features.trips.models import Trip, TripMember, TripTask
 from app.features.users.models import User
+from app.integrations.push import get_fcm_client
 
 
 class NotificationService:
@@ -128,7 +131,71 @@ class NotificationService:
             for payload in _dedupe_payloads(payloads)
         ]
 
-        return await self.notifications.add_notifications(notifications)
+        created = await self.notifications.add_notifications(notifications)
+        await self._dispatch_push_for_notifications(created)
+        return created
+
+    async def register_device_token(
+        self,
+        *,
+        user: User,
+        data: DeviceTokenRegisterRequest,
+    ) -> DeviceTokenResponse:
+        token = await self.notifications.upsert_device_token(
+            user_id=user.user_id,
+            platform=data.platform,
+            device_token=data.device_token.strip(),
+        )
+        await self.session.commit()
+        return _device_token_response(token)
+
+    async def unregister_device_token(
+        self,
+        *,
+        user: User,
+        device_token: str,
+    ) -> int:
+        count = await self.notifications.deactivate_device_token(
+            user_id=user.user_id,
+            device_token=device_token.strip(),
+        )
+        await self.session.commit()
+        return count
+
+    async def _dispatch_push_for_notifications(
+        self,
+        notifications: list[Notification],
+    ) -> None:
+        if not notifications:
+            return
+        client = get_fcm_client()
+        if not client.is_configured:
+            return
+        recipient_ids = sorted({n.recipient_user_id for n in notifications})
+        tokens = await self.notifications.list_active_device_tokens(
+            user_ids=recipient_ids,
+        )
+        if not tokens:
+            return
+        tokens_by_user: dict[int, list[str]] = {}
+        for row in tokens:
+            tokens_by_user.setdefault(row.user_id, []).append(row.device_token)
+        messages: list[dict] = []
+        for n in notifications:
+            for dev_tok in tokens_by_user.get(n.recipient_user_id, ()):
+                messages.append(
+                    {
+                        "device_token": dev_tok,
+                        "title": n.title,
+                        "body": n.message,
+                        "data": {
+                            "notification_id": str(n.notification_id),
+                            "event_type": str(n.event_type),
+                            "trip_id": str(n.trip_id or ""),
+                        },
+                    }
+                )
+        await client.send_notifications(messages)
 
     async def notify_trip_member_added(
         self,
@@ -594,3 +661,14 @@ def _notification_metadata(
 
 def _decimal_to_string(value: Decimal) -> str:
     return str(value)
+
+
+def _device_token_response(row: UserDeviceToken) -> DeviceTokenResponse:
+    return DeviceTokenResponse(
+        device_token_id=row.device_token_id,
+        user_id=row.user_id,
+        platform=row.platform,  # type: ignore[arg-type]
+        device_token=row.device_token,
+        is_active=row.is_active,
+        updated_at=row.updated_at,
+    )

@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.features.notifications.models import Notification
+from app.features.notifications.models import Notification, UserDeviceToken
 from app.features.trips.models import Trip
 from app.features.users.models import User
 
@@ -107,6 +107,74 @@ class NotificationRepository:
         await self.session.flush()
 
         return len(notifications)
+
+    async def upsert_device_token(
+        self,
+        *,
+        user_id: int,
+        platform: str,
+        device_token: str,
+    ) -> UserDeviceToken:
+        result = await self.session.execute(
+            select(UserDeviceToken).where(
+                UserDeviceToken.user_id == user_id,
+                UserDeviceToken.device_token == device_token,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        now = datetime.now(UTC)
+        if existing is not None:
+            existing.platform = platform
+            existing.is_active = True
+            existing.updated_at = now
+            await self.session.flush()
+            return existing
+
+        token_row = UserDeviceToken(
+            user_id=user_id,
+            platform=platform,
+            device_token=device_token,
+            is_active=True,
+        )
+        self.session.add(token_row)
+        await self.session.flush()
+        return token_row
+
+    async def deactivate_device_token(
+        self,
+        *,
+        user_id: int,
+        device_token: str,
+    ) -> int:
+        result = await self.session.execute(
+            select(UserDeviceToken).where(
+                UserDeviceToken.user_id == user_id,
+                UserDeviceToken.device_token == device_token,
+                UserDeviceToken.is_active.is_(True),
+            )
+        )
+        rows = list(result.scalars().all())
+        now = datetime.now(UTC)
+        for row in rows:
+            row.is_active = False
+            row.updated_at = now
+        await self.session.flush()
+        return len(rows)
+
+    async def list_active_device_tokens(
+        self,
+        *,
+        user_ids: list[int],
+    ) -> list[UserDeviceToken]:
+        if not user_ids:
+            return []
+        result = await self.session.execute(
+            select(UserDeviceToken).where(
+                UserDeviceToken.user_id.in_(user_ids),
+                UserDeviceToken.is_active.is_(True),
+            )
+        )
+        return list(result.scalars().all())
 
 
 def _notification_options():

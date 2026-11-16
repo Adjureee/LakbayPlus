@@ -300,6 +300,28 @@ async def update_trip_member(
     )
 
 
+@router.post(
+    "/{trip_id}/members/{member_id}/resend",
+    response_model=TripMemberResponse,
+    summary="Resend pending trip invitation",
+    description=(
+        "Protected endpoint that creates a fresh invitation notification (and "
+        "push notification when configured) for an invited trip member."
+    ),
+)
+async def resend_trip_member_invitation(
+    trip_id: int,
+    member_id: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> TripMemberResponse:
+    return await TripService(session).resend_invitation(
+        user=current_user,
+        trip_id=trip_id,
+        member_id=member_id,
+    )
+
+
 @router.delete(
     "/{trip_id}/members/{member_id}",
     response_model=TripMemberResponse,

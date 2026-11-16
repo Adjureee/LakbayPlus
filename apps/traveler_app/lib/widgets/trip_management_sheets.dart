@@ -76,9 +76,37 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
   List<UserSearchItem> _suggestions = [];
   List<TripMemberItem> _members = [];
   List<TripTaskItem> _tasks = [];
+  int? _selectedAssigneeMemberId;
   String _statusFilter = 'all';
   bool _loading = true;
   String? _statusMessage;
+
+  List<TripMemberItem> get _acceptedMembers =>
+      _members.where((m) => !m.isPending).toList();
+
+  int? get _currentUserMemberId {
+    final uid = widget.repo.authSession?.userId;
+    final email = widget.repo.authSession?.email.trim().toLowerCase();
+    for (final m in _acceptedMembers) {
+      if (uid != null && m.userId == uid) return m.tripMemberId;
+      if (email != null &&
+          email.isNotEmpty &&
+          m.email.trim().toLowerCase() == email) {
+        return m.tripMemberId;
+      }
+    }
+    return null;
+  }
+
+  String _assigneeLabel(int? memberId) {
+    if (memberId == null) return 'Unassigned';
+    for (final m in _members) {
+      if (m.tripMemberId == memberId) {
+        return 'Assigned to ${m.fullName}';
+      }
+    }
+    return 'Assigned';
+  }
 
   @override
   void initState() {
@@ -171,6 +199,22 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
     }
   }
 
+  Future<void> _resendInvitation(TripMemberItem member) async {
+    final tripId = widget.trip.backendTripId;
+    if (!widget.repo.isSignedIn || tripId == null) return;
+    final ok = await widget.repo.apiCatalog.resendTripInvitation(
+      widget.repo.authSession!.accessToken,
+      tripId,
+      member.tripMemberId,
+    );
+    if (!mounted) return;
+    setState(() {
+      _statusMessage = ok
+          ? 'Invitation resent to ${member.fullName}.'
+          : "Couldn't resend that invitation right now.";
+    });
+  }
+
   Future<void> _cancelInvitation(TripMemberItem member) async {
     final tripId = widget.trip.backendTripId;
     if (tripId == null) return;
@@ -197,16 +241,8 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
     final tripId = widget.trip.backendTripId;
     if (!widget.repo.isSignedIn || tripId == null) {
       setState(() {
-        _tasks = [
-          TripTaskItem(
-            tripTaskId: -DateTime.now().millisecondsSinceEpoch,
-            tripId: 0,
-            title: title,
-            status: 'pending',
-          ),
-          ..._tasks,
-        ];
-        _taskCtrl.clear();
+        _statusMessage =
+            'Sign in and save this trip to your account to manage shared tasks.';
       });
       return;
     }
@@ -215,8 +251,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
         widget.repo.authSession!.accessToken,
         tripId,
         title: title,
-        assignedTripMemberId:
-            _members.isNotEmpty ? _members.first.tripMemberId : null,
+        assignedTripMemberId: _selectedAssigneeMemberId,
       );
       _taskCtrl.clear();
       if (created != null) {
@@ -263,9 +298,17 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleTasks = _statusFilter == 'all'
-        ? _tasks
-        : _tasks.where((t) => t.status == _statusFilter).toList();
+    final isSyncedTrip =
+        widget.repo.isSignedIn && widget.trip.backendTripId != null;
+    final accepted = _acceptedMembers;
+    final myMemberId = _currentUserMemberId;
+    final visibleTasks = switch (_statusFilter) {
+      'all' => _tasks,
+      'mine' => myMemberId == null
+          ? <TripTaskItem>[]
+          : _tasks.where((t) => t.assignedTripMemberId == myMemberId).toList(),
+      _ => _tasks.where((t) => t.status == _statusFilter).toList(),
+    };
 
     return DraggableScrollableSheet(
       expand: false,
@@ -414,6 +457,11 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                               visualDensity: VisualDensity.compact,
                             ),
                             IconButton(
+                              tooltip: 'Resend invitation',
+                              icon: const Icon(Icons.send_outlined, size: 17),
+                              onPressed: () => _resendInvitation(m),
+                            ),
+                            IconButton(
                               tooltip: 'Cancel invitation',
                               icon: const Icon(Icons.close_rounded, size: 18),
                               onPressed: () => _cancelInvitation(m),
@@ -434,9 +482,11 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
+              runSpacing: 6,
               children: [
                 for (final entry in const [
                   ('all', 'All'),
+                  ('mine', 'Assigned to me'),
                   ('pending', 'Pending'),
                   ('in_progress', 'Ongoing'),
                   ('completed', 'Completed'),
@@ -449,11 +499,20 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
               ],
             ),
             const SizedBox(height: 10),
+            if (!isSyncedTrip)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  'Save and sign in to manage shared trip tasks and invitations.',
+                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
+                ),
+              ),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _taskCtrl,
+                    enabled: isSyncedTrip,
                     decoration: InputDecoration(
                       hintText: 'Add packing or trip task',
                       border: OutlineInputBorder(
@@ -468,11 +527,48 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
-                  onPressed: _addTask,
+                  onPressed: isSyncedTrip ? _addTask : null,
                   child: const Text('Add'),
                 ),
               ],
             ),
+            if (isSyncedTrip) ...[
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int?>(
+                initialValue: accepted.any(
+                  (m) => m.tripMemberId == _selectedAssigneeMemberId,
+                )
+                    ? _selectedAssigneeMemberId
+                    : null,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'Assign to',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                items: [
+                  const DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text('Unassigned'),
+                  ),
+                  for (final m in accepted)
+                    DropdownMenuItem<int?>(
+                      value: m.tripMemberId,
+                      child: Text(
+                        m.fullName,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (value) =>
+                    setState(() => _selectedAssigneeMemberId = value),
+              ),
+            ],
             const SizedBox(height: 10),
             if (visibleTasks.isEmpty)
               Padding(
@@ -489,9 +585,8 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                   child: ListTile(
                     title: Text(t.title),
                     subtitle: Text(
-                      t.status == 'in_progress'
-                          ? 'Ongoing • Tap badge to advance'
-                          : '${t.status[0].toUpperCase()}${t.status.substring(1)} • Tap badge to cycle',
+                      '${_assigneeLabel(t.assignedTripMemberId)} • '
+                      '${t.status == 'in_progress' ? 'Ongoing • Tap badge to advance' : '${t.status[0].toUpperCase()}${t.status.substring(1)} • Tap badge to cycle'}',
                     ),
                     trailing: ActionChip(
                       label: Text(
@@ -532,9 +627,28 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
   TripExpenseSummary? _summary;
   List<TripExpenseItem> _expenses = [];
   List<TripMemberItem> _members = [];
+  int? _selectedPaidByMemberId;
   bool _loading = true;
   bool _exportingPdf = false;
   String? _bannerMsg;
+
+  List<TripMemberItem> get _acceptedMembers =>
+      _members.where((m) => !m.isPending).toList();
+
+  int? _defaultPaidById(List<TripMemberItem> accepted) {
+    if (accepted.isEmpty) return null;
+    final uid = widget.repo.authSession?.userId;
+    final email = widget.repo.authSession?.email.trim().toLowerCase();
+    for (final m in accepted) {
+      if (uid != null && m.userId == uid) return m.tripMemberId;
+      if (email != null &&
+          email.isNotEmpty &&
+          m.email.trim().toLowerCase() == email) {
+        return m.tripMemberId;
+      }
+    }
+    return accepted.first.tripMemberId;
+  }
 
   @override
   void initState() {
@@ -572,6 +686,11 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
       _summary = summary;
       _expenses = expenses;
       _members = members;
+      final accepted = _acceptedMembers;
+      if (_selectedPaidByMemberId == null ||
+          !accepted.any((m) => m.tripMemberId == _selectedPaidByMemberId)) {
+        _selectedPaidByMemberId = _defaultPaidById(accepted);
+      }
       _loading = false;
     });
   }
@@ -582,27 +701,17 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
     if (title.isEmpty || amount <= 0) return;
 
     final tripId = widget.trip.backendTripId;
-    if (!widget.repo.isSignedIn || tripId == null || _members.isEmpty) {
+    final accepted = _acceptedMembers;
+    if (!widget.repo.isSignedIn || tripId == null || accepted.isEmpty) {
       setState(() {
-        _expenses = [
-          TripExpenseItem(
-            tripExpenseId: -DateTime.now().millisecondsSinceEpoch,
-            tripId: 0,
-            paidByTripMemberId: 1,
-            paidByFullName: widget.repo.profile.fullName,
-            category: _category,
-            title: title,
-            amount: amount,
-            expenseDate: DateTime.now(),
-            status: 'active',
-          ),
-          ..._expenses,
-        ];
-        _titleCtrl.clear();
-        _amountCtrl.clear();
+        _bannerMsg =
+            'Sign in and save this trip to your account to log shared expenses.';
       });
       return;
     }
+
+    final paidByMemberId =
+        _selectedPaidByMemberId ?? _defaultPaidById(accepted)!;
 
     try {
       await widget.repo.apiCatalog.createTripExpense(
@@ -611,7 +720,7 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
         title: title,
         category: _category,
         amount: amount,
-        paidByTripMemberId: _members.first.tripMemberId,
+        paidByTripMemberId: paidByMemberId,
       );
       _titleCtrl.clear();
       _amountCtrl.clear();
@@ -1012,12 +1121,50 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
                       vertical: 12,
                     ),
                   ),
-                  onPressed: _logExpense,
+                  onPressed: _acceptedMembers.isEmpty &&
+                          (!widget.repo.isSignedIn ||
+                              widget.trip.backendTripId == null)
+                      ? null
+                      : _logExpense,
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Add Expense'),
                 ),
               ],
             ),
+            if (_acceptedMembers.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                initialValue: _acceptedMembers.any(
+                  (m) => m.tripMemberId == _selectedPaidByMemberId,
+                )
+                    ? _selectedPaidByMemberId
+                    : _defaultPaidById(_acceptedMembers),
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'Paid by',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                items: [
+                  for (final m in _acceptedMembers)
+                    DropdownMenuItem<int>(
+                      value: m.tripMemberId,
+                      child: Text(
+                        m.fullName,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _selectedPaidByMemberId = v);
+                },
+              ),
+            ],
             const SizedBox(height: 12),
             if (_loading)
               const Center(child: CircularProgressIndicator())

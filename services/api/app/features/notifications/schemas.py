@@ -67,3 +67,21 @@ class NotificationUnreadCountResponse(BaseModel):
 class NotificationReadAllResponse(BaseModel):
     updated_count: int
     unread_count: int
+
+
+DevicePlatform = Literal["android", "ios", "web"]
+
+
+class DeviceTokenRegisterRequest(BaseModel):
+    device_token: str = Field(min_length=8, max_length=512)
+    platform: DevicePlatform = "android"
+
+
+class DeviceTokenResponse(BaseModel):
+    device_token_id: int
+    user_id: int
+    platform: DevicePlatform
+    device_token: str
+    is_active: bool
+    updated_at: datetime
+
