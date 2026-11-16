@@ -1,3 +1,4 @@
+import '../core/day_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/travel_models.dart';
@@ -769,7 +770,7 @@ class _ProfileTripTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${trip.daysCount} Days • ${trip.destination}',
+                    '${DayLabels.countTitle(trip.daysCount)} • ${trip.destination}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
