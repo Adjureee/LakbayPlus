@@ -80,3 +80,63 @@ async def optimize_route(
         osrm_client,
         google_routes_client,
     ).optimize_route(data)
+
+
+from fastapi import Request as _FastAPIRequest
+from app.features.routes.dependencies import (
+    enforce_guest_route_request_limit as _enforce_guest_route_limit,
+)
+from app.features.routes.schemas import (
+    RoutePlanRequest as _RoutePlanRequest,
+    RoutePlanResponse as _RoutePlanResponse,
+)
+
+
+@router.post(
+    "/plan",
+    response_model=_RoutePlanResponse,
+    status_code=200,
+    summary="Plan an adaptive multi-day multi-stop route",
+)
+async def plan_route(
+    data: _RoutePlanRequest,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    osrm_client: Annotated[OSRMClient, Depends(get_osrm_client)],
+    google_routes_client: Annotated[
+        GoogleRoutesClient | None,
+        Depends(get_google_routes_client),
+    ],
+    _: Annotated[None, Depends(enforce_route_request_limit)],
+) -> _RoutePlanResponse:
+    _ = current_user
+    return await RouteService(
+        session,
+        osrm_client,
+        google_routes_client=google_routes_client,
+    ).plan_route(data)
+
+
+@router.post(
+    "/plan/guest",
+    response_model=_RoutePlanResponse,
+    status_code=200,
+    summary="Plan an adaptive multi-day route without signing in",
+)
+async def guest_plan_route(
+    data: _RoutePlanRequest,
+    request: _FastAPIRequest,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    osrm_client: Annotated[OSRMClient, Depends(get_osrm_client)],
+    google_routes_client: Annotated[
+        GoogleRoutesClient | None,
+        Depends(get_google_routes_client),
+    ],
+    _: Annotated[None, Depends(_enforce_guest_route_limit)],
+) -> _RoutePlanResponse:
+    _ = request
+    return await RouteService(
+        session,
+        osrm_client,
+        google_routes_client=google_routes_client,
+    ).plan_route(data)

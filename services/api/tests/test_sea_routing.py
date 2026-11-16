@@ -252,3 +252,64 @@ def test_optimize_visits_samal_stops_together(client) -> None:
     samal_positions = [index for index, name in enumerate(names) if name.startswith("Samal")]
     assert samal_positions[1] - samal_positions[0] == 1
     assert len(body["sea_crossings"]) == 1
+
+
+def test_sea_port_allows_wider_osrm_snap_while_stops_stay_strict(client, monkeypatch) -> None:
+    """Piers like Sasa RoRo Wharf sit >250 m off the highway centerline inside port compounds."""
+    import httpx
+    from app.integrations.osrm import client as osrm_module
+    from app.integrations.osrm.client import OSRMClient
+
+    headers = admin_headers(client)
+    panabo = create_destination(client, headers, {
+        **DESTINATION_A, "name": "Panabo Highway", "lat": 7.2990, "lng": 125.6740,
+    })
+    samal = samal_destination(client, headers, "Aqua Water Park", 7.08705, 125.66662)
+    seed_sea_links(client)
+
+    body_panabo_sasa = {
+        "code": "Ok",
+        "routes": [{
+            "distance": 21500, "duration": 1800,
+            "geometry": encode_polyline5([(7.299, 125.674), (7.1236, 125.6655)]),
+            "legs": [{"distance": 21500, "duration": 1800, "steps": [
+                {"distance": 21500, "duration": 1800, "mode": "driving", "name": "Maharlika Hwy",
+                 "maneuver": {"type": "depart", "location": [125.674, 7.299]}},
+            ]}],
+        }],
+        "waypoints": [{"distance": 41.8}, {"distance": 393.7}],
+    }
+    body_babak_aqua = {
+        "code": "Ok",
+        "routes": [{
+            "distance": 4900, "duration": 480,
+            "geometry": encode_polyline5([(7.118, 125.688), (7.08705, 125.66662)]),
+            "legs": [{"distance": 4900, "duration": 480, "steps": [
+                {"distance": 4900, "duration": 480, "mode": "driving", "name": "Samal Rd",
+                 "maneuver": {"type": "depart", "location": [125.688, 7.118]}},
+            ]}],
+        }],
+        "waypoints": [{"distance": 123.2}, {"distance": 29.2}],
+    }
+    responses = iter([body_panabo_sasa, body_babak_aqua])
+    real_async_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        osrm_module.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_async_client(
+            transport=httpx.MockTransport(lambda req: httpx.Response(200, json=next(responses))),
+            **kwargs,
+        ),
+    )
+    client.app.dependency_overrides[get_osrm_client] = lambda: OSRMClient()
+
+    response = client.post("/api/v1/routes/preview", headers=user_headers(client), json={
+        "destination_ids": [panabo["destination_id"], samal["destination_id"]],
+        "travel_mode": "driving",
+    })
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["is_estimated"] is False
+    assert [seg["mode"] for seg in result["segments"]] == ["road", "sea", "road"]
+    assert all(not seg["is_estimated"] for seg in result["segments"])
+    assert result["polyline"] is not None

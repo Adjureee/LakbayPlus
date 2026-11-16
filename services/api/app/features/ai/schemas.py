@@ -155,8 +155,22 @@ class AIPlanningStateUpdates(BaseModel):
 
 
 ChatIntent = Literal[
-    "question", "brainstorm", "plan_trip", "modify_trip", "logistics", "smalltalk",
+    "question",
+    "brainstorm",
+    "show_places",
+    "plan_trip",
+    "modify_trip",
+    "logistics",
+    "smalltalk",
 ]
+
+
+class AIPlaceQuery(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    categories: list[str] = Field(default_factory=list, max_length=10)
+    province: str | None = Field(default=None, max_length=120)
+    limit: int = Field(default=5, ge=1, le=10)
 
 
 class AIPlanningChatOutput(BaseModel):
@@ -167,6 +181,7 @@ class AIPlanningChatOutput(BaseModel):
     # What the traveler wants this turn, judged by the model; the app uses it
     # instead of keyword matching to decide whether to build itineraries.
     intent: ChatIntent | None = None
+    place_query: AIPlaceQuery | None = None
     suggested_replies: list[str] = Field(default_factory=list)
 
     @field_validator("suggested_replies", mode="before")
@@ -185,13 +200,51 @@ class AIPlanningChatOutput(BaseModel):
     @field_validator("intent", mode="before")
     @classmethod
     def unknown_intent_is_none(cls, value):
-        allowed = {"question", "brainstorm", "plan_trip", "modify_trip", "logistics", "smalltalk"}
+        allowed = {
+            "question",
+            "brainstorm",
+            "show_places",
+            "plan_trip",
+            "modify_trip",
+            "logistics",
+            "smalltalk",
+        }
         return value if value in allowed else None
+
+    @field_validator("place_query", mode="before")
+    @classmethod
+    def clean_place_query(cls, value):
+        if value is None or not isinstance(value, dict):
+            return None
+        raw_cats = value.get("categories")
+        cats: list[str] = []
+        if isinstance(raw_cats, str):
+            raw_cats = [raw_cats]
+        if isinstance(raw_cats, list):
+            for item in raw_cats:
+                if isinstance(item, str):
+                    cleaned = item.strip()[:60]
+                    if cleaned and cleaned.lower() not in {c.lower() for c in cats}:
+                        cats.append(cleaned)
+        raw_prov = value.get("province")
+        province = (
+            raw_prov.strip()[:120]
+            if isinstance(raw_prov, str) and raw_prov.strip()
+            else None
+        )
+        raw_limit = value.get("limit", 5)
+        limit = (
+            max(1, min(10, raw_limit))
+            if isinstance(raw_limit, int) and not isinstance(raw_limit, bool)
+            else 5
+        )
+        return {"categories": cats[:10], "province": province, "limit": limit}
 
 
 class AIPlanningChatResult(BaseModel):
     input_revision: int
     intent: ChatIntent | None = None
+    place_query: AIPlaceQuery | None = None
     suggested_replies: list[str] = Field(default_factory=list)
     state_updates: dict[str, Any] = Field(default_factory=dict)
     update_status: Literal[

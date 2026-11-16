@@ -1189,3 +1189,201 @@ def test_planning_chat_returns_model_intent_and_clean_suggested_replies(
     assert body["chat_response"].startswith("Take the RoRo barge")
     assert body["planning"]["intent"] == expected_intent
     assert body["planning"]["suggested_replies"] == expected_replies
+
+
+def test_show_places_mountain_plus_province_filters_by_region_xi_province(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    admin = admin_headers(client)
+    # Davao de Oro mountain (7.285, 125.95 - inside Davao de Oro polygon)
+    oro_mountain = create_destination(
+        client, headers=admin, name="Maragusan Peak",
+        category="Mountain", vibes="hiking,nature", activities="trekking",
+        district="Maragusan", lat=7.30, lng=126.15,
+    )
+    # Davao de Oro beach (must be filtered out by category)
+    create_destination(
+        client, headers=admin, name="Kopiat Cove",
+        category="Beach", vibes="island", activities="swimming",
+        district="Mabini", lat=7.277, lng=125.832,
+    )
+    # Davao Oriental mountain (must be filtered out by province)
+    create_destination(
+        client, headers=admin, name="Mt. Hamiguitan",
+        category="Mountain", vibes="hiking,unesco", activities="trekking",
+        district="San Isidro", lat=6.74, lng=126.18,
+    )
+    client.app.dependency_overrides[get_groq_client] = lambda: FakeGroqClient([
+        json.dumps({
+            "chat_response": "Here are mountains in Davao de Oro.",
+            "state_updates": {},
+            "intent": "show_places",
+            "place_query": {
+                "categories": ["mountains"],
+                "province": "Davao de Oro",
+                "limit": 5,
+            },
+        }),
+    ])
+
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=user_headers(client),
+        json={
+            "message": "Show me mountains in Davao de Oro",
+            "use_rag": False,
+            "planning_state": {
+                # Traveler GPS is Davao City; named province in query must win.
+                "origin": {"label": "Davao City", "lat": 7.0731, "lng": 125.6128},
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    planning = response.json()["planning"]
+    assert planning["intent"] == "show_places"
+    assert [item["destination_id"] for item in planning["recommendations"]] == [
+        oro_mountain["destination_id"],
+    ]
+    assert planning["recommendation_shortfall_reason"] is not None
+    assert "Davao de Oro" in planning["recommendation_shortfall_reason"]
+    assert "Davao Oriental" in planning["recommendation_shortfall_reason"]
+
+
+def test_show_places_without_province_uses_gps_province(client, monkeypatch) -> None:
+    configure_ai(monkeypatch)
+    admin = admin_headers(client)
+    mati_beach = create_destination(
+        client, headers=admin, name="Dahican Surf Coast",
+        category="Beach", vibes="surf,beach", activities="surfing",
+        district="Mati", lat=6.95, lng=126.22,
+    )
+    create_destination(
+        client, headers=admin, name="Samal White Shore",
+        category="Beach", vibes="island", activities="swimming",
+        district="Samal", lat=7.087, lng=125.667,
+    )
+    client.app.dependency_overrides[get_groq_client] = lambda: FakeGroqClient([
+        json.dumps({
+            "chat_response": "Beaches near you.",
+            "state_updates": {},
+            "intent": "show_places",
+            "place_query": {"categories": ["beach"], "limit": 5},
+        }),
+    ])
+
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=user_headers(client),
+        json={
+            "message": "Show me beaches near me",
+            "use_rag": False,
+            "planning_state": {
+                # Current GPS in Mati (Davao Oriental)
+                "origin": {"label": "Mati", "lat": 6.95, "lng": 126.22},
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    planning = response.json()["planning"]
+    assert [item["destination_id"] for item in planning["recommendations"]] == [
+        mati_beach["destination_id"],
+    ]
+
+
+def test_show_places_empty_match_gives_honest_message_without_padding(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    admin = admin_headers(client)
+    create_destination(
+        client, headers=admin, name="Hamiguitan Ridge",
+        category="Mountain", vibes="hiking", activities="trekking",
+        district="San Isidro", lat=6.74, lng=126.18,
+    )
+    client.app.dependency_overrides[get_groq_client] = lambda: FakeGroqClient([
+        json.dumps({
+            "chat_response": "Check out these mountains in Davao Occidental!",
+            "state_updates": {},
+            "intent": "show_places",
+            "place_query": {
+                "categories": ["mountain"],
+                "province": "Davao Occidental",
+                "limit": 5,
+            },
+        }),
+    ])
+
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=user_headers(client),
+        json={
+            "message": "Show me mountains in Davao Occidental",
+            "use_rag": False,
+            "planning_state": {"origin": {"label": "Davao City", "lat": 7.0731, "lng": 125.6128}},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    planning = body["planning"]
+    assert planning["recommendations"] == []
+    assert "Davao Occidental" in planning["recommendation_shortfall_reason"]
+    assert "Davao Oriental" in planning["recommendation_shortfall_reason"]
+    assert body["chat_response"] == planning["recommendation_shortfall_reason"]
+
+
+def test_show_places_general_browse_and_plain_question_card_behavior(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    admin = admin_headers(client)
+    davao_park = create_destination(
+        client, headers=admin, name="People's Park Davao",
+        category="Park", vibes="city,family", activities="walking",
+        district="Davao City", lat=7.07, lng=125.61,
+    )
+    fake_client = FakeGroqClient([
+        json.dumps({
+            "chat_response": "Here are Davao City places.",
+            "state_updates": {},
+            "intent": "show_places",
+            "place_query": {"categories": [], "limit": 5},
+        }),
+        json.dumps({
+            "chat_response": "December is mostly pleasant with light showers.",
+            "state_updates": {},
+            "intent": "question",
+        }),
+    ])
+    client.app.dependency_overrides[get_groq_client] = lambda: fake_client
+
+    traveler = user_headers(client)
+    browse = client.post(
+        "/api/v1/ai/chat",
+        headers=traveler,
+        json={
+            "message": "Show me destinations",
+            "use_rag": False,
+            "planning_state": {"origin": {"label": "Davao City", "lat": 7.0731, "lng": 125.6128}},
+        },
+    )
+    assert browse.status_code == 200
+    assert [r["destination_id"] for r in browse.json()["planning"]["recommendations"]] == [
+        davao_park["destination_id"],
+    ]
+
+    question = client.post(
+        "/api/v1/ai/chat",
+        headers=traveler,
+        json={
+            "message": "Is December good for Davao?",
+            "use_rag": False,
+            "planning_state": {"origin": {"label": "Davao City", "lat": 7.0731, "lng": 125.6128}},
+        },
+    )
+    assert question.status_code == 200
+    assert question.json()["planning"]["intent"] == "question"
+    assert question.json()["planning"]["recommendations"] == []

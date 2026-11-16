@@ -14,12 +14,14 @@ class GeoPoint {
   final double lng;
   final String? label;
   final TransportMode legMode;
+  final int? dayNumber;
 
   const GeoPoint({
     required this.lat,
     required this.lng,
     this.label,
     this.legMode = TransportMode.car,
+    this.dayNumber,
   });
 
   Map<String, dynamic> toJson() => {
@@ -27,13 +29,15 @@ class GeoPoint {
         'lng': lng,
         if (label != null) 'label': label,
         'legMode': legMode.name,
+        if (dayNumber != null) 'dayNumber': dayNumber,
       };
 
   factory GeoPoint.fromJson(Map<String, dynamic> json) => GeoPoint(
-        lat: (json['lat'] as num?)?.toDouble() ?? 7.0731,
-        lng: (json['lng'] as num?)?.toDouble() ?? 125.6128,
+        lat: (json['lat'] as num?)?.toDouble() ?? 0.0,
+        lng: (json['lng'] as num?)?.toDouble() ?? 0.0,
         label: json['label'] as String?,
         legMode: _transportModeFromName(json['legMode'] as String?),
+        dayNumber: (json['dayNumber'] as num?)?.toInt(),
       );
 }
 
@@ -120,12 +124,14 @@ class ExploreTrip {
   final String? bestTimeToVisit;
   final String? travelNotes;
   final String? whatToBring;
+  final String? islandGroup;
+  final String? stayDurationType;
 
   const ExploreTrip({
     required this.locale,
     required this.id,
     required this.title,
-    required this.days,
+    this.days = 1,
     required this.lat,
     required this.lng,
     required this.thumbnailUrl,
@@ -141,6 +147,8 @@ class ExploreTrip {
     this.bestTimeToVisit,
     this.travelNotes,
     this.whatToBring,
+    this.islandGroup,
+    this.stayDurationType,
   });
 
   bool get isApiBacked => apiDestinationId != null || id.startsWith('api_');
@@ -148,44 +156,44 @@ class ExploreTrip {
   bool get hasRemoteThumbnail =>
       thumbnailUrl.startsWith('http://') || thumbnailUrl.startsWith('https://');
 
-  String get localAssetPath {
-    final lower = '${title.toLowerCase()} ${(district ?? '').toLowerCase()}';
-    if (lower.contains('samal') || lower.contains('talikud') || lower.contains('vanishing') || lower.contains('coral')) {
-      return 'assets/home_backdrops/01-samal-island.jpg';
-    }
-    if (lower.contains('mati') || lower.contains('dahican') || lower.contains('pujada') || lower.contains('sleeping dinosaur')) {
-      return 'assets/home_backdrops/02-dahican-mati.jpg';
-    }
-    if (lower.contains('apo') || lower.contains('kapatagan') || lower.contains('digos') || lower.contains('bansalan')) {
-      return 'assets/home_backdrops/03-mount-apo.jpg';
-    }
-    if (lower.contains('eden') || lower.contains('toril') || lower.contains('nature park')) {
-      return 'assets/home_backdrops/04-eden-toril.jpg';
-    }
-    if (lower.contains('aliwagwag') || lower.contains('falls') || lower.contains('cateel') || lower.contains('hagimit')) {
-      return 'assets/home_backdrops/05-aliwagwag-falls.jpg';
-    }
-    if (lower.contains('cape san agustin') || lower.contains('gov. generoso') || lower.contains('san victor')) {
-      return 'assets/home_backdrops/06-cape-san-agustin.jpg';
-    }
-    if (lower.contains('eagle') || lower.contains('malagos') || lower.contains('calinan')) {
-      return 'assets/home_backdrops/07-malagos-eagle.jpg';
-    }
-    if (lower.contains('maragusan') || lower.contains('sea of clouds') || lower.contains('davao de oro') || lower.contains('monkayo')) {
-      return 'assets/home_backdrops/10-calamba-clouds.jpg';
-    }
-    if (lower.contains('marilog') || lower.contains('buda') || lower.contains('bemwa') || lower.contains('hills')) {
-      return 'assets/home_backdrops/09-marilog-bemwa.jpg';
-    }
-    return 'assets/home_backdrops/08-peoples-park.jpg';
+  String get localAssetPath => davaoBackdropAssetFor('$title ${district ?? ''}');
+
+  /// Normalizes backend or CSV stay duration types into canonical keys.
+  String get normalizedStayDurationType => normalizeStayDurationType(
+        stayDurationType,
+        category: tag ?? '',
+        overnightFee: overnightFee ?? '',
+      );
+
+  /// Human-friendly typical visit length label displayed on single-place cards.
+  String get stayDurationLabel => switch (normalizedStayDurationType) {
+        'short' => '1–2 hrs',
+        'half_day' => 'Half day',
+        'full_day' => 'Full day',
+        'overnight' => 'Overnight',
+        'multi_day' => 'Multi-day',
+        _ => 'Half day',
+      };
+
+  /// Clean municipality/district subtitle for Explore place cards.
+  String get municipalityLabel {
+    final d = district?.trim() ?? '';
+    return d.isNotEmpty ? d : regionName;
   }
 
   String get regionName {
     final lower = '${title.toLowerCase()} ${(district ?? '').toLowerCase()}';
-    if (lower.contains('samal') ||
+    final ig = (islandGroup ?? '').toLowerCase();
+    if (ig == 'samal' ||
+        ig == 'talikud' ||
+        lower.contains('samal') ||
+        lower.contains('igacos') ||
         lower.contains('talikud') ||
         lower.contains('pearl farm')) {
       return 'Samal (IGaCoS)';
+    }
+    if (ig == 'balut' || lower.contains('balut') || lower.contains('sarangani')) {
+      return 'Davao Occidental';
     }
     if (lower.contains('mati') ||
         lower.contains('dahican') ||
@@ -208,16 +216,28 @@ class ExploreTrip {
         lower.contains('nabunturan')) {
       return 'Davao de Oro';
     }
-    if (lower.contains('balut') || lower.contains('sarangani')) {
-      return 'Davao Occidental';
-    }
     if (lower.contains('tagum') ||
         lower.contains('carmen') ||
         lower.contains('kapalong') ||
         lower.contains('panabo')) {
       return 'Davao del Norte';
     }
-    return 'Davao City';
+    if (lower.contains('davao city') ||
+        lower.contains('eagle') ||
+        lower.contains('malagos') ||
+        lower.contains('eden') ||
+        lower.contains('calinan') ||
+        lower.contains('toril') ||
+        lower.contains("people's park") ||
+        lower.contains('peoples park') ||
+        lower.contains('san pedro') ||
+        lower.contains('poblacion') ||
+        lower.contains('marilog') ||
+        lower.contains('buda')) {
+      return 'Davao City';
+    }
+    final d = district?.trim() ?? '';
+    return d.isNotEmpty ? d : 'Region XI';
   }
 
   /// Base estimate in USD (repository formats into PHP ₱ at 57.0 default or live FX).
@@ -234,6 +254,8 @@ class ExploreTrip {
     double? lat,
     double? lng,
     String? thumbnailUrl,
+    String? islandGroup,
+    String? stayDurationType,
   }) {
     return ExploreTrip(
       locale: locale,
@@ -254,6 +276,9 @@ class ExploreTrip {
       operatingHours: operatingHours,
       bestTimeToVisit: bestTimeToVisit,
       travelNotes: travelNotes,
+      whatToBring: whatToBring,
+      islandGroup: islandGroup ?? this.islandGroup,
+      stayDurationType: stayDurationType ?? this.stayDurationType,
     );
   }
 
@@ -276,6 +301,9 @@ class ExploreTrip {
         if (operatingHours != null) 'operatingHours': operatingHours,
         if (bestTimeToVisit != null) 'bestTimeToVisit': bestTimeToVisit,
         if (travelNotes != null) 'travelNotes': travelNotes,
+        if (whatToBring != null) 'whatToBring': whatToBring,
+        if (islandGroup != null) 'islandGroup': islandGroup,
+        if (stayDurationType != null) 'stayDurationType': stayDurationType,
       };
 
   factory ExploreTrip.fromJson(Map<String, dynamic> json) {
@@ -283,7 +311,7 @@ class ExploreTrip {
       locale: json['locale'] as String? ?? 'en',
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
-      days: (json['days'] as num?)?.toInt() ?? 2,
+      days: (json['days'] as num?)?.toInt() ?? 1,
       lat: (json['lat'] as num?)?.toDouble() ?? 7.0731,
       lng: (json['lng'] as num?)?.toDouble() ?? 125.6128,
       thumbnailUrl: json['thumbnailUrl'] as String? ?? '',
@@ -298,6 +326,81 @@ class ExploreTrip {
       operatingHours: json['operatingHours'] as String?,
       bestTimeToVisit: json['bestTimeToVisit'] as String?,
       travelNotes: json['travelNotes'] as String?,
+      whatToBring: json['whatToBring'] as String?,
+      islandGroup: json['islandGroup'] as String?,
+      stayDurationType: json['stayDurationType'] as String?,
+    );
+  }
+}
+
+/// Normalizes stay duration strings across DB, CSV, and API payloads.
+String normalizeStayDurationType(
+  String? raw, {
+  String category = '',
+  String overnightFee = '',
+}) {
+  final text = (raw ?? '').trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+  if (text == 'short' ||
+      text == 'half_day' ||
+      text == 'full_day' ||
+      text == 'overnight' ||
+      text == 'multi_day') {
+    return text;
+  }
+  if (text.contains('short') || (raw ?? '').toLowerCase().contains('1-2 hour')) {
+    return 'short';
+  }
+  if (text.contains('half')) return 'half_day';
+  if (text.contains('full')) return 'full_day';
+  if (text.contains('multi')) return 'multi_day';
+  if (text.contains('overnight') || overnightFee.trim().isNotEmpty) {
+    return 'overnight';
+  }
+  final cat = category.toLowerCase();
+  if (cat.contains('museum') ||
+      cat.contains('church') ||
+      cat.contains('park') ||
+      cat.contains('plaza') ||
+      cat.contains('landmark') ||
+      cat.contains('viewpoint') ||
+      cat.contains('hot spring')) {
+    return 'short';
+  }
+  if (cat.contains('beach resort') ||
+      cat.contains('mountain resort') ||
+      cat.contains('waterfall') ||
+      cat.contains('cape')) {
+    return 'full_day';
+  }
+  if (cat.contains('island')) return 'multi_day';
+  return 'half_day';
+}
+
+/// Curated multi-place starter route in Explore that pre-fills the Trip Tray.
+class SuggestedRoute {
+  final String id;
+  final String title;
+  final List<String> destinationIds;
+  final int suggestedDays;
+
+  const SuggestedRoute({
+    required this.id,
+    required this.title,
+    required this.destinationIds,
+    required this.suggestedDays,
+  });
+
+  factory SuggestedRoute.fromJson(Map<String, dynamic> json) {
+    final idsRaw = json['destination_ids'] as List<dynamic>? ??
+        json['destinationIds'] as List<dynamic>? ??
+        const [];
+    return SuggestedRoute(
+      id: (json['id'] ?? '').toString(),
+      title: (json['title'] ?? 'Suggested Region XI Route').toString(),
+      destinationIds: idsRaw.map((e) => e.toString()).toList(),
+      suggestedDays:
+          ((json['suggested_days'] ?? json['suggestedDays']) as num?)?.toInt() ??
+              3,
     );
   }
 }
@@ -451,6 +554,13 @@ class ItineraryStop {
   final double costEstimateUsd;
   final double lat;
   final double lng;
+  final int? destinationId;
+  final String? stayDurationType;
+  final String? islandGroup;
+  final int? travelFromPrevMinutes;
+  final double? travelFromPrevKm;
+  final TransportMode? travelFromPrevMode;
+  final bool isSeaCrossingFromPrev;
 
   const ItineraryStop({
     required this.time,
@@ -460,7 +570,50 @@ class ItineraryStop {
     this.costEstimateUsd = 0,
     required this.lat,
     required this.lng,
+    this.destinationId,
+    this.stayDurationType,
+    this.islandGroup,
+    this.travelFromPrevMinutes,
+    this.travelFromPrevKm,
+    this.travelFromPrevMode,
+    this.isSeaCrossingFromPrev = false,
   });
+
+  ItineraryStop copyWith({
+    String? time,
+    String? title,
+    String? description,
+    String? category,
+    double? costEstimateUsd,
+    double? lat,
+    double? lng,
+    int? destinationId,
+    String? stayDurationType,
+    String? islandGroup,
+    int? travelFromPrevMinutes,
+    double? travelFromPrevKm,
+    TransportMode? travelFromPrevMode,
+    bool? isSeaCrossingFromPrev,
+  }) {
+    return ItineraryStop(
+      time: time ?? this.time,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      category: category ?? this.category,
+      costEstimateUsd: costEstimateUsd ?? this.costEstimateUsd,
+      lat: lat ?? this.lat,
+      lng: lng ?? this.lng,
+      destinationId: destinationId ?? this.destinationId,
+      stayDurationType: stayDurationType ?? this.stayDurationType,
+      islandGroup: islandGroup ?? this.islandGroup,
+      travelFromPrevMinutes:
+          travelFromPrevMinutes ?? this.travelFromPrevMinutes,
+      travelFromPrevKm: travelFromPrevKm ?? this.travelFromPrevKm,
+      travelFromPrevMode: travelFromPrevMode ?? this.travelFromPrevMode,
+      isSeaCrossingFromPrev:
+          isSeaCrossingFromPrev ?? this.isSeaCrossingFromPrev,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'time': time,
@@ -470,6 +623,16 @@ class ItineraryStop {
         'costEstimateUsd': costEstimateUsd,
         'lat': lat,
         'lng': lng,
+        if (destinationId != null) 'destinationId': destinationId,
+        if (stayDurationType != null) 'stayDurationType': stayDurationType,
+        if (islandGroup != null) 'islandGroup': islandGroup,
+        if (travelFromPrevMinutes != null)
+          'travelFromPrevMinutes': travelFromPrevMinutes,
+        if (travelFromPrevKm != null) 'travelFromPrevKm': travelFromPrevKm,
+        if (travelFromPrevMode != null)
+          'travelFromPrevMode': travelFromPrevMode!.name,
+        if (isSeaCrossingFromPrev)
+          'isSeaCrossingFromPrev': isSeaCrossingFromPrev,
       };
 
   factory ItineraryStop.fromJson(Map<String, dynamic> json) => ItineraryStop(
@@ -480,6 +643,15 @@ class ItineraryStop {
         costEstimateUsd: (json['costEstimateUsd'] as num?)?.toDouble() ?? 0,
         lat: (json['lat'] as num?)?.toDouble() ?? 7.0731,
         lng: (json['lng'] as num?)?.toDouble() ?? 125.6128,
+        destinationId: (json['destinationId'] as num?)?.toInt(),
+        stayDurationType: json['stayDurationType'] as String?,
+        islandGroup: json['islandGroup'] as String?,
+        travelFromPrevMinutes: (json['travelFromPrevMinutes'] as num?)?.toInt(),
+        travelFromPrevKm: (json['travelFromPrevKm'] as num?)?.toDouble(),
+        travelFromPrevMode: json['travelFromPrevMode'] != null
+            ? _transportModeFromName(json['travelFromPrevMode'] as String?)
+            : null,
+        isSeaCrossingFromPrev: json['isSeaCrossingFromPrev'] == true,
       );
 }
 
@@ -607,6 +779,12 @@ class ItineraryDay {
   final List<ItineraryStop> stops;
   final HotelOffer? recommendedHotel;
   final int? apiDestinationId;
+  final double? visitHours;
+  final double? transitHours;
+  final double? totalHours;
+  final bool isContinuationDay;
+  final String? continuationOfTitle;
+  final String? overloadWarning;
 
   const ItineraryDay({
     required this.dayNumber,
@@ -621,27 +799,52 @@ class ItineraryDay {
     required this.stops,
     this.recommendedHotel,
     this.apiDestinationId,
+    this.visitHours,
+    this.transitHours,
+    this.totalHours,
+    this.isContinuationDay = false,
+    this.continuationOfTitle,
+    this.overloadWarning,
   });
 
   ItineraryDay copyWith({
     int? dayNumber,
+    String? cityTitle,
+    String? summary,
+    double? lat,
+    double? lng,
     List<ItineraryStop>? stops,
     int? wmoWeatherCode,
     int? tempCelsius,
+    TransportMode? transportFromPrevious,
+    String? transportDuration,
+    double? visitHours,
+    double? transitHours,
+    double? totalHours,
+    bool? isContinuationDay,
+    String? continuationOfTitle,
+    String? overloadWarning,
   }) {
     return ItineraryDay(
       dayNumber: dayNumber ?? this.dayNumber,
-      cityTitle: cityTitle,
-      summary: summary,
-      lat: lat,
-      lng: lng,
+      cityTitle: cityTitle ?? this.cityTitle,
+      summary: summary ?? this.summary,
+      lat: lat ?? this.lat,
+      lng: lng ?? this.lng,
       wmoWeatherCode: wmoWeatherCode ?? this.wmoWeatherCode,
       tempCelsius: tempCelsius ?? this.tempCelsius,
-      transportFromPrevious: transportFromPrevious,
-      transportDuration: transportDuration,
+      transportFromPrevious:
+          transportFromPrevious ?? this.transportFromPrevious,
+      transportDuration: transportDuration ?? this.transportDuration,
       stops: stops ?? this.stops,
       recommendedHotel: recommendedHotel,
       apiDestinationId: apiDestinationId,
+      visitHours: visitHours ?? this.visitHours,
+      transitHours: transitHours ?? this.transitHours,
+      totalHours: totalHours ?? this.totalHours,
+      isContinuationDay: isContinuationDay ?? this.isContinuationDay,
+      continuationOfTitle: continuationOfTitle ?? this.continuationOfTitle,
+      overloadWarning: overloadWarning ?? this.overloadWarning,
     );
   }
 
@@ -660,6 +863,13 @@ class ItineraryDay {
         if (recommendedHotel != null)
           'recommendedHotel': recommendedHotel!.toJson(),
         if (apiDestinationId != null) 'apiDestinationId': apiDestinationId,
+        if (visitHours != null) 'visitHours': visitHours,
+        if (transitHours != null) 'transitHours': transitHours,
+        if (totalHours != null) 'totalHours': totalHours,
+        if (isContinuationDay) 'isContinuationDay': isContinuationDay,
+        if (continuationOfTitle != null)
+          'continuationOfTitle': continuationOfTitle,
+        if (overloadWarning != null) 'overloadWarning': overloadWarning,
       };
 
   factory ItineraryDay.fromJson(Map<String, dynamic> json) => ItineraryDay(
@@ -684,6 +894,12 @@ class ItineraryDay {
               )
             : null,
         apiDestinationId: (json['apiDestinationId'] as num?)?.toInt(),
+        visitHours: (json['visitHours'] as num?)?.toDouble(),
+        transitHours: (json['transitHours'] as num?)?.toDouble(),
+        totalHours: (json['totalHours'] as num?)?.toDouble(),
+        isContinuationDay: json['isContinuationDay'] == true,
+        continuationOfTitle: json['continuationOfTitle'] as String?,
+        overloadWarning: json['overloadWarning'] as String?,
       );
 }
 
@@ -721,7 +937,7 @@ class AdminTransportRate {
         destinationId: (json['destination_id'] as num?)?.toInt() ?? 0,
         vehicleType: (json['vehicle_type'] ?? 'Van / Shuttle').toString(),
         transportMode: (json['transport_mode'] ?? 'road').toString(),
-        routeFrom: (json['route_from'] ?? 'Davao City').toString(),
+        routeFrom: (json['route_from'] ?? 'Origin').toString(),
         routeTo: (json['route_to'] ?? 'Destination').toString(),
         pricePhp: double.tryParse((json['price'] ?? '0').toString()) ?? 0,
         chargingUnit: json['charging_unit']?.toString(),
@@ -729,6 +945,97 @@ class AdminTransportRate {
         durationText: json['duration_text']?.toString(),
         notes: json['notes']?.toString(),
       );
+}
+
+class RoutePlanOptimizationSummary {
+  final String orderMethod;
+  final String costSource;
+  final double baselineDistanceKm;
+  final double optimizedDistanceKm;
+  final double distanceSavedKm;
+  final double distanceSavedPercent;
+  final double baselineTransitMinutes;
+  final double optimizedTransitMinutes;
+  final double minutesSaved;
+  final String pace;
+  final int suggestedDays;
+  final bool roundtrip;
+
+  const RoutePlanOptimizationSummary({
+    required this.orderMethod,
+    required this.costSource,
+    required this.baselineDistanceKm,
+    required this.optimizedDistanceKm,
+    required this.distanceSavedKm,
+    required this.distanceSavedPercent,
+    required this.baselineTransitMinutes,
+    required this.optimizedTransitMinutes,
+    required this.minutesSaved,
+    this.pace = 'balanced',
+    this.suggestedDays = 3,
+    this.roundtrip = false,
+  });
+
+  String get methodLabel => switch (orderMethod) {
+        'exact_held_karp' => 'Exact Held-Karp',
+        'two_opt' => 'Adaptive NN + 2-opt',
+        'nearest_neighbor' => 'Nearest-Neighbor',
+        _ => 'Input order',
+      };
+
+  String get sourceLabel => switch (costSource) {
+        'osrm' => 'OSRM roads',
+        'mapbox' => 'Mapbox roads',
+        'google_routes' => 'Google roads',
+        _ => 'On-device Haversine',
+      };
+
+  String get savingsHeadline {
+    final base = baselineDistanceKm.toStringAsFixed(0);
+    final opt = optimizedDistanceKm.toStringAsFixed(0);
+    final pct = distanceSavedPercent.toStringAsFixed(0);
+    if (distanceSavedKm >= 0.5 && distanceSavedPercent >= 1.0) {
+      return 'Visit order optimized: $base km \u2192 $opt km (\u2212$pct%)';
+    }
+    return 'Route optimized: $opt km total';
+  }
+
+  Map<String, dynamic> toJson() => {
+        'orderMethod': orderMethod,
+        'costSource': costSource,
+        'baselineDistanceKm': baselineDistanceKm,
+        'optimizedDistanceKm': optimizedDistanceKm,
+        'distanceSavedKm': distanceSavedKm,
+        'distanceSavedPercent': distanceSavedPercent,
+        'baselineTransitMinutes': baselineTransitMinutes,
+        'optimizedTransitMinutes': optimizedTransitMinutes,
+        'minutesSaved': minutesSaved,
+        'pace': pace,
+        'suggestedDays': suggestedDays,
+        'roundtrip': roundtrip,
+      };
+
+  factory RoutePlanOptimizationSummary.fromJson(Map<String, dynamic> json) {
+    return RoutePlanOptimizationSummary(
+      orderMethod: json['orderMethod'] as String? ?? 'requested',
+      costSource: json['costSource'] as String? ?? 'haversine',
+      baselineDistanceKm:
+          (json['baselineDistanceKm'] as num?)?.toDouble() ?? 0.0,
+      optimizedDistanceKm:
+          (json['optimizedDistanceKm'] as num?)?.toDouble() ?? 0.0,
+      distanceSavedKm: (json['distanceSavedKm'] as num?)?.toDouble() ?? 0.0,
+      distanceSavedPercent:
+          (json['distanceSavedPercent'] as num?)?.toDouble() ?? 0.0,
+      baselineTransitMinutes:
+          (json['baselineTransitMinutes'] as num?)?.toDouble() ?? 0.0,
+      optimizedTransitMinutes:
+          (json['optimizedTransitMinutes'] as num?)?.toDouble() ?? 0.0,
+      minutesSaved: (json['minutesSaved'] as num?)?.toDouble() ?? 0.0,
+      pace: json['pace'] as String? ?? 'balanced',
+      suggestedDays: (json['suggestedDays'] as num?)?.toInt() ?? 3,
+      roundtrip: json['roundtrip'] == true,
+    );
+  }
 }
 
 class ItineraryTrip {
@@ -765,6 +1072,13 @@ class ItineraryTrip {
   final double? backendBudgetPhp;
   final int? aiGenerationRunId;
   final int? aiOptionNumber;
+  final RoutePlanOptimizationSummary? optimizationSummary;
+  final List<String> routeWarnings;
+  final String pace;
+  final bool roundtrip;
+  final String? lockedFirstDestinationId;
+  final List<RouteSegmentGeometry> routeSegments;
+  final List<SeaCrossingInfo> seaCrossings;
 
   const ItineraryTrip({
     required this.id,
@@ -800,6 +1114,13 @@ class ItineraryTrip {
     this.backendBudgetPhp,
     this.aiGenerationRunId,
     this.aiOptionNumber,
+    this.optimizationSummary,
+    this.routeWarnings = const [],
+    this.pace = 'balanced',
+    this.roundtrip = false,
+    this.lockedFirstDestinationId,
+    this.routeSegments = const [],
+    this.seaCrossings = const [],
   });
 
   int get totalEstimatedCostUsd {
@@ -819,22 +1140,64 @@ class ItineraryTrip {
     return combined > 0 ? combined : (daysCount * 45);
   }
 
-  List<GeoPoint> get routeWaypoints => days
-      .map(
-        (d) => GeoPoint(
-          lat: d.lat,
-          lng: d.lng,
-          label: 'D${d.dayNumber}',
-          legMode: d.transportFromPrevious ?? TransportMode.car,
-        ),
-      )
-      .toList();
+  List<GeoPoint> get routeWaypoints {
+    final waypoints = <GeoPoint>[];
+    for (final d in days) {
+      if (d.isContinuationDay && d.stops.isEmpty) {
+        continue;
+      }
+      final dayStops = d.stops.where((s) {
+        if (!d.isContinuationDay) return true;
+        return s.category != 'stay';
+      }).toList();
+      if (dayStops.isNotEmpty) {
+        for (var idx = 0; idx < dayStops.length; idx++) {
+          final stop = dayStops[idx];
+          if (waypoints.isNotEmpty) {
+            final prev = waypoints.last;
+            final sameCoords = (prev.lat - stop.lat).abs() < 1e-5 &&
+                (prev.lng - stop.lng).abs() < 1e-5;
+            if (sameCoords && d.isContinuationDay) continue;
+          }
+          final label = dayStops.length == 1
+              ? 'D${d.dayNumber}'
+              : 'D${d.dayNumber}.${idx + 1}';
+          final mode = stop.travelFromPrevMode ??
+              (idx == 0
+                  ? (d.transportFromPrevious ?? TransportMode.car)
+                  : TransportMode.car);
+          waypoints.add(
+            GeoPoint(
+              lat: stop.lat,
+              lng: stop.lng,
+              label: label,
+              legMode: mode,
+              dayNumber: d.dayNumber,
+            ),
+          );
+        }
+      } else if (!d.isContinuationDay) {
+        waypoints.add(
+          GeoPoint(
+            lat: d.lat,
+            lng: d.lng,
+            label: 'D${d.dayNumber}',
+            legMode: d.transportFromPrevious ?? TransportMode.car,
+            dayNumber: d.dayNumber,
+          ),
+        );
+      }
+    }
+    return waypoints;
+  }
 
   List<int> get effectiveBackendDestinationIds {
     final ids = <int>{
       ...backendDestinationIds,
       ?backendDestinationId,
       for (final d in days) ?d.apiDestinationId,
+      for (final d in days)
+        for (final s in d.stops) ?s.destinationId,
     };
     return ids.toList();
   }
@@ -857,6 +1220,13 @@ class ItineraryTrip {
     List<String>? advisories,
     double? backendEstimatedCostPhp,
     double? backendBudgetPhp,
+    RoutePlanOptimizationSummary? optimizationSummary,
+    List<String>? routeWarnings,
+    String? pace,
+    bool? roundtrip,
+    String? lockedFirstDestinationId,
+    List<RouteSegmentGeometry>? routeSegments,
+    List<SeaCrossingInfo>? seaCrossings,
   }) {
     return ItineraryTrip(
       id: id,
@@ -894,6 +1264,14 @@ class ItineraryTrip {
       backendBudgetPhp: backendBudgetPhp ?? this.backendBudgetPhp,
       aiGenerationRunId: aiGenerationRunId,
       aiOptionNumber: aiOptionNumber,
+      optimizationSummary: optimizationSummary ?? this.optimizationSummary,
+      routeWarnings: routeWarnings ?? this.routeWarnings,
+      pace: pace ?? this.pace,
+      roundtrip: roundtrip ?? this.roundtrip,
+      lockedFirstDestinationId:
+          lockedFirstDestinationId ?? this.lockedFirstDestinationId,
+      routeSegments: routeSegments ?? this.routeSegments,
+      seaCrossings: seaCrossings ?? this.seaCrossings,
     );
   }
 
@@ -934,6 +1312,17 @@ class ItineraryTrip {
         if (backendBudgetPhp != null) 'backendBudgetPhp': backendBudgetPhp,
         if (aiGenerationRunId != null) 'aiGenerationRunId': aiGenerationRunId,
         if (aiOptionNumber != null) 'aiOptionNumber': aiOptionNumber,
+        if (optimizationSummary != null)
+          'optimizationSummary': optimizationSummary!.toJson(),
+        if (routeWarnings.isNotEmpty) 'routeWarnings': routeWarnings,
+        if (pace != 'balanced') 'pace': pace,
+        if (roundtrip) 'roundtrip': roundtrip,
+        if (lockedFirstDestinationId != null)
+          'lockedFirstDestinationId': lockedFirstDestinationId,
+        if (routeSegments.isNotEmpty)
+          'routeSegments': routeSegments.map((s) => s.toJson()).toList(),
+        if (seaCrossings.isNotEmpty)
+          'seaCrossings': seaCrossings.map((c) => c.toJson()).toList(),
       };
 
   factory ItineraryTrip.fromJson(Map<String, dynamic> json) => ItineraryTrip(
@@ -988,6 +1377,26 @@ class ItineraryTrip {
         backendBudgetPhp: (json['backendBudgetPhp'] as num?)?.toDouble(),
         aiGenerationRunId: (json['aiGenerationRunId'] as num?)?.toInt(),
         aiOptionNumber: (json['aiOptionNumber'] as num?)?.toInt(),
+        optimizationSummary:
+            json['optimizationSummary'] is Map<String, dynamic>
+                ? RoutePlanOptimizationSummary.fromJson(
+                    json['optimizationSummary'] as Map<String, dynamic>,
+                  )
+                : null,
+        routeWarnings: (json['routeWarnings'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+        pace: json['pace'] as String? ?? 'balanced',
+        roundtrip: json['roundtrip'] == true,
+        lockedFirstDestinationId: json['lockedFirstDestinationId'] as String?,
+        routeSegments: (json['routeSegments'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(RouteSegmentGeometry.fromJson)
+            .toList(),
+        seaCrossings: (json['seaCrossings'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(SeaCrossingInfo.fromJson)
+            .toList(),
       );
 }
 
@@ -1064,6 +1473,7 @@ class ChatMessage {
   final DateTime timestamp;
   final ItineraryTrip? attachedTrip;
   final List<AiItineraryOptionDraft> aiOptions;
+  final List<TopPlaceRecommendation> recommendedPlaces;
   final List<String> suggestedReplies;
 
   const ChatMessage({
@@ -1073,6 +1483,7 @@ class ChatMessage {
     required this.timestamp,
     this.attachedTrip,
     this.aiOptions = const [],
+    this.recommendedPlaces = const [],
     this.suggestedReplies = const [],
   });
 
@@ -1084,6 +1495,9 @@ class ChatMessage {
         if (attachedTrip != null) 'attachedTrip': attachedTrip!.toJson(),
         if (aiOptions.isNotEmpty)
           'aiOptions': aiOptions.map((o) => o.toJson()).toList(),
+        if (recommendedPlaces.isNotEmpty)
+          'recommendedPlaces':
+              recommendedPlaces.map((p) => p.toJson()).toList(),
         if (suggestedReplies.isNotEmpty) 'suggestedReplies': suggestedReplies,
       };
 
@@ -1102,6 +1516,11 @@ class ChatMessage {
             .whereType<Map<String, dynamic>>()
             .map(AiItineraryOptionDraft.fromJson)
             .toList(),
+        recommendedPlaces:
+            (json['recommendedPlaces'] as List<dynamic>? ?? const [])
+                .whereType<Map<String, dynamic>>()
+                .map(TopPlaceRecommendation.fromJson)
+                .toList(),
         suggestedReplies:
             (json['suggestedReplies'] as List<dynamic>? ?? const [])
                 .map((e) => e.toString())
@@ -1117,8 +1536,8 @@ class UserProfile {
   final String email;
 
   const UserProfile({
-    this.firstName = 'Lakbay',
-    this.lastName = 'Traveler',
+    this.firstName = '',
+    this.lastName = '',
     this.headline = '',
     this.location = '',
     this.email = '',
@@ -1132,7 +1551,7 @@ class UserProfile {
         .split(RegExp(r'\s+'))
         .where((p) => p.isNotEmpty)
         .toList();
-    if (parts.isEmpty) return 'LK';
+    if (parts.isEmpty) return 'ME';
     return parts.take(3).map((p) => p[0].toUpperCase()).join();
   }
 
@@ -1161,8 +1580,8 @@ class UserProfile {
       };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
-        firstName: json['firstName'] as String? ?? 'Lakbay',
-        lastName: json['lastName'] as String? ?? 'Traveler',
+        firstName: json['firstName'] as String? ?? '',
+        lastName: json['lastName'] as String? ?? '',
         headline: json['headline'] as String? ?? '',
         location: json['location'] as String? ?? '',
         email: json['email'] as String? ?? '',
@@ -1272,6 +1691,66 @@ class BackendRouteResult {
   });
 }
 
+class BackendRoutePlanStop {
+  final int? destinationId;
+  final String name;
+  final double lat;
+  final double lng;
+  final String? islandGroup;
+  final String stayDurationType;
+  final double visitHours;
+
+  const BackendRoutePlanStop({
+    this.destinationId,
+    required this.name,
+    required this.lat,
+    required this.lng,
+    this.islandGroup,
+    required this.stayDurationType,
+    required this.visitHours,
+  });
+}
+
+class BackendRoutePlanDay {
+  final int dayNumber;
+  final List<BackendRoutePlanStop> stops;
+  final double visitHours;
+  final double transitHours;
+  final double totalHours;
+  final bool isContinuationDay;
+  final String? continuationOfName;
+  final bool isOverloaded;
+  final String? overloadWarning;
+
+  const BackendRoutePlanDay({
+    required this.dayNumber,
+    required this.stops,
+    required this.visitHours,
+    required this.transitHours,
+    required this.totalHours,
+    this.isContinuationDay = false,
+    this.continuationOfName,
+    this.isOverloaded = false,
+    this.overloadWarning,
+  });
+}
+
+class BackendRoutePlanResult {
+  final RoutePlanOptimizationSummary summary;
+  final List<String> warnings;
+  final List<int> skippedDestinationIds;
+  final List<BackendRoutePlanDay> days;
+  final BackendRouteResult route;
+
+  const BackendRoutePlanResult({
+    required this.summary,
+    required this.warnings,
+    required this.skippedDestinationIds,
+    required this.days,
+    required this.route,
+  });
+}
+
 /// A drawable part of a route. Road parts follow real roads unless
 /// [isEstimated]; estimated parts are straight connectors drawn dashed.
 class RouteSegmentGeometry {
@@ -1290,6 +1769,26 @@ class RouteSegmentGeometry {
   });
 
   bool get isSea => mode == TransportMode.ferry;
+
+  Map<String, dynamic> toJson() => {
+        'mode': mode.name,
+        'points': points.map((p) => p.toJson()).toList(),
+        'fromName': fromName,
+        'toName': toName,
+        if (isEstimated) 'isEstimated': isEstimated,
+      };
+
+  factory RouteSegmentGeometry.fromJson(Map<String, dynamic> json) =>
+      RouteSegmentGeometry(
+        mode: _transportModeFromName(json['mode'] as String?),
+        points: (json['points'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(GeoPoint.fromJson)
+            .toList(),
+        fromName: json['fromName'] as String? ?? '',
+        toName: json['toName'] as String? ?? '',
+        isEstimated: json['isEstimated'] == true,
+      );
 }
 
 /// A pier-to-pier boat ride (RoRo barge, passenger ferry or pump boat).
@@ -1332,6 +1831,40 @@ class SeaCrossingInfo {
         'pump_boat' => 'Pump boat',
         _ => 'Boat',
       };
+
+  Map<String, dynamic> toJson() => {
+        'vesselType': vesselType,
+        'boardPort': boardPort,
+        'landPort': landPort,
+        'boardLat': boardLat,
+        'boardLng': boardLng,
+        'landLat': landLat,
+        'landLng': landLng,
+        'crossingMinutes': crossingMinutes,
+        'typicalWaitMinutes': typicalWaitMinutes,
+        'allowsPrivateVehicle': allowsPrivateVehicle,
+        if (scheduleText != null) 'scheduleText': scheduleText,
+        if (farePassenger != null) 'farePassenger': farePassenger,
+        if (fareVehicle != null) 'fareVehicle': fareVehicle,
+        if (verified) 'verified': verified,
+      };
+
+  factory SeaCrossingInfo.fromJson(Map<String, dynamic> json) => SeaCrossingInfo(
+        vesselType: json['vesselType'] as String? ?? '',
+        boardPort: json['boardPort'] as String? ?? 'Pier',
+        landPort: json['landPort'] as String? ?? 'Pier',
+        boardLat: (json['boardLat'] as num?)?.toDouble() ?? 0,
+        boardLng: (json['boardLng'] as num?)?.toDouble() ?? 0,
+        landLat: (json['landLat'] as num?)?.toDouble() ?? 0,
+        landLng: (json['landLng'] as num?)?.toDouble() ?? 0,
+        crossingMinutes: (json['crossingMinutes'] as num?)?.toInt() ?? 0,
+        typicalWaitMinutes: (json['typicalWaitMinutes'] as num?)?.toInt() ?? 0,
+        allowsPrivateVehicle: json['allowsPrivateVehicle'] == true,
+        scheduleText: json['scheduleText'] as String?,
+        farePassenger: (json['farePassenger'] as num?)?.toDouble(),
+        fareVehicle: (json['fareVehicle'] as num?)?.toDouble(),
+        verified: json['verified'] == true,
+      );
 }
 
 class TripMemberItem {
@@ -1757,28 +2290,49 @@ class TopPlaceRecommendation {
     this.travelDistanceKm,
   });
 
-  factory TopPlaceRecommendation.fromJson(Map<String, dynamic> json) =>
-      TopPlaceRecommendation(
-        rank: (json['rank'] as num?)?.toInt() ?? 0,
-        destinationId: (json['destination_id'] as num?)?.toInt() ?? 0,
-        name: (json['name'] ?? '').toString(),
-        district: json['district']?.toString(),
-        category: json['category']?.toString(),
-        imageUrl: json['image_url']?.toString(),
-        estimatedCost: json['estimated_cost'] == null
-            ? null
-            : _parseDoubleModel(json['estimated_cost']),
-        score: _parseDoubleModel(json['score']),
-        reasons: (json['reasons'] as List<dynamic>? ?? const [])
-            .map((e) => e.toString())
-            .toList(),
-        routeVerified: json['route_verified'] == true,
-        travelMode: (json['travel_mode'] ?? 'driving').toString(),
-        travelMinutes: (json['travel_minutes'] as num?)?.toInt(),
-        travelDistanceKm: json['travel_distance_km'] == null
-            ? null
-            : _parseDoubleModel(json['travel_distance_km']),
-      );
+  String get fallbackAssetPath =>
+      davaoBackdropAssetFor('$name ${district ?? ''} ${category ?? ''}');
+
+  Map<String, dynamic> toJson() => {
+        'rank': rank,
+        'destination_id': destinationId,
+        'name': name,
+        if (district != null) 'district': district,
+        if (category != null) 'category': category,
+        if (imageUrl != null) 'image_url': imageUrl,
+        if (estimatedCost != null) 'estimated_cost': estimatedCost,
+        'score': score,
+        'reasons': reasons,
+        'route_verified': routeVerified,
+        'travel_mode': travelMode,
+        if (travelMinutes != null) 'travel_minutes': travelMinutes,
+        if (travelDistanceKm != null) 'travel_distance_km': travelDistanceKm,
+      };
+
+  factory TopPlaceRecommendation.fromJson(Map<String, dynamic> json) {
+    final minutes = json['travel_minutes'] ?? json['route_duration_minutes'];
+    final distanceKm = json['travel_distance_km'] ?? json['route_distance_km'];
+    return TopPlaceRecommendation(
+      rank: (json['rank'] as num?)?.toInt() ?? 0,
+      destinationId: (json['destination_id'] as num?)?.toInt() ?? 0,
+      name: (json['name'] ?? '').toString(),
+      district: json['district']?.toString(),
+      category: json['category']?.toString(),
+      imageUrl: json['image_url']?.toString(),
+      estimatedCost: json['estimated_cost'] == null
+          ? null
+          : _parseDoubleModel(json['estimated_cost']),
+      score: _parseDoubleModel(json['score']),
+      reasons: (json['reasons'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+      routeVerified: json['route_verified'] == true,
+      travelMode: (json['travel_mode'] ?? 'driving').toString(),
+      travelMinutes: (minutes as num?)?.toInt(),
+      travelDistanceKm:
+          distanceKm == null ? null : _parseDoubleModel(distanceKm),
+    );
+  }
 }
 
 class TopPlacesResult {
@@ -1794,7 +2348,7 @@ class TopPlacesResult {
 
   factory TopPlacesResult.fromJson(Map<String, dynamic> json) =>
       TopPlacesResult(
-        method: (json['method'] ?? 'topsis').toString(),
+        method: (json['method'] ?? 'simple_additive_weighting').toString(),
         items: (json['items'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
             .map(TopPlaceRecommendation.fromJson)
@@ -1803,6 +2357,62 @@ class TopPlacesResult {
             .map((e) => e.toString())
             .toList(),
       );
+}
+
+String davaoBackdropAssetFor(String seed) {
+  final lower = seed.toLowerCase();
+  if (lower.contains('samal') ||
+      lower.contains('talikud') ||
+      lower.contains('vanishing') ||
+      lower.contains('coral')) {
+    return 'assets/home_backdrops/01-samal-island.jpg';
+  }
+  if (lower.contains('mati') ||
+      lower.contains('dahican') ||
+      lower.contains('pujada') ||
+      lower.contains('sleeping dinosaur')) {
+    return 'assets/home_backdrops/02-dahican-mati.jpg';
+  }
+  if (lower.contains('apo') ||
+      lower.contains('kapatagan') ||
+      lower.contains('digos') ||
+      lower.contains('bansalan')) {
+    return 'assets/home_backdrops/03-mount-apo.jpg';
+  }
+  if (lower.contains('eden') ||
+      lower.contains('toril') ||
+      lower.contains('nature park')) {
+    return 'assets/home_backdrops/04-eden-toril.jpg';
+  }
+  if (lower.contains('aliwagwag') ||
+      lower.contains('falls') ||
+      lower.contains('cateel') ||
+      lower.contains('hagimit')) {
+    return 'assets/home_backdrops/05-aliwagwag-falls.jpg';
+  }
+  if (lower.contains('cape san agustin') ||
+      lower.contains('gov. generoso') ||
+      lower.contains('san victor')) {
+    return 'assets/home_backdrops/06-cape-san-agustin.jpg';
+  }
+  if (lower.contains('eagle') ||
+      lower.contains('malagos') ||
+      lower.contains('calinan')) {
+    return 'assets/home_backdrops/07-malagos-eagle.jpg';
+  }
+  if (lower.contains('maragusan') ||
+      lower.contains('sea of clouds') ||
+      lower.contains('davao de oro') ||
+      lower.contains('monkayo')) {
+    return 'assets/home_backdrops/10-calamba-clouds.jpg';
+  }
+  if (lower.contains('marilog') ||
+      lower.contains('buda') ||
+      lower.contains('bemwa') ||
+      lower.contains('hills')) {
+    return 'assets/home_backdrops/09-marilog-bemwa.jpg';
+  }
+  return 'assets/home_backdrops/08-peoples-park.jpg';
 }
 
 double _parseDoubleModel(dynamic value) {

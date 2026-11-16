@@ -21,7 +21,15 @@ from app.integrations.osrm.schemas import (
 )
 
 
+from contextvars import ContextVar
+
 MAX_PREVIEW_WAYPOINT_SNAP_METERS = 250.0
+# Waterfront RoRo/ferry piers often sit 150-600 m off the highway centerline
+# inside port compounds; keep non-pier stops strict at MAX_PREVIEW_WAYPOINT_SNAP_METERS.
+MAX_PORT_WAYPOINT_SNAP_METERS = 800.0
+_WAYPOINT_MAX_SNAP_METERS: ContextVar[list[float] | None] = ContextVar(
+    "_WAYPOINT_MAX_SNAP_METERS", default=None,
+)
 # Shared community OSRM servers, such as the FOSSGIS foot service, ask clients
 # to identify the application instead of sending a library default.
 USER_AGENT = "Lakbay-API (Davao Region trip planner; https://lakbay-api-sg.onrender.com)"
@@ -71,7 +79,10 @@ class OSRMClient:
 
         _require_near_route_waypoints(body, len(coordinates))
 
-        return self._tag(_parse_route_response(body))
+        return replace(
+            self._tag(_parse_route_response(body)),
+            waypoint_snaps=_waypoint_snaps(body),
+        )
 
     async def optimize_route(
         self,
@@ -129,6 +140,23 @@ class OSRMClient:
             base_url=base_url,
         )
         return _parse_table_response(body, expected_count=len(destinations))
+
+    async def preview_route_with_snap_limits(
+        self,
+        *,
+        travel_mode: TravelMode,
+        coordinates: list[RouteCoordinate],
+        max_snap_meters: list[float],
+    ) -> OSRMRouteResult:
+        """Preview a route allowing per-waypoint OSRM snap limits (e.g. waterfront piers)."""
+        token = _WAYPOINT_MAX_SNAP_METERS.set(max_snap_meters)
+        try:
+            return await self.preview_route(
+                travel_mode=travel_mode,
+                coordinates=coordinates,
+            )
+        finally:
+            _WAYPOINT_MAX_SNAP_METERS.reset(token)
 
     async def matrix(
         self,
@@ -244,19 +272,50 @@ def _coordinates_path(coordinates: list[RouteCoordinate]) -> str:
     return ";".join(f"{item.lng:.6f},{item.lat:.6f}" for item in coordinates)
 
 
-def _require_near_route_waypoints(body: dict, expected_count: int) -> None:
+def _waypoint_snaps(body: dict) -> list[tuple[float, float, float] | None]:
+    """Road join point (lat, lng) and snap distance for each route waypoint."""
+    snaps: list[tuple[float, float, float] | None] = []
+    for waypoint in body.get("waypoints") or []:
+        location = waypoint.get("location") if isinstance(waypoint, dict) else None
+        distance = _optional_number(
+            waypoint.get("distance") if isinstance(waypoint, dict) else None
+        )
+        if (
+            isinstance(location, list) and len(location) == 2
+            and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in location)
+            and distance is not None
+        ):
+            snaps.append((float(location[1]), float(location[0]), distance))
+        else:
+            snaps.append(None)
+    return snaps
+
+
+def _require_near_route_waypoints(
+    body: dict,
+    expected_count: int,
+    *,
+    max_snap_meters: float | list[float] | None = None,
+) -> None:
     """A distant OSRM snap is not evidence of a route to the requested point."""
     waypoints = body.get("waypoints")
     if not isinstance(waypoints, list) or len(waypoints) != expected_count:
         raise OSRMRouteNotFoundError("OSRM did not confirm every route waypoint.")
-    for waypoint in waypoints:
+    limits = max_snap_meters if max_snap_meters is not None else _WAYPOINT_MAX_SNAP_METERS.get()
+    for index, waypoint in enumerate(waypoints):
         if not isinstance(waypoint, dict):
             raise OSRMRouteNotFoundError("OSRM returned an invalid route waypoint.")
         distance = waypoint.get("distance")
+        if isinstance(limits, list):
+            limit = limits[index] if index < len(limits) else MAX_PREVIEW_WAYPOINT_SNAP_METERS
+        elif isinstance(limits, (int, float)):
+            limit = float(limits)
+        else:
+            limit = MAX_PREVIEW_WAYPOINT_SNAP_METERS
         if (
             not isinstance(distance, (int, float)) or isinstance(distance, bool)
             or not isfinite(distance) or distance < 0
-            or distance > MAX_PREVIEW_WAYPOINT_SNAP_METERS
+            or distance > limit
         ):
             raise OSRMRouteNotFoundError(
                 "OSRM snapped a route waypoint too far from the requested point."

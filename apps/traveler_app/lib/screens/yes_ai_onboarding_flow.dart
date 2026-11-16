@@ -4,7 +4,8 @@ import '../models/travel_models.dart';
 import '../services/lakbay_ai_service.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
-import 'trip_detail_screen.dart';
+import '../widgets/origin_picker_sheet.dart';
+import 'auth_screen.dart';
 
 class _OnboardingCarouselSpot {
   final String name;
@@ -73,7 +74,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
   ItineraryTrip? _generatedTrip;
   AiPlanResult? _lastStructuredPlan;
 
-  String _selectedDestination = 'Samal Island & Davao City';
+  String _selectedDestination = '';
   String _selectedVibe = 'Just exploring';
   String _selectedOriginAndParty = 'Solo trip';
   String _selectedTiming = 'Next month';
@@ -122,18 +123,24 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
   @override
   void initState() {
     super.initState();
+    final hasOrigin = widget.repo.hasOrigin;
     final origin = widget.repo.effectiveOriginLabel;
-    if (widget.repo.hasUserLocation) {
+    if (hasOrigin) {
       _selectedOriginAndParty = 'From $origin';
     }
     final rng = math.Random();
-    final greetings = [
-      'Hey there, Lakbay+ here! Where are we heading across the Davao Region from $origin? Tell me your vibe, crew, or favorite coastline.',
-      'Mabuhay from Lakbay+! Starting from $origin, would you rather island-hop Samal, surf Dahican, or climb misty Buda peaks?',
-      'Ready when you are! Share a mood, destination, or budget starting from $origin and we will build your route together.',
-    ];
+    final greetings = hasOrigin
+        ? [
+            'Hey there, Lakbay+ here! Where are we heading across the Davao Region from $origin? Tell me your vibe, crew, or favorite coastline.',
+            'Mabuhay from Lakbay+! Starting from $origin, would you rather island-hop Samal, surf Dahican, or climb misty Buda peaks?',
+            'Ready when you are! Share a mood, destination, or budget starting from $origin and we will build your route together.',
+          ]
+        : [
+            "Hey there, Lakbay+ here! Where are you starting from? Share your GPS location or search/pin your starting place, then tell me what you'd love to explore in Davao Region.",
+            "Maayong adlaw! Tell me where you're starting from (use GPS, search, or pin a spot) and what kind of Davao Region adventure sounds good today.",
+          ];
     final discoveryIdeas = [
-      if (widget.repo.hasUserLocation) 'Surprise getaway near $origin',
+      if (hasOrigin) 'Surprise getaway near $origin' else 'Set starting place',
       'What to do in Samal Island?',
       '3-day Dahican surf & Aliwagwag Falls',
       'Cool pine coffee route in Buda & Marilog',
@@ -145,9 +152,11 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
         isUser: false,
         body: greetings[rng.nextInt(greetings.length)],
         options: [
+          if (!hasOrigin) 'Set starting place',
           'Inspire me!',
-          discoveryIdeas[0],
-          discoveryIdeas[1],
+          discoveryIdeas.firstWhere((e) => e != 'Set starting place',
+              orElse: () => discoveryIdeas[0]),
+          if (hasOrigin) discoveryIdeas[1],
         ],
       ),
     );
@@ -180,14 +189,39 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
     if (text.isEmpty || _isThinking) return;
     _inputController.clear();
 
+    final lower = text.toLowerCase();
+
+    if (lower == 'set starting place' ||
+        lower == 'set my starting place' ||
+        lower == 'search or pin a starting place') {
+      final picked = await showOriginPickerSheet(context, widget.repo);
+      if (!mounted) return;
+      final label = widget.repo.resolvedOriginLabel;
+      setState(() {
+        _turns.add(
+          _OnboardingChatTurn(
+            isUser: false,
+            body: picked == true && label != null
+                ? 'Starting place set to $label.${widget.repo.originRegionNote != null ? "\n\n${widget.repo.originRegionNote}" : ""} Where would you like to explore in Region XI?'
+                : 'No starting place set yet. You can tap below anytime to set one, or tell me which Region XI destination interests you.',
+            options: const [
+              'Inspire me!',
+              '3-day Dahican surf & Aliwagwag Falls',
+              'Cool pine coffee route in Buda & Marilog',
+            ],
+          ),
+        );
+      });
+      _scrollToBottom();
+      return;
+    }
+
     setState(() {
       _selectedOptionText = text;
       _turns.add(_OnboardingChatTurn(isUser: true, body: text));
       _isThinking = true;
     });
     _scrollToBottom();
-
-    final lower = text.toLowerCase();
 
     // Move forward to card finalization when traveler confirms the plan.
     if (lower.contains('looks perfect') || lower.contains('build trip card')) {
@@ -219,9 +253,9 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           availableDestinations:
               widget.repo.allTrips.map((t) => t.title).toList(),
           history: historyTurns,
-          currentLocation: widget.repo.effectiveOriginLabel,
-          userLat: widget.repo.userLat,
-          userLng: widget.repo.userLng,
+          currentLocation: widget.repo.resolvedOriginLabel,
+          userLat: widget.repo.originLat,
+          userLng: widget.repo.originLng,
           preferredVibes: widget.repo.selectedVibes,
           strictBudget: widget.repo.strictBudgetFilter,
         );
@@ -319,9 +353,16 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
         );
       });
     } else if (_chatStep <= 1) {
-      if (lower.contains('mati') || lower.contains('dahican')) {
+      if (lower.contains('mati') ||
+          lower.contains('dahican') ||
+          lower.contains('aliwagwag') ||
+          lower.contains('waterfall') ||
+          lower.contains('falls')) {
         _selectedDestination = 'Mati Dahican & Aliwagwag Falls';
-      } else if (lower.contains('buda') || lower.contains('marilog')) {
+      } else if (lower.contains('buda') ||
+          lower.contains('marilog') ||
+          lower.contains('pine') ||
+          lower.contains('coffee')) {
         _selectedDestination = 'Buda & Marilog Pine Highlands';
       } else if (lower.contains('apo') || lower.contains('kapatagan')) {
         _selectedDestination = 'Kapatagan Highlands & Mt. Apo';
@@ -366,8 +407,11 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             body:
                 'Wandering without a strict agenda is the best way to uncover Davao\'s hidden coves, local durian stalls, and highland cafes.\n\nWhere will you be setting off from, and who is joining you?',
             options: [
-              'Flying to Davao (DVO)',
-              'From ${widget.repo.effectiveOriginLabel}',
+              'Search or pin a starting place',
+              if (widget.repo.hasOrigin)
+                'From ${widget.repo.effectiveOriginLabel}'
+              else
+                'Set my starting place',
               'Solo trip',
             ],
           ),
@@ -381,7 +425,9 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
         _turns.add(
           _OnboardingChatTurn(
             isUser: false,
-            title: '$_selectedOriginAndParty adventures',
+            title: lower.startsWith('from ')
+                ? 'Route departure confirmed'
+                : '$_selectedOriginAndParty adventures',
             body:
                 'Traveling through Davao Region is super welcoming, scenic, and easy to customize.\n\nWhen are you thinking of going and for how many days?',
             options: const [
@@ -401,13 +447,19 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
       _chatStep = 5;
       setState(() {
         _isThinking = false;
+        final startLabel = widget.repo.hasOrigin
+            ? widget.repo.effectiveOriginLabel
+            : 'Starting point not set yet';
+        final destLabel = _selectedDestination.isNotEmpty
+            ? _selectedDestination
+            : 'your Davao Region route';
         _turns.add(
           _OnboardingChatTurn(
             isUser: false,
             title: 'Ready to roll',
             isGamePlan: true,
             body:
-                'Here is our game plan for your Davao Region escape:\n\n• Starting Point: ${widget.repo.effectiveOriginLabel} → $_selectedDestination\n• Dates & Duration: $_selectedTiming\n• Travel Style & Party: $_selectedOriginAndParty ($_selectedVibe)\n\nDoes this look good to you, or should we adjust anything before I build your trip card?',
+                'Here is our game plan for your Davao Region escape:\n\n• Starting Point: $startLabel → $destLabel\n• Dates & Duration: $_selectedTiming\n• Travel Style & Party: $_selectedOriginAndParty ($_selectedVibe)\n\nDoes this look good to you, or should we adjust anything before I build your trip card?',
             options: const [
               'Looks perfect',
               'Change dates',
@@ -445,8 +497,14 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
         .where((t) => t.isUser && t.body.trim().isNotEmpty)
         .map((t) => t.body.trim())
         .join(' • ');
+    final originPrefix = widget.repo.hasOrigin
+        ? 'Origin: ${widget.repo.effectiveOriginLabel}. '
+        : '';
+    final destSegment = _selectedDestination.isNotEmpty
+        ? ' to $_selectedDestination'
+        : '';
     final briefPrompt =
-        'Origin: ${widget.repo.effectiveOriginLabel}. Preferences: $userNotes. Plan a $_selectedTiming trip to $_selectedDestination in Davao Region for $_selectedOriginAndParty, vibe: $_selectedVibe.';
+        '${originPrefix}Preferences: $userNotes. Plan a $_selectedTiming trip$destSegment in Davao Region for $_selectedOriginAndParty, vibe: $_selectedVibe.';
 
     final tripFuture = widget.repo.createTripFromAiPrompt(briefPrompt);
 
@@ -468,11 +526,23 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           daysCount: 4,
           vibe: _selectedVibe,
         );
-    widget.repo.saveTripToMyTrips(trip);
-    widget.repo.completeOnboarding();
+    if (widget.repo.isSignedIn) {
+      widget.repo.saveTripToMyTrips(trip);
+      widget.repo.completeOnboarding();
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TripDetailScreen(repo: widget.repo, trip: trip),
+      MaterialPageRoute<bool>(
+        builder: (navCtx) => AuthScreen(
+          repo: widget.repo,
+          initialRegisterMode: true,
+          onAuthenticated: () {
+            widget.repo.saveTripToMyTrips(trip);
+            widget.repo.completeOnboarding();
+            Navigator.of(navCtx).popUntil((route) => route.isFirst);
+          },
+        ),
       ),
     );
   }
@@ -939,10 +1009,16 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
 
   // Stage 1: "While I set up your trip — Good so far?" (Image 2)
   Widget _buildGoodSoFarRatingStage(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
-      child: Column(
-        children: [
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: (constraints.maxHeight - 40).clamp(0.0, double.infinity),
+          ),
+          child: IntrinsicHeight(
+            child: Column(
+              children: [
           const Text(
             'While I set up your trip',
             style: TextStyle(
@@ -1053,6 +1129,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
           const Spacer(),
           SizedBox(
             width: double.infinity,
@@ -1077,7 +1154,10 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
               ),
             ),
           ),
-        ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1086,10 +1166,16 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
   Widget _buildFirstPlanDoneStage(BuildContext context) {
     final isReady = _planningPercent >= 100;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 16, 22, 20),
-      child: Column(
-        children: [
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 16, 22, 20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: (constraints.maxHeight - 36).clamp(0.0, double.infinity),
+          ),
+          child: IntrinsicHeight(
+            child: Column(
+              children: [
           const Text(
             'First plan, done.',
             style: TextStyle(
@@ -1162,7 +1248,9 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '$_selectedDestination • Davao Region',
+                            _selectedDestination.isNotEmpty
+                                ? '$_selectedDestination • Davao Region'
+                                : 'Davao Region Route',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -1192,13 +1280,15 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   icon: Icons.auto_awesome,
                   filled: isReady,
                   title: 'Your expert',
-                  subtitle: 'Checks and books',
+                  subtitle: 'Reviews stays, route & memories',
                 ),
                 _TimelineRow(
                   icon: Icons.location_on_outlined,
                   filled: isReady,
                   isLast: true,
-                  title: _selectedDestination,
+                  title: _selectedDestination.isNotEmpty
+                      ? _selectedDestination
+                      : 'Davao Region route',
                   subtitle: isReady ? 'Ready to view!' : 'Almost ready',
                 ),
                 const SizedBox(height: 16),
@@ -1244,6 +1334,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
           const Spacer(),
           SizedBox(
             width: double.infinity,
@@ -1258,9 +1349,11 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   borderRadius: BorderRadius.circular(30),
                 ),
               ),
-              child: const Text(
-                'See your trip',
-                style: TextStyle(
+              child: Text(
+                widget.repo.isSignedIn
+                    ? 'Continue to dashboard'
+                    : 'Sign in or create account to save trip',
+                style: const TextStyle(
                   fontFamily: 'FigGrotesk',
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -1276,7 +1369,10 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
               color: LakbayColors.textSecondary,
             ),
           ),
-        ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -132,6 +132,41 @@ def _two_opt(
                 cost = order_cost(costs, candidate, roundtrip=roundtrip)
                 if cost < current - _TIE_TOLERANCE:
                     order, current, improved = candidate, cost, True
+        or_candidate = _or_opt(costs, order, fixed_start=fixed_start, roundtrip=roundtrip)
+        or_cost = order_cost(costs, or_candidate, roundtrip=roundtrip)
+        if or_cost < current - _TIE_TOLERANCE:
+            order, current, improved = or_candidate, or_cost, True
+    return order
+
+
+def _or_opt(
+    costs: Sequence[Sequence[float]], order: list[int], *, fixed_start: bool, roundtrip: bool,
+) -> list[int]:
+    """Relocate contiguous segments of length 1..3 whenever doing so lowers cost."""
+    first = 1 if (fixed_start or roundtrip) else 0
+    current = order_cost(costs, order, roundtrip=roundtrip)
+    improved = True
+    while improved:
+        improved = False
+        for seg_len in (3, 2, 1):
+            if len(order) - first <= seg_len:
+                continue
+            moved = True
+            while moved:
+                moved = False
+                for start in range(first, len(order) - seg_len + 1):
+                    segment = order[start : start + seg_len]
+                    remainder = order[:start] + order[start + seg_len :]
+                    for insert_at in range(first, len(remainder) + 1):
+                        if insert_at == start:
+                            continue
+                        candidate = remainder[:insert_at] + segment + remainder[insert_at:]
+                        cost = order_cost(costs, candidate, roundtrip=roundtrip)
+                        if cost < current - _TIE_TOLERANCE:
+                            order, current, improved, moved = candidate, cost, True, True
+                            break
+                    if moved:
+                        break
     return order
 
 

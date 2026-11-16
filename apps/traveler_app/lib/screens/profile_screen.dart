@@ -132,12 +132,20 @@ class ProfileScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '${profile.firstName} ${profile.lastName}',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: LakbayColors.tealDeep,
+                        InkWell(
+                          onTap: () => _showEditProfileSheet(context),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Text(
+                            profile.fullName.isEmpty
+                                ? 'Add your name'
+                                : profile.fullName,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: profile.fullName.isEmpty
+                                  ? LakbayColors.primaryDark
+                                  : LakbayColors.tealDeep,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 4),

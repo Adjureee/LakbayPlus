@@ -9,7 +9,7 @@ from app.features.recommendations.schemas import RecommendationItem
 
 PROMPT_VERSION = "phase5_itinerary_catalog_facts_v3"
 PLANNING_PROMPT_VERSION = "phase15e_calculated_route_order_v5"
-CHAT_PROMPT_VERSION = "phase5_chat_v7_local_guide_intent"
+CHAT_PROMPT_VERSION = "phase5_chat_v8_show_places"
 
 
 def build_itinerary_messages(
@@ -271,12 +271,19 @@ def build_chat_messages(
             "itinerary."
             " This is a stateful planning conversation. Return exactly one JSON "
             "object with `chat_response`, `state_updates`, `intent`, and "
-            "`suggested_replies`; do not use markdown fences around it (markdown "
+            "`suggested_replies` (plus `place_query` when browsing places); do not use markdown fences around it (markdown "
             "bullets inside `chat_response` are fine). `intent` is one of "
             "\"question\" (asking for facts or advice), \"brainstorm\" (still "
             "exploring ideas), \"plan_trip\" (wants a trip or itinerary built now), "
             "\"modify_trip\" (changing an existing plan), \"logistics\" (getting "
             "there, transport, piers, schedules), or \"smalltalk\". "
+            "Also support `intent` \"show_places\" (asking to show, list, or "
+            "browse catalog destinations), with `place_query` set to "
+            "`{\"categories\": [\"mountain\"], \"province\": \"Davao de Oro\", \"limit\": 5}` "
+            "(singular category keywords like \"beach\", \"mountain\", "
+            "\"waterfall\", \"island\", \"park\", \"food\", or [] for all "
+            "categories; omit `province` unless named by the traveler; limit 1 to 10; "
+            "omit `place_query` for other intents). "
             "`suggested_replies` holds 2 or 3 short things the traveler might say "
             "next, written in their voice, each under 60 characters, specific to "
             "this conversation (e.g. \"How do I get to Samal by car?\"). "

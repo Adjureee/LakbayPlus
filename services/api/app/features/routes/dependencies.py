@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 
 from app.core.config import get_settings
 from app.core.dependencies import get_current_user
@@ -21,4 +21,18 @@ def enforce_route_request_limit(
         limit=get_settings().route_requests_per_minute,
         code="route_rate_limited",
         message="Too many route requests. Please try again shortly.",
+    )
+
+
+def enforce_guest_route_request_limit(request: Request) -> None:
+    """Rate-limit signed-out /routes/plan/guest requests per client IP key."""
+    from app.core.config import get_settings
+    from app.features.ai.router import guest_client_key
+
+    settings = get_settings()
+    _route_request_limiter.reserve(
+        f"routes:guest:{guest_client_key(request)}",
+        limit=settings.route_requests_per_minute,
+        code="route_rate_limited",
+        message="Too many guest route requests right now. Wait a moment before trying again.",
     )
