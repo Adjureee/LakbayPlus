@@ -387,30 +387,23 @@ class LakbayApiCatalogService {
             if (raw is! Map) continue;
             if (raw['is_available'] == false) continue;
             final accId = (raw['accommodation_id'] as num?)?.toInt();
-            final pricePhp = _toDouble(raw['price']) ?? 0;
-            final priceUsd =
-                (pricePhp / phpPerUsd).round().clamp(12, 2500);
-            final roomType = (raw['room_type'] ?? 'Standard Room').toString();
-            final chargingUnit = (raw['charging_unit'] ?? 'per_room_per_night')
-                .toString()
-                .replaceAll('_', ' ');
-            final capacity = (raw['capacity'] as num?)?.toInt() ?? 2;
+            final name = (raw['name'] ?? '').toString().trim();
+            if (name.isEmpty) continue;
+            final price = _toDouble(raw['price']);
+            final roomType = (raw['room_type'] ?? '').toString().trim();
+            final unit = (raw['charging_unit'] ?? '').toString().trim();
             hotels.add(
               HotelOffer(
                 id: 'acc_${accId ?? hotels.length + 1}',
-                name: (raw['name'] ?? 'Partner Stay').toString(),
+                name: name,
                 city: city,
-                rating: 9.2,
-                stars: pricePhp >= 6000 ? 5 : 4,
-                pricePerNightUsd: priceUsd,
-                facilities: [
-                  roomType,
-                  'Capacity: $capacity',
-                  chargingUnit,
-                ],
-                partnerName: 'Admin Verified Rate',
-                imageAsset: fallbackImageAsset,
-                remoteImageUrl: remoteImageUrl,
+                // Only what the catalog says: no rating, stars, unit or
+                // capacity is made up, and no price means "not listed".
+                pricePhp: (price != null && price > 0) ? price : null,
+                chargingUnit: unit.isEmpty ? null : unit,
+                capacity: (raw['capacity'] as num?)?.toInt(),
+                facilities: [if (roomType.isNotEmpty) roomType],
+                sourceLabel: 'Lakbay catalog',
                 lat: lat,
                 lng: lng,
                 apiAccommodationId: accId,
@@ -1409,7 +1402,7 @@ class LakbayApiCatalogService {
       final temp = (decoded['temp_c'] as num?)?.round();
       final cond = decoded['condition'] as Map<String, dynamic>? ?? const {};
       final owCode = (cond['code'] as num?)?.toInt();
-      final main = (cond['main'] ?? 'Partly Cloudy').toString();
+      final main = (cond['main'] ?? '').toString();
       if (temp == null) return null;
       return (
         tempC: temp,
@@ -1418,6 +1411,51 @@ class LakbayApiCatalogService {
       );
     } catch (_) {
       return null;
+    }
+  }
+
+  /// The server's forecast (up to 5 days ahead), or an empty list when it is
+  /// not available. Nothing is guessed for days beyond it.
+  Future<List<({DateTime date, int tempC, int wmoCode, String condition})>>
+      getWeatherForecast(
+    String accessToken, {
+    required double lat,
+    required double lng,
+  }) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) return const [];
+    try {
+      final res = await _sendAuthorized(
+        accessToken,
+        (tok) => _client
+            .get(
+              Uri.parse('$base/weather/forecast?lat=$lat&lng=$lng&days=5'),
+              headers: _authHeaders(tok, json: false),
+            )
+            .timeout(const Duration(seconds: 8)),
+      );
+      if (res.statusCode != 200) return const [];
+      final decoded = jsonDecode(res.body);
+      final days = decoded is Map ? decoded['days'] : null;
+      if (days is! List) return const [];
+      final result =
+          <({DateTime date, int tempC, int wmoCode, String condition})>[];
+      for (final raw in days) {
+        if (raw is! Map) continue;
+        final date = DateTime.tryParse((raw['date'] ?? '').toString());
+        final temp = ((raw['temp_avg_c'] ?? raw['temp_max_c']) as num?)?.round();
+        if (date == null || temp == null) continue;
+        final cond = raw['condition'] is Map ? raw['condition'] as Map : const {};
+        result.add((
+          date: DateTime(date.year, date.month, date.day),
+          tempC: temp,
+          wmoCode: _openWeatherCodeToWmo((cond['code'] as num?)?.toInt()),
+          condition: (cond['main'] ?? '').toString(),
+        ));
+      }
+      return result;
+    } catch (_) {
+      return const [];
     }
   }
 

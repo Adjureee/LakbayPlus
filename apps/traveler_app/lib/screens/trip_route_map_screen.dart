@@ -553,7 +553,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
             lng: h.lng,
             badgeText: 'Stay',
             title: h.name,
-            subtitle: '${h.stars}★ • ${h.city}',
+            subtitle: [if (h.stars != null) '${h.stars}★', h.city].join(' • '),
             imageUrl: hotelUrl,
             imageAsset: h.imageAsset,
           ),
@@ -675,7 +675,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${widget.trip.daysCount} Days • ${totalKm.toStringAsFixed(0)} km Region XI Route • ${widget.trip.hotels.first.name}',
+                    '${widget.trip.daysCount} Days • ${totalKm.toStringAsFixed(0)} km Region XI Route ${widget.trip.hotels.isEmpty ? '' : ' • ${widget.trip.hotels.first.name}'}',
                     style: const TextStyle(
                       fontSize: 13,
                       color: LakbayColors.textSecondary,
@@ -1127,26 +1127,28 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                               ),
                             ),
                           ),
-                          Image.asset(
-                            'assets/png/weather/${day.wmoWeatherCode}.png',
-                            width: 22,
-                            height: 22,
-                            errorBuilder: (_, _, _) => const Icon(
-                              Icons.wb_sunny_rounded,
-                              size: 18,
-                              color: LakbayColors.cocoaOrange,
+                          if (day.wmoWeatherCode != null && day.tempCelsius != null) ...[
+                            Image.asset(
+                              'assets/png/weather/${day.wmoWeatherCode}.png',
+                              width: 22,
+                              height: 22,
+                              errorBuilder: (_, _, _) => const Icon(
+                                Icons.wb_sunny_rounded,
+                                size: 18,
+                                color: LakbayColors.cocoaOrange,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${day.tempCelsius}°C',
-                            style: const TextStyle(
-                              fontFamily: 'FigGrotesk',
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                              color: LakbayColors.tealDeep,
+                            const SizedBox(width: 4),
+                            Text(
+                              '${day.tempCelsius}°C',
+                              style: const TextStyle(
+                                fontFamily: 'FigGrotesk',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                                color: LakbayColors.tealDeep,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 6),

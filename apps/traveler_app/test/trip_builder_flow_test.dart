@@ -386,6 +386,10 @@ void main() {
   });
 
   testWidgets('TripDetailScreen Day-by-Day displays multi-stop card and Add a day action', (tester) async {
+    // A tall screen: the forecast note above the day list pushes content down.
+    tester.view.physicalSize = const Size(900, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
     final repo = TravelRepository(
       apiCatalog: LakbayApiCatalogService(baseUrlOverride: ''),
     );
