@@ -132,6 +132,11 @@ class MainNavigationShell extends StatefulWidget {
 }
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
+  /// Tabs the traveler has opened. The others are not built until opened, so
+  /// the first screen appears sooner and the other four are not rebuilt on
+  /// every change. Once opened a tab stays alive, keeping its scroll and state.
+  final Set<int> _opened = {};
+
   @override
   void initState() {
     super.initState();
@@ -179,15 +184,18 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   }
   @override
   Widget build(BuildContext context) {
+    final selectedIndex = widget.repo.activeNavIndex;
+    _opened.add(selectedIndex);
+    Widget tab(int index, Widget Function() build) =>
+        _opened.contains(index) ? build() : const SizedBox.shrink();
     final pages = [
-      MyTripsScreen(repo: widget.repo),
-      ExploreScreen(repo: widget.repo),
-      HomeChatScreen(repo: widget.repo),
-      MemoriesScreen(repo: widget.repo),
-      ProfileScreen(repo: widget.repo),
+      tab(0, () => MyTripsScreen(repo: widget.repo)),
+      tab(1, () => ExploreScreen(repo: widget.repo)),
+      tab(2, () => HomeChatScreen(repo: widget.repo)),
+      tab(3, () => MemoriesScreen(repo: widget.repo)),
+      tab(4, () => ProfileScreen(repo: widget.repo)),
     ];
 
-    final selectedIndex = widget.repo.activeNavIndex;
     final memoriesCount = widget.repo.memories.length;
     final initials = widget.repo.profile.initials;
 

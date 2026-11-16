@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../widgets/lakbay_image.dart';
 
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
@@ -836,9 +837,11 @@ class _MemoryCard extends StatelessWidget {
                     : ((memory.imageUrl.isNotEmpty || webBlobUrl.isNotEmpty)
                         ? Image.network(
                             memory.imageUrl.isNotEmpty
-                                ? memory.imageUrl
+                                ? LakbayImageSizing.sized(memory.imageUrl, 720)
                                 : webBlobUrl,
                             fit: BoxFit.cover,
+                            cacheWidth: 720,
+                            gaplessPlayback: true,
                             errorBuilder: (_, _, _) => _fallbackTile(),
                           )
                         : _fallbackTile())),
