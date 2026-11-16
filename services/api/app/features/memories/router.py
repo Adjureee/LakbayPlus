@@ -134,6 +134,25 @@ async def update_trip_memory(
     )
 
 
+@router.post(
+    "/{memory_id}/likes",
+    response_model=TripMemoryResponse,
+    summary="Like trip memory",
+    description="Protected endpoint that increments the like count for an active trip memory.",
+)
+async def like_trip_memory(
+    trip_id: int,
+    memory_id: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> TripMemoryResponse:
+    return await MemoryService(session).like_memory(
+        user=current_user,
+        trip_id=trip_id,
+        memory_id=memory_id,
+    )
+
+
 @router.delete(
     "/{memory_id}",
     response_model=TripMemoryResponse,

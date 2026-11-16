@@ -10,9 +10,12 @@ cloudinary_upload_limiter = ProviderLimiter()
 
 
 async def read_validated_image(file: UploadFile, settings: Settings) -> bytes:
-    content_type = (file.content_type or "").lower()
+    content_type = (file.content_type or "").lower().strip()
+    if content_type in {"image/jpg", "image/pjpeg"}:
+        content_type = "image/jpeg"
+    sniff_from_bytes = content_type in {"", "application/octet-stream", "binary/octet-stream"}
 
-    if content_type not in settings.allowed_image_types:
+    if not sniff_from_bytes and content_type not in settings.allowed_image_types:
         raise LakbayAPIError(
             "Only JPEG, PNG, or WebP images are allowed.",
             code="invalid_image_type",
@@ -54,7 +57,15 @@ async def read_validated_image(file: UploadFile, settings: Settings) -> bytes:
             details={"content_type": file.content_type},
         )
 
-    if detected_content_type != content_type:
+    if sniff_from_bytes:
+        if detected_content_type not in settings.allowed_image_types:
+            raise LakbayAPIError(
+                "Only JPEG, PNG, or WebP images are allowed.",
+                code="invalid_image_type",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                details={"content_type": file.content_type},
+            )
+    elif detected_content_type != content_type:
         raise LakbayAPIError(
             "Uploaded file content does not match its declared image type.",
             code="image_type_mismatch",

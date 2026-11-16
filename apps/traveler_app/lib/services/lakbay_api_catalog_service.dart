@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 import '../models/travel_models.dart';
 import 'env_config.dart';
 
@@ -2066,35 +2069,139 @@ class LakbayApiCatalogService {
     }
   }
 
+  static ({MediaType mediaType, String filename}) _inferImageUploadMeta({
+    Uint8List? bytes,
+    String? rawFilename,
+  }) {
+    var ext = 'jpg';
+    var subtype = 'jpeg';
+    if (bytes != null && bytes.length >= 12) {
+      if (bytes[0] == 0x89 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x4E &&
+          bytes[3] == 0x47) {
+        ext = 'png';
+        subtype = 'png';
+      } else if (bytes[0] == 0x52 &&
+          bytes[1] == 0x49 &&
+          bytes[2] == 0x46 &&
+          bytes[3] == 0x46 &&
+          bytes[8] == 0x57 &&
+          bytes[9] == 0x45 &&
+          bytes[10] == 0x42 &&
+          bytes[11] == 0x50) {
+        ext = 'webp';
+        subtype = 'webp';
+      }
+    } else if (rawFilename != null) {
+      final lower = rawFilename.toLowerCase();
+      if (lower.endsWith('.png')) {
+        ext = 'png';
+        subtype = 'png';
+      } else if (lower.endsWith('.webp')) {
+        ext = 'webp';
+        subtype = 'webp';
+      }
+    }
+    final cleanedName = (rawFilename ?? '').trim().isNotEmpty
+        ? rawFilename!.trim().split(RegExp(r'[/\\]')).last
+        : 'memory.$ext';
+    final hasKnownExt = RegExp(r'\.(jpe?g|png|webp)$', caseSensitive: false)
+        .hasMatch(cleanedName);
+    return (
+      mediaType: MediaType('image', subtype),
+      filename: hasKnownExt ? cleanedName : '$cleanedName.$ext',
+    );
+  }
+
   Future<({String imageUrl, String? publicId})?> uploadTripMemoryPhoto(
     String accessToken,
     int tripId, {
-    required String filePath,
+    Uint8List? fileBytes,
+    String? filename,
+    String? filePath,
+    void Function(String status)? onProgress,
+    Duration? timeoutOverride,
   }) async {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return null;
-    final req = http.MultipartRequest(
-      'POST',
-      Uri.parse('$base/trips/$tripId/memories/upload'),
+    if (fileBytes == null && (filePath == null || filePath.trim().isEmpty)) {
+      throw const LakbayApiException('No photo file was selected.');
+    }
+
+    final meta = _inferImageUploadMeta(
+      bytes: fileBytes,
+      rawFilename: filename ?? filePath,
     );
-    req.headers['Authorization'] = 'Bearer $accessToken';
-    req.files.add(await http.MultipartFile.fromPath('file', filePath));
-    final streamed = await _client.send(req).timeout(const Duration(seconds: 30));
-    final body = await streamed.stream.bytesToString();
-    final decoded = _tryDecodeJson(body);
-    if (streamed.statusCode == 200 || streamed.statusCode == 201) {
-      if (decoded is Map<String, dynamic>) {
-        return (
-          imageUrl: (decoded['image_url'] ?? '').toString(),
-          publicId: decoded['cloudinary_public_id']?.toString(),
+    final timeout = timeoutOverride ?? const Duration(seconds: 60);
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      onProgress?.call(
+        attempt == 0 ? 'Uploading photo…' : 'Retrying photo upload…',
+      );
+      final req = http.MultipartRequest(
+        'POST',
+        Uri.parse('$base/trips/$tripId/memories/upload'),
+      );
+      req.headers['Authorization'] = 'Bearer $accessToken';
+      if (fileBytes != null) {
+        req.files.add(
+          http.MultipartFile.fromBytes(
+            'file',
+            fileBytes,
+            filename: meta.filename,
+            contentType: meta.mediaType,
+          ),
+        );
+      } else {
+        req.files.add(
+          await http.MultipartFile.fromPath(
+            'file',
+            filePath!,
+            filename: meta.filename,
+            contentType: meta.mediaType,
+          ),
         );
       }
-      return null;
+
+      try {
+        final streamed = await _client.send(req).timeout(timeout);
+        final body = await streamed.stream.bytesToString();
+        final decoded = _tryDecodeJson(body);
+        if (streamed.statusCode == 200 || streamed.statusCode == 201) {
+          if (decoded is Map<String, dynamic>) {
+            return (
+              imageUrl: (decoded['image_url'] ?? '').toString(),
+              publicId: decoded['cloudinary_public_id']?.toString(),
+            );
+          }
+          return null;
+        }
+        final code = decoded is Map && decoded['error'] is Map
+            ? (decoded['error'] as Map)['code']?.toString()
+            : null;
+        final isRetryable = streamed.statusCode >= 500 && attempt == 0;
+        if (!isRetryable) {
+          throw LakbayApiException(
+            _extractErrorMessage(decoded, streamed.statusCode),
+            statusCode: streamed.statusCode,
+            code: code,
+          );
+        }
+      } on LakbayApiException {
+        rethrow;
+      } catch (e) {
+        if (attempt == 1) {
+          throw LakbayApiException(
+            e is TimeoutException
+                ? 'Photo upload timed out. Saved to your outbox so you can retry.'
+                : 'Network error while uploading photo.',
+            code: 'network_error',
+          );
+        }
+      }
     }
-    throw LakbayApiException(
-      _extractErrorMessage(decoded, streamed.statusCode),
-      statusCode: streamed.statusCode,
-    );
+    return null;
   }
 
   Future<TripMemoryItem?> createTripMemory(
@@ -2122,7 +2229,7 @@ class LakbayApiCatalogService {
               'location_tag': locationTag.trim(),
           }),
         )
-        .timeout(const Duration(seconds: 10));
+        .timeout(const Duration(seconds: 20));
     final decoded = _tryDecodeJson(res.body);
     if (res.statusCode == 200 || res.statusCode == 201) {
       if (decoded is Map<String, dynamic>) {
@@ -2130,29 +2237,46 @@ class LakbayApiCatalogService {
       }
       return null;
     }
+    final code = decoded is Map && decoded['error'] is Map
+        ? (decoded['error'] as Map)['code']?.toString()
+        : null;
     throw LakbayApiException(
       _extractErrorMessage(decoded, res.statusCode),
       statusCode: res.statusCode,
+      code: code,
     );
   }
 
-  Future<bool> likeTripMemory(
+  Future<({bool confirmed, int? likeCount})> likeTripMemory(
     String accessToken,
     int tripId,
     int memoryId,
   ) async {
     final base = _base;
-    if (base.isEmpty || accessToken.isEmpty) return false;
+    if (base.isEmpty || accessToken.isEmpty) {
+      return (confirmed: false, likeCount: null);
+    }
     try {
       final res = await _client
           .post(
             Uri.parse('$base/trips/$tripId/memories/$memoryId/likes'),
             headers: _authHeaders(accessToken, json: false),
           )
-          .timeout(const Duration(seconds: 6));
-      return res.statusCode == 200 || res.statusCode == 201;
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final decoded = _tryDecodeJson(res.body);
+        if (decoded is Map<String, dynamic> &&
+            decoded.containsKey('like_count')) {
+          return (
+            confirmed: true,
+            likeCount: (decoded['like_count'] as num?)?.toInt(),
+          );
+        }
+        return (confirmed: true, likeCount: null);
+      }
+      return (confirmed: false, likeCount: null);
     } catch (_) {
-      return false;
+      return (confirmed: false, likeCount: null);
     }
   }
 

@@ -9,6 +9,7 @@ import '../widgets/trip_management_sheets.dart';
 import 'trip_route_map_screen.dart';
 import '../services/access_notices.dart';
 import '../widgets/access_notice_card.dart';
+import 'memories_screen.dart';
 
 class TripDetailScreen extends StatefulWidget {
   final ItineraryTrip trip;
@@ -804,11 +805,12 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             ),
             ActionChip(
               avatar: const Icon(Icons.photo_library_outlined, size: 17),
-              label: const Text('Memories'),
-              onPressed: () {
-                widget.repo.setActiveNavIndex(3);
-                Navigator.of(context).popUntil((r) => r.isFirst);
-              },
+              label: const Text('Add memory'),
+              onPressed: () => showAddTripMemorySheet(
+                context,
+                repo: widget.repo,
+                initialTrip: trip,
+              ),
             ),
             ActionChip(
               avatar: const Icon(Icons.rate_review_outlined, size: 17),
@@ -1245,7 +1247,168 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             ),
           ),
         ),
+        const SizedBox(height: 18),
+        _buildTripMemoriesSection(trip),
       ],
+    );
+  }
+
+  Widget _buildTripMemoriesSection(ItineraryTrip trip) {
+    return ListenableBuilder(
+      listenable: widget.repo,
+      builder: (context, _) {
+        final tripMemories = widget.repo.memoriesForTrip(trip);
+        final outboxCount = tripMemories.where((m) => m.isOutbox).length;
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: LakbayColors.cardBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Trip Memories',
+                      style: TextStyle(
+                        fontFamily: 'FigGrotesk',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: LakbayColors.tealDeep,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      widget.repo.setActiveNavIndex(3);
+                      Navigator.of(context).popUntil((r) => r.isFirst);
+                    },
+                    child: const Text('View album'),
+                  ),
+                  const SizedBox(width: 4),
+                  FilledButton.icon(
+                    onPressed: trip.isArchived
+                        ? null
+                        : () => showAddTripMemorySheet(
+                              context,
+                              repo: widget.repo,
+                              initialTrip: trip,
+                            ),
+                    icon: const Icon(Icons.add_a_photo_outlined, size: 16),
+                    label: const Text('Add memory'),
+                  ),
+                ],
+              ),
+              if (trip.isArchived)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Archived trips are read-only for new memories.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: LakbayColors.textSecondary,
+                    ),
+                  ),
+                )
+              else if (tripMemories.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    trip.hasEnded
+                        ? 'Trip finished — capture your first memory from ${trip.title}!'
+                        : 'Save photos and moments from ${trip.title} for your group.',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: LakbayColors.textSecondary,
+                    ),
+                  ),
+                )
+              else ...[
+                if (outboxCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, bottom: 6),
+                    child: Text(
+                      '$outboxCount photo(s) pending upload in your outbox.',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFE65100),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 84,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: tripMemories.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, idx) {
+                      final m = tripMemories[idx];
+                      return Container(
+                        width: 112,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: m.isOutbox
+                              ? const Color(0xFFFFF8E1)
+                              : LakbayColors.canvasBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: m.isOutbox
+                                ? const Color(0xFFFFB74D)
+                                : LakbayColors.cardBorder,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              m.caption ?? m.locationTag ?? 'Trip photo',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: LakbayColors.tealDeep,
+                              ),
+                            ),
+                            if (m.isOutbox)
+                              InkWell(
+                                onTap: () => widget.repo.retryOutboxMemory(m),
+                                child: const Text(
+                                  'Not uploaded · Retry',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFE65100),
+                                  ),
+                                ),
+                              )
+                            else
+                              Text(
+                                '♥ ${m.likeCount}',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: LakbayColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
