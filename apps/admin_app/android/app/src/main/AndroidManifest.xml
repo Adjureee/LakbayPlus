@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flutter adds INTERNET only to debug builds; the admin app needs it in release too. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="final_adminlakbay"
         android:name="${applicationName}"
