@@ -7,6 +7,8 @@ import '../widgets/lakbay_image.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
 import '../widgets/trip_management_sheets.dart';
 import 'trip_route_map_screen.dart';
+import '../services/access_notices.dart';
+import '../widgets/access_notice_card.dart';
 
 class TripDetailScreen extends StatefulWidget {
   final ItineraryTrip trip;
@@ -929,6 +931,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               color: LakbayColors.textSecondary,
             ),
           ),
+          const SizedBox(height: 16),
+        ],
+        for (final notice in accessNoticesForTrip(trip)) ...[
+          AccessNoticeCard(notice: notice),
           const SizedBox(height: 16),
         ],
         if (trip.advisories.isNotEmpty) ...[
