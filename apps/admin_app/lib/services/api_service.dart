@@ -1,8 +1,21 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'session_manager.dart';
 import 'validation_message.dart';
+
+/// One file sent as `multipart/form-data` under the `file` field.
+class UploadFile {
+  final List<int> bytes;
+  final String filename;
+  final String contentType;
+  const UploadFile({
+    required this.bytes,
+    required this.filename,
+    required this.contentType,
+  });
+}
 
 class ApiException implements Exception {
   final String message;
@@ -35,6 +48,7 @@ class ApiService {
     String method,
     String path, {
     Map<String, dynamic>? data,
+    UploadFile? file,
     bool authenticated = true,
     bool retryOnUnauthorized = true,
   }) async {
@@ -49,14 +63,19 @@ class ApiService {
     final uri = Uri.parse('$_base$path');
     try {
       final body = data == null ? null : jsonEncode(data);
-      final request = switch (method) {
+      final request = file != null
+          ? _sendMultipart(method, uri, headers, file)
+          : switch (method) {
         'GET' => _client.get(uri, headers: headers),
         'POST' => _client.post(uri, headers: headers, body: body),
         'PATCH' => _client.patch(uri, headers: headers, body: body),
         'DELETE' => _client.delete(uri, headers: headers),
         _ => throw ArgumentError('Unsupported request method'),
       };
-      final response = await request.timeout(const Duration(seconds: 20));
+      // Photo uploads go on to Cloudinary from the API, so allow longer.
+      final response = await request.timeout(
+        Duration(seconds: file != null ? 60 : 20),
+      );
       if (response.statusCode == 401 && authenticated && retryOnUnauthorized) {
         final refreshed = await _refreshAccess();
         if (refreshed) {
@@ -64,6 +83,7 @@ class ApiService {
             method,
             path,
             data: data,
+            file: file,
             authenticated: true,
             retryOnUnauthorized: false,
           );
@@ -118,6 +138,25 @@ class ApiService {
         'Unable to reach Lakbay API. Check the connection and try again.',
       );
     }
+  }
+
+  Future<http.Response> _sendMultipart(
+    String method,
+    Uri uri,
+    Map<String, String> headers,
+    UploadFile file,
+  ) async {
+    final request = http.MultipartRequest(method, uri)
+      ..headers.addAll(headers)
+      ..files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          file.bytes,
+          filename: file.filename,
+          contentType: MediaType.parse(file.contentType),
+        ),
+      );
+    return http.Response.fromStream(await _client.send(request));
   }
 
   Map<String, dynamic> _object(dynamic value) {
@@ -284,6 +323,18 @@ class ApiService {
       'PATCH',
       '/destinations/${Uri.encodeComponent(id)}',
       data: data,
+    ),
+  );
+  /// Uploads a new destination photo; the API stores it in Cloudinary and
+  /// returns the destination with its new `image_url`.
+  Future<Map<String, dynamic>> uploadDestinationPhoto(
+    String id,
+    UploadFile photo,
+  ) async => _object(
+    await _request(
+      'POST',
+      '/destinations/${Uri.encodeComponent(id)}/image',
+      file: photo,
     ),
   );
   Future<bool> deleteDestination(String id) async {

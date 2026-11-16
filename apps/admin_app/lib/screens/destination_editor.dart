@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/admin_map_pin_picker.dart';
 import '../widgets/admin_widgets.dart';
+import '../widgets/destination_photo_upload.dart';
 
 const destinationSuitability = <String, String>{
   'is_kid_friendly': 'Kid friendly',
@@ -206,6 +207,14 @@ class _DestinationEditorState extends State<DestinationEditor> {
             math.cos(rad(aLat)) *
             math.pow(math.sin(rad(aLng - lng) / 2), 2);
     return 2 * 6371000 * math.asin(math.sqrt(h));
+  }
+
+  /// The upload already saved the photo, so it is not an unsaved change.
+  void _photoUploaded(Map<String, dynamic> saved) {
+    final url = saved['image_url']?.toString() ?? '';
+    _controllers['image_url']!.text = url;
+    _initial['image_url'] = url;
+    _changed();
   }
 
   Future<void> _cancel() async {
@@ -512,7 +521,8 @@ class _DestinationEditorState extends State<DestinationEditor> {
                         ),
                         _section(
                           'Image',
-                          'Use a publicly accessible image URL. Images are not uploaded from this editor.',
+                          'Upload a photo (JPEG, PNG or WebP, up to 5 MB), or paste a public image URL. '
+                              'Uploads save immediately; new destinations can add a photo after their first save.',
                           [
                             _field(
                               'image_url',
@@ -522,6 +532,15 @@ class _DestinationEditorState extends State<DestinationEditor> {
                               helper:
                                   'An http:// or https:// image URL, or leave blank.',
                             ),
+                            if (!creating)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: ReplacePhotoButton(
+                                  api: widget.api,
+                                  destination: widget.destination!,
+                                  onUploaded: _photoUploaded,
+                                ),
+                              ),
                           ],
                         ),
                       ],

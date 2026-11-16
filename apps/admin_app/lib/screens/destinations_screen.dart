@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/admin_widgets.dart';
+import '../widgets/destination_photo_upload.dart';
 import '../widgets/destinations_map_view.dart';
 import 'destination_editor.dart';
 
@@ -325,6 +326,10 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                         );
                         _refresh();
                       },
+                      onPhotoReplaced: (saved) {
+                        _mapSelectedId = saved['destination_id']?.toString();
+                        _refresh();
+                      },
                     )
                   else
                     AdminPanel(
@@ -510,6 +515,17 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
             const SizedBox(height: 16),
           ],
           _section('Overview', [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ReplacePhotoButton(
+                api: _api,
+                destination: record,
+                onUploaded: (saved) => setState(() {
+                  _selected = saved;
+                  _needsReload = true;
+                }),
+              ),
+            ),
             _datum('Category', _value(record, 'category')),
             _datum('Description', _value(record, 'description')),
             _datum('Operating hours', _value(record, 'operating_hours')),

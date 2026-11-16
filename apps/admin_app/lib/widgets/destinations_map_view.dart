@@ -8,6 +8,7 @@ import '../core/davao_region_boundaries.dart';
 import '../core/map_tiles.dart';
 import '../services/api_service.dart';
 import 'admin_widgets.dart';
+import 'destination_photo_upload.dart';
 
 /// All destinations on one map. Clicking a pin opens a side panel with the
 /// photo, key details and route-endpoint status, and actions to view, edit or
@@ -20,8 +21,12 @@ class DestinationsMapView extends StatefulWidget {
     required this.onView,
     required this.onEdit,
     required this.onPinMoved,
+    required this.onPhotoReplaced,
     this.initialSelectedId,
   });
+
+  /// Called with the saved record after "Replace photo" succeeds.
+  final ValueChanged<Map<String, dynamic>> onPhotoReplaced;
 
   /// Destination to keep selected after the list reloads.
   final String? initialSelectedId;
@@ -419,6 +424,11 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
                   onPressed: _startMove,
                   icon: const Icon(Icons.open_with_rounded),
                   label: const Text('Move pin'),
+                ),
+                ReplacePhotoButton(
+                  api: widget.api,
+                  destination: record,
+                  onUploaded: widget.onPhotoReplaced,
                 ),
                 TextButton(
                   onPressed: () => widget.onView(record),

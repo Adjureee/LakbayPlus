@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import require_admin
@@ -13,6 +13,7 @@ from app.features.destinations.schemas import (
 )
 from app.features.destinations.service import DestinationService
 from app.features.users.models import User
+from app.integrations.storage.client import CloudinaryStorageClient, get_storage_client
 
 
 router = APIRouter(prefix="/destinations", tags=["destinations"])
@@ -114,6 +115,29 @@ async def update_destination(
     admin: Annotated[User, Depends(require_admin)],
 ) -> DestinationResponse:
     return await DestinationService(session).update_destination(destination_id, data)
+
+
+@router.post(
+    "/{destination_id}/image",
+    response_model=DestinationResponse,
+    summary="Upload destination photo",
+    description=(
+        "Admin-only multipart endpoint. Uploads one JPEG, PNG or WebP photo to "
+        "Cloudinary under destinations/{destination_id} and sets it as the "
+        "destination's image_url. The previous image is kept in Cloudinary."
+    ),
+)
+async def upload_destination_photo(
+    destination_id: int,
+    file: Annotated[UploadFile, File(...)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    admin: Annotated[User, Depends(require_admin)],
+    storage_client: Annotated[CloudinaryStorageClient, Depends(get_storage_client)],
+) -> DestinationResponse:
+    return await DestinationService(
+        session,
+        storage_client=storage_client,
+    ).upload_photo(destination_id, file=file, admin_user_id=admin.user_id)
 
 
 @router.delete(
