@@ -355,7 +355,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                               [
                                 '${heroTrip.daysCount} Days',
                                 if (heroTrip.travelerCount != null)
-                                  '${heroTrip.travelerCount} travellers',
+                                  '${heroTrip.travelerCount} ${heroTrip.travelerCount == 1 ? 'traveller' : 'travellers'}',
                                 heroTrip.destination,
                               ].join(' • '),
                               style: TextStyle(

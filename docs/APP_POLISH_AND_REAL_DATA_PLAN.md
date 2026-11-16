@@ -260,3 +260,5 @@ Suggested order: **1, 2, 3, 4, 5, 6, 7, then 8.** Phase 1 and 2 give the most vi
 **Budget to hold:** under 5% janky frames while scrolling Discover and Trip detail; no single frame over 32 ms; the first screen after launch visible in under 2 seconds on the TECNO phone.
 
 **Still open:** the repository still notifies every listener on each change (92 call sites); splitting it needs the frame-time run to show which screens matter.
+
+**Phase 7 measured on the phone:** cold start 630 to 680 ms; scrolling Discover, Memories and Trips ran at the 120 Hz refresh with 1.1% to 1.6% slow frames (budget 5%). Full record in `docs/PHASE8_VERIFICATION.md`.
