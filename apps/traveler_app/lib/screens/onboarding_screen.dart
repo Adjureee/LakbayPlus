@@ -588,7 +588,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           ),
           const SizedBox(height: 8),
           const Text(
-            "Say it like you'd say it to a friend: who, where, when, what matters. I draft the first plan. Your travel expert checks it and books.",
+            "Say it like you'd say it to a friend: who, where, when, what matters. I draft the first plan for you to review.",
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13.5,

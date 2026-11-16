@@ -166,20 +166,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                final trip = widget.repo.generateCustomTrip(
-                  destination: '${cityObj.city}, ${cityObj.country}',
-                  daysCount: 4,
-                  vibe: 'Davao Region Explorer',
-                );
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        TripDetailScreen(trip: trip, repo: widget.repo),
-                  ),
-                );
+                widget.repo.planInChat('Help me plan a trip to ${cityObj.city}.');
               },
               icon: const Icon(Icons.auto_awesome_rounded),
-              label: Text('Build 4-Day ${cityObj.city} Itinerary'),
+              label: Text('Plan a trip to ${cityObj.city} with Lakbay AI'),
             ),
           ],
         ),
@@ -1453,21 +1443,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
-                onPressed: () {
-                  final custom = widget.repo.generateCustomTrip(
-                    destination: '$_searchQuery, Davao Region',
-                    daysCount: 4,
-                    vibe: 'Davao Custom AI Route',
-                  );
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          TripDetailScreen(trip: custom, repo: widget.repo),
-                    ),
-                  );
-                },
+                onPressed: () =>
+                    widget.repo.planInChat('Help me plan a trip to $_searchQuery.'),
                 icon: const Icon(Icons.auto_awesome_rounded),
-                label: Text('Build 4-Day $_searchQuery Itinerary'),
+                label: Text('Plan a trip to $_searchQuery with Lakbay AI'),
               ),
             ],
           ),
@@ -1665,19 +1644,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                       ),
                       TextButton.icon(
-                        onPressed: () {
-                          final trip = widget.repo.generateCustomTrip(
-                            destination: '${cityObj.city}, ${cityObj.country}',
-                            daysCount: 4,
-                            vibe: 'Davao Region Explorer',
-                          );
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => TripDetailScreen(
-                                  trip: trip, repo: widget.repo),
-                            ),
-                          );
-                        },
+                        onPressed: () => widget.repo
+                            .planInChat('Help me plan a trip to ${cityObj.city}.'),
                         icon: const Icon(Icons.auto_awesome_rounded, size: 16),
                         label: const Text('Plan Trip'),
                       ),

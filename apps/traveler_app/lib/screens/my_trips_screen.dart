@@ -102,15 +102,14 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () {
-                    final trip = widget.repo.generateCustomTrip(
-                      destination: destController.text.trim().isEmpty
-                          ? 'Davao Region'
-                          : destController.text.trim(),
-                      daysCount: days,
-                      vibe: vibe,
-                    );
-                    widget.repo.saveTripToMyTrips(trip);
+                    // The AI drafts it from what the traveler typed; the trip
+                    // is saved from the chat once they like it.
+                    final where = destController.text.trim();
                     Navigator.of(ctx).pop();
+                    widget.repo.planInChat(
+                      'Plan a $days-day $vibe trip'
+                      '${where.isEmpty ? '' : ' to $where'}.',
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: LakbayColors.primary,
@@ -121,7 +120,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                     ),
                   ),
                   child: const Text(
-                    'Generate & Save Trip',
+                    'Plan with Lakbay AI',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
