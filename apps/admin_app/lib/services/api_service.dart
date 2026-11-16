@@ -538,5 +538,65 @@ class ApiService {
     ),
   );
 
+  /// Previews a traveler route so admins can inspect road/sea geometry and gaps.
+  Future<Map<String, dynamic>> previewRoute({
+    required List<int> destinationIds,
+    double? originLat,
+    double? originLng,
+    String? originLabel,
+    String travelMode = 'driving',
+  }) async => _object(
+    await _request(
+      'POST',
+      '/routes/preview',
+      data: {
+        'destination_ids': destinationIds,
+        'travel_mode': travelMode,
+        if (originLat != null && originLng != null)
+          'origin': {
+            'label': (originLabel ?? '').trim().isEmpty
+                ? 'Admin Test Start'
+                : originLabel!.trim(),
+            'lat': originLat,
+            'lng': originLng,
+          },
+      },
+    ),
+  );
+
+  Future<List<dynamic>> getSeaPorts({bool includeInactive = true}) async =>
+      _list(
+        await _request(
+          'GET',
+          '/admin/sea-ports?include_inactive=$includeInactive',
+        ),
+      );
+
+  Future<Map<String, dynamic>> createSeaPort(Map<String, dynamic> data) async =>
+      _object(await _request('POST', '/admin/sea-ports', data: data));
+
+  Future<Map<String, dynamic>> updateSeaPort(
+    int portId,
+    Map<String, dynamic> data,
+  ) async =>
+      _object(await _request('PATCH', '/admin/sea-ports/$portId', data: data));
+
+  Future<List<dynamic>> getSeaLinks({bool includeInactive = true}) async =>
+      _list(
+        await _request(
+          'GET',
+          '/admin/sea-links?include_inactive=$includeInactive',
+        ),
+      );
+
+  Future<Map<String, dynamic>> createSeaLink(Map<String, dynamic> data) async =>
+      _object(await _request('POST', '/admin/sea-links', data: data));
+
+  Future<Map<String, dynamic>> updateSeaLink(
+    int linkId,
+    Map<String, dynamic> data,
+  ) async =>
+      _object(await _request('PATCH', '/admin/sea-links/$linkId', data: data));
+
   void close() => _client.close();
 }

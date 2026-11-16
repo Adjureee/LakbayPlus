@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import '../core/polyline5.dart';
 import '../services/api_service.dart';
 import '../widgets/admin_map_pin_picker.dart';
+import '../widgets/admin_trail_editor_dialog.dart';
 import '../widgets/admin_widgets.dart';
 import '../widgets/destination_photo_upload.dart';
 
@@ -40,6 +43,8 @@ class _DestinationEditorState extends State<DestinationEditor> {
   final _controllers = <String, TextEditingController>{};
   final _suitability = <String, bool>{};
   bool _routeReady = false;
+  late String _islandGroup;
+  String? _accessTrailPolyline;
   late Map<String, dynamic> _initial;
   bool _dirty = false;
   bool _saving = false;
@@ -96,6 +101,9 @@ class _DestinationEditorState extends State<DestinationEditor> {
       _suitability[key] = record[key] == true;
     }
     _routeReady = record['route_ready'] == true;
+    _islandGroup = record['island_group']?.toString().trim() ?? '';
+    final rawTrail = record['access_trail_polyline']?.toString().trim() ?? '';
+    _accessTrailPolyline = rawTrail.isEmpty ? null : rawTrail;
     _initial = _snapshot();
     for (final controller in _controllers.values) {
       controller.addListener(_changed);
@@ -118,6 +126,8 @@ class _DestinationEditorState extends State<DestinationEditor> {
       entry.key: entry.value.text.trim(),
     ..._suitability,
     'route_ready': _routeReady,
+    'island_group': _islandGroup,
+    'access_trail_polyline': _accessTrailPolyline ?? '',
   };
 
   void _changed() {
@@ -160,6 +170,79 @@ class _DestinationEditorState extends State<DestinationEditor> {
     }
     setState(() => _routeReady = false);
     _changed();
+  }
+
+  Future<void> _drawAccessTrail() async {
+    double? read(String key) => double.tryParse(_controllers[key]!.text.trim());
+    final pinLat = read('lat'), pinLng = read('lng');
+    final arrLat = read('arrival_lat'), arrLng = read('arrival_lng');
+    final res = await showAdminTrailEditorDialog(
+      context,
+      title: 'Draw access road / last-mile trail',
+      subtitle:
+          'Trace points from the mapped road gate or entrance to the destination pin.',
+      initialPolyline: _accessTrailPolyline,
+      startPin: arrLat != null && arrLng != null ? LatLng(arrLat, arrLng) : null,
+      endPin: pinLat != null && pinLng != null ? LatLng(pinLat, pinLng) : null,
+      startLabel: 'Route endpoint / gate',
+      endLabel: _controllers['name']!.text.trim().isEmpty
+          ? 'Destination pin'
+          : _controllers['name']!.text.trim(),
+    );
+    if (res == null || !mounted) return;
+    setState(() => _accessTrailPolyline = res.isEmpty ? null : res);
+    _changed();
+  }
+
+  void _clearAccessTrail() {
+    if (_accessTrailPolyline == null) return;
+    setState(() => _accessTrailPolyline = null);
+    _changed();
+  }
+
+  void _useTrailStartAsEndpoint() {
+    final encoded = _accessTrailPolyline;
+    if (encoded == null || encoded.isEmpty) return;
+    final pts = decodePolyline5(encoded);
+    if (pts.isEmpty) return;
+    _controllers['arrival_lat']!.text = pts.first.latitude.toStringAsFixed(6);
+    _controllers['arrival_lng']!.text = pts.first.longitude.toStringAsFixed(6);
+    _changed();
+  }
+
+  Widget _islandGroupField() {
+    const known = <String, String>{
+      '': 'Mainland (road connected)',
+      'samal': 'Samal Island (via sea link)',
+      'talikud': 'Talikud Island (via sea link)',
+      'kopiat': 'Kopiat Island (via sea link)',
+      'sarangani_islands': 'Sarangani Islands (via sea link)',
+    };
+    final items = <String, String>{
+      ...known,
+      if (_islandGroup.isNotEmpty && !known.containsKey(_islandGroup))
+        _islandGroup: _islandGroup,
+    };
+    return DropdownButtonFormField<String>(
+      key: ValueKey('island-$_islandGroup'),
+      initialValue: _islandGroup,
+      decoration: const InputDecoration(
+        labelText: 'Island group (sea routing)',
+        helperText:
+            'Controls whether mainland trips cross via a pier and boat connection.',
+      ),
+      items: [
+        for (final entry in items.entries)
+          DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+      ],
+      onChanged: _saving
+          ? null
+          : (value) {
+              if (value == null) return;
+              setState(() => _islandGroup = value);
+              _changed();
+            },
+    );
   }
 
   /// Route-endpoint fields for the request body, or empty when unchanged.
@@ -251,6 +334,18 @@ class _DestinationEditorState extends State<DestinationEditor> {
       if (widget.destination == null || entry.value != _initial[entry.key]) {
         payload[entry.key] = entry.value;
       }
+    }
+    if (widget.destination == null && _islandGroup.isNotEmpty) {
+      payload['island_group'] = _islandGroup;
+    } else if (widget.destination != null &&
+        current['island_group'] != _initial['island_group']) {
+      payload['island_group'] = _islandGroup.isEmpty ? null : _islandGroup;
+    }
+    if ((widget.destination == null && _accessTrailPolyline != null) ||
+        (widget.destination != null &&
+            current['access_trail_polyline'] !=
+                _initial['access_trail_polyline'])) {
+      payload['access_trail_polyline'] = _accessTrailPolyline;
     }
     payload.addAll(_arrivalPayload(current));
     try {
@@ -391,6 +486,7 @@ class _DestinationEditorState extends State<DestinationEditor> {
                                 ),
                               ),
                             ),
+                            _islandGroupField(),
                             _pair(
                               _field(
                                 'operating_hours',
@@ -418,9 +514,9 @@ class _DestinationEditorState extends State<DestinationEditor> {
                           ],
                         ),
                         _section(
-                          'Route endpoint',
-                          'Where road routes end: the public gate, parking area, trailhead or '
-                              'registration point. Leave blank to route to the pin itself.',
+                          'Route endpoint & access trail',
+                          'Where road routes end (gate, parking, trailhead) and optional '
+                              'last-mile road/trail path to off-road pins.',
                           _arrivalFields(),
                         ),
                         _section(
@@ -701,6 +797,47 @@ class _DestinationEditorState extends State<DestinationEditor> {
           _changed();
           _form.currentState?.validate();
         },
+      ),
+      const Divider(height: 24),
+      Text(
+        _accessTrailPolyline == null
+            ? 'No custom last-mile access trail (uses OSRM road route or direct connector to pin).'
+            : () {
+                final pts = decodePolyline5(_accessTrailPolyline!);
+                return 'Custom access trail: ${pts.length} waypoints · ${formatDistanceMeters(polylineLengthMeters(pts))}';
+              }(),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          fontWeight: _accessTrailPolyline == null
+              ? FontWeight.normal
+              : FontWeight.w600,
+        ),
+      ),
+      Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        children: [
+          OutlinedButton.icon(
+            onPressed: _saving ? null : _drawAccessTrail,
+            icon: const Icon(Icons.route_outlined),
+            label: Text(
+              _accessTrailPolyline == null
+                  ? 'Draw access trail on map'
+                  : 'Edit access trail',
+            ),
+          ),
+          if (_accessTrailPolyline != null)
+            TextButton.icon(
+              onPressed: _saving ? null : _useTrailStartAsEndpoint,
+              icon: const Icon(Icons.my_location_outlined),
+              label: const Text('Use trail start as endpoint'),
+            ),
+          if (_accessTrailPolyline != null)
+            TextButton.icon(
+              onPressed: _saving ? null : _clearAccessTrail,
+              icon: const Icon(Icons.clear),
+              label: const Text('Clear trail'),
+            ),
+        ],
       ),
     ];
   }

@@ -14,7 +14,7 @@ from __future__ import annotations
 from math import asin, cos, radians, sin, sqrt
 from typing import Protocol
 
-from app.features.routes.polyline import encode_polyline5
+from app.features.routes.polyline import decode_polyline5, encode_polyline5
 from app.features.routes.schemas import RouteSegment
 from app.integrations.osrm.client import (
     MAX_PORT_WAYPOINT_SNAP_METERS,
@@ -98,6 +98,129 @@ def last_stretch_warning(stop: SnapStop, meters: float) -> str:
         f"The road ends about {distance} from {stop.name}; the last stretch is on "
         "foot or by trail (dashed). Exact gate or parking point not yet verified."
     )
+
+
+def stop_access_points(stop: SnapStop) -> list[tuple[float, float]] | None:
+    """Return decoded admin custom access-trail points for [stop], or None."""
+    encoded = getattr(stop, "access_trail_polyline", None)
+    if not encoded:
+        return None
+    try:
+        points = decode_polyline5(encoded)
+    except ValueError:
+        return None
+    return points if len(points) >= 2 else None
+
+
+def access_trail_segment(
+    stop: SnapStop,
+    *,
+    order: int,
+    exiting: bool = False,
+    road_point: tuple[float, float] | None = None,
+) -> RouteSegment | None:
+    """Mapped last-mile access road/trail connecting a road gate to the stop."""
+    points = stop_access_points(stop)
+    if not points:
+        return None
+    coords = list(points)
+    if exiting:
+        coords.reverse()
+        if road_point is not None and haversine_meters(coords[-1], road_point) > 30.0:
+            coords.append(road_point)
+        from_name, to_name = stop.name, f"{stop.name} Road Entry"
+    else:
+        if road_point is not None and haversine_meters(road_point, coords[0]) > 30.0:
+            coords.insert(0, road_point)
+        from_name, to_name = f"{stop.name} Road Entry", stop.name
+    return RouteSegment(
+        order=order,
+        mode="road",
+        from_name=from_name,
+        to_name=to_name,
+        polyline=encode_polyline5(coords),
+        is_estimated=False,
+    )
+
+
+def build_road_run_segments(
+    stops: list[SnapStop],
+    osrm_result: OSRMRouteResult,
+    *,
+    start_order: int = 1,
+    emit_when_plain: bool = False,
+) -> tuple[list[RouteSegment], list[str]]:
+    """Build road run segments + warnings combining OSRM geometry, admin trails, and gaps."""
+    if not osrm_result.polyline:
+        return [], []
+
+    raw_gaps = last_stretch_gaps(stops, osrm_result)
+    gap_points = {index: road_point for index, road_point, _ in raw_gaps}
+    unmapped_gaps = [
+        (index, road_point, meters)
+        for index, road_point, meters in raw_gaps
+        if stop_access_points(stops[index]) is None
+    ]
+    unmapped_by_index = {index: road_point for index, road_point, _ in unmapped_gaps}
+    warnings = [
+        last_stretch_warning(stops[index], meters)
+        for index, _, meters in unmapped_gaps
+    ]
+    has_access_trails = any(stop_access_points(stop) is not None for stop in stops)
+
+    if not emit_when_plain and not unmapped_by_index and not has_access_trails:
+        return [], warnings
+
+    segments: list[RouteSegment] = []
+
+    def next_order() -> int:
+        return start_order + len(segments)
+
+    if not stops[0].is_origin and stop_access_points(stops[0]) is not None:
+        seg = access_trail_segment(
+            stops[0],
+            order=next_order(),
+            exiting=True,
+            road_point=gap_points.get(0),
+        )
+        if seg is not None:
+            segments.append(seg)
+    elif 0 in unmapped_by_index:
+        segments.append(
+            last_stretch_segment(stops[0], unmapped_by_index[0], order=next_order())
+        )
+
+    segments.append(
+        RouteSegment(
+            order=next_order(),
+            mode="road",
+            from_name=stops[0].name,
+            to_name=stops[-1].name,
+            polyline=osrm_result.polyline,
+            is_estimated=False,
+        )
+    )
+
+    for index in range(1, len(stops)):
+        if stop_access_points(stops[index]) is not None:
+            seg = access_trail_segment(
+                stops[index],
+                order=next_order(),
+                exiting=False,
+                road_point=gap_points.get(index),
+            )
+            if seg is not None:
+                segments.append(seg)
+        elif index in unmapped_by_index:
+            segments.append(
+                last_stretch_segment(
+                    stops[index],
+                    unmapped_by_index[index],
+                    order=next_order(),
+                )
+            )
+
+    return segments, warnings
 
 
 def haversine_meters(a: tuple[float, float], b: tuple[float, float]) -> float:

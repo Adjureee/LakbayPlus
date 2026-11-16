@@ -4,6 +4,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.features.routes.polyline import validate_polyline5
+
 
 class DestinationBase(BaseModel):
     name: str = Field(min_length=2, max_length=255)
@@ -20,6 +22,7 @@ class DestinationBase(BaseModel):
     arrival_source_url: str | None = Field(default=None, max_length=2048)
     arrival_verified_at: datetime | None = None
     route_ready: bool = False
+    access_trail_polyline: str | None = None
     island_group: str | None = Field(default=None, max_length=50)
     estimated_cost: Decimal | None = Field(
         default=None,
@@ -53,6 +56,16 @@ class DestinationBase(BaseModel):
     @classmethod
     def validate_arrival_source_url(cls, value: str | None) -> str | None:
         return _validate_arrival_source_url(value)
+
+    @field_validator("access_trail_polyline")
+    @classmethod
+    def validate_access_trail_polyline(cls, value: str | None) -> str | None:
+        return _validate_access_trail_polyline(value)
+
+    @field_validator("island_group")
+    @classmethod
+    def normalize_island_group(cls, value: str | None) -> str | None:
+        return _normalize_optional_slug(value)
 
     @model_validator(mode="after")
     def validate_arrival_point(self) -> "DestinationBase":
@@ -88,6 +101,7 @@ class DestinationUpdate(BaseModel):
     arrival_source_url: str | None = Field(default=None, max_length=2048)
     arrival_verified_at: datetime | None = None
     route_ready: bool | None = None
+    access_trail_polyline: str | None = None
     island_group: str | None = Field(default=None, max_length=50)
     estimated_cost: Decimal | None = Field(
         default=None,
@@ -123,6 +137,16 @@ class DestinationUpdate(BaseModel):
     def validate_arrival_source_url(cls, value: str | None) -> str | None:
         return _validate_arrival_source_url(value)
 
+    @field_validator("access_trail_polyline")
+    @classmethod
+    def validate_access_trail_polyline(cls, value: str | None) -> str | None:
+        return _validate_access_trail_polyline(value)
+
+    @field_validator("island_group")
+    @classmethod
+    def normalize_island_group(cls, value: str | None) -> str | None:
+        return _normalize_optional_slug(value)
+
 
 class DestinationResponse(DestinationBase):
     destination_id: int
@@ -140,6 +164,17 @@ def _validate_arrival_source_url(value: str | None) -> str | None:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("arrival_source_url must be an HTTP or HTTPS URL")
     return value
+
+
+def _validate_access_trail_polyline(value: str | None) -> str | None:
+    return validate_polyline5(value)
+
+
+def _normalize_optional_slug(value: str | None) -> str | None:
+    if value is None:
+        return None
+    trimmed = value.strip()
+    return trimmed or None
 
 
 class DestinationListQuery(BaseModel):

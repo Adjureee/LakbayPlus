@@ -22,6 +22,11 @@ class Sidebar extends StatelessWidget {
       icon: Icons.fact_check_outlined,
     ),
     (
+      label: 'Sea Ports & Trails',
+      route: '/sea-links',
+      icon: Icons.directions_boat_outlined,
+    ),
+    (
       label: 'Market Rates',
       route: '/market-rates',
       icon: Icons.payments_outlined,

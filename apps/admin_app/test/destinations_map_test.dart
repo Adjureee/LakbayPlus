@@ -5,9 +5,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:lakbay_admin/core/polyline5.dart';
 import 'package:lakbay_admin/screens/destinations_screen.dart';
 import 'package:lakbay_admin/services/api_service.dart';
 import 'package:lakbay_admin/widgets/admin_widgets.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final _eden = <String, dynamic>{
@@ -133,4 +135,97 @@ void main() {
     expect(body['lat'], isA<double>());
     expect(find.text('Moved the pin for Dahican Beach.'), findsOneWidget);
   });
+
+  testWidgets(
+    'Set endpoint and Preview trail work directly from map view',
+    (tester) async {
+      final patches = <http.Request>[];
+      final previews = <http.Request>[];
+      final sampleRoad = encodePolyline5([
+        const LatLng(7.299, 125.674),
+        const LatLng(7.1236, 125.6655),
+      ]);
+      final api = ApiService(
+        client: MockClient((request) async {
+          if (request.method == 'PATCH') {
+            patches.add(request);
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode({..._eden, 'arrival_source_url': 'https://osm.org/node/1', ...body}),
+              200,
+            );
+          }
+          if (request.url.path == '/api/v1/routes/preview') {
+            previews.add(request);
+            return http.Response(
+              jsonEncode({
+                'route_provider': 'osrm+sea_links',
+                'is_estimated': false,
+                'total_distance_km': 42.5,
+                'total_duration_minutes': 68,
+                'polyline': sampleRoad,
+                'warnings': ['Board RoRo at Sasa Wharf'],
+                'segments': [
+                  {
+                    'order': 1,
+                    'mode': 'road',
+                    'from_name': 'Panabo',
+                    'to_name': 'Eden Nature Park',
+                    'polyline': sampleRoad,
+                    'is_estimated': false,
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          return http.Response(
+            jsonEncode([
+              {..._eden, 'arrival_source_url': 'https://osm.org/node/1'},
+              _dahican,
+            ]),
+            200,
+          );
+        }),
+        tokenProvider: () async => 'test-access',
+        apiBaseUrl: 'http://lakbay.test/api/v1',
+      );
+      addTearDown(api.close);
+      await _mount(tester, api);
+
+      await tester.tap(find.byKey(const ValueKey('destination-pin-3')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Set endpoint'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('road endpoint / gate for Eden Nature Park'),
+        findsOneWidget,
+      );
+
+      final map = tester.getRect(find.byType(FlutterMap));
+      await tester.tapAt(map.center + const Offset(20, 20));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Save endpoint'));
+      await tester.pumpAndSettle();
+
+      expect(patches, hasLength(1));
+      final patchBody = jsonDecode(patches.single.body) as Map<String, dynamic>;
+      expect(patchBody['arrival_lat'], isA<double>());
+      expect(patchBody['arrival_lng'], isA<double>());
+      expect(patchBody['arrival_source_url'], 'https://osm.org/node/1');
+      expect(patchBody['arrival_verified_at'], isNotEmpty);
+
+      await tester.tap(find.text('Preview trail'));
+      await tester.pumpAndSettle();
+      expect(previews, hasLength(1));
+      expect(
+        find.textContaining('42.5 km · 68 min · osrm+sea_links'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Board RoRo at Sasa Wharf'), findsOneWidget);
+    },
+  );
 }
