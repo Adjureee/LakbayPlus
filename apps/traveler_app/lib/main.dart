@@ -6,6 +6,7 @@ import 'screens/memories_screen.dart';
 import 'screens/my_trips_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/profile_screen.dart';
+import 'core/lakbay_motion.dart';
 import 'services/env_config.dart';
 import 'services/firebase_push.dart';
 import 'services/notification_routing.dart';
@@ -201,7 +202,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(
+      body: FadeThroughIndexedStack(
         index: selectedIndex,
         children: pages,
       ),

@@ -1,3 +1,4 @@
+import 'package:animations/animations.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -62,10 +63,14 @@ class LakbayTheme {
       useMaterial3: true,
       fontFamily: GoogleFonts.outfit().fontFamily,
       scaffoldBackgroundColor: LakbayColors.canvasBg,
-      // One page transition everywhere, so screens do not each move their own way.
+      // One page transition everywhere, so screens do not each move their own
+      // way: a short horizontal shared-axis slide on Android, so going deeper
+      // and coming back have a clear direction.
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.android: SharedAxisPageTransitionsBuilder(
+            transitionType: SharedAxisTransitionType.horizontal,
+          ),
           TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
         },
       ),
