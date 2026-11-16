@@ -33,9 +33,7 @@ from app.features.routes.sea_planner import (
 )
 from app.features.sea_links.models import MAINLAND, SeaLink
 from app.features.routes.snap_policy import (
-    last_stretch_gaps,
-    last_stretch_segment,
-    last_stretch_warning,
+    build_road_run_segments,
     snap_limits,
 )
 from app.integrations.osrm.errors import OSRMClientError
@@ -286,32 +284,27 @@ async def build_multimodal_response(
             run = runs[index]
             if len(run.stops) < 2:
                 continue
-            routed = not run.estimated and run.result is not None and run.result.polyline
-            gaps = last_stretch_gaps(run.stops, run.result) if routed else []
-            gap_by_index = {index: point for index, point, _ in gaps}
-            for message in (
-                last_stretch_warning(run.stops[index], meters) for index, _, meters in gaps
-            ):
-                if message not in warnings:
-                    warnings.append(message)
-            if 0 in gap_by_index:
-                segments.append(last_stretch_segment(
-                    run.stops[0], gap_by_index.pop(0), order=len(segments) + 1,
-                ))
-            segments.append(RouteSegment(
-                order=len(segments) + 1, mode="road",
-                from_name=run.stops[0].name, to_name=run.stops[-1].name,
-                # Unrouted runs get a straight stop-to-stop connector the app
-                # draws dashed, never as a drivable road.
-                polyline=(
-                    run.result.polyline if routed
-                    else encode_polyline5([(stop.lat, stop.lng) for stop in run.stops])
-                ),
-                is_estimated=not routed,
-            ))
-            for index in sorted(gap_by_index):
-                segments.append(last_stretch_segment(
-                    run.stops[index], gap_by_index[index], order=len(segments) + 1,
+            if not run.estimated and run.result is not None and run.result.polyline:
+                run_segments, run_warnings = build_road_run_segments(
+                    run.stops,
+                    run.result,
+                    start_order=len(segments) + 1,
+                    emit_when_plain=True,
+                )
+                for message in run_warnings:
+                    if message not in warnings:
+                        warnings.append(message)
+                segments.extend(run_segments)
+            else:
+                segments.append(RouteSegment(
+                    order=len(segments) + 1,
+                    mode="road",
+                    from_name=run.stops[0].name,
+                    to_name=run.stops[-1].name,
+                    # Unrouted runs get a straight stop-to-stop connector the app
+                    # draws dashed, never as a drivable road.
+                    polyline=encode_polyline5([(stop.lat, stop.lng) for stop in run.stops]),
+                    is_estimated=True,
                 ))
         else:
             hop = crossings[index].hop

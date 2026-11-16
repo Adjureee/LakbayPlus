@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -393,6 +394,56 @@ void main() {
     await _enter(tester, 'Endpoint longitude', '125.43');
     await tester.pump();
     expect(find.textContaining('clear it if the pin moved'), findsOneWidget);
+  });
+
+  testWidgets('editor patches island_group and custom access trail', (
+    tester,
+  ) async {
+    final requests = <http.Request>[];
+    final api = _api((request) async {
+      requests.add(request);
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(jsonEncode({..._destination, ...body}), 200);
+    });
+    addTearDown(api.close);
+
+    await _pumpEditor(tester, api);
+
+    final islandDropdown = find.byKey(const ValueKey('island-'));
+    await _tapVisible(tester, islandDropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Samal Island (via sea link)').last);
+    await tester.pumpAndSettle();
+
+    await _tapVisible(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Draw access trail on map'),
+    );
+    await tester.pumpAndSettle();
+
+    final trailMap = tester.getRect(find.byType(FlutterMap).first);
+    await tester.tapAt(trailMap.center - const Offset(30, 0));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tapAt(trailMap.center + const Offset(30, 15));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Use trail'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Custom access trail: 2 waypoints'), findsOneWidget);
+
+    await _tapVisible(
+      tester,
+      find.widgetWithText(FilledButton, 'Save destination'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(requests, hasLength(1));
+    final patch = jsonDecode(requests.single.body) as Map<String, dynamic>;
+    expect(patch['island_group'], 'samal');
+    expect(patch['access_trail_polyline'], isA<String>());
+    expect((patch['access_trail_polyline'] as String).isNotEmpty, isTrue);
   });
 }
 

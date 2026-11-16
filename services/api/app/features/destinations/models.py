@@ -69,6 +69,7 @@ class Destination(Base):
     arrival_source_url: Mapped[str | None] = mapped_column(String(2048))
     arrival_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     route_ready: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    access_trail_polyline: Mapped[str | None] = mapped_column(Text)
     # Island the destination is on ("samal", "talikud", ...); NULL is mainland.
     # Trips between island groups are routed through piers (sea_links).
     island_group: Mapped[str | None] = mapped_column(String(50), index=True)

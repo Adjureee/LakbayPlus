@@ -346,6 +346,17 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                         _mapSelectedId = saved['destination_id']?.toString();
                         _refresh();
                       },
+                      onRouteAdjusted: (saved) {
+                        _mapSelectedId = saved['destination_id']?.toString();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Updated road trail settings for ${_value(saved, 'name')}.',
+                            ),
+                          ),
+                        );
+                        _refresh();
+                      },
                     )
                   else
                     AdminPanel(

@@ -21,11 +21,10 @@ from app.features.routes.multimodal import (
     planner_point,
     spans_island_groups,
 )
+from app.features.routes.polyline import decode_polyline5, join_polylines5
 from app.features.routes.repository import RouteRepository
 from app.features.routes.snap_policy import (
-    last_stretch_gaps,
-    last_stretch_segment,
-    last_stretch_warning,
+    build_road_run_segments,
     snap_limits,
 )
 from app.features.sea_links.repository import SeaLinkRepository
@@ -78,6 +77,7 @@ class RoutePlanStop:
     # None means the mainland; see app.features.sea_links.
     island_group: str | None = None
     is_port: bool = False
+    access_trail_polyline: str | None = None
 
     @property
     def coordinate(self) -> RouteCoordinate:
@@ -714,13 +714,33 @@ def _destination_to_stop(destination: Destination) -> RoutePlanStop:
         and destination.arrival_source_url
         and destination.arrival_verified_at
     )
+    access_trail = getattr(destination, "access_trail_polyline", None)
+    access_entry: tuple[float, float] | None = None
+    if access_trail:
+        try:
+            decoded = decode_polyline5(access_trail)
+            if len(decoded) >= 2:
+                access_entry = decoded[0]
+            else:
+                access_trail = None
+        except ValueError:
+            access_trail = None
+
+    if has_verified_arrival:
+        lat, lng = destination.arrival_lat, destination.arrival_lng
+    elif access_entry is not None:
+        lat, lng = access_entry
+    else:
+        lat, lng = destination.lat, destination.lng
+
     return RoutePlanStop(
         destination_id=destination.destination_id,
         name=destination.name,
-        lat=destination.arrival_lat if has_verified_arrival else destination.lat,
-        lng=destination.arrival_lng if has_verified_arrival else destination.lng,
+        lat=lat,
+        lng=lng,
         coordinate_basis="verified_arrival" if has_verified_arrival else "attraction",
         island_group=destination.island_group,
+        access_trail_polyline=access_trail,
     )
 
 
@@ -788,14 +808,21 @@ def _osrm_response(
         )
     ]
     ferries = [_ferry_crossing(item) for item in osrm_result.ferry_crossings]
-    gaps = last_stretch_gaps(stops, osrm_result)
+    segments, gap_warnings = build_road_run_segments(stops, osrm_result)
     response_warnings = [
         *(warnings or []),
-        *(last_stretch_warning(stops[index], meters) for index, _, meters in gaps),
+        *gap_warnings,
         *_arrival_warnings(stops),
         *(_ferry_warning(item) for item in ferries),
     ]
-    segments = _last_stretch_segments(stops, osrm_result, gaps)
+    polyline = osrm_result.polyline
+    if polyline and any(getattr(stop, "access_trail_polyline", None) for stop in stops):
+        non_estimated = [seg.polyline for seg in segments if not seg.is_estimated and seg.polyline]
+        if len(non_estimated) >= 2:
+            try:
+                polyline = join_polylines5(non_estimated)
+            except ValueError:
+                polyline = osrm_result.polyline
 
     return RouteSummaryResponse(
         travel_mode=travel_mode,
@@ -805,43 +832,13 @@ def _osrm_response(
         total_duration_minutes=_duration_minutes(osrm_result.total_duration_seconds),
         stops=_response_stops(stops),
         legs=legs,
-        polyline=osrm_result.polyline,
-        polyline_encoding="polyline5" if osrm_result.polyline else None,
+        polyline=polyline,
+        polyline_encoding="polyline5" if polyline else None,
         arrival_points_verified=verified,
         warnings=response_warnings,
         ferry_crossings=ferries,
         segments=segments,
     )
-
-
-def _last_stretch_segments(
-    stops: list[RoutePlanStop],
-    osrm_result: OSRMRouteResult,
-    gaps: list[tuple[int, tuple[float, float], float]],
-) -> list[RouteSegment]:
-    """Road segment plus dashed off-road connectors; empty when none are needed.
-
-    Without gaps the app draws ``polyline`` directly, as before.
-    """
-    if not gaps or not osrm_result.polyline:
-        return []
-    gap_by_index = {index: road_point for index, road_point, _ in gaps}
-    segments: list[RouteSegment] = []
-    first = gap_by_index.pop(0, None)
-    if first is not None:
-        segments.append(last_stretch_segment(stops[0], first, order=1))
-    segments.append(RouteSegment(
-        order=len(segments) + 1,
-        mode="road",
-        from_name=stops[0].name,
-        to_name=stops[-1].name,
-        polyline=osrm_result.polyline,
-    ))
-    for index in sorted(gap_by_index):
-        segments.append(last_stretch_segment(
-            stops[index], gap_by_index[index], order=len(segments) + 1,
-        ))
-    return segments
 
 
 def _ferry_crossing(crossing: OSRMFerryCrossing) -> RouteFerryCrossing:

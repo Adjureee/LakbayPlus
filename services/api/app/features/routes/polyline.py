@@ -43,6 +43,22 @@ def encode_polyline5(points: list[tuple[float, float]]) -> str:
     return "".join(output)
 
 
+def validate_polyline5(value: str | None) -> str | None:
+    """Validate and normalize a precision-5 encoded polyline string."""
+    if value is None:
+        return None
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+    points = decode_polyline5(trimmed)
+    if len(points) < 2:
+        raise ValueError("Polyline must contain at least two points.")
+    for lat, lng in points:
+        if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lng <= 180.0):
+            raise ValueError("Polyline contains out-of-range coordinates.")
+    return trimmed
+
+
 def join_polylines5(encoded_parts: list[str]) -> str:
     """Joins consecutive polylines, dropping a repeated joint point."""
     points: list[tuple[float, float]] = []

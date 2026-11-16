@@ -26,6 +26,7 @@ from app.features.reports.router import router as reports_router
 from app.features.reviews.admin_router import router as admin_reviews_router
 from app.features.reviews.router import router as reviews_router
 from app.features.routes.router import router as routes_router
+from app.features.sea_links.router import admin_router as sea_links_admin_router
 from app.features.trips.admin_router import router as admin_trips_router
 from app.features.trips.router import router as trips_router
 from app.features.transportations.router import (
@@ -53,6 +54,7 @@ api_router.include_router(budgets_router)
 api_router.include_router(geo_analytics_router)
 api_router.include_router(planning_router)
 api_router.include_router(routes_router)
+api_router.include_router(sea_links_admin_router)
 api_router.include_router(weather_router)
 api_router.include_router(destination_weather_router)
 api_router.include_router(trips_router)
