@@ -119,24 +119,36 @@ void main() {
   ) async {
     var aiChatReceivedLat = false;
     final mockClient = MockClient((request) async {
-      if (request.url.path == '/api/v1/ai/trip-draft') {
+      if (request.url.path == '/api/v1/ai/chat/guest') {
         final decoded = jsonDecode(request.body) as Map<String, dynamic>;
-        final userLat = decoded['user_lat'];
-        final userLng = decoded['user_lng'];
-        if (userLat != null && userLng != null) {
+        final planning = decoded['planning_state'] as Map<String, dynamic>?;
+        final origin = planning?['origin'] as Map<String, dynamic>?;
+        if (origin?['lat'] != null && origin?['lng'] != null) {
           aiChatReceivedLat = true;
         }
         return http.Response(
           jsonEncode({
+            'chat_response': 'From Panabo City, Samal Island is just nearby!',
             'model_id': 'mock',
-            'provider': 'mock',
-            'draft': {
-              'reply': 'From Panabo City, Samal Island is just nearby!',
-              'should_create_itinerary': false,
+            'ai_generation_run_id': 1,
+            'planning': {
+              'input_revision': 0,
+              'intent': 'brainstorm',
+              'suggested_replies': [],
+              'state_updates': {},
+              'update_status': 'no_changes',
+              'preview': {'state': planning ?? <String, dynamic>{}},
+              'recommendations': [],
             },
           }),
           200,
         );
+      }
+      if (request.url.path == '/api/v1/destinations/facets') {
+        return http.Response(jsonEncode({'groups': [], 'categories': []}), 200);
+      }
+      if (request.url.path == '/api/v1/destinations') {
+        return http.Response(jsonEncode({'items': [], 'total': 0}), 200);
       }
       return http.Response('{}', 200);
     });

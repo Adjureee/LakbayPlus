@@ -85,6 +85,44 @@ async def generate_itinerary(
 
 
 @router.post(
+    "/itineraries/generate/guest",
+    response_model=AIItineraryGenerateResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Generate AI itinerary drafts without signing in",
+    description=(
+        "Public, rate-limited version of /ai/itineraries/generate for onboarding "
+        "and signed-out travelers. Uses the same per-client and shared daily guest "
+        "quotas as /ai/chat/guest and enforces default model selection."
+    ),
+)
+async def generate_guest_itinerary(
+    data: AIItineraryGenerateRequest,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    groq_client: Annotated[GroqClient, Depends(get_groq_client)],
+) -> AIItineraryGenerateResponse:
+    if not get_settings().guest_ai_chat_enabled:
+        raise LakbayAPIError(
+            "Sign in to generate Lakbay AI itineraries.",
+            code="guest_ai_chat_disabled",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    # Guests may not pick a costlier model role, run comparison mode, or bypass fallbacks.
+    data = data.model_copy(
+        update={
+            "model_role": "default",
+            "allow_fallback": True,
+            "compare_models": False,
+        }
+    )
+    return await AIItineraryService(session, groq_client, None).generate_itinerary(
+        user=None,
+        data=data,
+        guest_key=guest_client_key(request),
+    )
+
+
+@router.post(
     "/chat",
     response_model=AIChatResponse,
     status_code=status.HTTP_200_OK,

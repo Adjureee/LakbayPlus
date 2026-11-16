@@ -13,6 +13,7 @@ from app.features.recommendations.schemas import RecommendationItem
 PROMPT_VERSION = "phase5_itinerary_picks_only_v4"
 PLANNING_PROMPT_VERSION = "phase15e_picks_compact_v7"
 CHAT_PROMPT_VERSION = "phase5_chat_v12_live_categories"
+ONBOARDING_CHAT_PROMPT_VERSION = "onboarding_v1"
 
 _LANGUAGE_LABELS: dict[str, str] = {
     "english": "English",
@@ -429,6 +430,33 @@ def build_chat_messages(
             "trip, without writing an itinerary. Do not write "
             "activity_level, travel_start_date, prefers_quiet or priority_order "
             "in state_updates; the app records those from the traveler's taps."
+        )
+
+    if getattr(request, "is_onboarding", False):
+        system_prompt = system_prompt.replace(
+            "keep it under about 180 words", "keep it under about 110 words"
+        ).replace(
+            "keep it under about 150 words", "keep it under about 110 words"
+        )
+        system_prompt += (
+            " This conversation is the traveler's first onboarding trip planner "
+            "(layla-grade concise concierge style). Keep replies energetic, "
+            "warm, and under ~110 words so they scan effortlessly on mobile. "
+            "If planning_state.origin already has a label, acknowledge leaving "
+            "from that starting place naturally and NEVER ask where they are "
+            "starting from unless origin is null. "
+            "When the traveler is vague or exploratory (e.g. 'inspire me', "
+            "'surprise me', 'not sure'), spark excitement with 2 or 3 "
+            "contrasting Davao Region vibes grounded in retrieved_lakbay_context "
+            "and available_categories, set intent to \"show_places\" with a "
+            "fitting place_query when showcasing a category so place cards "
+            "render automatically, and give 3 crisp suggested_replies under 50 "
+            "characters each. When the traveler ALREADY gives clear details "
+            "(destination or vibe, days, party size, or budget) in one message, "
+            "capture every explicit value in state_updates immediately, never "
+            "re-ask what they already told you, and set intent to \"plan_trip\" "
+            "once destinations and core details are ready — or ask just ONE "
+            "natural next question, never a multi-question checklist."
         )
 
     system_prompt += " " + language_rule(request.language, from_message=True)
