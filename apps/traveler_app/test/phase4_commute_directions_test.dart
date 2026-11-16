@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:lakbay_travel/models/commute.dart';
-import 'package:lakbay_travel/models/travel_models.dart';
 import 'package:lakbay_travel/screens/commute_directions_screen.dart';
 import 'package:lakbay_travel/services/lakbay_api_catalog_service.dart';
 import 'package:lakbay_travel/services/travel_repository.dart';
