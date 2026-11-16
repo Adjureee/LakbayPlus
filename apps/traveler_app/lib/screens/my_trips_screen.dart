@@ -3,6 +3,7 @@ import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_image.dart';
+import '../widgets/notifications_sheet.dart';
 import 'trip_detail_screen.dart';
 
 class MyTripsScreen extends StatefulWidget {
@@ -187,7 +188,12 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
+                NotificationBellButton(
+                  repo: widget.repo,
+                  elevation: 0,
+                ),
+                const SizedBox(width: 8),
                 Material(
                   color: LakbayColors.primary,
                   shape: const CircleBorder(),
@@ -199,6 +205,66 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                 ),
               ],
             ),
+
+            if (widget.repo.invitations.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              for (final inv in widget.repo.invitations)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: LakbayColors.primarySoft,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: LakbayColors.primary.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.group_add_outlined,
+                        color: LakbayColors.tealDeep,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              inv.tripTitle,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: LakbayColors.tealDeep,
+                              ),
+                            ),
+                            Text(
+                              'Invited by ${inv.invitedByName} • ${inv.role}',
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                color: LakbayColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => widget.repo.answerInvitation(
+                          inv.tripId,
+                          accept: false,
+                        ),
+                        child: const Text('Decline'),
+                      ),
+                      FilledButton(
+                        onPressed: () => widget.repo.answerInvitation(
+                          inv.tripId,
+                          accept: true,
+                        ),
+                        child: const Text('Accept'),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
 
             const SizedBox(height: 16),
 

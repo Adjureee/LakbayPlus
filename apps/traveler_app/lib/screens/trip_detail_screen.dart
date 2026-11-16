@@ -14,11 +14,13 @@ import 'memories_screen.dart';
 class TripDetailScreen extends StatefulWidget {
   final ItineraryTrip trip;
   final TravelRepository repo;
+  final String? initialManagementSheet; // 'collaborate' | 'budget'
 
   const TripDetailScreen({
     super.key,
     required this.trip,
     required this.repo,
+    this.initialManagementSheet,
   });
 
   @override
@@ -245,6 +247,25 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadLiveDetails();
+    final targetSheet = widget.initialManagementSheet;
+    if (targetSheet != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (targetSheet == 'collaborate') {
+          showTripCollaborationSheet(
+            context,
+            repo: widget.repo,
+            trip: _activeTrip,
+          );
+        } else if (targetSheet == 'budget') {
+          showTripBudgetAndPdfSheet(
+            context,
+            repo: widget.repo,
+            trip: _activeTrip,
+          );
+        }
+      });
+    }
   }
 
   Future<void> _loadLiveDetails() async {

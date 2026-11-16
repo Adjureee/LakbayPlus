@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -9,6 +10,7 @@ from sqlalchemy import (
     JSON,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -114,3 +116,40 @@ class Notification(Base):
     recipient: Mapped["User"] = relationship(foreign_keys=[recipient_user_id])
     actor: Mapped["User | None"] = relationship(foreign_keys=[actor_user_id])
     trip: Mapped["Trip | None"] = relationship()
+
+
+class UserDeviceToken(Base):
+    __tablename__ = "user_device_tokens"
+    __table_args__ = (
+        CheckConstraint(
+            "platform IN ('android', 'ios', 'web')",
+            name="ck_user_device_tokens_platform",
+        ),
+        UniqueConstraint(
+            "user_id",
+            "device_token",
+            name="uq_user_device_tokens_user_token",
+        ),
+    )
+
+    device_token_id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.user_id", ondelete="CASCADE"),
+        index=True,
+    )
+    platform: Mapped[str] = mapped_column(String(20), default="android")
+    device_token: Mapped[str] = mapped_column(String(512), index=True)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default=text("true"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

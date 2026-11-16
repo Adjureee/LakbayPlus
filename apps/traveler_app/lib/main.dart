@@ -186,6 +186,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     _NavItem(
                       icon: Icons.map_outlined,
                       label: 'Trips',
+                      badgeCount: widget.repo.unreadNotificationCount,
                       selected: selectedIndex == 0,
                       onTap: () => widget.repo.setActiveNavIndex(0),
                     ),
