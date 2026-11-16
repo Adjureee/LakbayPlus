@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme/app_theme.dart';
@@ -61,6 +62,13 @@ class LakbayTheme {
       useMaterial3: true,
       fontFamily: GoogleFonts.outfit().fontFamily,
       scaffoldBackgroundColor: LakbayColors.canvasBg,
+      // One page transition everywhere, so screens do not each move their own way.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       colorScheme: ColorScheme.fromSeed(
         seedColor: LakbayColors.primary,
         primary: LakbayColors.primary,
