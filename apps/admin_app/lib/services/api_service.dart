@@ -68,6 +68,7 @@ class ApiService {
           : switch (method) {
         'GET' => _client.get(uri, headers: headers),
         'POST' => _client.post(uri, headers: headers, body: body),
+        'PUT' => _client.put(uri, headers: headers, body: body),
         'PATCH' => _client.patch(uri, headers: headers, body: body),
         'DELETE' => _client.delete(uri, headers: headers),
         _ => throw ArgumentError('Unsupported request method'),
