@@ -1661,6 +1661,9 @@ class TravelRepository extends ChangeNotifier {
     return guestPlan?.route;
   }
 
+  /// Where the traveler is starting from (GPS or the place they chose), or null.
+  GeoPoint? get routeOrigin => _routeOriginFromUserLocation();
+
   /// The traveler's GPS or manually chosen starting location. Coordinates
   /// outside Region XI are allowed; route UI notes that road routes are
   /// planned inside Region XI.
@@ -4684,7 +4687,8 @@ class TravelRepository extends ChangeNotifier {
       expertTip:
           firstMatchedCatalog?.travelNotes ?? fallbackTrip?.expertTip ?? '',
       days: parsedDays.isNotEmpty ? parsedDays : (fallbackTrip?.days ?? const []),
-      flights: includeFlights ? _defaultDavaoFlights() : const [],
+      // No airfare is invented: the app has no flight data.
+      flights: const [],
       hotels: fallbackTrip?.hotels ?? const <HotelOffer>[],
       backendTripId: fallbackTrip?.backendTripId,
       backendDestinationId:
@@ -4943,26 +4947,6 @@ class TravelRepository extends ChangeNotifier {
     ];
   }
 
-  List<FlightOffer> _defaultDavaoFlights() => const [
-        FlightOffer(
-          id: 'fl_mnl_dvo',
-          airline: 'Philippine Airlines / Cebu Pacific',
-          originCode: 'MNL',
-          destinationCode: 'DVO',
-          duration: '1h 55m',
-          isDirect: true,
-          priceRoundtripUsd: 88,
-        ),
-        FlightOffer(
-          id: 'fl_ceb_dvo',
-          airline: 'Cebu Pacific • Visayas–Mindanao',
-          originCode: 'CEB',
-          destinationCode: 'DVO',
-          duration: '1h 10m',
-          isDirect: true,
-          priceRoundtripUsd: 54,
-        ),
-      ];
 
   ItineraryTrip generateCustomTrip({
     String? id,
@@ -4985,272 +4969,44 @@ class TravelRepository extends ChangeNotifier {
       centerLng ?? MapboxService.davaoCenterLng,
     );
 
-    final lower = destination.toLowerCase();
-    final hotels = const <HotelOffer>[];
-    final flights = includeFlights ? _defaultDavaoFlights() : const <FlightOffer>[];
-
-    // Authentic Davao Region waypoint library
-    final departureLabel = effectiveOriginLabel;
-    final hasDepartureLabel = departureLabel.isNotEmpty;
-    final List<({String name, String summary, double lat, double lng, TransportMode mode, String transit, int wmo, int temp})> waypoints;
-    if (lower.contains('samal') || lower.contains('talikud') || lower.contains('pearl')) {
-      waypoints = [
-        (
-          name: includeFlights
-              ? 'Davao City (DVO) & Sasa Wharf'
-              : 'Davao Coast & Sasa Wharf',
-          summary: includeFlights
-              ? 'Arrive at Francisco Bangoy Airport, grab durian coffee, and board the barge across Pakiputan Strait.'
-              : '${hasDepartureLabel ? "Depart from $departureLabel, grab" : "Grab"} durian coffee, and board the ferry across Pakiputan Strait.',
-          lat: 7.1255,
-          lng: 125.6458,
-          mode: includeFlights ? TransportMode.flight : TransportMode.car,
-          transit: includeFlights
-              ? 'Flight to DVO Airport • 1h 55m'
-              : 'Drive ${hasDepartureLabel ? "from $departureLabel " : ""}to Sasa Wharf • 25m',
-          wmo: 1,
-          temp: 31,
-        ),
-        (
-          name: 'Babak & Monfort Bat Sanctuary',
-          summary: 'Explore the 2-million fruit bat cave sanctuary and cool jungle cascades at Hagimit Falls.',
-          lat: 7.1197,
-          lng: 125.7024,
-          mode: TransportMode.ferry,
-          transit: 'Sasa Wharf Ferry to Samal • 15m',
-          wmo: 2,
-          temp: 30,
-        ),
-        (
-          name: 'Kaputian & Pearl Farm Cove',
-          summary: 'Relax on powdery white-sand beaches, kayak over coral flats, and catch golden sunset over Davao Gulf.',
-          lat: 6.9794,
-          lng: 125.7136,
-          mode: TransportMode.car,
-          transit: 'Samal Coastal Drive • 40m',
-          wmo: 0,
-          temp: 32,
-        ),
-        (
-          name: 'Talikud Island & Coral Garden',
-          summary: 'Outrigger boat hopping to Isla Reta, Babu Santa Lagoon, and vibrant giant-clam snorkeling walls.',
-          lat: 6.9389,
-          lng: 125.6978,
-          mode: TransportMode.ferry,
-          transit: 'Outrigger Boat to Talikud • 25m',
-          wmo: 0,
-          temp: 31,
-        ),
-      ];
-    } else if (lower.contains('mati') || lower.contains('dahican') || lower.contains('aliwagwag') || lower.contains('oriental')) {
-      waypoints = [
-        (
-          name: '${hasDepartureLabel ? "$departureLabel → " : ""}Sleeping Dinosaur Overlook',
-          summary: 'Scenic coastal drive east along Davao Gulf to Badas Point for panoramic views of Pujada Bay.',
-          lat: 6.9394,
-          lng: 126.1539,
-          mode: TransportMode.car,
-          transit: 'Coastal Van/Car via Tagum–Mati Hwy • 3h 15m',
-          wmo: 1,
-          temp: 30,
-        ),
-        (
-          name: 'Dahican Beach & Pawikan Sanctuary',
-          summary: 'Sunrise skimboarding and surfing on 7 km of Pacific swells plus sea turtle conservation walk.',
-          lat: 6.9255,
-          lng: 126.2772,
-          mode: TransportMode.car,
-          transit: 'Mati Coastal Road • 20m',
-          wmo: 0,
-          temp: 31,
-        ),
-        (
-          name: 'Pujada Bay & Waniban Island',
-          summary: 'Hop across jewel-toned waters to Waniban Island and Oak Sandbar with fresh grilled seafood.',
-          lat: 6.8906,
-          lng: 126.2297,
-          mode: TransportMode.ferry,
-          transit: 'Pujada Bay Pumpboat • 25m',
-          wmo: 1,
-          temp: 31,
-        ),
-        (
-          name: 'Baganga Carolina Lake & Sunrise Blvd',
-          summary: 'Drive north along the Pacific cliffs to kayak on emerald Carolina Lake and see Curtain Falls.',
-          lat: 7.5750,
-          lng: 126.5597,
-          mode: TransportMode.car,
-          transit: 'Pacific Highway North • 2h 10m',
-          wmo: 2,
-          temp: 29,
-        ),
-        (
-          name: 'Cateel & Aliwagwag Falls Eco-Park',
-          summary: 'Marvel at the 84-tier natural staircase of Aliwagwag Falls and ride the canopy zipline.',
-          lat: 7.7819,
-          lng: 126.3511,
-          mode: TransportMode.car,
-          transit: 'Cateel Mountain Road • 45m',
-          wmo: 80,
-          temp: 27,
-        ),
-      ];
-    } else if (lower.contains('buda') || lower.contains('marilog') || lower.contains('apo') || lower.contains('kapatagan')) {
-      waypoints = [
-        (
-          name: 'Davao City & San Pedro Heritage',
-          summary: 'Visit San Pedro Cathedral, Museo Dabawenyo, and feast on tuna panga at Roxas Night Market.',
-          lat: 7.0644,
-          lng: 125.6088,
-          mode: includeFlights ? TransportMode.flight : TransportMode.car,
-          transit: includeFlights
-              ? 'Arrive DVO Airport • 20m to Poblacion'
-              : 'Road transfer ${hasDepartureLabel ? "from $departureLabel " : ""}• 35m',
-          wmo: 2,
-          temp: 30,
-        ),
-        (
-          name: 'Malagos Eagle Center & Eden Nature Park',
-          summary: 'Meet the Philippine Eagle, taste single-origin Malagos chocolate, and ride the Skycycle in Toril.',
-          lat: 7.1856,
-          lng: 125.4175,
-          mode: TransportMode.car,
-          transit: 'Baguio–Toril Highland Drive • 45m',
-          wmo: 2,
-          temp: 24,
-        ),
-        (
-          name: 'Buda Pine Highlands (Marilog)',
-          summary: 'Cozy A-frame cabins, morning sea of clouds, strawberry farms, and cliffside coffee along Buda Highway.',
-          lat: 7.4561,
-          lng: 125.2498,
-          mode: TransportMode.car,
-          transit: 'Buda Scenic Highway • 1h 20m',
-          wmo: 3,
-          temp: 19,
-        ),
-        (
-          name: 'Kapatagan & Mt. Apo Basecamp (Digos)',
-          summary: 'Sip Mt. Apo Arabica coffee overlooking Lake Mirror with unobstructed views of the Philippines’ highest peak.',
-          lat: 6.9292,
-          lng: 125.3315,
-          mode: TransportMode.car,
-          transit: 'South Highland Ridge • 1h 45m',
-          wmo: 1,
-          temp: 20,
-        ),
-      ];
-    } else {
-      waypoints = [
-        (
-          name: 'Barangay San Pedro & Poblacion, Davao City',
-          summary: 'Historic San Pedro Cathedral, Jack’s Ridge sunset dining, and Roxas Avenue Night Market.',
-          lat: 7.0644,
-          lng: 125.6088,
-          mode: includeFlights ? TransportMode.flight : TransportMode.car,
-          transit: includeFlights
-              ? 'Arrive DVO Airport • 20m transfer'
-              : 'Road transfer ${hasDepartureLabel ? "from $departureLabel " : ""}• 30m',
-          wmo: 1,
-          temp: 31,
-        ),
-        (
-          name: 'Samal Island (IGaCoS) & Talikud Reefs',
-          summary: 'Quick ferry across Pakiputan Strait for Hagimit Falls, Monfort Bats, and Talikud Coral Garden.',
-          lat: 7.0742,
-          lng: 125.7089,
-          mode: TransportMode.ferry,
-          transit: 'Sta. Ana Wharf Boat • 20m',
-          wmo: 0,
-          temp: 32,
-        ),
-        (
-          name: 'Tagum Palm City & Kopiat Island',
-          summary: 'Explore Christ the King Cathedral in Tagum before crossing to Mabini’s Kopiat Island sanctuary.',
-          lat: 7.4479,
-          lng: 125.8078,
-          mode: TransportMode.car,
-          transit: 'Pan-Philippine Hwy North • 1h 10m',
-          wmo: 2,
-          temp: 30,
-        ),
-        (
-          name: 'Maragusan Sea of Clouds (Davao de Oro)',
-          summary: 'Wake up above misty mountain valleys at Haven’s Peak and dip in Mainit Hot Springs.',
-          lat: 7.3508,
-          lng: 126.1536,
-          mode: TransportMode.car,
-          transit: 'Nabunturan–Maragusan Pass • 1h 30m',
-          wmo: 3,
-          temp: 22,
-        ),
-        (
-          name: 'Mati Dahican Beach & Pujada Bay',
-          summary: 'Catch Pacific waves at Dahican, visit Sleeping Dinosaur, and island-hop in Pujada Bay.',
-          lat: 6.9255,
-          lng: 126.2772,
-          mode: TransportMode.car,
-          transit: 'Davao Oriental Coastal Hwy • 2h 15m',
-          wmo: 0,
-          temp: 31,
-        ),
-        (
-          name: 'Eden Nature Park & Kapatagan (Mt. Apo)',
-          summary: 'Cool pine forests in Toril followed by Mt. Apo Arabica coffee overlooking Lake Mirror.',
-          lat: 6.9950,
-          lng: 125.4100,
-          mode: TransportMode.car,
-          transit: 'Davao Bypass to Toril–Digos • 2h 00m',
-          wmo: 2,
-          temp: 21,
-        ),
-      ];
-    }
-
+    // Only real catalog places, with their real coordinates. There is no typed-in
+    // route, schedule, meal stop or cost here: the stops are the catalog's places
+    // for this destination, nearest first, and real travel legs come from the
+    // route service when the trip is planned.
+    final places = _catalogPlacesFor(
+      destination,
+      clampedLat,
+      clampedLng,
+      near: centerLat != null && centerLng != null,
+      limit: daysCount * 3,
+    );
+    final perDay = places.isEmpty ? 1 : (places.length / daysCount).ceil().clamp(1, 3);
     final days = <ItineraryDay>[];
-    for (int d = 1; d <= daysCount; d++) {
-      final wp = waypoints[(d - 1) % waypoints.length];
+    for (var d = 1; d <= daysCount; d++) {
+      final dayPlaces = places.skip((d - 1) * perDay).take(perDay).toList();
+      final first = dayPlaces.firstOrNull;
       days.add(
         ItineraryDay(
           dayNumber: d,
-          cityTitle: 'Day $d • ${wp.name}',
-          summary: wp.summary,
-          lat: wp.lat,
-          lng: wp.lng,
-          transportFromPrevious: wp.mode,
-          transportDuration: wp.transit,
-          recommendedHotel:
-              hotels.isEmpty ? null : hotels[(d - 1) % hotels.length],
+          cityTitle: first == null ? 'Day $d' : 'Day $d \u2022 ${first.title}',
+          summary: dayPlaces.isEmpty
+              ? 'No places added to this day yet.'
+              : '${dayPlaces.length} ${dayPlaces.length == 1 ? 'place' : 'places'} from the Lakbay catalog.',
+          lat: first?.lat ?? clampedLat,
+          lng: first?.lng ?? clampedLng,
           stops: [
-            ItineraryStop(
-              time: '08:30 AM',
-              title: 'Morning Highlight: ${wp.name.split('&').first.trim()}',
-              description: wp.summary,
-              category: 'sight',
-              costEstimateUsd: 12,
-              lat: wp.lat + 0.008,
-              lng: wp.lng - 0.006,
-            ),
-            ItineraryStop(
-              time: '12:30 PM',
-              title: 'Mindanaoan Culinary Stop & Local Durian/Coffee',
-              description:
-                  'Savor grilled tuna panga, kinilaw, chicken inasal, or single-origin Mt. Apo coffee.',
-              category: 'food',
-              costEstimateUsd: 16,
-              lat: wp.lat - 0.006,
-              lng: wp.lng + 0.008,
-            ),
-            ItineraryStop(
-              time: '04:30 PM',
-              title: 'Golden Hour Viewpoint & Coastal/Highland Chill',
-              description:
-                  'Catch late-afternoon tropical light across the Davao Gulf, reefs, or pine ridges.',
-              category: 'nature',
-              costEstimateUsd: 14,
-              lat: wp.lat + 0.011,
-              lng: wp.lng + 0.009,
-            ),
+            for (final place in dayPlaces)
+              ItineraryStop(
+                time: '',
+                title: place.title,
+                description: place.description ?? '',
+                category: _stopCategoryFor(place),
+                lat: place.lat,
+                lng: place.lng,
+                destinationId: place.apiDestinationId,
+                stayDurationType: place.stayDurationType,
+                islandGroup: place.islandGroup,
+              ),
           ],
         ),
       );
@@ -5265,19 +5021,61 @@ class TravelRepository extends ChangeNotifier {
       centerLng: clampedLng,
       heroAsset: effectiveHero,
       vibeTag: vibe,
-      // Nothing is invented here: no climate, no named experts, no schedules.
-      // Real weather and notes arrive from the forecast service and the catalog.
+      // Nothing is invented here: no climate, no named experts, no schedules,
+      // no airfare. Weather, stays and notes arrive from the live services.
       overviewText: '',
       bestMonths: '',
       avgTemp: '',
       expertName: '',
       expertTip: '',
       days: days,
-      flights: flights,
-      hotels: hotels,
+      flights: const [],
+      hotels: const <HotelOffer>[],
       remoteImageUrl: remoteImageUrl,
-      isLocalOnly: !includeFlights,
+      isLocalOnly: true,
     );
+  }
+
+  /// Catalog places that belong to [destination] (matched by name, district or
+  /// region), nearest to ([lat], [lng]) first. When nothing matches by name and
+  /// [near] is true, the closest places within about 40 km are used instead.
+  List<ExploreTrip> _catalogPlacesFor(
+    String destination,
+    double lat,
+    double lng, {
+    required bool near,
+    required int limit,
+  }) {
+    const ignored = {
+      'davao', 'region', 'island', 'city', 'the', 'and', 'trip', 'day', 'days',
+      'tour', 'highlights', 'curated', 'multi', 'stop', 'custom',
+    };
+    final words = destination
+        .toLowerCase()
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((w) => w.length > 3 && !ignored.contains(w) && int.tryParse(w) == null)
+        .toSet();
+    double distance(ExploreTrip t) =>
+        MapboxService.haversineKm(lat, lng, t.lat, t.lng);
+
+    var matched = words.isEmpty
+        ? <ExploreTrip>[]
+        : _allTrips.where((t) {
+            final haystack =
+                '${t.title} ${t.district ?? ''} ${t.regionName} ${t.tag ?? ''}'.toLowerCase();
+            return words.any(haystack.contains);
+          }).toList();
+    if (matched.isEmpty && near) {
+      matched = _allTrips.where((t) => distance(t) <= 40).toList();
+    }
+    matched.sort((a, b) => distance(a).compareTo(distance(b)));
+    return matched.take(limit).toList();
+  }
+
+  String _stopCategoryFor(ExploreTrip place) {
+    final label = '${place.tag ?? ''} ${place.title}'.toLowerCase();
+    const nature = ['falls', 'waterfall', 'mountain', 'park', 'island', 'beach', 'lake', 'spring', 'farm', 'garden'];
+    return nature.any(label.contains) ? 'nature' : 'sight';
   }
 
 

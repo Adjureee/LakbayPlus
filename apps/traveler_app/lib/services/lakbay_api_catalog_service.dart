@@ -315,6 +315,7 @@ class LakbayApiCatalogService {
     final bestTime = (raw['best_time_to_visit'] ?? '').toString().trim();
     final travelNotes = (raw['travel_notes'] ?? '').toString().trim();
     final whatToBring = (raw['what_to_bring'] ?? '').toString().trim();
+    final trail = (raw['access_trail_polyline'] ?? '').toString().trim();
     final stayDurationRaw =
         (raw['stay_duration_type'] ?? '').toString().trim().toLowerCase();
     final islandGroupRaw =
@@ -347,6 +348,7 @@ class LakbayApiCatalogService {
       bestTimeToVisit: bestTime.isNotEmpty ? bestTime : null,
       travelNotes: travelNotes.isNotEmpty ? travelNotes : null,
       whatToBring: whatToBring.isNotEmpty ? whatToBring : null,
+      accessTrailPolyline: trail.isNotEmpty ? trail : null,
     );
   }
 

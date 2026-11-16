@@ -127,6 +127,10 @@ class ExploreTrip {
   final String? islandGroup;
   final String? stayDurationType;
 
+  /// The on-foot access trail drawn by an admin (an encoded polyline), or null
+  /// when the place has none.
+  final String? accessTrailPolyline;
+
   const ExploreTrip({
     required this.locale,
     required this.id,
@@ -149,6 +153,7 @@ class ExploreTrip {
     this.whatToBring,
     this.islandGroup,
     this.stayDurationType,
+    this.accessTrailPolyline,
   });
 
   bool get isApiBacked => apiDestinationId != null || id.startsWith('api_');
@@ -304,10 +309,12 @@ class ExploreTrip {
         if (whatToBring != null) 'whatToBring': whatToBring,
         if (islandGroup != null) 'islandGroup': islandGroup,
         if (stayDurationType != null) 'stayDurationType': stayDurationType,
+        if (accessTrailPolyline != null) 'accessTrailPolyline': accessTrailPolyline,
       };
 
   factory ExploreTrip.fromJson(Map<String, dynamic> json) {
     return ExploreTrip(
+      accessTrailPolyline: json['accessTrailPolyline'] as String?,
       locale: json['locale'] as String? ?? 'en',
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
@@ -1204,9 +1211,13 @@ class ItineraryTrip {
         .expand((d) => d.stops)
         .fold<double>(0.0, (sum, s) => sum + s.costEstimateUsd)
         .round();
-    final combined = flightTotal + hotelTotal + activityTotal;
-    return combined > 0 ? combined : (daysCount * 45);
+    // 0 means no cost is known; the screens say "Cost not listed" instead of
+    // showing an assumed daily rate.
+    return flightTotal + hotelTotal + activityTotal;
   }
+
+  /// True when the trip has at least one cost the catalog or the plan gave.
+  bool get hasCostEstimate => totalEstimatedCostUsd > 0;
 
   List<GeoPoint> get routeWaypoints {
     final waypoints = <GeoPoint>[];
