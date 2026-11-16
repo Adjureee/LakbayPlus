@@ -23,6 +23,9 @@ class LakbayMapMarker {
   final bool isUserLocation;
   final bool isCompact;
 
+  /// A catalog place near the trip but not part of it: drawn small and muted.
+  final bool isNearby;
+
   const LakbayMapMarker({
     required this.id,
     required this.lat,
@@ -37,6 +40,7 @@ class LakbayMapMarker {
     this.isDestination = false,
     this.isUserLocation = false,
     this.isCompact = false,
+    this.isNearby = false,
   });
 
   bool get hasThumbnail =>
@@ -1442,15 +1446,21 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
       );
     }
 
-    if (marker.isCompact && !isSelected && !marker.isPrimary) {
+    if ((marker.isCompact || marker.isNearby) &&
+        !isSelected &&
+        !marker.isPrimary) {
       final isPier = marker.badgeText == '⚓';
-      final pinColor = isPier ? const Color(0xFF1E88E5) : LakbayColors.tealDeep;
+      final pinColor = isPier
+          ? const Color(0xFF1E88E5)
+          : marker.isNearby
+              ? const Color(0xFF8A9A9A)
+              : LakbayColors.tealDeep;
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: isPier ? 24 : 18,
-            height: isPier ? 24 : 18,
+            width: isPier ? 24 : (marker.isNearby ? 14 : 18),
+            height: isPier ? 24 : (marker.isNearby ? 14 : 18),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isPier ? Colors.white : pinColor,
