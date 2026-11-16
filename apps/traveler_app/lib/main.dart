@@ -8,6 +8,8 @@ import 'screens/onboarding_screen.dart';
 import 'screens/profile_screen.dart';
 import 'services/env_config.dart';
 import 'services/firebase_push.dart';
+import 'services/notification_routing.dart';
+import 'screens/trip_detail_screen.dart';
 import 'services/travel_repository.dart';
 import 'theme/lakbay_theme.dart';
 import 'widgets/brand/lakbay_compass_mark.dart';
@@ -134,12 +136,46 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   void initState() {
     super.initState();
     widget.repo.startNotificationPolling();
+    widget.repo.pushOpenRequest.addListener(_openTappedPush);
+    // A push that launched the app from closed arrives before this screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openTappedPush());
   }
 
   @override
   void dispose() {
+    widget.repo.pushOpenRequest.removeListener(_openTappedPush);
     widget.repo.stopNotificationPolling();
     super.dispose();
+  }
+
+  Future<void> _openTappedPush() async {
+    final request = widget.repo.pushOpenRequest.value;
+    if (request == null || !mounted) return;
+    widget.repo.pushOpenRequest.value = null;
+    if (request.notificationId != null) {
+      widget.repo.markNotificationRead(request.notificationId!);
+    }
+    // Invitations are known only after the list is refreshed.
+    await widget.repo.refreshNotifications();
+    final target = await resolveNotificationTarget(
+      widget.repo,
+      eventType: request.eventType,
+      tripId: request.tripId,
+    );
+    if (!mounted || target == null) return;
+    if (target.showInvitations || target.trip == null) {
+      widget.repo.setActiveNavIndex(0);
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TripDetailScreen(
+          trip: target.trip!,
+          repo: widget.repo,
+          initialManagementSheet: target.sheet,
+        ),
+      ),
+    );
   }
   @override
   Widget build(BuildContext context) {
