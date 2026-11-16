@@ -81,6 +81,46 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Move pin'), findsOneWidget);
   });
 
+  testWidgets('saving a moved pin does not reload the list or the map', (
+    tester,
+  ) async {
+    var listReads = 0;
+    final api = ApiService(
+      client: MockClient((request) async {
+        if (request.method == 'PATCH') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(jsonEncode({..._dahican, ...body}), 200);
+        }
+        listReads++;
+        return http.Response(jsonEncode([_eden, _dahican]), 200);
+      }),
+      tokenProvider: () async => 'test-access',
+      apiBaseUrl: 'http://lakbay.test/api/v1',
+    );
+    addTearDown(api.close);
+    await _mount(tester, api);
+    final mapBefore = tester.state(find.byType(FlutterMap));
+
+    await tester.tap(find.byKey(const ValueKey('destination-pin-6')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Move pin'));
+    await tester.pumpAndSettle();
+    final map = tester.getRect(find.byType(FlutterMap));
+    await tester.tapAt(map.center + const Offset(40, 30));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save new pin'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Moved the pin for Dahican Beach.'), findsOneWidget);
+    // One list download in total, and the very same map is still on screen.
+    expect(listReads, 1);
+    expect(tester.state(find.byType(FlutterMap)), same(mapBefore));
+    // The place stays selected with its new coordinates in the panel.
+    expect(find.text('Dahican Beach'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Move pin'), findsOneWidget);
+  });
+
   testWidgets('Move pin saves only the new coordinates', (tester) async {
     final patches = <http.Request>[];
     final api = ApiService(
