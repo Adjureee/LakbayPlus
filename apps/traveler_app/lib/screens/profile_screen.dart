@@ -180,7 +180,7 @@ class ProfileScreen extends StatelessWidget {
                         Text(
                           profile.headline.isNotEmpty
                               ? profile.headline
-                              : '${profile.location.trim().isNotEmpty ? profile.location.trim() : "Detecting location…"} • ${repo.travelCompanion} Traveler',
+                              : '${profile.location.trim().isNotEmpty ? profile.location.trim() : "Location not set"} • ${repo.travelCompanion} Traveler',
                           style: const TextStyle(
                             fontSize: 13,
                             color: LakbayColors.textSecondary,
