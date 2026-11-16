@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
 import '../services/mapbox_service.dart';
+import '../services/route_summary.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_image.dart';
@@ -33,11 +34,21 @@ class _TripDetailScreenState extends State<TripDetailScreen>
   ItineraryTrip? _liveTrip;
   bool _loadingLive = false;
   bool _isRefining = false;
-  String _selectedTravelMode = 'driving';
+  late String _selectedTravelMode = widget.repo.preferredTravelMode;
+  BackendRouteResult? _route;
   List<String> _routeWarnings = const [];
   final Set<String> _packedItems = {};
 
   ItineraryTrip get _activeTrip => _liveTrip ?? widget.trip;
+
+  /// The real route for the current mode, from where the traveler is.
+  Future<void> _loadRoute() async {
+    final route = await widget.repo.fetchRoadRouteForTrip(
+      _activeTrip,
+      travelMode: _selectedTravelMode,
+    );
+    if (mounted && route != null) setState(() => _route = route);
+  }
 
   List<String> _derivePackingChecklist(ItineraryTrip trip) {
     final items = <String>{};
@@ -132,6 +143,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     );
     if (!mounted) return;
     setState(() {
+      _route = routeRes;
       if (routeRes != null) {
         _liveTrip = _activeTrip.copyWith(
           routeSegments: routeRes.segments.isNotEmpty
@@ -248,6 +260,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadLiveDetails();
+    _loadRoute();
     final targetSheet = widget.initialManagementSheet;
     if (targetSheet != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -442,7 +455,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)}',
+                                trip.hasCostEstimate
+                                    ? 'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)}'
+                                    : 'Cost not listed',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 11,
@@ -528,9 +543,12 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       ),
                     ),
                     Text(
-                      trip.travelerCount == null
-                          ? widget.repo.formatPrice(trip.totalEstimatedCostUsd)
-                          : '${widget.repo.formatPrice(trip.totalEstimatedCostUsd)} • ${trip.travelerCount} pax',
+                      [
+                        trip.hasCostEstimate
+                            ? widget.repo.formatPrice(trip.totalEstimatedCostUsd)
+                            : 'Cost not listed',
+                        if (trip.travelerCount != null) '${trip.travelerCount} pax',
+                      ].join(' \u2022 '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -581,8 +599,6 @@ class _TripDetailScreenState extends State<TripDetailScreen>
 
   Widget _buildOverviewTab(ItineraryTrip trip) {
     final waypoints = trip.routeWaypoints;
-    final totalKm = trip.optimizationSummary?.optimizedDistanceKm ??
-        MapboxService.calculateRouteDistanceKm(waypoints);
     final stopMarkers = <LakbayMapMarker>[];
     for (final day in trip.days) {
       if (day.isContinuationDay) continue;
@@ -683,12 +699,21 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               ),
               const SizedBox(width: 10),
             ],
-            _buildInfoChip(
-              iconWidget: const Icon(Icons.route_rounded,
-                  color: LakbayColors.primary, size: 20),
-              label: 'Region XI Route',
-              value: '${totalKm.toStringAsFixed(0)} km',
-            ),
+            Builder(builder: (_) {
+              final chip = RouteSummaryText.chip(
+                route: _route,
+                stops: trip.routeWaypoints,
+                origin: widget.repo.routeOrigin,
+              );
+              return _buildInfoChip(
+                iconWidget: const Icon(Icons.route_rounded,
+                    color: LakbayColors.primary, size: 20),
+                label: chip == null
+                    ? RouteSummaryText.modeLabel(_selectedTravelMode)
+                    : '${RouteSummaryText.modeLabel(_selectedTravelMode)} • ${chip.qualifier}',
+                value: chip?.value ?? 'Not set',
+              );
+            }),
           ],
         ),
         if (optSummary != null) ...[

@@ -6,6 +6,8 @@ import '../models/travel_models.dart';
 import '../services/location_service.dart';
 import '../services/mapbox_service.dart';
 import '../services/route_progress.dart';
+import '../services/route_summary.dart';
+import '../services/lakbay_api_catalog_service.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
@@ -32,6 +34,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
   bool _showHotelsOnMap = false;
   ItineraryTrip? _liveTrip;
   BackendRouteResult? _backendRoute;
+  late String _travelMode = widget.repo.preferredTravelMode;
   bool _loadingRoadRoute = false;
   bool _fittedRouteOnce = false;
   bool _showNearby = true;
@@ -208,6 +211,18 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     }
   }
 
+  /// Switches between private car, public transit and walking and loads that
+  /// mode's own route.
+  Future<void> _changeTravelMode(String mode) async {
+    if (mode == _travelMode) return;
+    setState(() {
+      _travelMode = mode;
+      _backendRoute = null; // the old mode's route would be wrong for this one
+    });
+    widget.repo.setPreferredTravelMode(mode);
+    await _loadRoadRoute(optimize: false);
+  }
+
   Future<void> _loadRoadRoute({
     required bool optimize,
     List<int>? destinationIds,
@@ -218,6 +233,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
       final result = await widget.repo.fetchRoadRouteForTrip(
         _activeTrip,
         optimize: optimize,
+        travelMode: _travelMode,
         destinationIds: destinationIds,
       );
       if (!mounted) return;
@@ -586,8 +602,6 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
       zoom: 8.6,
       style: widget.repo.activeMapStyle,
     );
-    final totalKm = MapboxService.calculateRouteDistanceKm(waypoints);
-
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -675,7 +689,17 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${widget.trip.daysCount} Days • ${totalKm.toStringAsFixed(0)} km Region XI Route ${widget.trip.hotels.isEmpty ? '' : ' • ${widget.trip.hotels.first.name}'}',
+                    [
+                      '${widget.trip.daysCount} Days',
+                      RouteSummaryText.line(
+                            route: _backendRoute,
+                            stops: waypoints,
+                            origin: widget.repo.routeOrigin,
+                            mode: _travelMode,
+                          ) ??
+                          'Distance not available yet',
+                      if (widget.trip.hotels.isNotEmpty) widget.trip.hotels.first.name,
+                    ].join(' \u2022 '),
                     style: const TextStyle(
                       fontSize: 13,
                       color: LakbayColors.textSecondary,
@@ -782,12 +806,36 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     );
   }
 
+  /// The access trails of the trip's places that have one, and a note either way.
+  ({List<List<GeoPoint>> trails, String? notice}) _trailsForTrip(ItineraryTrip trip) {
+    final ids = <int>{
+      for (final day in trip.days)
+        for (final stop in day.stops)
+          if (stop.destinationId != null) stop.destinationId!,
+    };
+    if (ids.isEmpty) return (trails: const [], notice: null);
+    final trails = <List<GeoPoint>>[];
+    for (final id in ids) {
+      final place =
+          widget.repo.allTrips.where((t) => t.apiDestinationId == id).firstOrNull;
+      final encoded = place?.accessTrailPolyline;
+      if (encoded == null || encoded.isEmpty) continue;
+      final points = LakbayApiCatalogService.decodePolyline5(encoded);
+      if (points.length >= 2) trails.add(points);
+    }
+    return (
+      trails: trails,
+      notice: trails.isEmpty
+          ? 'No access trail is listed for these places yet'
+          : 'Dashed brown line: access trail',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final trip = _activeTrip;
     final waypoints = trip.routeWaypoints;
     final nearby = _nearbyPlaces();
-    final totalKm = MapboxService.calculateRouteDistanceKm(waypoints);
     final (initLat, initLng, initZoom) = _initialCameraFrame(trip, waypoints);
 
     return Scaffold(
@@ -806,12 +854,44 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
               ),
             ),
             Text(
-              _backendRoute != null
-                  ? '${waypoints.length} Stops • ${_backendRoute!.totalDistanceKm.toStringAsFixed(1)} km • ${_backendRoute!.totalDurationMinutes} min ${_backendRoute!.geometryPoints.length >= 2 ? 'road route' : 'estimate'}'
-                  : '${waypoints.length} Stops • ${totalKm.toStringAsFixed(0)} km Region XI Route',
+              [
+                '${waypoints.length} ${waypoints.length == 1 ? 'Stop' : 'Stops'}',
+                RouteSummaryText.line(
+                      route: _backendRoute,
+                      stops: waypoints,
+                      origin: widget.repo.routeOrigin,
+                      mode: _travelMode,
+                    ) ??
+                    (_loadingRoadRoute ? 'Finding the route\u2026' : 'Set your starting point to see the distance'),
+              ].join(' \u2022 '),
               style: const TextStyle(fontSize: 11.5, color: Colors.white70),
             ),
           ],
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(46),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Row(
+              children: [
+                for (final (mode, label, icon) in const [
+                  ('driving', 'Private car', Icons.directions_car_outlined),
+                  ('public_transport', 'Public transit', Icons.directions_bus_outlined),
+                  ('walking', 'Walking', Icons.directions_walk_outlined),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      avatar: Icon(icon, size: 16),
+                      label: Text(label),
+                      selected: _travelMode == mode,
+                      onSelected: (_) => _changeTravelMode(mode),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
         actions: [
           IconButton(
@@ -853,6 +933,8 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
             roadGeometry: _backendRoute?.geometryPoints ?? const [],
             routeSegments: _backendRoute?.segments ?? const [],
             routeNotice: _routeNoticeText(),
+            trails: _trailsForTrip(trip).trails,
+            trailNotice: _trailsForTrip(trip).notice,
             // Nearby first so trip pins draw on top of them.
             markers: [
               ..._nearbyMarkers(nearby),

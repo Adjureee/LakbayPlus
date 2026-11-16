@@ -1687,7 +1687,9 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                   child: Text(
                                     opt.estimatedTotalCostPhp > 0
                                         ? 'Est. ₱${opt.estimatedTotalCostPhp.toStringAsFixed(0)}'
-                                        : 'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)}',
+                                        : (trip.hasCostEstimate
+                                            ? 'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)}'
+                                            : 'Cost not listed'),
                                     style: TextStyle(
                                       fontFamily: 'FigGrotesk',
                                       fontWeight: FontWeight.w700,
@@ -1848,7 +1850,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                   ],
                   const SizedBox(height: 4),
                   Text(
-                    'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)} • ${trip.flights.isNotEmpty ? 'Flights, ' : ''}${trip.hotels.isNotEmpty ? '${trip.hotels.first.name} & ' : ''}Daily Route',
+                    '${trip.hasCostEstimate ? 'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)}' : 'Cost not listed'} • ${trip.hotels.isNotEmpty ? '${trip.hotels.first.name} & ' : ''}Daily Route',
                     style: const TextStyle(
                       fontSize: 12,
                       color: LakbayColors.textSecondary,

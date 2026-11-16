@@ -1031,7 +1031,9 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)}',
+            trip.hasCostEstimate
+                ? 'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)}'
+                : 'Cost not listed',
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,

@@ -56,6 +56,12 @@ class LakbayMapboxMap extends StatefulWidget {
   final List<GeoPoint> routePoints;
   final List<GeoPoint> roadGeometry;
 
+  /// On-foot access trails (one line per place) drawn as a dashed brown line.
+  final List<List<GeoPoint>> trails;
+
+  /// A short note about the trails (for example that a place has none).
+  final String? trailNotice;
+
   /// Road/sea parts from a pier-aware route. When set, it replaces
   /// [roadGeometry]: roads are solid, boat crossings dashed blue, and
   /// estimated parts dashed grey with no vehicle on them.
@@ -90,6 +96,8 @@ class LakbayMapboxMap extends StatefulWidget {
     this.initialZoom = 8.4,
     this.routePoints = const [],
     this.roadGeometry = const [],
+    this.trails = const [],
+    this.trailNotice,
     this.routeSegments = const [],
     this.routeNotice,
     this.markers = const [],
@@ -667,6 +675,42 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
 
                 // 2. Web-Mercator Slippy Raster Tiles (Mapbox Styles API or Carto Fallback)
                 ..._buildSlippyTiles(size, style),
+
+                // Access trails (the last stretch on foot), under the route.
+                for (final trail in widget.trails)
+                  if (trail.length >= 2)
+                    CustomPaint(
+                      size: size,
+                      painter: _AccessTrailPainter(
+                        points: [
+                          for (final p in trail)
+                            _latLngToViewportOffset(p.lat, p.lng, size),
+                        ],
+                      ),
+                    ),
+                if (widget.trailNotice != null && widget.showControls)
+                  Positioned(
+                    left: 12,
+                    top: 12,
+                    child: IgnorePointer(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          widget.trailNotice!,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: LakbayColors.tealDeep,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
 
                 // 3a. No road geometry: never draw a vehicle crossing land or sea.
                 // Show only dashed stop-order connectors and say so.
@@ -1817,6 +1861,39 @@ class _LivePositionPainter extends CustomPainter {
 
 /// Stop-order connectors shown when no road route is available. Thin, grey
 /// and dashed so they never read as a drivable path.
+/// A dashed brown line for an on-foot access trail.
+class _AccessTrailPainter extends CustomPainter {
+  final List<Offset> points;
+
+  const _AccessTrailPainter({required this.points});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF8A5A2B)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.2
+      ..strokeCap = StrokeCap.round;
+    const dash = 9.0;
+    const gap = 6.0;
+    for (var i = 1; i < points.length; i++) {
+      final a = points[i - 1];
+      final b = points[i];
+      final length = (b - a).distance;
+      if (length <= 0) continue;
+      final dir = (b - a) / length;
+      for (double d = 0; d < length; d += dash + gap) {
+        final end = math.min(d + dash, length);
+        canvas.drawLine(a + dir * d, a + dir * end, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AccessTrailPainter oldDelegate) =>
+      oldDelegate.points != points;
+}
+
 class _UnroutedConnectorPainter extends CustomPainter {
   final List<Offset> points;
   final bool isDark;
