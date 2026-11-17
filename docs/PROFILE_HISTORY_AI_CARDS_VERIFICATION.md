@@ -63,5 +63,12 @@ Fixes made because of the live runs, each with a test that reproduces the live c
 
 ### Still not checked
 
-- Cover photo upload and remove from the phone (the endpoint is live; no photo was uploaded).
 - Swipe-to-delete and Clear all on the phone.
+
+## Cover photo on the phone against production (17 Nov 2026)
+
+- First tries failed with "Image upload failed." The new server logging (`324394b`) showed the cause in the Render log: Cloudinary answered `NotAllowed ... missing permissions (actions=["create"])`. The API key `LakbayPlus` in use had a role that could not upload.
+- After the key's role was changed in Cloudinary (no code change, no new deploy), the upload worked: "Cover photo updated.", and the banner showed the chosen image.
+- The cover was still there after force-stopping and reopening the app (it is read back from the server).
+- "Remove cover photo" returned the banner to the default, and it stayed that way after restarting the app.
+- The same Cloudinary key is used by profile photos, destination photos and trip memory photos, so those were affected by the same permission problem and should work now (not tried).
