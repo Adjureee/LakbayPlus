@@ -1842,7 +1842,8 @@ class LakbayApiCatalogService {
       (await fetchMyAccount(accessToken))?.username;
 
   /// Username and profile photo from the server, or null when unavailable.
-  Future<({String? username, String? avatarUrl})?> fetchMyAccount(
+  Future<({String? username, String? avatarUrl, String? coverUrl})?>
+      fetchMyAccount(
     String accessToken,
   ) async {
     final base = _base;
@@ -1868,6 +1869,7 @@ class LakbayApiCatalogService {
       return (
         username: clean(decoded['username']),
         avatarUrl: clean(decoded['avatar_url']),
+        coverUrl: clean(decoded['cover_url']),
       );
     } catch (_) {
       return null;
@@ -1883,6 +1885,8 @@ class LakbayApiCatalogService {
     String? filePath,
     String? filename,
     Duration timeout = const Duration(seconds: 60),
+    String endpoint = 'avatar',
+    String resultKey = 'avatar_url',
   }) async {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) {
@@ -1898,7 +1902,7 @@ class LakbayApiCatalogService {
     http.Response res;
     try {
       res = await _sendAuthorized(accessToken, (tok) async {
-        final req = http.MultipartRequest('POST', Uri.parse('$base/users/me/avatar'));
+        final req = http.MultipartRequest('POST', Uri.parse('$base/users/me/$endpoint'));
         req.headers['Authorization'] = 'Bearer $tok';
         req.files.add(
           fileBytes != null
@@ -1926,12 +1930,51 @@ class LakbayApiCatalogService {
     }
     final decoded = _tryDecodeJson(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300 && decoded is Map) {
-      final url = (decoded['avatar_url'] ?? '').toString().trim();
+      final url = (decoded[resultKey] ?? '').toString().trim();
       if (url.isNotEmpty) return url;
       throw const LakbayApiException('The server did not return the new photo.');
     }
     throw LakbayApiException(
       _extractErrorMessage(decoded, res.statusCode),
+      statusCode: res.statusCode,
+    );
+  }
+
+  /// Uploads the traveler's profile cover photo (`POST /users/me/cover`) and
+  /// returns the saved address. Same refusals as [uploadMyAvatar].
+  Future<String> uploadMyCover(
+    String accessToken, {
+    Uint8List? fileBytes,
+    String? filePath,
+    String? filename,
+  }) =>
+      uploadMyAvatar(
+        accessToken,
+        fileBytes: fileBytes,
+        filePath: filePath,
+        filename: filename,
+        endpoint: 'cover',
+        resultKey: 'cover_url',
+      );
+
+  /// Removes the cover photo (`DELETE /users/me/cover`), back to the default.
+  Future<void> removeMyCover(String accessToken) async {
+    final base = _base;
+    if (base.isEmpty || accessToken.isEmpty) {
+      throw const LakbayApiException("You're not connected to Lakbay.");
+    }
+    final res = await _sendAuthorized(
+      accessToken,
+      (tok) => _client
+          .delete(
+            Uri.parse('$base/users/me/cover'),
+            headers: _authHeaders(tok, json: false),
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) return;
+    throw LakbayApiException(
+      _extractErrorMessage(_tryDecodeJson(res.body), res.statusCode),
       statusCode: res.statusCode,
     );
   }

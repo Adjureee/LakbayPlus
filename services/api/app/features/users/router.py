@@ -50,6 +50,39 @@ async def update_me(
 
 
 @router.post(
+    "/me/cover",
+    response_model=UserResponse,
+    summary="Upload current user's profile cover photo",
+    description=(
+        "Uploads one validated image to Cloudinary and saves its secure URL as "
+        "the current user's profile banner."
+    ),
+)
+async def upload_my_cover(
+    file: Annotated[UploadFile, File(...)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    storage_client: Annotated[CloudinaryStorageClient, Depends(get_storage_client)],
+) -> UserResponse:
+    return await UserService(session, storage_client=storage_client).upload_cover(
+        user=current_user,
+        file=file,
+    )
+
+
+@router.delete(
+    "/me/cover",
+    response_model=UserResponse,
+    summary="Remove current user's profile cover photo",
+)
+async def remove_my_cover(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> UserResponse:
+    return await UserService(session).remove_cover(user=current_user)
+
+
+@router.post(
     "/me/avatar",
     response_model=UserResponse,
     summary="Upload current user's profile photo",
