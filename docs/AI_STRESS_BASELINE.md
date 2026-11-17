@@ -68,3 +68,24 @@ A targeted re-run of the scenarios that failed, with the same script and the sam
 What changed: the model's plain text is shown when its JSON is unusable (never if it claims something was saved, and never from valid JSON that broke a rule); a misspelt key such as `chat__response` (the fallback model did this twice) no longer throws the answer away; a question never adds a place; and the prompt now says an English message gets an English reply with no Bisaya greetings.
 
 Still open from the baseline: the text names places the cards do not show (4 of 10 clean in the re-run, so still failing), "where to go in Panabo" showing no cards, "from Davao City" times for a Panabo start, and slow answers while Groq is rate limited. One of the 32 answers came from `openai/gpt-oss-120b` (Groq), so part of the quota is back; the full Groq comparison is still to do.
+
+## After the third batch of fixes (same day, commit `bfc8e41`)
+
+Re-run of the affected scenarios (6 scenarios x 2 repeats = 20 answers, same script, fallback model; small sample, direction only).
+
+| Check | Baseline | After |
+|---|---|---|
+| Text names only places on the cards or picked | 31 / 43 (28% failing) | **10 / 10** |
+| No "from Davao City" when the start is elsewhere | 39 / 42 | **10 / 10** |
+| A request for places in a town shows cards | 1 / 3 | **2 / 2** |
+| Reply in the traveler's language | 114 / 119 | **20 / 20** |
+| An explicit add puts the place in the plan | 3 / 3 | 2 / 2 |
+| Error wording shown to the traveler | 17 / 119 | 1 / 20 (a reply the server could not use at all) |
+
+What changed: a request for places in a town ("is there a place to go in panabo?") is shown as that town's places, whatever the model called it, with duplicate catalog entries listed once; a sentence that names a place that is not on a card is removed from the text; a sentence giving a route "from Davao City" is removed when the traveler starts somewhere else; and the prompt now tells the model the traveler's start place and marks each transport record with whether it starts there.
+
+### A new finding: invented specifics
+
+For "How do I get to Dahican Surf Resort?" (start Mati) the model wrote a route time, a distance, a tricycle fare, parking, road condition and a best surf time. The catalog record has only "24/7" for hours and nothing about the route. The prices and hours checks did not catch most of this, because the numbers appear elsewhere in the catalog. This is the rule in your specification (B5): do not invent destination-specific prices, routes, travel times or schedules. The prompt already says so; the fallback model does not follow it reliably.
+
+Next fix: check every distance, time and amount in a reply against the facts supplied for that reply, and remove or restate sentences with figures the data does not support. Needs your go-ahead before I change how replies are checked.
