@@ -60,7 +60,22 @@ class ProfileScreen extends StatelessWidget {
                       SizedBox(
                         height: 120,
                         width: double.infinity,
-                        child: Image.asset(
+                        child: profile.coverUrl.isEmpty
+                            ? Image.asset(
+                          coverAsset,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                            decoration: const BoxDecoration(
+                              gradient: LakbayColors.deepTealGradient,
+                            ),
+                          ),
+                        )
+                            : Image.network(
+                                profile.coverUrl,
+                                key: const ValueKey('profile-cover-image'),
+                                fit: BoxFit.cover,
+                                // A cover that cannot load shows the default.
+                                errorBuilder: (_, _, _) => Image.asset(
                           coverAsset,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => Container(
@@ -69,11 +84,34 @@ class ProfileScreen extends StatelessWidget {
                             ),
                           ),
                         ),
+                              ),
                       ),
                       Positioned(
-                        top: 12,
+                        top: 8,
                         right: 12,
-                        child: Material(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Material(
+                              color: Colors.white.withValues(alpha: 0.94),
+                              shape: const CircleBorder(),
+                              child: IconButton(
+                                key: const ValueKey('change-cover-photo'),
+                                tooltip: 'Change cover photo',
+                                constraints: const BoxConstraints(
+                                  minWidth: 48,
+                                  minHeight: 48,
+                                ),
+                                onPressed: () => _showCoverSheet(context),
+                                icon: const Icon(
+                                  Icons.photo_camera_outlined,
+                                  size: 20,
+                                  color: LakbayColors.tealDeep,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Material(
                           color: Colors.white.withValues(alpha: 0.94),
                           borderRadius: BorderRadius.circular(24),
                           child: InkWell(
@@ -105,6 +143,8 @@ class ProfileScreen extends StatelessWidget {
                               ),
                             ),
                           ),
+                        ),
+                          ],
                         ),
                       ),
                       Positioned(
@@ -314,6 +354,77 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showCoverSheet(BuildContext context) {
+    final messenger = ScaffoldMessenger.of(context);
+    if (!repo.isSignedIn) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Sign in to add a cover photo.')),
+      );
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                key: const ValueKey('cover-choose'),
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose a cover photo'),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  final picked = await ImagePicker().pickImage(
+                    source: ImageSource.gallery,
+                    maxWidth: 1600,
+                    maxHeight: 1600,
+                    imageQuality: 85,
+                  );
+                  if (picked == null) return;
+                  messenger
+                    ..clearSnackBars()
+                    ..showSnackBar(
+                      const SnackBar(content: Text('Uploading cover photo…')),
+                    );
+                  final problem = await repo.uploadCoverPhoto(
+                    bytes: await picked.readAsBytes(),
+                    filename: picked.name,
+                  );
+                  messenger
+                    ..clearSnackBars()
+                    ..showSnackBar(
+                      SnackBar(
+                        content: Text(problem ?? 'Cover photo updated.'),
+                      ),
+                    );
+                },
+              ),
+              if (repo.profile.coverUrl.isNotEmpty)
+                ListTile(
+                  key: const ValueKey('cover-remove'),
+                  leading: const Icon(Icons.delete_outline_rounded),
+                  title: const Text('Remove cover photo'),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    final problem = await repo.removeCoverPhoto();
+                    if (problem != null) {
+                      messenger.showSnackBar(SnackBar(content: Text(problem)));
+                    }
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );

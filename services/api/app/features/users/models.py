@@ -20,6 +20,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(512))
     role: Mapped[str] = mapped_column(String(50), default="user", index=True)
     avatar_url: Mapped[str | None] = mapped_column(Text)
+    # The banner photo on the traveler's own profile; empty = the app's default.
+    cover_url: Mapped[str | None] = mapped_column(Text)
     contact_number: Mapped[str | None] = mapped_column(String(20))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
