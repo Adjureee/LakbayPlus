@@ -89,3 +89,20 @@ What changed: a request for places in a town ("is there a place to go in panabo?
 For "How do I get to Dahican Surf Resort?" (start Mati) the model wrote a route time, a distance, a tricycle fare, parking, road condition and a best surf time. The catalog record has only "24/7" for hours and nothing about the route. The prices and hours checks did not catch most of this, because the numbers appear elsewhere in the catalog. This is the rule in your specification (B5): do not invent destination-specific prices, routes, travel times or schedules. The prompt already says so; the fallback model does not follow it reliably.
 
 Next fix: check every distance, time and amount in a reply against the facts supplied for that reply, and remove or restate sentences with figures the data does not support. Needs your go-ahead before I change how replies are checked.
+
+## After the fourth batch of fixes (same day, branch `feature/ai-phase1c-grounding-polish`)
+
+Re-run of the affected scenarios (5 scenarios x 2 repeats = 14 answers, same script, fallback model; small sample, direction only). Every check passed: no error wording, text names only places on the cards, no "from Davao City" for a Panabo start, peso amounts all supported.
+
+What changed:
+- **No hanging sentences.** A sentence that leans on a removed one ("It takes ...", "If you rent a car, the drive is similar") is removed with it.
+- **Figures belong to the place named.** A sentence about one place may only use that place's own records, plus the traveler's own words and plan. "Outdoor trails about 1.5 to 2 hours away" is no longer kept just because the numbers appear in some other place's record.
+- **Counts agree with the cards.** "We have 3 nature parks" beside five cards is removed.
+- **No bland fallback.** When nothing useful is left, the text is built from the cards: "Here are 5 places that match what you asked for: Museo Panabo, Panabo City Parks and Plaza, ...".
+
+Examples from the run:
+- "How do I get to Dahican Surf Resort?" from Mati: "I don't have confirmed times, distances or prices for that in Lakbay's records, so I won't guess."
+- "is there a place to go in panabo?": five Panabo cards and a caption naming them.
+- "Are there entrance fees?": the recorded fees (30 and 15 for Huyong-huyong, 100 plus 5 for Monfort), and the unlisted ones are said to need confirming.
+
+Still not covered: claims without numbers ("bring cash for parking", "the road is paved") and replies that are honest but thin when the catalog has little to say.
