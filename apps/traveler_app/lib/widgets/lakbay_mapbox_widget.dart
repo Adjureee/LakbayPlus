@@ -530,6 +530,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Close',
                   onPressed: () => Navigator.of(ctx).pop(),
                   icon: const Icon(Icons.close_rounded),
                 ),
@@ -808,15 +809,35 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                           (marker.isUserLocation && widget.livePosition != null)
                               ? Alignment.topCenter
                               : Alignment.bottomCenter,
-                      child: GestureDetector(
-                        onTap: () {
-                          flyTo(lat, lng, zoom: math.max(_zoom, 9.6));
-                          widget.onMarkerTap?.call(marker);
-                        },
-                        child: _buildMarkerWidget(
-                          marker,
-                          isSelected,
-                          showUserDot: widget.livePosition == null,
+                      // A labelled button with at least a 48dp hit area.
+                      child: Semantics(
+                        button: true,
+                        label: marker.subtitle == null
+                            ? marker.title
+                            : '${marker.title}, ${marker.subtitle}',
+                        excludeSemantics: true,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            flyTo(lat, lng, zoom: math.max(_zoom, 9.6));
+                            widget.onMarkerTap?.call(marker);
+                          },
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              minWidth: 48,
+                              minHeight: 48,
+                            ),
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              widthFactor: 1,
+                              heightFactor: 1,
+                              child: _buildMarkerWidget(
+                                marker,
+                                isSelected,
+                                showUserDot: widget.livePosition == null,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -1241,6 +1262,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
               size: 16,
               color: borderColor,
             ),
+            excludeFromSemantics: true,
           ),
         ),
       ),
@@ -1320,6 +1342,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
               url,
               fit: BoxFit.fill,
               errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              excludeFromSemantics: true,
             ),
           ),
         );
@@ -1344,12 +1367,14 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                   size: 18,
                   color: LakbayColors.tealDeep,
                 ),
+              excludeFromSemantics: true,
               )
             : const Icon(
                 Icons.place_rounded,
                 size: 18,
                 color: LakbayColors.tealDeep,
               ),
+        excludeFromSemantics: true,
       );
     }
     if (asset.isNotEmpty) {
@@ -1361,6 +1386,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
           size: 18,
           color: LakbayColors.tealDeep,
         ),
+        excludeFromSemantics: true,
       );
     }
     return const Icon(
@@ -1667,6 +1693,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                         width: 12,
                         height: 12,
                         errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        excludeFromSemantics: true,
                       ),
                       const SizedBox(width: 4),
                       Text(

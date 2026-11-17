@@ -277,3 +277,73 @@ class LkIconButton extends StatelessWidget {
     );
   }
 }
+
+/// Makes any card or tile a real button: announced as a button, activated
+/// with Enter or Space, a pointer cursor, a hover tint, and a mango focus
+/// ring that stays visible over opaque card backgrounds (Chrome builds).
+class LkPressable extends StatefulWidget {
+  const LkPressable({
+    super.key,
+    required this.child,
+    required this.onTap,
+    this.semanticLabel,
+    this.borderRadius = LkRadius.mdAll,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  /// Replaces the child's own text for screen readers when set.
+  final String? semanticLabel;
+  final BorderRadius borderRadius;
+
+  @override
+  State<LkPressable> createState() => _LkPressableState();
+}
+
+class _LkPressableState extends State<LkPressable> {
+  bool _focused = false;
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
+    return FocusableActionDetector(
+      enabled: enabled,
+      mouseCursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      onShowHoverHighlight: (v) => setState(() => _hovered = v),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            widget.onTap?.call();
+            return null;
+          },
+        ),
+      },
+      child: Semantics(
+        button: true,
+        enabled: enabled,
+        label: widget.semanticLabel,
+        excludeSemantics: widget.semanticLabel != null,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: DecoratedBox(
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(
+              borderRadius: widget.borderRadius,
+              color: _hovered && !_focused
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : null,
+              border: _focused
+                  ? Border.all(color: LkColors.mango, width: 2)
+                  : null,
+            ),
+            child: widget.child,
+          ),
+        ),
+      ),
+    );
+  }
+}

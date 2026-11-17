@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
 import '../widgets/lakbay_image.dart';
@@ -6,7 +7,8 @@ import 'auth_screen.dart';
 import 'settings_screen.dart';
 import 'trip_detail_screen.dart';
 
-import '../design/lakbay_tokens.dart';
+import '../design/design.dart';
+
 class ProfileScreen extends StatelessWidget {
   final TravelRepository repo;
 
@@ -63,6 +65,7 @@ class ProfileScreen extends StatelessWidget {
                               gradient: LkColors.surfaceGradient,
                             ),
                           ),
+                          excludeFromSemantics: true,
                         ),
                       ),
                       Positioned(
@@ -140,16 +143,22 @@ class ProfileScreen extends StatelessWidget {
                         InkWell(
                           onTap: () => _showEditProfileSheet(context),
                           borderRadius: BorderRadius.circular(8),
-                          child: Text(
-                            profile.fullName.isEmpty
-                                ? 'Add your name'
-                                : profile.fullName,
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                              color: profile.fullName.isEmpty
-                                  ? LkColors.lagoon
-                                  : LkColors.text,
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              minHeight: kLkMinTarget,
+                            ),
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              profile.fullName.isEmpty
+                                  ? 'Add your name'
+                                  : profile.fullName,
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: profile.fullName.isEmpty
+                                    ? LkColors.lagoon
+                                    : LkColors.text,
+                              ),
                             ),
                           ),
                         ),
@@ -227,7 +236,10 @@ class ProfileScreen extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(24),
                                   ),
                                 ),
-                                icon: const Icon(Icons.forum_outlined, size: 16),
+                                icon: const Icon(
+                                  Icons.forum_outlined,
+                                  size: 16,
+                                ),
                                 label: const Text(
                                   'Ask AI',
                                   style: TextStyle(fontWeight: FontWeight.w700),
@@ -305,10 +317,8 @@ class ProfileScreen extends StatelessWidget {
                 } else {
                   Navigator.of(context).push(
                     MaterialPageRoute<bool>(
-                      builder: (_) => AuthScreen(
-                        repo: repo,
-                        initialRegisterMode: true,
-                      ),
+                      builder: (_) =>
+                          AuthScreen(repo: repo, initialRegisterMode: true),
                     ),
                   );
                 }
@@ -321,10 +331,10 @@ class ProfileScreen extends StatelessWidget {
               trailingText: repo.isSignedIn
                   ? 'Lakbay+ Cloud (${repo.authSession!.email})'
                   : (repo.apiCatalog.isConfigured
-                      ? 'Tap to sign in'
-                      : (repo.aiService.isConfigured
-                          ? 'Lakbay AI + Mapbox'
-                          : 'Offline mode')),
+                        ? 'Tap to sign in'
+                        : (repo.aiService.isConfigured
+                              ? 'Lakbay AI + Mapbox'
+                              : 'Offline mode')),
               onTap: () => _showConnectedAppsSheet(context),
             ),
 
@@ -358,9 +368,7 @@ class ProfileScreen extends StatelessWidget {
               title: 'Settings',
               trailingText: repo.currency,
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => SettingsScreen(repo: repo),
-                ),
+                MaterialPageRoute(builder: (_) => SettingsScreen(repo: repo)),
               ),
             ),
           ],
@@ -452,8 +460,7 @@ class ProfileScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: LkColors.s1,
                               shape: BoxShape.circle,
-                              border:
-                                  Border.all(color: LkColors.stroke),
+                              border: Border.all(color: LkColors.stroke),
                             ),
                             child: const Icon(
                               Icons.camera_alt_outlined,
@@ -480,8 +487,7 @@ class ProfileScreen extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
                       child: Text(
-                        usernameError ??
-                            'Friends use this to find and invite you. 3 to 30 letters, numbers, dots or underscores.',
+                        usernameError ?? 'Friends use this to find and invite you. 3 to 30 letters, numbers, dots or underscores.',
                         style: TextStyle(
                           fontSize: 11.5,
                           color: usernameError != null
@@ -513,8 +519,8 @@ class ProfileScreen extends StatelessWidget {
                                 isLocating = true;
                                 gpsNotice = null;
                               });
-                              final result =
-                                  await repo.requestAndSaveCurrentLocation();
+                              final result = await repo
+                                  .requestAndSaveCurrentLocation();
                               if (!ctx.mounted) return;
                               setSheetState(() {
                                 isLocating = false;
@@ -590,22 +596,22 @@ class ProfileScreen extends StatelessWidget {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
+                          borderRadius: BorderRadius.circular(28),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Save',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
         );
       },
     );
@@ -633,10 +639,7 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            _StatusTile(
-              'Lakbay+ Cloud API',
-              repo.apiCatalog.isConfigured,
-            ),
+            _StatusTile('Lakbay+ Cloud API', repo.apiCatalog.isConfigured),
             _StatusTile('Lakbay+ Cloud Account', repo.isSignedIn),
             _StatusTile('Lakbay AI (server)', repo.aiService.isConfigured),
             _StatusTile('Mapbox Maps', repo.mapbox.hasValidToken),
@@ -700,10 +703,7 @@ class ProfileScreen extends StatelessWidget {
   void _showCloudAuthSheet(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<bool>(
-        builder: (_) => AuthScreen(
-          repo: repo,
-          initialRegisterMode: true,
-        ),
+        builder: (_) => AuthScreen(repo: repo, initialRegisterMode: true),
       ),
     );
   }
@@ -800,9 +800,9 @@ class _ProfileTripTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return LkPressable(
+      borderRadius: BorderRadius.circular(18),
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(12),
@@ -842,10 +842,7 @@ class _ProfileTripTile extends StatelessWidget {
                     '${trip.daysCount} Days • ${trip.destination}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: LkColors.muted,
-                    ),
+                    style: const TextStyle(fontSize: 12, color: LkColors.muted),
                   ),
                 ],
               ),
@@ -934,10 +931,7 @@ class _SettingsRowCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: LkColors.muted,
-              ),
+              const Icon(Icons.chevron_right_rounded, color: LkColors.muted),
             ],
           ),
         ),

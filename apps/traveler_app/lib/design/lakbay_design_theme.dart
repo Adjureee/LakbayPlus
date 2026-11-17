@@ -64,6 +64,9 @@ abstract final class LakbayDesignTheme {
       materialTapTargetSize: MaterialTapTargetSize.padded,
       visualDensity: VisualDensity.standard,
       splashFactory: InkSparkle.splashFactory,
+      // Visible keyboard focus and hover in Chrome (WCAG 2.4.7).
+      focusColor: LkColors.mango.withValues(alpha: 0.28),
+      hoverColor: Colors.white.withValues(alpha: 0.06),
       dividerTheme: const DividerThemeData(
         color: LkColors.stroke,
         thickness: 1,

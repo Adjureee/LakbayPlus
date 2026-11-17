@@ -339,6 +339,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                     width: double.infinity,
                     fit: BoxFit.cover,
                     errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    excludeFromSemantics: true,
                   ),
                 ),
               const SizedBox(height: 12),
@@ -623,6 +624,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Close',
                     onPressed: () => Navigator.of(ctx).pop(),
                     icon: const Icon(Icons.close_rounded, color: Colors.white),
                   ),
@@ -647,6 +649,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                         animateRoute: false,
                         borderRadius: 0,
                       ),
+                    excludeFromSemantics: true,
                     )
                   : LakbayMapboxMap(
                       repo: widget.repo,
@@ -968,7 +971,6 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                     showCheckmark: false,
                     backgroundColor: LkColors.s2,
                     selectedColor: LkColors.s1,
-                    visualDensity: VisualDensity.compact,
                     tooltip: _showNearby
                         ? 'Hide other places near this trip'
                         : 'Show other places near this trip',
@@ -1137,6 +1139,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                               size: 18,
                               color: LkColors.mango,
                             ),
+                            excludeFromSemantics: true,
                           ),
                           const SizedBox(width: 4),
                           Text(

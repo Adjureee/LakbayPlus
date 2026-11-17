@@ -35,6 +35,7 @@ class SettingsScreen extends StatelessWidget {
                         shape: const CircleBorder(),
                         elevation: 1,
                         child: IconButton(
+                          tooltip: 'Back',
                           onPressed: () => Navigator.of(context).pop(),
                           icon: const Icon(
                             Icons.chevron_left_rounded,
@@ -389,7 +390,6 @@ class SettingsScreen extends StatelessWidget {
                       for (final sub in group.subtypes)
                         FilterChip(
                           label: Text('${sub.label} · ${sub.count}'),
-                          visualDensity: VisualDensity.compact,
                           selected: repo.selectedVibes.contains(sub.key),
                           selectedColor: LkColors.s2,
                           onSelected: (_) {

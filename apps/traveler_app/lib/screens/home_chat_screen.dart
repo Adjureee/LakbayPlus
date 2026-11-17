@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/voice_input_service.dart';
 import '../models/travel_models.dart';
@@ -624,7 +625,9 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
               child: Row(
                 children: [
-                  GestureDetector(
+                  LkPressable(
+                    borderRadius: BorderRadius.circular(22),
+                    semanticLabel: 'Profile',
                     onTap: () {
                       Navigator.of(context).pop();
                       widget.repo.setActiveNavIndex(4);
@@ -1244,6 +1247,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
   }
 
   void _saveTrip(ItineraryTrip trip) {
+    HapticFeedback.lightImpact();
     widget.repo.saveTripToMyTrips(trip);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Saved "${trip.title}" to your trips')),

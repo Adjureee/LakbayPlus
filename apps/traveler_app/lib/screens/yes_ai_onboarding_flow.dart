@@ -6,8 +6,7 @@ import '../services/travel_repository.dart';
 import '../widgets/origin_picker_sheet.dart';
 import 'auth_screen.dart';
 
-import '../design/lakbay_tokens.dart';
-import '../design/lakbay_type.dart';
+import '../design/design.dart';
 class _OnboardingCarouselSpot {
   final String name;
   final String province;
@@ -568,6 +567,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
               child: Row(
                 children: [
                   IconButton(
+                    tooltip: 'Back',
                     onPressed: () {
                       if (_stage > 0) {
                         setState(() => _stage--);
@@ -743,6 +743,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                 color: LkColors.s2,
                 shape: const CircleBorder(),
                 child: IconButton(
+                  tooltip: 'Send',
                   onPressed: () => _handleUserSelectionOrInput(
                     _inputController.text,
                     isFreeText: true,
@@ -806,7 +807,8 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                 separatorBuilder: (_, _) => const SizedBox(width: 12),
                 itemBuilder: (context, i) {
                   final spot = turn.carousel[i];
-                  return GestureDetector(
+                  return LkPressable(
+                    borderRadius: BorderRadius.circular(22),
                     onTap: isLatestAiCard
                         ? () => _handleUserSelectionOrInput(spot.name)
                         : null,
@@ -834,6 +836,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                                 gradient: LkColors.surfaceGradient,
                               ),
                             ),
+                            excludeFromSemantics: true,
                           ),
                           Container(
                             decoration: const BoxDecoration(

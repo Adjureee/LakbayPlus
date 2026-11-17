@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/travel_models.dart';
 import '../services/mapbox_service.dart';
@@ -381,6 +382,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                 style: LkIconButtonStyle.glass,
                 color: isSaved ? LkColors.mango : null,
                 onPressed: () {
+                  HapticFeedback.lightImpact();
                   widget.repo.saveTripToMyTrips(trip);
                   setState(() {});
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -785,6 +787,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     color: LkColors.lagoon,
                     size: 20,
                   ),
+                  excludeFromSemantics: true,
                 ),
                 label: 'Weather',
                 value: trip.avgTemp,
@@ -1352,6 +1355,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   width: 22,
                   height: 22,
                   errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  excludeFromSemantics: true,
                 ),
                 IconButton(
                   tooltip: 'View on Mapbox',
@@ -1456,6 +1460,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         size: 16,
                         color: LkColors.text,
                       ),
+                      excludeFromSemantics: true,
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -1556,6 +1561,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                             width: 22,
                             height: 22,
                             errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                            excludeFromSemantics: true,
                           ),
                         ),
                         const SizedBox(width: 4),

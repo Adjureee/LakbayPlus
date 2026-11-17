@@ -229,7 +229,21 @@ Rebuild one screen at a time, in this order, so each step stays demoable. The bi
 - Settings keeps the Photo credits page.
 - Profile shows nothing invented (no badges or levels the backend doesn't track).
 
-## Phase 5: Accessibility and polish (medium)
+## Phase 5: Accessibility and polish (medium) ✅ done
+
+> **What was built (2026-11-17)**
+> - **Taps:** the six raw `GestureDetector` cards are `LkPressable` (new in `lk_buttons.dart`): announced as buttons, Enter/Space work, pointer cursor, hover tint, and a mango focus ring drawn over the card. The theme sets `focusColor`/`hoverColor` for every Material button.
+> - **Labels:** every `IconButton` has a tooltip (close, back, counters "Fewer: Adults", stars "Overall: 3 of 5", send, bucket list). Map markers are labelled buttons ("Hagimit Falls, 08:30 AM"). 24 decorative `Image` widgets are excluded from screen readers (their titles are already read).
+> - **Targets:** compact densities, zero padding and 32dp constraints removed from icon buttons; small pills ("Add to trip", currency, "Add your name") have 48dp hit areas; map markers have a 48dp hit box.
+> - **Contrast:** a dark shade behind the wordmark on photo headers (Welcome, sign-in); the wordmark defaults to light text with a mango "+". Three line-split legacy colors in Discover that the Phase 4 recolor missed are fixed.
+> - **Text scale:** the Suggested routes rail grows with the system text size; every main screen renders at 130% without overflow.
+> - **Motion:** welcome drift and route draw, the live pulse, skeletons and the map's route animation all stop when "remove animations" is on.
+> - **States:** Discover's no-results state uses `LkEmptyState` and no longer promises to "generate" a trip for any word.
+> - **Haptics:** light feedback on Save trip (Chat, Trip detail), "I'm here" and automatic arrival; delete-with-undo already had it.
+> - **Tests:** `test/accessibility_test.dart` renders Trips, Discover, Chat, Memories, Profile, Trip detail, Live day, Welcome and Sign-in at 412×900, 130% text, animations off, and checks Flutter's tap-target, labelled-target and text-contrast guidelines, plus keyboard activation and the focus ring.
+>
+> **Not covered:** a TalkBack pass on a real phone, and a manual keyboard pass in a real Chrome window. There is no card "rise" animation, so there was nothing to gate.
+
 
 - **Semantics:**
   - Turn the 14 `GestureDetector` taps into `InkWell`, `LkIconButton` or `LkButton`.

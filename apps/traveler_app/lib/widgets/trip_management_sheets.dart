@@ -413,7 +413,6 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                             const Chip(
                               label: Text('Pending',
                                   style: TextStyle(fontSize: 11)),
-                              visualDensity: VisualDensity.compact,
                             ),
                             IconButton(
                               tooltip: 'Cancel invitation',
@@ -1074,13 +1073,9 @@ class _CounterTile extends StatelessWidget {
             ),
           ),
           IconButton(
+            tooltip: 'Fewer: $label',
             onPressed: onMinus,
             icon: const Icon(Icons.remove_circle_outline, size: 18),
-            style: IconButton.styleFrom(
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           ),
           Padding(
@@ -1091,13 +1086,9 @@ class _CounterTile extends StatelessWidget {
             ),
           ),
           IconButton(
+            tooltip: 'More: $label',
             onPressed: onPlus,
             icon: const Icon(Icons.add_circle_outline, size: 18),
-            style: IconButton.styleFrom(
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           ),
         ],
@@ -1336,10 +1327,8 @@ class _StarRow extends StatelessWidget {
         Expanded(child: Text(label, style: const TextStyle(fontSize: 13.5))),
         for (int i = 1; i <= 5; i++)
           IconButton(
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            icon: Icon(
+            tooltip: '$label: $i of 5',
+              icon: Icon(
               i <= value ? Icons.star_rounded : Icons.star_border_rounded,
               color: LkColors.lagoon,
               size: 22,

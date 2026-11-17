@@ -168,6 +168,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Close',
                   onPressed: () => Navigator.of(context).pop(false),
                   icon: const Icon(Icons.close_rounded),
                 ),

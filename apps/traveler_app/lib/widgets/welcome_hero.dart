@@ -81,6 +81,22 @@ class _WelcomeHeroState extends State<WelcomeHero>
           const DecoratedBox(
             decoration: BoxDecoration(gradient: LkColors.heroScrim),
           ),
+          // Extra shade behind the wordmark so it reads on bright skies.
+          const Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: 220,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xF5021114), Color(0x00021114)],
+                ),
+              ),
+            ),
+          ),
           // Route and pins sit in the photo area, above the copy.
           Positioned.fill(
             bottom: MediaQuery.sizeOf(context).height * 0.42,

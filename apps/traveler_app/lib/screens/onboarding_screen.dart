@@ -5,8 +5,7 @@ import '../widgets/origin_picker_sheet.dart';
 import 'yes_ai_onboarding_flow.dart';
 import 'auth_screen.dart';
 
-import '../design/lakbay_tokens.dart';
-import '../design/lakbay_type.dart';
+import '../design/design.dart';
 import '../widgets/welcome_hero.dart';
 class OnboardingScreen extends StatefulWidget {
   final TravelRepository repo;
@@ -142,6 +141,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               child: Row(
                 children: [
                   IconButton(
+                    tooltip: 'Back',
                     onPressed: _prevStep,
                     icon: const Icon(
                       Icons.chevron_left_rounded,
@@ -770,7 +770,8 @@ class _DecisionOptionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return LkPressable(
+      borderRadius: BorderRadius.circular(22),
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),

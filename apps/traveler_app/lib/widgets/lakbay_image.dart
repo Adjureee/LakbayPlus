@@ -42,7 +42,9 @@ class LakbayNetworkOrAssetImage extends StatelessWidget {
           height: height,
           decoration: const BoxDecoration(gradient: LkColors.surfaceGradient),
         ),
+        excludeFromSemantics: true,
       ),
+      excludeFromSemantics: true,
     );
   }
 
@@ -67,6 +69,7 @@ class LakbayNetworkOrAssetImage extends StatelessWidget {
         );
       },
       errorBuilder: (_, _, _) => _buildAssetFallback(),
+      excludeFromSemantics: true,
     );
   }
 }

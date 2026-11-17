@@ -4,13 +4,11 @@ import '../models/travel_models.dart';
 import '../services/mapbox_service.dart';
 import '../services/route_optimizer.dart';
 import '../services/travel_repository.dart';
-import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_image.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
 import 'trip_detail_screen.dart';
 
-import '../design/lakbay_tokens.dart';
-import '../design/lakbay_type.dart';
+import '../design/design.dart';
 class ExploreScreen extends StatefulWidget {
   final TravelRepository repo;
 
@@ -147,9 +145,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     Icons.wb_sunny_rounded,
                     color: LkColors.mango,
                   ),
+                  excludeFromSemantics: true,
                 ),
                 const SizedBox(width: 4),
                 IconButton(
+                  tooltip: 'Close',
                   onPressed: () => Navigator.of(ctx).pop(),
                   icon: const Icon(Icons.close_rounded),
                 ),
@@ -237,7 +237,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
                       IconButton(
                         tooltip: 'Sync Live Catalog',
-                        visualDensity: VisualDensity.compact,
                         onPressed: widget.repo.isSyncingCatalog
                             ? null
                             : () async {
@@ -284,7 +283,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             horizontal: 12,
                             vertical: 8,
                           ),
-                          visualDensity: VisualDensity.compact,
                           backgroundColor: _isMapView
                               ? LkColors.s3
                               : LkColors.s2,
@@ -309,6 +307,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
                       const SizedBox(width: 6),
                       PopupMenuButton<String>(
+                        tooltip: 'Currency',
                         onSelected: (curr) {
                           widget.repo.setCurrency(curr);
                           setState(() {});
@@ -322,7 +321,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   ),
                                 )
                                 .toList(),
-                        child: Container(
+                        // 48dp hit area around the small pill.
+                        child: SizedBox(
+                          height: kLkMinTarget,
+                          child: Center(
+                            child: Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 8),
                           decoration: BoxDecoration(
@@ -337,6 +340,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               fontWeight: FontWeight.w700,
                               fontSize: 12.5,
                             ),
+                          ),
+                        ),
                           ),
                         ),
                       ),
@@ -361,7 +366,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           size: 15,
                           color: LkColors.lagoon,
                         ),
-                        visualDensity: VisualDensity.compact,
                         label: const Text(
                           'Top-5 Match',
                           style: TextStyle(
@@ -474,7 +478,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   final trip = _filteredMapTrips()[idx];
                                   final inTray =
                                       widget.repo.isInTripBuilder(trip.id);
-                                  return GestureDetector(
+                                  return LkPressable(
+                                    borderRadius: BorderRadius.circular(20),
                                     onTap: () => _openExploreTrip(trip),
                                     child: Container(
                                       decoration: BoxDecoration(
@@ -537,8 +542,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                   style: const TextStyle(
                                                     fontSize: 10.5,
                                                     fontWeight: FontWeight.w800,
-                                                    color: LakbayColors
-                                                        .primaryDark,
+                                                    color: LkColors.lagoon,
                                                   ),
                                                 ),
                                               ),
@@ -597,8 +601,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                       ),
                                                       decoration: BoxDecoration(
                                                         color: inTray
-                                                            ? LakbayColors
-                                                                .primary
+                                                            ? LkColors.mango
                                                             : LkColors.s1
                                                                 .withValues(
                                                                     alpha: 0.92),
@@ -620,9 +623,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                           fontWeight:
                                                               FontWeight.w700,
                                                           color: inTray
-                                                              ? Colors.white
-                                                              : LakbayColors
-                                                                  .tealDeep,
+                                                              ? LkColors.mangoInk
+                                                              : LkColors.text,
                                                         ),
                                                       ),
                                                     ),
@@ -943,7 +945,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
           const SizedBox(height: 10),
           SizedBox(
-            height: 124,
+            // Grows with the system text size so the cards never clip.
+            height: MediaQuery.textScalerOf(context).scale(124),
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               scrollDirection: Axis.horizontal,
@@ -1103,6 +1106,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               top: 10,
               right: 10,
               child: IconButton.filled(
+                tooltip: 'Save to Bucket List',
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.black.withValues(alpha: 0.35),
                 ),
@@ -1157,6 +1161,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                         borderRadius: BorderRadius.circular(20),
                         child: Container(
+                          constraints: const BoxConstraints(
+                            minHeight: kLkMinTarget,
+                          ),
+                          alignment: Alignment.center,
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
@@ -1292,7 +1300,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                 .isInTripBuilder(trip.id)
                                             ? LkColors.mango
                                             : Colors.black.withValues(alpha: 0.45),
-                                        padding: EdgeInsets.zero,
                                         minimumSize: const Size(30, 30),
                                       ),
                                       onPressed: () {
@@ -1309,6 +1316,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     ),
                                     const SizedBox(width: 2),
                                     IconButton(
+                                      tooltip: 'Save to Bucket List',
                                       onPressed: () {
                                         widget.repo.toggleBucketListTrip(trip.id);
                                         setState(() {});
@@ -1428,29 +1436,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (matchedTrips.isEmpty && matchedCities.isEmpty) {
       return SliverToBoxAdapter(
         child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            children: [
-              const Icon(Icons.travel_explore_rounded,
-                  size: 48, color: LkColors.lagoon),
-              const SizedBox(height: 12),
-              Text(
-                'Generate a custom "$_searchQuery" Davao trip?',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: LkType.displayFamily,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () =>
-                    widget.repo.planInChat('Help me plan a trip to $_searchQuery.'),
-                icon: const Icon(Icons.forum_outlined),
-                label: Text('Plan a trip to $_searchQuery with Lakbay AI'),
-              ),
-            ],
+          padding: const EdgeInsets.all(LkSpace.gutter),
+          child: LkEmptyState(
+            icon: Icons.travel_explore_rounded,
+            title: 'No places match "$_searchQuery"',
+            message: 'Try another place name, or ask Lakbay AI to plan '
+                'around it with real Region XI places.',
+            actionLabel: 'Ask Lakbay AI',
+            onAction: () => widget.repo.planInChat(
+              'Help me plan a trip to $_searchQuery.',
+            ),
           ),
         ),
       );
@@ -1605,6 +1600,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         width: 24,
                         height: 24,
                         errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        excludeFromSemantics: true,
                       ),
                       IconButton(
                         tooltip: 'Save to Bucket List',
@@ -1779,7 +1775,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             for (final sub in group.subtypes)
                               FilterChip(
                                 label: Text(sub.label),
-                                visualDensity: VisualDensity.compact,
                                 selected: selected.contains(sub.key),
                                 onSelected: (sel) => setSheetState(() {
                                   if (sel) {
@@ -2130,7 +2125,6 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                           tooltip: isLocked
                               ? 'Unlock start stop'
                               : 'Lock as first stop',
-                          visualDensity: VisualDensity.compact,
                           onPressed: () {
                             widget.repo.toggleLockedFirstStop(stop.id);
                             _scheduleRecalc();
@@ -2184,7 +2178,6 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                         const SizedBox(width: 2),
                         IconButton(
                           tooltip: 'Remove place',
-                          visualDensity: VisualDensity.compact,
                           onPressed: () {
                             widget.repo.removeTripBuilderStop(stop.id);
                             widget.onStopsChanged();
@@ -2339,7 +2332,8 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        GestureDetector(
+                        LkPressable(
+                          borderRadius: BorderRadius.circular(8),
                           onTap: () {
                             _daysManuallyEdited = false;
                             _days = suggestedDays;
@@ -2446,12 +2440,14 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Fewer travelers',
                     onPressed: _travelers > 1
                         ? () => setState(() => _travelers--)
                         : null,
                     icon: const Icon(Icons.remove_circle_outline),
                   ),
                   IconButton(
+                    tooltip: 'More travelers',
                     onPressed: _travelers < 15
                         ? () => setState(() => _travelers++)
                         : null,

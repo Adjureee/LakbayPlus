@@ -215,6 +215,16 @@ class _AuthScreenState extends State<AuthScreen> {
                 const DecoratedBox(
                   decoration: BoxDecoration(gradient: LkColors.heroScrim),
                 ),
+                // Extra shade behind the wordmark and back button.
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.center,
+                      colors: [Color(0xF5021114), Color(0x00021114)],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

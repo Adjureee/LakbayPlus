@@ -216,12 +216,14 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                   height: 160,
                                   width: double.infinity,
                                   fit: BoxFit.cover,
+                                excludeFromSemantics: true,
                                 )
                               : Image.file(
                                   File(pickedFile!.path),
                                   height: 160,
                                   width: double.infinity,
                                   fit: BoxFit.cover,
+                                excludeFromSemantics: true,
                                 ),
                         ),
                       ],
@@ -516,7 +518,7 @@ class _MemoryCard extends StatelessWidget {
             height: 210,
             width: double.infinity,
             child: hasLocalFile
-                ? Image.file(File(memory.localFilePath!), fit: BoxFit.cover)
+                ? Image.file(File(memory.localFilePath!), fit: BoxFit.cover, excludeFromSemantics: true)
                 : ((memory.imageUrl.isNotEmpty || webBlobUrl.isNotEmpty)
                       ? Image.network(
                           memory.imageUrl.isNotEmpty
@@ -524,6 +526,7 @@ class _MemoryCard extends StatelessWidget {
                               : webBlobUrl,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => _fallbackTile(),
+                        excludeFromSemantics: true,
                         )
                       : _fallbackTile()),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../design/design.dart';
 import '../models/travel_models.dart';
@@ -109,6 +110,7 @@ class _LiveDayScreenState extends State<LiveDayScreen>
     if (plan == null) return;
     final arrived = plan.arrivalAt(fix.lat, fix.lng, _reached);
     if (arrived != null) {
+      HapticFeedback.lightImpact();
       _reached = arrived + 1;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(
@@ -121,6 +123,7 @@ class _LiveDayScreenState extends State<LiveDayScreen>
 
   void _markHere(LiveDayPlan plan) {
     if (_reached >= plan.stops.length) return;
+    HapticFeedback.lightImpact();
     setState(() {
       _reached++;
       _route = null;
