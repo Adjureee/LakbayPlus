@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "note": "Preference groups travelers can pick. A place belongs to a group when its category contains one of the keywords (case-insensitive). exclude_categories remove a place even if a keyword matches; include_destination_ids / exclude_destination_ids are place-level corrections. Reviewed with scripts/review_preference_groups.py.",
+  "groups": {
+    "nature_attractions": {
+      "label": "Nature attractions",
+      "description": "Waterfalls, mountains and viewpoints, parks and wildlife, hot springs and lakes, islands, gardens and farms.",
+      "weight_profile": "nature_attractions",
+      "aliases": ["nature", "nature attractions", "nature attraction", "outdoors", "outdoor", "scenic", "scenery", "eco", "eco tourism", "ecotourism"],
+      "exclude_categories": ["water park", "city park"],
+      "include_destination_ids": [],
+      "exclude_destination_ids": [],
+      "subtypes": {
+        "waterfalls": {
+          "label": "Waterfalls",
+          "categories": ["waterfall"],
+          "aliases": ["waterfall", "waterfalls", "falls"],
+          "rain_sensitivity": "high"
+        },
+        "mountains_viewpoints": {
+          "label": "Mountains & viewpoints",
+          "categories": ["mountain", "sea of clouds", "viewpoint", "cape"],
+          "aliases": ["mountain", "mountains", "hiking", "trekking", "viewpoint", "viewpoints", "highlands", "highland"],
+          "rain_sensitivity": "high"
+        },
+        "parks_wildlife": {
+          "label": "Parks & wildlife",
+          "categories": ["nature park", "nature reserve", "nature resort", "wildlife", "lake park"],
+          "aliases": ["wildlife", "sanctuary", "reserve", "nature park"],
+          "rain_sensitivity": "medium"
+        },
+        "springs_lakes": {
+          "label": "Hot springs & lakes",
+          "categories": ["hot spring", "lake"],
+          "aliases": ["hot spring", "hot springs", "spring", "springs", "lake", "lakes"],
+          "rain_sensitivity": "low"
+        },
+        "islands": {
+          "label": "Islands",
+          "categories": ["island"],
+          "aliases": ["island", "islands"],
+          "rain_sensitivity": "medium"
+        },
+        "gardens_farms": {
+          "label": "Gardens & farms",
+          "categories": ["flower farm", "farm", "garden"],
+          "aliases": ["farm", "farms", "garden", "gardens"],
+          "rain_sensitivity": "medium"
+        }
+      }
+    },
+    "beaches": {
+      "label": "Beaches",
+      "description": "Beaches and beach resorts.",
+      "weight_profile": "default",
+      "aliases": ["beach", "beaches", "beachfront", "swimming"],
+      "categories": ["beach"],
+      "exclude_categories": [],
+      "include_destination_ids": [],
+      "exclude_destination_ids": []
+    },
+    "culture_heritage": {
+      "label": "Culture & heritage",
+      "description": "Museums, churches and heritage sites.",
+      "weight_profile": "default",
+      "aliases": ["culture", "cultural", "heritage", "history", "historical", "museum", "museums", "church", "churches"],
+      "categories": ["museum", "church", "religious", "heritage", "cathedral", "historic"],
+      "exclude_categories": [],
+      "include_destination_ids": [],
+      "exclude_destination_ids": []
+    },
+    "resorts_leisure": {
+      "label": "Resorts & leisure",
+      "description": "Resorts and water parks for a relaxed stay.",
+      "weight_profile": "default",
+      "aliases": ["resort", "resorts", "leisure", "staycation"],
+      "categories": ["resort", "water park"],
+      "exclude_categories": [],
+      "include_destination_ids": [],
+      "exclude_destination_ids": []
+    }
+  }
+}

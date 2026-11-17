@@ -1,0 +1,75 @@
+{
+  "count": 10,
+  "items": [
+    {
+      "id": "01-samal-island",
+      "place": "Samal Island (IGaCoS)",
+      "country": "Davao del Norte, Region XI",
+      "photographer": "Lakbay+ Curated Region XI",
+      "unsplashUrl": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723929/lakbay/destinations/4/samal_island_beach_area-0b3e955f.jpg"
+    },
+    {
+      "id": "02-dahican-mati",
+      "place": "Dahican Beach, Mati",
+      "country": "Davao Oriental, Region XI",
+      "photographer": "Lakbay+ Curated Region XI",
+      "unsplashUrl": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350034/lakbay/destinations/6/dahican_beach-0852ca2e.jpg"
+    },
+    {
+      "id": "03-mount-apo",
+      "place": "Mount Apo Trail Area",
+      "country": "Davao del Sur, Region XI",
+      "photographer": "Lakbay+ Curated Region XI",
+      "unsplashUrl": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350044/lakbay/destinations/5/mount_apo_trail_area-e533214c.jpg"
+    },
+    {
+      "id": "04-eden-toril",
+      "place": "Eden Nature Park, Toril",
+      "country": "Davao City, Region XI",
+      "photographer": "Lakbay+ Curated Region XI",
+      "unsplashUrl": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350042/lakbay/destinations/3/eden_nature_park-8e3c86e1.jpg"
+    },
+    {
+      "id": "05-aliwagwag-falls",
+      "place": "Aliwagwag Falls, Cateel",
+      "country": "Davao Oriental, Region XI",
+      "photographer": "Lakbay+ Curated Region XI",
+      "unsplashUrl": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350017/lakbay/destinations/13/aliwagwag_falls-727a22dd.jpg"
+    },
+    {
+      "id": "06-cape-san-agustin",
+      "place": "Cape San Agustin",
+      "country": "Davao Oriental, Region XI",
+      "photographer": "Lakbay+ Curated Region XI",
+      "unsplashUrl": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350031/lakbay/destinations/24/cape_san_agustin-7a07ea85.jpg"
+    },
+    {
+      "id": "07-malagos-eagle",
+      "place": "Malagos & Philippine Eagle Center",
+      "country": "Davao City, Region XI",
+      "photographer": "Lakbay+ Curated Region XI",
+      "unsplashUrl": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350061/lakbay/destinations/2/philippine_eagle_center-db8d171d.jpg"
+    },
+    {
+      "id": "08-peoples-park",
+      "place": "People's Park, Poblacion",
+      "country": "Davao City, Region XI",
+      "photographer": "Lakbay+ Curated Region XI",
+      "unsplashUrl": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794350058/lakbay/destinations/1/peoples_park-9d2874c9.jpg"
+    },
+    {
+      "id": "09-marilog-bemwa",
+      "place": "Marilog Highlands (Buda)",
+      "country": "Davao City, Region XI",
+      "photographer": "Lakbay+ Curated Region XI",
+      "unsplashUrl": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723958/lakbay/destinations/38/bemwa_farm-d9f6ef8c.jpg"
+    },
+    {
+      "id": "10-calamba-clouds",
+      "place": "Maragusan Sea of Clouds",
+      "country": "Davao de Oro, Region XI",
+      "photographer": "Lakbay+ Curated Region XI",
+      "unsplashUrl": "https://res.cloudinary.com/bh2rda7z/image/upload/v1794723955/lakbay/destinations/36/calamba_farm_sea_of_clouds-b8645002.jpg"
+    }
+  ]
+}

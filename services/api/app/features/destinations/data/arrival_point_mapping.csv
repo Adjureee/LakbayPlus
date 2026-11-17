@@ -1,0 +1,25 @@
+destination_id,dataset_row,destination_name,dataset_name,review_note,dataset_point
+1,31,People's Park,Davao People's Park,Same park; dataset point is the Palma Gil St gate.,use
+2,1,Philippine Eagle Center,Philippine Eagle Center,Same center; dataset keeps route_ready=False (biosecurity/relocation).,use
+3,2,Eden Nature Park,Eden Nature Park and Resort,Same resort; dataset gate is approximate.,reject
+5,5,Mount Apo Trail Area,Mount Apo via Kapatagan Trail,DB is a generic trail area; dataset is the Kapatagan trailhead.,reject
+6,22,Dahican Beach,Dahican Beach,Same beach; pins 3.7 km apart.,use
+8,18,Tagbibinta Falls,Tagbibinta Falls,Same falls; pins 3.2 km apart although parking is ~250 m from the falls.,reject
+9,17,Mainit Hot Springs,Mainit Sulfuric Hot Springs,Same springs (Nabunturan); pins 4.4 km apart.,reject
+10,151,Little Boracay Beach,Little Boracay Beach,Same beach (Sta. Maria); pins 5.9 km apart.,reject
+11,27,Balut Island,Balut Island & Sabang Beach,Island; dataset point is a wharf jump-off.,use
+12,7,Tudaya Falls,Tudaya Falls,Same falls; dataset point is an approximate barangay corridor.,reject
+13,21,Aliwagwag Falls,Aliwagwag Falls Eco-Park,Same eco-park; pins 7.1 km apart.,reject
+14,213,Museo Dabawenyo,Museo Dabawenyo,Same museum; dataset point is in Matina but the museum is in Poblacion.,reject
+17,117,Camp Sabros Mountain Resort,Camp Sabros,Same resort (Kapatagan); pins 2 km apart.,reject
+18,26,Subangan Museum,Subangan Davao Oriental Provincial Museum,Same museum.,use
+19,80,Panabo Mangrove Forest Park,Panabo Mangrove Forest Park (San Isidro),Same park; current app pin matches the Mapbox park label.,reject
+20,221,Christ the King Cathedral Parish,Christ the King Cathedral Grounds,Same cathedral (Tagum).,use
+22,205,San Salvador del Mundo Church,San Salvador del Mundo Church (Caraga),Same church.,use
+23,217,Rizal Park Digos,Rizal Park Digos City,Same park.,use
+24,24,Cape San Agustin,Cape San Agustin & The Three Lighthouses,Same cape.,use
+26,162,Pyalitan Falls,Pyalitan Falls,Same falls; dataset point is an approximate barangay corridor.,use
+27,19,Lake Leonard Eco-Tourism Park,Lake Leonard,Same lake; dataset point is an approximate barangay corridor.,use
+31,3,Malagos Garden Resort,Malagos Garden Resort and Chocolate Museum,Same resort.,use
+34,10,Monfort Bat Sanctuary,Monfort Bat Sanctuary,Same sanctuary (Samal).,use
+40,14,Isla Reta Beach Resort,Isla Reta Beach Resort,Island resort; dataset point is a wharf jump-off.,reject

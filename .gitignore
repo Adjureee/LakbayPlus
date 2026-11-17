@@ -1,0 +1,23 @@
+# Build & Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+
+# Flutter
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+
+# Local data and machine files
+.pgdata/
+node_modules/
+*.log
+local.properties
+**/android/key.properties
+*.jks
+*.keystore
+.impeccable/mocks/**/img/

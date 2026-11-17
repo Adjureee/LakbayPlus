@@ -1,0 +1,66 @@
+name: lakbay_travel
+description: "Lakbay+ — Davao Region (Region XI) AI Travel Companion & Route Planner."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.14.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.0
+  http: ^1.6.0
+  shared_preferences: ^2.3.0
+  geolocator: ^14.1.2
+  google_sign_in: ^7.2.0
+  speech_to_text: ^7.5.0
+  image_picker: ^1.2.4
+  path_provider: ^2.1.6
+  share_plus: ^13.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - .env
+    - assets/images/
+    - assets/icons/
+    - assets/brand/
+    - assets/home_backdrops/
+    - assets/data/
+    - assets/onboarding/
+    - assets/chatbot/quick/
+    - assets/videos/
+    - assets/png/weather/
+    - assets/experts/
+    - assets/trip_icons/
+    - assets/map_sprites/
+
+  fonts:
+    - family: FigGrotesk
+      fonts:
+        - asset: assets/fonts/FigGrotesk-Light.ttf
+          weight: 300
+        - asset: assets/fonts/FigGrotesk-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/FigGrotesk-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/FigGrotesk-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/FigGrotesk-Bold.ttf
+          weight: 700
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700

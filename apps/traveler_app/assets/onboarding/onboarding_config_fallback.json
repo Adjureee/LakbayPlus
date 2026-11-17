@@ -1,0 +1,2082 @@
+{
+  "schemaVersion": "0.2.0",
+  "steps": [
+    {
+      "stepId": "step_1_welcome",
+      "prompt": {
+        "fr": "Planifiez vos voyages sans stress.",
+        "zh": "????????,?????",
+        "pl": "Planuj swoje wyjazdy bez stresu.",
+        "pt": "Plane suas viagens sem estresse.",
+        "de": "Plane deine Reisen ganz entspannt.",
+        "it": "Pianifica i tuoi viaggi senza stress.",
+        "ru": "???????? ???? ??????? ??? ???????.",
+        "es": "Planifica tus viajes sin estrés.",
+        "en": "Plan your trips without the stress.",
+        "ar": "??? ?????? ???? ????."
+      },
+      "cta": {
+        "label": {
+          "fr": "Continuer",
+          "zh": "??",
+          "pl": "Kontynuuj",
+          "pt": "Continuar",
+          "de": "Weiter",
+          "it": "Continua",
+          "ru": "??????????",
+          "es": "Continuar",
+          "en": "Continue",
+          "ar": "?????"
+        },
+        "action": "next_step"
+      },
+      "media": {
+        "alt": {
+          "fr": "Bienvenue à bord visuel",
+          "zh": "??????",
+          "pl": "Witaj w onboardingu wizualnym",
+          "pt": "Bem-vindo ao visual de integração",
+          "de": "Willkommen beim Onboarding-Visual",
+          "it": "Benvenuto onboarding visual",
+          "ru": "????? ?????????? ?? ????????!",
+          "es": "Bienvenido a la visual de incorporación",
+          "en": "Welcome onboarding visual",
+          "ar": "?????? ?? ?? ????? ????????"
+        },
+        "type": "image",
+        "url": "https://firebasestorage.googleapis.com/v0/b/bd-app-prod.firebasestorage.app/o/onboarding_config%2Fproduction%2Fstep_1_welcome.png?alt=media&token=c713a43e-d2c5-49c6-bd40-394c9faf8bde"
+      },
+      "type": "info",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_intro"
+    },
+    {
+      "stepId": "step_2_social_proof",
+      "prompt": {
+        "fr": "Je suis le compagnon de voyage préféré du monde.",
+        "zh": "???????????????",
+        "pl": "Jestem ulubionym towarzyszem podrózy na swiecie.",
+        "pt": "Eu sou o companheiro de viagem favorito do mundo.",
+        "de": "Ich bin der beliebteste Reisebegleiter der Welt.",
+        "it": "Sono il compagno di viaggio preferito al mondo.",
+        "ru": "? ????? ??????? ??????? ??? ??????????? ? ????.",
+        "es": "Soy el compañero de viaje favorito del mundo.",
+        "en": "I'm the world's favorite travel companion.",
+        "ar": "??? ???? ????? ?????? ?? ??????."
+      },
+      "cta": {
+        "label": {
+          "fr": "Continuer",
+          "zh": "??",
+          "pl": "Kontynuuj",
+          "pt": "Continuar",
+          "de": "Weiter",
+          "it": "Continua",
+          "ru": "??????????",
+          "es": "Continuar",
+          "en": "Continue",
+          "ar": "?????"
+        },
+        "action": "next_step"
+      },
+      "ratings": {
+        "label": {
+          "fr": "Évaluation de l'app",
+          "zh": "????",
+          "pl": "Ocena aplikacji",
+          "pt": "Avaliação do app",
+          "de": "App-Bewertung",
+          "it": "Valutazione dell'app",
+          "ru": "?????? ??????????",
+          "es": "Calificación de la app",
+          "en": "App rating",
+          "ar": "????? ???????"
+        },
+        "stars": 5.5,
+        "value": 4.9
+      },
+      "stats": [
+        {
+          "id": "happy_travellers",
+          "label": {
+            "fr": "Voyageurs heureux",
+            "zh": "??????",
+            "pl": "Szczesliwi podróznicy",
+            "pt": "Viajantes felizes",
+            "de": "Glückliche Reisende",
+            "it": "Viaggiatori felici",
+            "ru": "?????????? ???????????????",
+            "es": "Viajeros felices",
+            "en": "Happy travellers",
+            "ar": "??????? ?????"
+          },
+          "value": {
+            "fr": "1M+",
+            "zh": "1M+",
+            "pl": "1M+",
+            "pt": "1M+",
+            "de": "1M+",
+            "it": "1M+",
+            "ru": "1?+",
+            "es": "1M+",
+            "en": "1M+",
+            "ar": "1M+"
+          }
+        },
+        {
+          "id": "trips_created",
+          "label": {
+            "fr": "Voyages créés",
+            "zh": "?????",
+            "pl": "Utworzone wycieczki",
+            "pt": "Viagens criadas",
+            "de": "Erstellte Trips",
+            "it": "Viaggi creati",
+            "ru": "??????? ???????",
+            "es": "Viajes creados",
+            "en": "Trips created",
+            "ar": "??????? ?? ???????"
+          },
+          "value": {
+            "fr": "2M+",
+            "zh": "2M+",
+            "pl": "2M+",
+            "pt": "2M+",
+            "de": "2M+",
+            "it": "2M+",
+            "ru": "2M+",
+            "es": "2M+",
+            "en": "2M+",
+            "ar": "2?+"
+          }
+        }
+      ],
+      "type": "info",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_intro",
+      "testimonials": [
+        {
+          "id": "viktoria_b",
+          "stars": 5,
+          "name": "Viktoria B",
+          "quote": {
+            "fr": "C'est révolutionnaire ! En ce moment, je sauvegarde manuellement du contenu de voyage dans mes notes et je fixe des endroits sur Google Maps. L'appli automatise exactement ce que je fais maintenant.",
+            "zh": "???????!????????????????,???????????????????????????????",
+            "pl": "To zmienia zycie! Teraz recznie zapisuje tresci podróznicze w notatkach i przypinam lokalizacje na Google Maps. Aplikacja automatyzuje dokladnie to, co teraz robie.",
+            "pt": "Isso é transformador! Eu atualmente salvo manualmente conteúdo de viagem em notas e fixo locais no Google Maps. O app automatiza exatamente o que eu faço agora.",
+            "de": "Das ist lebensverändernd! Ich speichere gerade manuell Reiseinhalte in Notizen und pinne Orte auf Google Maps. Die App automatisiert genau das, was ich jetzt mache.",
+            "it": "È una cosa che ti cambia la vita! Attualmente salvo manualmente contenuti di viaggio nelle note e fisso le posizioni su Google Maps. L'app automatizza esattamente quello che faccio adesso.",
+            "ru": "??? ?????? ?????! ? ?????? ??????? ???????? ????????????? ??????? ? ??????? ? ????????? ????? ?? Google Maps. ??? ?????????? ?????????????? ?????? ??, ??? ? ????? ??????.",
+            "es": "¡Esto es un cambio de vida! Actualmente guardo manualmente contenido de viajes en notas y fijo ubicaciones en Google Maps. La app automatiza exactamente lo que hago ahora.",
+            "en": "This is life-changing! I currently manually save travel content to notes and pin locations on Google Maps. The app automates exactly what I do now.",
+            "ar": "??? ???? ??????! ?????? ????? ?????? ????? ?????? ?? ????????? ????? ??????? ??? ????? ????. ??????? ???? ?????? ?????? ?? ????? ????."
+          }
+        },
+        {
+          "id": "amy_l",
+          "stars": 5,
+          "name": "Amy L",
+          "quote": {
+            "fr": "Avant, je passais des heures à sauter entre les onglets. Lakbay+ m'a donné des options claires et m'a aidé à décider plus vite.",
+            "zh": "????????????????????????Lakbay+ ????????,????????",
+            "pl": "Kiedys spedzalem godziny skaczac miedzy zakladkami. Lakbay+ dala mi jasne opcje i pomogla szybciej podjac decyzje.",
+            "pt": "Eu costumava passar horas pulando entre as abas. Lakbay+ me deu opções claras e me ajudou a decidir mais rápido.",
+            "de": "Früher habe ich Stunden damit verbracht, zwischen den Tabs zu springen. Lakbay+ hat mir klare Optionen gegeben und mir geholfen, schneller zu entscheiden.",
+            "it": "Passavo ore a saltare tra le schede. Lakbay+ mi ha dato opzioni chiare e mi ha aiutato a decidere più in fretta.",
+            "ru": "? ?????? ?????? ????, ?????? ????? ?????????. Lakbay+ ???? ??? ?????? ???????? ? ??????? ??????? ??????.",
+            "es": "Solía pasar horas saltando entre pestañas. Lakbay+ me dio opciones claras y me ayudó a decidir más rápido.",
+            "en": "I used to spend hours jumping between tabs. Lakbay+ gave me clear options and helped me decide faster.",
+            "ar": "??? ???? ????? ???? ????? ??? ?????????. Lakbay+ ?????? ?????? ????? ???????? ???? ????."
+          }
+        }
+      ]
+    },
+    {
+      "stepId": "step_3_trip_decision",
+      "prompt": {
+        "fr": "Tu as un voyage qui arrive ?",
+        "zh": "???????????",
+        "pl": "Masz jakas wycieczke w planach?",
+        "pt": "Você tem uma viagem chegando?",
+        "de": "Hast du demnächst eine Reise geplant?",
+        "it": "Hai un viaggio in arrivo?",
+        "ru": "? ???? ????? ????????",
+        "es": "¿Tienes un viaje planeado?",
+        "en": "Do you have a trip coming up?",
+        "ar": "?? ???? ???? ?????"
+      },
+      "nextStepByOptionId": {
+        "no_trip": "step_4_no_process",
+        "yes_trip": "step_4_yes_process"
+      },
+      "text": {
+        "fr": "Je vais personnaliser ton expérience en fonction de tes préférences et de tes besoins.",
+        "zh": "????????????????????",
+        "pl": "Dostosuje twoje doswiadczenie do twoich preferencji i potrzeb.",
+        "pt": "Vou personalizar sua experiência com base nas suas preferências e necessidades.",
+        "de": "Ich werde dein Erlebnis basierend auf deinen Vorlieben und Bedürfnissen personalisieren.",
+        "it": "Personalizzerò la tua esperienza in base alle tue preferenze e necessità.",
+        "ru": "? ??????? ???? ???? ? ??????????? ?? ????? ???????????? ? ????.",
+        "es": "Voy a personalizar tu experiencia según tus preferencias y necesidades.",
+        "en": "I will personalize your experience based on your preferences and needs.",
+        "ar": "??? ???? ?????? ????? ??? ???????? ??????????."
+      },
+      "type": "single_select",
+      "options": [
+        {
+          "id": "yes_trip",
+          "icon": "TreePalm",
+          "label": {
+            "fr": "Oui",
+            "zh": "??",
+            "pl": "Tak",
+            "pt": "Sim",
+            "de": "Ja",
+            "it": "Sì",
+            "ru": "??",
+            "es": "Sí",
+            "en": "Yes",
+            "ar": "???"
+          },
+          "subtitle": {
+            "fr": "Je suis prêt à commencer à planifier.",
+            "zh": "?????????",
+            "pl": "Jestem gotowy, zeby zaczac planowac.",
+            "pt": "Estou pronto para começar a planejar",
+            "de": "Ich bin bereit, mit der Planung zu starten.",
+            "it": "Sono pronto a iniziare a pianificare",
+            "ru": "? ????? ?????? ???????????",
+            "es": "Estoy listo para empezar a planear.",
+            "en": "I am ready to start planning",
+            "ar": "??? ???? ???? ???????"
+          }
+        },
+        {
+          "id": "no_trip",
+          "icon": "Compass",
+          "label": {
+            "fr": "Non",
+            "zh": "?",
+            "pl": "Nie",
+            "pt": "Não",
+            "de": "Nein",
+            "it": "No",
+            "ru": "???",
+            "es": "No",
+            "en": "No",
+            "ar": "??"
+          },
+          "subtitle": {
+            "fr": "Je suis juste en train d'explorer là.",
+            "zh": "??????????",
+            "pl": "Wlasnie teraz sobie zwiedzam.",
+            "pt": "Estou só explorando agora.",
+            "de": "Ich schaue gerade nur mal rum.",
+            "it": "Sto solo dando un'occhiata adesso.",
+            "ru": "? ?????? ?????? ????????.",
+            "es": "Solo estoy explorando por ahora.",
+            "en": "I'm just exploring right now",
+            "ar": "??? ?? ?????? ?????"
+          }
+        }
+      ],
+      "phaseId": "phase_intro",
+      "validation": {
+        "required": true
+      }
+    },
+    {
+      "stepId": "step_4_yes_process",
+      "prompt": {
+        "fr": "C'est super",
+        "zh": "???",
+        "pl": "To super!",
+        "pt": "Isso é ótimo",
+        "de": "Das ist super!",
+        "it": "È fantastico",
+        "ru": "??? ???????",
+        "es": "Eso es genial",
+        "en": "That's great",
+        "ar": "??? ????"
+      },
+      "cta": {
+        "label": {
+          "fr": "Continuer",
+          "zh": "??",
+          "pl": "Kontynuuj",
+          "pt": "Continuar",
+          "de": "Weiter",
+          "it": "Continua",
+          "ru": "??????????",
+          "es": "Continuar",
+          "en": "Continue",
+          "ar": "?????"
+        },
+        "action": "next_step"
+      },
+      "media": {
+        "alt": {
+          "fr": "Processus de création de voyage",
+          "zh": "??????",
+          "pl": "Proces tworzenia wyjazdu",
+          "pt": "Processo de criação de viagem",
+          "de": "Reise erstellen Prozess",
+          "it": "Creazione del viaggio",
+          "ru": "??????? ???????? ???????",
+          "es": "Proceso de creación de viaje",
+          "en": "Trip creation process",
+          "ar": "????? ????? ??????"
+        },
+        "type": "image",
+        "url": "https://firebasestorage.googleapis.com/v0/b/bd-app-prod.firebasestorage.app/o/onboarding_config%2Fproduction%2Fstep_4_yes_process.png?alt=media&token=fc277618-35d1-4824-a16b-398229b79a26"
+      },
+      "text": {
+        "fr": "Voici comment je peux t'aider à planifier, organiser et gagner du temps pour ton prochain voyage.",
+        "zh": "?????????????,??????????????",
+        "pl": "Oto jak moge Ci pomóc zaplanowac, zorganizowac i zaoszczedzic czas na Twojej nastepnej podrózy.",
+        "pt": "Aqui está como eu posso te ajudar a planejar, organizar e economizar tempo na sua próxima viagem.",
+        "de": "Hier ist, wie ich dir helfen kann, deine nächste Reise zu planen, zu organisieren und Zeit zu sparen.",
+        "it": "Ecco come posso aiutarti a pianificare, organizzare e risparmiare tempo per il tuo prossimo viaggio.",
+        "ru": "??? ??? ? ???? ?????? ???? ????????????, ???????????? ? ?????????? ????? ?? ????? ????????? ???????.",
+        "es": "Aquí te cuento cómo puedo ayudarte a planear, organizar y ahorrar tiempo en tu próximo viaje.",
+        "en": "Here is how I can help you plan, organize, and save time on your next trip.",
+        "ar": "??? ??? ???? ?????? ???? ????? ????? ???? ?? ????? ??????."
+      },
+      "type": "info",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_trip_ready"
+    },
+    {
+      "prompt": {
+        "fr": "Dis-moi où tu aimerais voyager, et je vais te préparer ton voyage.",
+        "zh": "??????????,?????????",
+        "pl": "Powiedz mi, dokad chcesz podrózowac, a ja zaplanuje twoja wycieczke.",
+        "pt": "Me conta pra onde você quer viajar, e eu vou montar sua viagem.",
+        "de": "Sag mir, wohin du reisen möchtest, und ich plane deine Reise.",
+        "it": "Dimmi dove ti piacerebbe viaggiare e io costruirò il tuo viaggio.",
+        "ru": "?????, ???? ?????? ???????, ? ? ?????? ???? ???????.",
+        "es": "Dime a dónde te gustaría viajar, y yo armaré tu viaje.",
+        "en": "Tell me where you'd like to travel, and I will build your trip.",
+        "ar": "???? ?? ??? ???? ??????? ???? ?? ???? ?? ?????."
+      },
+      "stepId": "step_5_yes_chat",
+      "inputPlaceholder": {
+        "fr": "Dis-moi où tu aimerais voyager.",
+        "zh": "??????????",
+        "pl": "Powiedz mi, dokad chcesz podrózowac.",
+        "pt": "Me conta pra onde você gostaria de viajar",
+        "de": "Sag mir, wohin du reisen möchtest.",
+        "it": "Dimmi dove ti piacerebbe viaggiare",
+        "ru": "?????, ???? ?? ?????? ???????.",
+        "es": "Dime a dónde te gustaría viajar",
+        "en": "Tell me where you'd like to travel",
+        "ar": "???? ?? ??? ???? ??????"
+      },
+      "lockOnComplete": true,
+      "completionRule": "requires_trip_in_chat",
+      "onCompleteAction": "noop",
+      "type": "chat",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_trip_ready"
+    },
+    {
+      "stepId": "step_5_yes_rating",
+      "prompt": {
+        "fr": "Comment ça va ?",
+        "zh": "??????",
+        "pl": "Jak leci?",
+        "pt": "Como estamos?",
+        "de": "Wie läuft's bei uns?",
+        "it": "Come stiamo?",
+        "ru": "??? ?????",
+        "es": "¿Cómo vamos?",
+        "en": "How are we doing?",
+        "ar": "??? ??????"
+      },
+      "validation": {
+        "required": false
+      },
+      "communityProof": {
+        "avatars": [
+          {
+            "id": "community_avatar_1"
+          },
+          {
+            "id": "community_avatar_2"
+          },
+          {
+            "id": "community_avatar_3"
+          }
+        ],
+        "headline": {
+          "fr": "Lakbay+ a été faite pour des gens comme toi.",
+          "zh": "Lakbay+ ?????????????",
+          "pl": "Lakbay+ zostala stworzona dla takich ludzi jak ty.",
+          "pt": "Lakbay+ foi feita pra pessoas como você.",
+          "de": "Lakbay+ wurde für Leute wie dich gemacht.",
+          "it": "Lakbay+ è stata creata per persone come te.",
+          "ru": "????? ??????? ??? ????? ?????, ??? ??.",
+          "es": "Lakbay+ fue hecha para gente como tú.",
+          "en": "Lakbay+ was made for people like you",
+          "ar": "???? ????? ?????? ????"
+        },
+        "userCountLabel": {
+          "fr": "Plus de 1M d'utilisateurs Lakbay+",
+          "zh": "??1M?Lakbay+??",
+          "pl": "1M+ uzytkowników Lakbay+",
+          "pt": "1M+ usuários Lakbay+",
+          "de": "1M+ Lakbay+ Nutzer",
+          "it": "1M+ utenti Lakbay+",
+          "ru": "1M+ ????????????? Lakbay+",
+          "es": "1M+ usuarios de Lakbay+",
+          "en": "1M+ Lakbay+ users",
+          "ar": "1M+ ??????? Lakbay+"
+        }
+      },
+      "eyebrow": {
+        "fr": "Pendant qu'on prépare ton voyage",
+        "zh": "????????????",
+        "pl": "Podczas gdy przygotowujemy twoja podróz",
+        "pt": "Enquanto estamos organizando sua viagem",
+        "de": "Während wir deine Reise einrichten",
+        "it": "Mentre stiamo preparando il tuo viaggio",
+        "ru": "???? ?? ??????????? ???? ???????",
+        "es": "Mientras preparamos tu viaje",
+        "en": "While we're setting up your trip",
+        "ar": "????? ??? ???? ?????"
+      },
+      "text": {
+        "fr": "Donne-nous une note.",
+        "zh": "???????",
+        "pl": "Daj nam ocene.",
+        "pt": "Dá uma nota pra gente.",
+        "de": "Gib uns eine Bewertung.",
+        "it": "Dacci una valutazione.",
+        "ru": "????? ???.",
+        "es": "Danos una calificación.",
+        "en": "Give us a rating.",
+        "ar": "???? ?????."
+      },
+      "ratingCard": {
+        "ratingLabel": {
+          "fr": "évaluations étoiles",
+          "zh": "????",
+          "pl": "gwiazdkowe recenzje",
+          "pt": "avaliações de estrelas",
+          "de": "Sternbewertungen",
+          "it": "recensioni a stelle",
+          "ru": "???????? ??????",
+          "es": "reseñas de estrellas",
+          "en": "star reviews",
+          "ar": "??????? ??????"
+        },
+        "reviewCountLabel": {
+          "fr": "50k+",
+          "zh": "50k+",
+          "pl": "50k+",
+          "pt": "50k+",
+          "de": "50k+",
+          "it": "50k+",
+          "ru": "50?+",
+          "es": "50k+",
+          "en": "50k+",
+          "ar": "50 ???+"
+        },
+        "stars": 5,
+        "value": 4
+      },
+      "type": "rating",
+      "phaseId": "phase_trip_ready",
+      "testimonials": [
+        {
+          "id": "jonas_26",
+          "name": "Jonas, 26",
+          "quote": {
+            "fr": "Réserve tous mes voyages avec Lakbay+ et je ne me suis jamais demandé si le voyage allait être bien ou pas. PARCE QUE ÇA L'A TOUJOURS ÉTÉ.",
+            "zh": "?Lakbay+?????????,????????????,????????",
+            "pl": "Rezerwuje wszystkie moje wyjazdy z Lakbay+ i nigdy nie zastanawiam sie, czy podróz bedzie udana, bo ZAWSZE byla!",
+            "pt": "Reserve todas as minhas viagens com Lakbay+ e nunca questionei se a viagem ia ser boa ou não. PORQUE SEMPRE FOI.",
+            "de": "Buche alle meine Reisen mit Lakbay+ und hab nie gezweifelt, ob die Reise gut wird oder nicht. WEIL ES IMMER SO WAR.",
+            "it": "Prenota tutti i miei viaggi con Lakbay+ e non mi sono mai chiesto se il viaggio sarebbe stato bello o meno. PERCHÉ LO È SEMPRE STATO.",
+            "ru": "?????????? ??? ??? ??????? ? Lakbay+, ? ? ??????? ?? ??????????, ????? ?? ??????? ??????? ??? ???. ?????? ??? ?????? ????.",
+            "es": "Reserva todos mis viajes con Lakbay+ y nunca me he cuestionado si el viaje va a ser bueno o no. PORQUE SIEMPRE LO FUE.",
+            "en": "Book all my trips with Lakbay+ and never ever questioned if the trip is going to be good or not. BECAUSE IT ALWAYS WAS",
+            "ar": "???? ?? ?????? ?? Lakbay+ ??? ???? ?????? ??? ???? ?????? ?? ???? ???? ?? ??. ???? ?????? ???? ???!"
+          },
+          "subtitle": {
+            "fr": "voyageur",
+            "zh": "???",
+            "pl": "podróznik",
+            "pt": "viajante",
+            "de": "Reisender",
+            "it": "viaggiatore",
+            "ru": "??????????????",
+            "es": "viajero",
+            "en": "traveler",
+            "ar": "?????"
+          }
+        }
+      ]
+    },
+    {
+      "stepId": "step_6_yes_value",
+      "prompt": {
+        "fr": "Dis à Lakbay+ où.  \nElle s'occupe du reste.",
+        "zh": "?? Lakbay+ ????  \n????????",
+        "pl": "Powiedz Layli gdzie. Ona zajmie sie reszta.",
+        "pt": "Diga pra Lakbay+ onde.  \nEla cuida do resto.",
+        "de": "Sag Lakbay+, wo.  \nSie kümmert sich um den Rest.",
+        "it": "Dì a Lakbay+ dove.  \nLei si occupa del resto.",
+        "ru": "????? Lakbay+, ????. ??? ?????????? ? ?????????.",
+        "es": "Dile a Lakbay+ dónde.  \nElla se encarga del resto.",
+        "en": "Tell Lakbay+ where.\nShe handles the rest.",
+        "ar": "?? ?? Lakbay+ ???.  \n?? ????? ??????."
+      },
+      "footer": {
+        "fr": "Rejoins plus de 240 000 voyageurs qui planifient mieux",
+        "zh": "????240,000????????",
+        "pl": "Dolacz do 240 000+ podrózników, którzy planuja madrzej!",
+        "pt": "Junte-se a mais de 240.000 viajantes planejando de forma mais inteligente",
+        "de": "Schau dir an, wie über 240.000 Reisende smarter planen!",
+        "it": "Unisciti a oltre 240.000 viaggiatori che pianificano in modo più intelligente",
+        "ru": "????????????? ? 240,000+ ????????????????, ??????? ????????? ?????!",
+        "es": "Únete a más de 240,000 viajeros que están planeando de manera más inteligente.",
+        "en": "Join 240,000+ travelers planning smarter",
+        "ar": "???? ????? ?? 240,000 ????? ?????? ?????"
+      },
+      "media": {
+        "type": "image",
+        "url": "https://firebasestorage.googleapis.com/v0/b/bd-app-prod.firebasestorage.app/o/onboarding_config%2Fproduction%2Fstep_6_yes_value.png?alt=media&token=b9dbb669-1ee1-4b4a-85ab-cfab4b070b5b"
+      },
+      "text": {
+        "fr": "Une conversation. Un itinéraire complet. Réservé avant que ton café ne refroidisse.",
+        "zh": "???????????????????????????",
+        "pl": "Jedna rozmowa. Pelny plan podrózy. Zarezerwowane, zanim kawa zdazy ostygnac.",
+        "pt": "Uma conversa. Um itinerário completo. Reservado antes do seu café esfriar.",
+        "de": "Ein Gespräch. Ein kompletter Reiseplan. Gebucht, bevor dein Kaffee kalt wird.",
+        "it": "Una chiacchierata. Un itinerario completo. Prenotato prima che il tuo caffè si raffreddi.",
+        "ru": "???? ????????. ?????? ???????. ?????????????, ???? ???? ???? ?? ?????.",
+        "es": "Una conversación. Un itinerario completo. Reservado antes de que tu café se enfríe.",
+        "en": "One conversation. A full itinerary. Booked before your coffee gets cold",
+        "ar": "?????? ?????. ??? ?????. ???? ??? ?? ???? ?????."
+      },
+      "type": "info",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_trip_ready"
+    },
+    {
+      "stepId": "step_6_yes_location_share",
+      "prompt": {
+        "fr": "Partager ta position ?",
+        "zh": "??????????",
+        "pl": "Podzielic sie swoja lokalizacja?",
+        "pt": "Compartilhar sua localização?",
+        "de": "Standort teilen?",
+        "it": "Condividere la tua posizione?",
+        "ru": "?????????? ????? ????????????????",
+        "es": "¿Compartir tu ubicación?",
+        "en": "Share your location?",
+        "ar": "?? ???? ?????? ??????"
+      },
+      "media": {
+        "type": "image",
+        "url": "https://firebasestorage.googleapis.com/v0/b/bd-app-prod.firebasestorage.app/o/onboarding_config%2Fproduction%2Fstep_7_yes_location_share.png?alt=media&token=REPLACE_WITH_FINAL_TOKEN"
+      },
+      "text": {
+        "fr": "Lakbay+ trouve des vols depuis ton aéroport local et te propose des escapades de week-end qui correspondent à tes projets.",
+        "zh": "Lakbay+????????????,??????????????",
+        "pl": "Lakbay+ znajduje loty z twojego lokalnego lotniska i podpowiada weekendowe wyjazdy, które pasuja do twoich planów.",
+        "pt": "A Lakbay+ encontra voos do seu aeroporto local e sugere viagens de fim de semana que combinam com os seus planos.",
+        "de": "Lakbay+ findet Flüge von deinem lokalen Flughafen und schlägt Wochenendausflüge vor, die zu deinen Plänen passen.",
+        "it": "Lakbay+ trova voli dal tuo aeroporto locale e suggerisce viaggi nel weekend che si adattano ai tuoi piani.",
+        "ru": "Lakbay+ ??????? ????? ?? ?????? ???????? ????????? ? ?????????? ??????? ?? ????????, ??????? ???????? ??? ???? ?????.",
+        "es": "Lakbay+ encuentra vuelos desde tu aeropuerto local y sugiere escapadas de fin de semana que se adaptan a tus planes.",
+        "en": "Lakbay+ finds flights from your local airport and suggests weekend trips that suit your plans.",
+        "ar": "????? ????? ????? ?? ????? ?????? ?????? ????? ????? ??????? ???? ????? ????."
+      },
+      "type": "location_share",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_trip_ready"
+    },
+    {
+      "stepId": "step_6_yes_notification_allow",
+      "prompt": {
+        "fr": "Sois au courant des baisses de prix.",
+        "zh": "??????????",
+        "pl": "Dostan info o spadkach cen.",
+        "pt": "Fique por dentro das quedas de preço.",
+        "de": "Erhalte eine Benachrichtigung über Preissenkungen.",
+        "it": "Ricevi un avviso sui cali di prezzo.",
+        "ru": "????? ? ???????? ???.",
+        "es": "Recibe un aviso sobre las bajadas de precio.",
+        "en": "Get a heads-up on price drops.",
+        "ar": "???? ??? ????? ????? ?????? ???????."
+      },
+      "media": {
+        "type": "image",
+        "url": "https://firebasestorage.googleapis.com/v0/b/bd-app-prod.firebasestorage.app/o/onboarding_config%2Fproduction%2Fstep_8_yes_notification_allow.png?alt=media&token=REPLACE_WITH_FINAL_TOKEN"
+      },
+      "text": {
+        "fr": "Lakbay+ te prévient quand les prix des vols changent, quand des offres apparaissent, ou quand ton voyage a besoin d'attention.",
+        "zh": "Lakbay+???????????????????????????",
+        "pl": "Lakbay+ powiadamia cie, gdy zmieniaja sie ceny lotów, pojawiaja sie oferty lub twoja podróz wymaga uwagi.",
+        "pt": "A Lakbay+ te avisa quando os preços dos voos mudam, aparecem ofertas ou sua viagem precisa de atenção.",
+        "de": "Lakbay+ informiert dich, wenn sich die Flugpreise ändern, Angebote auftauchen oder deine Reise Aufmerksamkeit braucht.",
+        "it": "Lakbay+ ti avvisa quando i prezzi dei voli cambiano, quando ci sono offerte o quando il tuo viaggio ha bisogno di attenzione.",
+        "ru": "Lakbay+ ?????????? ????, ????? ???? ?? ????? ????????, ?????????? ??????????? ??? ????? ??????? ????????? ????????.",
+        "es": "Lakbay+ te avisa cuando cambian los precios de los vuelos, aparecen ofertas o tu viaje necesita atención.",
+        "en": "Lakbay+ notifies you when flight prices change, deals appear, or your trip needs attention.",
+        "ar": "???? Lakbay+ ??????? ????? ????? ????? ???????? ?? ???? ????? ?? ????? ????? ??? ??????."
+      },
+      "type": "notification_allow",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_trip_ready"
+    },
+    {
+      "phaseId": "phase_trip_ready",
+      "stepId": "step_7_yes_trip_ready",
+      "validation": {
+        "required": false
+      },
+      "prompt": {
+        "fr": "Ton voyage est prêt. Regarde tes moments forts.",
+        "zh": "??????????????????",
+        "pl": "Twoja podróz jest gotowa. Sprawdz swoje najwazniejsze momenty.",
+        "pt": "Sua viagem está pronta. Confira seus destaques.",
+        "de": "Dein Trip ist bereit. Schau dir deine Highlights an.",
+        "it": "Il tuo viaggio è pronto. Dai un'occhiata ai tuoi momenti salienti.",
+        "ru": "???? ??????? ??????. ???????? ?? ???? ???????? ???????.",
+        "es": "Tu viaje está listo. Revisa tus momentos destacados.",
+        "en": "Your trip is ready. Review your highlights.",
+        "ar": "????? ?????. ??? ?????? ??????."
+      },
+      "type": "destination_preview",
+      "text": {
+        "fr": "Fais défiler où tu vas et où tu vas rester.",
+        "zh": "???????????????????",
+        "pl": "Przewin, dokad sie wybierasz i gdzie bedziesz nocowac.",
+        "pt": "Role para ver onde você vai e onde vai ficar.",
+        "de": "Scroll durch, wo du hinfährst und wo du bleibst.",
+        "it": "Scorri per vedere dove stai andando e dove rimarrai.",
+        "ru": "????????, ???? ?? ????? ? ??? ?????? ???????????????.",
+        "es": "Desplázate por dónde vas y dónde te quedarás.",
+        "en": "Scroll through where you are going and where you will stay.",
+        "ar": "??? ????? ??? ???? ???? ?? ????."
+      }
+    },
+    {
+      "stepId": "step_8_yes_sign_in",
+      "prompt": {
+        "fr": "Connecte-toi pour continuer",
+        "zh": "?????",
+        "pl": "Zaloguj sie, zeby kontynuowac",
+        "pt": "Faça login para continuar",
+        "de": "Meld dich an, um fortzufahren",
+        "it": "Accedi per continuare",
+        "ru": "???????, ????? ??????????",
+        "es": "Inicia sesión para continuar",
+        "en": "Sign in to continue",
+        "ar": "??? ????? ???? ????"
+      },
+      "cta": {
+        "label": {
+          "fr": "Se connecter",
+          "zh": "??",
+          "pl": "Zaloguj sie",
+          "pt": "Fazer login",
+          "de": "Anmelden",
+          "it": "Accedi",
+          "ru": "?????",
+          "es": "Iniciar sesión",
+          "en": "Sign in",
+          "ar": "????? ??????"
+        }
+      },
+      "text": {
+        "fr": "Crée ton compte ou connecte-toi pour sauvegarder et débloquer ton voyage.",
+        "zh": "?????????,???????????",
+        "pl": "Stwórz lub zaloguj sie na swoje konto, zeby zapisac i odblokowac swoja podróz.",
+        "pt": "Crie ou faça login na sua conta para salvar e desbloquear sua viagem.",
+        "de": "Erstelle ein Konto oder melde dich an, um deine Reise zu speichern und freizuschalten.",
+        "it": "Crea o accedi al tuo account per salvare e sbloccare il tuo viaggio.",
+        "ru": "?????? ??? ????? ? ???? ???????, ????? ????????? ? ?????????????? ???? ???????.",
+        "es": "Crea o inicia sesión en tu cuenta para guardar y desbloquear tu viaje.",
+        "en": "Create or sign in to your account to save and unlock your trip.",
+        "ar": "???? ????? ?? ???? ????? ???? ???? ????? ?????."
+      },
+      "type": "sign_in_gate",
+      "validation": {
+        "required": true
+      },
+      "phaseId": "phase_conversion"
+    },
+    {
+      "stepId": "step_9_yes_paywall",
+      "cta": {
+        "label": {
+          "fr": "Débloque ton voyage",
+          "zh": "??????",
+          "pl": "Odblokuj swoja podróz",
+          "pt": "Desbloqueie sua viagem",
+          "de": "Entsperr deine Reise",
+          "it": "Sblocca il tuo viaggio",
+          "ru": "??????????? ???? ???????",
+          "es": "Desbloquea tu viaje",
+          "en": "Unlock your trip",
+          "ar": "???? ?????"
+        },
+        "action": "unlock"
+      },
+      "subtext": {
+        "fr": "Commence ton essai de 3 jours pour débloquer ce plan de voyage complet, puis choisis un accès mensuel ou annuel.",
+        "zh": "????3???,???????????,?????????????",
+        "pl": "Zacznij swoja 3-dniowa wersje próbna, zeby odblokowac caly plan podrózy, a potem wybierz dostep miesieczny lub roczny.",
+        "pt": "Comece seu teste de 3 dias para desbloquear esse plano de viagem completo, depois escolha acesso mensal ou anual.",
+        "de": "Starte deine 3-tägige Testphase, um diesen kompletten Reiseplan freizuschalten, und wähle dann zwischen monatlichem oder jährlichem Zugang.",
+        "it": "Inizia la tua prova di 3 giorni per sbloccare questo piano di viaggio completo, poi scegli l'accesso mensile o annuale.",
+        "ru": "????? ???? 3-??????? ??????? ??????, ????? ?????????????? ???? ?????? ???? ???????, ? ????? ?????? ???????? ??? ??????? ??????.",
+        "es": "Comienza tu prueba de 3 días para desbloquear este plan de viaje completo, luego elige acceso mensual o anual.",
+        "en": "Start your 3 day trial to unlock this full trip plan, then choose monthly or annual access.",
+        "ar": "???? ?????? ???? 3 ???? ???? ??? ?????? ???????? ????? ????? ?????? ?????? ?? ??????."
+      },
+      "preview": [
+        {
+          "id": "trip-preview",
+          "label": {
+            "fr": "Votre itinéraire généré, les trajets et les points forts",
+            "zh": "??????????",
+            "pl": "Twoja wygenerowana trasa, drogi i najwazniejsze punkty",
+            "pt": "Seu itinerário gerado, rotas e destaques",
+            "de": "Dein generierter Reiseplan, Routen und Highlights",
+            "it": "Il tuo itinerario generato, le rotte e i punti salienti",
+            "ru": "??? ??????????????? ???????, ???? ? ???????? ???????",
+            "es": "Tu itinerario generado, rutas y puntos destacados",
+            "en": "Your generated itinerary, routes, and highlights",
+            "ar": "???? ?????? ????????? ??????? ???????"
+          },
+          "state": "visible"
+        }
+      ],
+      "nextStepId": "step_done",
+      "planOptions": [
+        {
+          "id": "trial",
+          "label": {
+            "fr": "Essai",
+            "zh": "??",
+            "pl": "Próbny",
+            "pt": "Teste",
+            "de": "Testversion",
+            "it": "Prova",
+            "ru": "??????? ??????",
+            "es": "Prueba",
+            "en": "Trial",
+            "ar": "?????"
+          },
+          "description": {
+            "fr": "Essaie Lakbay+ sans risque.",
+            "zh": "?? Lakbay+,??????",
+            "pl": "Wypróbuj Lakbay+ bez ryzyka.",
+            "pt": "Experimente a Lakbay+ sem riscos.",
+            "de": "Probier Lakbay+ risikofrei aus.",
+            "it": "Prova Lakbay+ senza rischi.",
+            "ru": "???????? Lakbay+ ??? ?????.",
+            "es": "Prueba Lakbay+ sin riesgos.",
+            "en": "Try Lakbay+ risk-free.",
+            "ar": "???? Lakbay+ ???? ?? ?????."
+          }
+        },
+        {
+          "id": "annual",
+          "label": {
+            "fr": "Annuel",
+            "zh": "??",
+            "pl": "Rocznie",
+            "pt": "Anual",
+            "de": "Jährlich",
+            "it": "Annuale",
+            "ru": "?????????",
+            "es": "Anual",
+            "en": "Annual",
+            "ar": "????"
+          },
+          "description": {
+            "fr": "Meilleur rapport qualité-prix pour les voyageurs fréquents.",
+            "zh": "???????????",
+            "pl": "Najlepsza wartosc dla czestych podrózników.",
+            "pt": "Melhor valor para quem viaja com frequência.",
+            "de": "Bester Preis für Vielflieger.",
+            "it": "Il miglior affare per chi viaggia spesso.",
+            "ru": "?????? ??????????? ??? ?????? ????????????????.",
+            "es": "Mejor valor para los viajeros frecuentes.",
+            "en": "Best value for frequent travelers.",
+            "ar": "???? ???? ????????? ?????????."
+          }
+        },
+        {
+          "id": "monthly",
+          "label": {
+            "fr": "Mensuel",
+            "zh": "??",
+            "pl": "Miesiecznie",
+            "pt": "Mensal",
+            "de": "Monatlich",
+            "it": "Mensile",
+            "ru": "??????????",
+            "es": "Mensual",
+            "en": "Monthly",
+            "ar": "????"
+          },
+          "description": {
+            "fr": "Accès flexible mois par mois.",
+            "zh": "????????",
+            "pl": "Elastyczny dostep miesiac po miesiacu.",
+            "pt": "Acesso flexível mês a mês.",
+            "de": "Flexibler Zugang von Monat zu Monat.",
+            "it": "Accesso flessibile mese per mese.",
+            "ru": "?????? ?????? ?????????.",
+            "es": "Acceso flexible mes a mes.",
+            "en": "Flexible month-to-month access.",
+            "ar": "???? ??? ?? ??? ????."
+          }
+        }
+      ],
+      "type": "paywall_locked_reveal_trip",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_conversion",
+      "headline": {
+        "fr": "Votre voyage est prêt à être débloqué",
+        "zh": "????????,??????",
+        "pl": "Twoja podróz jest gotowa do odblokowania",
+        "pt": "Sua viagem está pronta para ser desbloqueada.",
+        "de": "Dein Trip ist bereit zum Entsperren.",
+        "it": "Il tuo viaggio è pronto per essere sbloccato",
+        "ru": "???? ??????? ?????? ? ?????????????",
+        "es": "Tu viaje está listo para desbloquear.",
+        "en": "Your trip is ready to unlock",
+        "ar": "????? ????? ??????"
+      }
+    },
+    {
+      "stepId": "step_4_no_process",
+      "prompt": {
+        "fr": "C'est super !",
+        "zh": "???!",
+        "pl": "Super!",
+        "pt": "Isso é ótimo!",
+        "de": "Das ist super!",
+        "it": "Fantastico!",
+        "ru": "??? ???????!",
+        "es": "¡Eso es genial!",
+        "en": "That’s great!",
+        "ar": "??? ????!"
+      },
+      "cta": {
+        "label": {
+          "fr": "Continuer",
+          "zh": "??",
+          "pl": "Kontynuuj",
+          "pt": "Continuar",
+          "de": "Weiter",
+          "it": "Continua",
+          "ru": "??????????",
+          "es": "Continuar",
+          "en": "Continue",
+          "ar": "?????"
+        },
+        "action": "next_step"
+      },
+      "media": {
+        "alt": {
+          "fr": "Processus de découverte de destination",
+          "zh": "???????",
+          "pl": "Proces odkrywania destynacji",
+          "pt": "Processo de descoberta de destinos",
+          "de": "Zielentdeckungsprozess",
+          "it": "Processo di scoperta della destinazione",
+          "ru": "??????? ???????? ???????????",
+          "es": "Proceso de descubrimiento de destinos",
+          "en": "Destination discovery process",
+          "ar": "????? ?????? ???????"
+        },
+        "type": "image",
+        "url": "https://firebasestorage.googleapis.com/v0/b/bd-app-prod.firebasestorage.app/o/onboarding_config%2Fproduction%2Fstep_4_no_process.png?alt=media&token=d58039cb-2135-40a7-ab3d-71722a436819"
+      },
+      "text": {
+        "fr": "Voici comment fonctionne notre fil d'exploration ! C'est fait pour t'aider à découvrir de nouvelles destinations.",
+        "zh": "?????????????!???????????????",
+        "pl": "Oto jak dziala nasza sekcja odkryc! Zostala stworzona, zeby pomóc Ci odkrywac nowe miejsca.",
+        "pt": "Aqui tá como funciona o nosso feed de exploração! Ele foi feito pra te ajudar a descobrir novos destinos.",
+        "de": "So funktioniert unser Explore-Feed! Er ist dafür da, dir zu helfen, neue Reiseziele zu entdecken.",
+        "it": "Ecco come funziona il nostro feed di esplorazione! È pensato per aiutarti a scoprire nuove destinazioni.",
+        "ru": "??? ??? ???????? ???? ????? ????????????! ??? ???????, ????? ?????? ???? ??????? ??? ???? ????? ?????.",
+        "es": "¡Así es como funciona nuestro feed de exploración! Está diseñado para ayudarte a descubrir nuevos destinos.",
+        "en": "Here's how our explore feed works! It's designed to help you discover new destinations.",
+        "ar": "???? ??? ???? ????? ????????? ?????! ???? ????? ???????? ?? ?????? ????? ?????."
+      },
+      "type": "info",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_discovery"
+    },
+    {
+      "stepId": "step_5_no_trip_likes",
+      "prompt": {
+        "fr": "Dis-moi quel genre de voyages tu aimes.",
+        "zh": "??????????????",
+        "pl": "Powiedz mi, jakie rodzaje wyjazdów lubisz.",
+        "pt": "Me conta que tipo de viagens você gosta.",
+        "de": "Sag mir, welche Art von Reisen du magst.",
+        "it": "Fammi sapere che tipo di viaggi ti piacciono.",
+        "ru": "?????, ????? ??????? ???? ????????.",
+        "es": "Dime qué tipo de viajes te gustan.",
+        "en": "Tell me what type of trips you like.",
+        "ar": "???? ?? ??? ?? ??? ?? ???????."
+      },
+      "customOptionInput": {
+        "placeholder": {
+          "fr": "Décris ton propre style",
+          "zh": "??????????",
+          "pl": "Opisz swój wlasny styl",
+          "pt": "Descreva seu próprio estilo",
+          "de": "Beschreib deinen eigenen Stil",
+          "it": "Descrivi il tuo stile personale",
+          "ru": "????? ???? ?????",
+          "es": "Describe tu propio estilo",
+          "en": "Describe your own style",
+          "ar": "?? ?????? ?????"
+        },
+        "requireTextWhenSelected": false,
+        "optionId": "custom"
+      },
+      "type": "multi_select",
+      "options": [
+        {
+          "id": "romantic",
+          "icon": "Heart",
+          "label": {
+            "fr": "Romantique",
+            "zh": "??",
+            "pl": "Romantyczny",
+            "pt": "Romântico",
+            "de": "Romantisch",
+            "it": "Romantico",
+            "ru": "???????????",
+            "es": "Romántico",
+            "en": "Romantic",
+            "ar": "???????"
+          }
+        },
+        {
+          "id": "party",
+          "icon": "PartyPopper",
+          "label": {
+            "fr": "Fête",
+            "zh": "??",
+            "pl": "Impreza",
+            "pt": "Festa",
+            "de": "Party",
+            "it": "Festa",
+            "ru": "?????????",
+            "es": "Fiesta",
+            "en": "Party",
+            "ar": "????"
+          }
+        },
+        {
+          "id": "nature",
+          "icon": "Trees",
+          "label": {
+            "fr": "Nature",
+            "zh": "??",
+            "pl": "Natura",
+            "pt": "Natureza",
+            "de": "Natur",
+            "it": "Natura",
+            "ru": "???????",
+            "es": "Naturaleza",
+            "en": "Nature",
+            "ar": "?????"
+          }
+        },
+        {
+          "id": "beach",
+          "icon": "Waves",
+          "label": {
+            "fr": "Plage",
+            "zh": "??",
+            "pl": "Plaza",
+            "pt": "Praia",
+            "de": "Strand",
+            "it": "Spiaggia",
+            "ru": "????",
+            "es": "Playa",
+            "en": "Beach",
+            "ar": "????"
+          }
+        },
+        {
+          "id": "safari",
+          "icon": "PawPrint",
+          "label": {
+            "fr": "Safari",
+            "zh": "??",
+            "pl": "Safari",
+            "pt": "Safari",
+            "de": "Safari",
+            "it": "Safari",
+            "ru": "??????",
+            "es": "Safari",
+            "en": "Safari",
+            "ar": "?????"
+          }
+        },
+        {
+          "id": "adventure",
+          "icon": "Mountain",
+          "label": {
+            "fr": "Aventure",
+            "zh": "??",
+            "pl": "Przygoda",
+            "pt": "Aventura",
+            "de": "Abenteuer",
+            "it": "Avventura",
+            "ru": "???????????",
+            "es": "Aventura",
+            "en": "Adventure",
+            "ar": "??????"
+          }
+        },
+        {
+          "id": "art_culture",
+          "icon": "Palette",
+          "label": {
+            "fr": "Art et culture",
+            "zh": "?????",
+            "pl": "Sztuka i kultura",
+            "pt": "Arte e cultura",
+            "de": "Kunst und Kultur",
+            "it": "Arte e cultura",
+            "ru": "????????? ? ????????",
+            "es": "Arte y cultura",
+            "en": "Art and culture",
+            "ar": "?? ??????"
+          }
+        },
+        {
+          "id": "family",
+          "icon": "Users",
+          "label": {
+            "fr": "Famille",
+            "zh": "??",
+            "pl": "Rodzina",
+            "pt": "Família",
+            "de": "Familie",
+            "it": "Famiglia",
+            "ru": "?????",
+            "es": "Familia",
+            "en": "Family",
+            "ar": "?????"
+          }
+        },
+        {
+          "id": "foodie",
+          "icon": "UtensilsCrossed",
+          "label": {
+            "fr": "Gourmand",
+            "zh": "??",
+            "pl": "Smakosz",
+            "pt": "Gastrônomo",
+            "de": "Feinschmecker",
+            "it": "Gastronomo",
+            "ru": "??????",
+            "es": "Gourmet",
+            "en": "Foodie",
+            "ar": "???? ??????"
+          }
+        },
+        {
+          "id": "shopping",
+          "icon": "ShoppingBag",
+          "label": {
+            "fr": "Shopping",
+            "zh": "??",
+            "pl": "Zakupy",
+            "pt": "Compras",
+            "de": "Einkaufen",
+            "it": "Shopping",
+            "ru": "??????",
+            "es": "Compras",
+            "en": "Shopping",
+            "ar": "????"
+          }
+        },
+        {
+          "id": "wellness",
+          "icon": "Leaf",
+          "label": {
+            "fr": "Bien-être",
+            "zh": "??",
+            "pl": "Wellness",
+            "pt": "Bem-estar",
+            "de": "Wellness",
+            "it": "Benessere",
+            "ru": "????????",
+            "es": "Bienestar",
+            "en": "Wellness",
+            "ar": "??? ???????"
+          }
+        },
+        {
+          "id": "ski",
+          "icon": "Snowflake",
+          "label": {
+            "fr": "Ski",
+            "zh": "??",
+            "pl": "Narty",
+            "pt": "Esqui",
+            "de": "Ski",
+            "it": "Sci",
+            "ru": "????",
+            "es": "Esquí",
+            "en": "Ski",
+            "ar": "????"
+          }
+        },
+        {
+          "id": "hiking",
+          "icon": "Footprints",
+          "label": {
+            "fr": "Randonnée",
+            "zh": "????",
+            "pl": "Wedrówki",
+            "pt": "Caminhada",
+            "de": "Wandern",
+            "it": "Escursione",
+            "ru": "??????",
+            "es": "Senderismo",
+            "en": "Hiking",
+            "ar": "????? ?? ??????"
+          }
+        },
+        {
+          "id": "custom",
+          "icon": "BadgeQuestionMark",
+          "label": {
+            "fr": "Tu as un type de voyage précis en tête ?",
+            "zh": "????????????????",
+            "pl": "Masz na mysli jakis konkretny rodzaj wyjazdu?",
+            "pt": "Você tem algum tipo específico de viagem em mente?",
+            "de": "Hast du eine bestimmte Art von Reise im Kopf?",
+            "it": "Hai in mente un tipo di viaggio specifico?",
+            "ru": "? ???? ???? ?????-?? ?????????? ??? ??????? ?? ????",
+            "es": "¿Tienes en mente algún tipo de viaje específico?",
+            "en": "Do you have a specific type of trip in mind?",
+            "ar": "?? ???? ??? ???? ?? ??????? ?? ?????"
+          }
+        }
+      ],
+      "phaseId": "phase_discovery",
+      "validation": {
+        "required": true
+      }
+    },
+    {
+      "stepId": "step_6_no_trip_planning_help_needs",
+      "prompt": {
+        "fr": "De quoi as-tu le plus besoin d'aide dans ton processus de planification de voyage ?",
+        "zh": "?????????????????",
+        "pl": "Z czym potrzebujesz najwiecej pomocy w planowaniu swojej podrózy?",
+        "pt": "Com o que você mais precisa de ajuda no planejamento da sua viagem?",
+        "de": "Wobei brauchst du am meisten Hilfe bei deiner Reiseplanung?",
+        "it": "Di cosa hai più bisogno di aiuto nella pianificazione del tuo viaggio?",
+        "ru": "? ??? ???? ?????? ????? ????? ?????? ? ???????????? ????????",
+        "es": "¿Qué es lo que más necesitas ayuda en tu proceso de planificación de viaje?",
+        "en": "What do you need the most help with in your trip planning process?",
+        "ar": "??? ???? ?? ????? ?????? ??? ?? ????? ??????"
+      },
+      "validation": {
+        "required": false
+      },
+      "text": {
+        "fr": "Choisis tout ce qui s'applique pour que je puisse adapter le plan et faire le gros du travail.",
+        "zh": "?????????,????????????????????",
+        "pl": "Wybierz wszystko, co pasuje, zebym mogla dopasowac plan i zajac sie reszta.",
+        "pt": "Escolha tudo que se aplica pra eu poder ajustar o plano e fazer o trabalho pesado.",
+        "de": "Wähl alles aus, was zutrifft, damit ich den Plan anpassen und die ganze Arbeit machen kann.",
+        "it": "Scegli tutto quello che ti sembra giusto così posso personalizzare il piano e fare il lavoro pesante.",
+        "ru": "?????? ???, ??? ????????, ????? ? ??? ????????? ???? ? ??????? ??? ??????? ??????.",
+        "es": "Elige todo lo que aplique para que pueda ajustar el plan y hacer el trabajo pesado.",
+        "en": "Pick all that apply so I can tailor the plan and do the heavy lifting.",
+        "ar": "???? ?? ?? ????? ???? ???? ???? ????? ????? ?????? ??????."
+      },
+      "type": "multi_select",
+      "options": [
+        {
+          "id": "choose_where_to_go",
+          "icon": "Compass",
+          "label": {
+            "fr": "Choisir où aller",
+            "zh": "?????",
+            "pl": "Wybieranie, dokad isc",
+            "pt": "Escolhendo pra onde ir",
+            "de": "Wohin soll's gehen?",
+            "it": "Scegliere dove andare",
+            "ru": "?????, ???? ???????",
+            "es": "Eligiendo a dónde ir",
+            "en": "Choosing where to go",
+            "ar": "?????? ??? ????"
+          }
+        },
+        {
+          "id": "build_itinerary",
+          "icon": "CalendarDays",
+          "label": {
+            "fr": "Création de l'itinéraire jour par jour",
+            "zh": "???????????",
+            "pl": "Tworzenie planu dnia po dniu",
+            "pt": "Montando o itinerário dia a dia",
+            "de": "Den Tagesablauf Schritt für Schritt erstellen",
+            "it": "Costruendo l'itinerario giorno per giorno",
+            "ru": "?????????? ??????? ?? ?????? ????",
+            "es": "Construyendo el itinerario día a día",
+            "en": "Building the day-by-day itinerary",
+            "ar": "????? ???? ??????? ??? ????"
+          }
+        },
+        {
+          "id": "stay_on_budget",
+          "icon": "Wallet",
+          "label": {
+            "fr": "Rester dans le budget",
+            "zh": "????",
+            "pl": "Trzymanie sie budzetu",
+            "pt": "Ficando dentro do orçamento",
+            "de": "Im Budget bleiben",
+            "it": "Rimanere nel budget",
+            "ru": "???????? ? ?????? ???????",
+            "es": "Manteniéndonos dentro del presupuesto",
+            "en": "Staying on budget",
+            "ar": "?????? ??? ?????????"
+          }
+        },
+        {
+          "id": "transport_and_logistics",
+          "icon": "Route",
+          "label": {
+            "fr": "Transport et logistique",
+            "zh": "?????",
+            "pl": "Transport i logistyka",
+            "pt": "Transporte e logística",
+            "de": "Transport und Logistik",
+            "it": "Trasporti e logistica",
+            "ru": "????????? ? ?????????",
+            "es": "Transporte y logística",
+            "en": "Transport and logistics",
+            "ar": "????? ???????????"
+          }
+        },
+        {
+          "id": "custom",
+          "icon": "BadgeQuestionMark",
+          "label": {
+            "fr": "Quelque chose d'autre",
+            "zh": "?????",
+            "pl": "Cos innego",
+            "pt": "Outra coisa",
+            "de": "Etwas anderes",
+            "it": "Qualcos'altro",
+            "ru": "???-?? ???",
+            "es": "Algo más",
+            "en": "Something else",
+            "ar": "??? ???"
+          }
+        }
+      ],
+      "phaseId": "phase_discovery",
+      "customOptionInput": {
+        "placeholder": {
+          "fr": "De quoi as-tu le plus besoin d'aide dans ta planification de voyage ?",
+          "zh": "?????????????????",
+          "pl": "Z czym potrzebujesz najwiecej pomocy w planowaniu swojej podrózy?",
+          "pt": "Com o que você mais precisa de ajuda no planejamento da sua viagem?",
+          "de": "Wobei brauchst du am meisten Hilfe bei deiner Reiseplanung?",
+          "it": "Di cosa hai più bisogno di aiuto nella pianificazione del tuo viaggio?",
+          "ru": "? ??? ???? ?????? ????? ????? ?????? ? ???????????? ????????",
+          "es": "¿Con qué necesitas más ayuda en tu proceso de planificación de viaje?",
+          "en": "What do you need the most help with in your trip planning process?",
+          "ar": "??? ???? ??? ????? ?????? ??? ?? ????? ??????"
+        },
+        "requireTextWhenSelected": false,
+        "optionId": "custom"
+      }
+    },
+    {
+      "phaseId": "phase_discovery",
+      "stepId": "step_6_no_hotels_info",
+      "validation": {
+        "required": false
+      },
+      "prompt": {
+        "fr": "Lakbay+ trouve des offres d'hôtels, découvre tes préférences et t'aide à planifier des voyages.",
+        "zh": "Lakbay+????????,??????,?????????",
+        "pl": "Lakbay+ znajduje oferty hotelowe, odkrywa twoje preferencje i pomaga planowac wyjazdy.",
+        "pt": "A Lakbay+ encontra ofertas de hotéis, descobre suas preferências e ajuda a planejar viagens.",
+        "de": "Lakbay+ findet Hotelangebote, entdeckt deine Vorlieben und hilft beim Planen von Reisen.",
+        "it": "Lakbay+ trova offerte per hotel, scopre le tue preferenze e ti aiuta a pianificare i viaggi.",
+        "ru": "Lakbay+ ??????? ???????? ??????????? ?? ??????, ????????? ???? ???????????? ? ???????? ??????????? ???????.",
+        "es": "Lakbay+ encuentra ofertas de hoteles, descubre tus preferencias y te ayuda a planear viajes.",
+        "en": "Lakbay+ finds hotel deals, uncovers your preferences, and helps plan trips.",
+        "ar": "????? ????? ???? ???????? ???? ??? ????????? ??????? ?? ????? ???????."
+      },
+      "type": "info",
+      "media": {
+        "type": "image",
+        "url": "https://firebasestorage.googleapis.com/v0/b/bd-app-prod.firebasestorage.app/o/onboarding_config%2Fproduction%2Fstep_6_no_hotels_info.png?alt=media&token=REPLACE_WITH_FINAL_TOKEN"
+      }
+    },
+    {
+      "phaseId": "phase_discovery",
+      "stepId": "step_6_no_share",
+      "validation": {
+        "required": false
+      },
+      "prompt": {
+        "fr": "Qui aimerais-tu emmener avec toi ?",
+        "zh": "????????",
+        "pl": "Kogo chcialbys zabrac ze soba?",
+        "pt": "Quem você gostaria de levar com você?",
+        "de": "Wen möchtest du mitnehmen?",
+        "it": "Chi vuoi portare con te?",
+        "ru": "? ??? ?? ?? ?????(?) ????????",
+        "es": "¿A quién te gustaría llevar contigo?",
+        "en": "Who would you like to take with you?",
+        "ar": "?? ??? ???? ????"
+      },
+      "type": "share",
+      "text": {
+        "fr": "Partage ton voyage et planifie-le ensemble - pas besoin de taper.",
+        "zh": "??????,???? - ??????",
+        "pl": "Podziel sie swoja podróza i zaplanujcie ja razem - bez potrzeby pisania.",
+        "pt": "Compartilhe sua viagem e planeje junto - sem precisar digitar.",
+        "de": "Teile deine Reise und plane sie gemeinsam – kein Tippen nötig.",
+        "it": "Condividi il tuo viaggio e pianificalo insieme - niente da scrivere.",
+        "ru": "?????????? ????? ???????? ? ?????????? ?????? - ??? ????????????? ???-?? ????????.",
+        "es": "Comparte tu viaje y plánifícalo juntos - no necesitas escribir.",
+        "en": "Share your trip and plan it together - no typing required.",
+        "ar": "???? ????? ???? ??? ???? - ?? ????? ???? ???."
+      }
+    },
+    {
+      "stepId": "step_6_no_rating",
+      "prompt": {
+        "fr": "Comment ça va ?",
+        "zh": "??????",
+        "pl": "Jak leci?",
+        "pt": "Como estamos?",
+        "de": "Wie läuft's bei uns?",
+        "it": "Come stiamo?",
+        "ru": "??? ?????",
+        "es": "¿Cómo vamos?",
+        "en": "How are we doing?",
+        "ar": "??? ??????"
+      },
+      "validation": {
+        "required": false
+      },
+      "communityProof": {
+        "avatars": [
+          {
+            "id": "community_avatar_1"
+          },
+          {
+            "id": "community_avatar_2"
+          },
+          {
+            "id": "community_avatar_3"
+          }
+        ],
+        "headline": {
+          "fr": "Lakbay+ a été faite pour des gens comme toi.",
+          "zh": "Lakbay+????????????",
+          "pl": "Lakbay+ zostala stworzona dla takich ludzi jak ty.",
+          "pt": "Lakbay+ foi feita pra pessoas como você.",
+          "de": "Lakbay+ wurde für Leute wie dich gemacht.",
+          "it": "Lakbay+ è stata creata per persone come te.",
+          "ru": "????? ??????? ??? ????? ?????, ??? ??.",
+          "es": "Lakbay+ fue hecha para gente como tú.",
+          "en": "Lakbay+ was made for people like you",
+          "ar": "???? ????? ?????? ????"
+        },
+        "userCountLabel": {
+          "fr": "1M+ utilisateurs de Lakbay+",
+          "zh": "??1M?Lakbay+??",
+          "pl": "1M+ uzytkowników Lakbay+",
+          "pt": "1M+ usuários do Lakbay+",
+          "de": "1M+ Lakbay+-Nutzer",
+          "it": "1M+ utenti Lakbay+",
+          "ru": "1M+ ????????????? Lakbay+",
+          "es": "1M+ usuarios de Lakbay+",
+          "en": "1M+ Lakbay+ users",
+          "ar": "1M+ ??????? Lakbay+"
+        }
+      },
+      "eyebrow": {
+        "fr": "Pendant qu'on prépare ton voyage",
+        "zh": "????????????",
+        "pl": "Podczas gdy przygotowujemy twoja podróz",
+        "pt": "Enquanto estamos organizando sua viagem",
+        "de": "Während wir deine Reise einrichten",
+        "it": "Mentre stiamo preparando il tuo viaggio",
+        "ru": "???? ?? ??????????? ???? ???????",
+        "es": "Mientras preparamos tu viaje",
+        "en": "While we're setting up your trip",
+        "ar": "????? ??? ???? ?????"
+      },
+      "text": {
+        "fr": "Donne-nous une note.",
+        "zh": "????????",
+        "pl": "Daj nam ocene.",
+        "pt": "Dá uma nota pra gente.",
+        "de": "Gib uns eine Bewertung.",
+        "it": "Dacci una valutazione.",
+        "ru": "????? ???.",
+        "es": "Danos una calificación.",
+        "en": "Give us a rating.",
+        "ar": "?????? ?????."
+      },
+      "ratingCard": {
+        "ratingLabel": {
+          "fr": "évaluations étoiles",
+          "zh": "????",
+          "pl": "gwiazdkowe recenzje",
+          "pt": "avaliações de estrelas",
+          "de": "Sternbewertungen",
+          "it": "recensioni a stelle",
+          "ru": "???????? ??????",
+          "es": "reseñas de estrellas",
+          "en": "star reviews",
+          "ar": "??????? ??????"
+        },
+        "reviewCountLabel": {
+          "fr": "50k+",
+          "zh": "50k+",
+          "pl": "50k+",
+          "pt": "50k+",
+          "de": "50k+",
+          "it": "50k+",
+          "ru": "50?+",
+          "es": "50k+",
+          "en": "50k+",
+          "ar": "50 ???+"
+        },
+        "stars": 5,
+        "value": 4
+      },
+      "type": "rating",
+      "phaseId": "phase_discovery",
+      "testimonials": [
+        {
+          "id": "jonas_26",
+          "name": "Jonas, 26",
+          "quote": {
+            "fr": "Réserve tous mes voyages avec Lakbay+ et je ne me suis jamais demandé si le voyage allait être bien ou pas. PARCE QUE ÇA L'A TOUJOURS ÉTÉ.",
+            "zh": "?Lakbay+?????????,????????????,????????",
+            "pl": "Rezerwuje wszystkie moje wyjazdy z Lakbay+ i nigdy nie zastanawiam sie, czy podróz bedzie dobra, czy nie. BO ZAWSZE BYLA!",
+            "pt": "Reserve todas as minhas viagens com Lakbay+ e nunca questionei se a viagem ia ser boa ou não. PORQUE SEMPRE FOI.",
+            "de": "Buche alle meine Reisen mit Lakbay+ und hab nie gezweifelt, ob die Reise gut wird oder nicht. WEIL ES IMMER SO WAR.",
+            "it": "Prenota tutti i miei viaggi con Lakbay+ e non mi sono mai chiesto se il viaggio sarebbe stato bello o meno. PERCHÉ LO È SEMPRE STATO.",
+            "ru": "?????????? ??? ??? ??????? ? Lakbay+, ? ? ??????? ?? ??????????, ????? ?? ??????? ??????? ??? ???. ?????? ??? ??? ?????? ????.",
+            "es": "Reserva todos mis viajes con Lakbay+ y nunca me he preguntado si el viaje va a ser bueno o no. PORQUE SIEMPRE LO FUE.",
+            "en": "Book all my trips with Lakbay+ and never ever questioned if the trip is going to be good or not. BECAUSE IT ALWAYS WAS",
+            "ar": "???? ?? ?????? ?? Lakbay+ ??? ???? ?????? ??? ???? ?????? ?? ???? ???? ?? ??. ???? ?????? ???? ???!"
+          },
+          "subtitle": {
+            "fr": "voyageur",
+            "zh": "???",
+            "pl": "podróznik",
+            "pt": "viajante",
+            "de": "Reisender",
+            "it": "viaggiatore",
+            "ru": "??????????????",
+            "es": "viajero",
+            "en": "traveler",
+            "ar": "?????"
+          }
+        }
+      ]
+    },
+    {
+      "stepId": "step_6_no_location_share",
+      "prompt": {
+        "fr": "Partager ta position ?",
+        "zh": "??????????",
+        "pl": "Podzielic sie swoja lokalizacja?",
+        "pt": "Compartilhar sua localização?",
+        "de": "Standort teilen?",
+        "it": "Condividere la tua posizione?",
+        "ru": "?????????? ????? ????????????????",
+        "es": "¿Compartir tu ubicación?",
+        "en": "Share your location?",
+        "ar": "???? ????? ??????"
+      },
+      "media": {
+        "type": "image",
+        "url": "https://firebasestorage.googleapis.com/v0/b/bd-app-prod.firebasestorage.app/o/onboarding_config%2Fproduction%2Fstep_7_yes_location_share.png?alt=media&token=REPLACE_WITH_FINAL_TOKEN"
+      },
+      "text": {
+        "fr": "Lakbay+ trouve des vols depuis ton aéroport local et te propose des escapades de week-end qui correspondent à tes plans.",
+        "zh": "Lakbay+ ????????????,??????????????",
+        "pl": "Lakbay+ znajduje loty z twojego lokalnego lotniska i podpowiada weekendowe wyjazdy, które pasuja do twoich planów.",
+        "pt": "A Lakbay+ encontra voos do seu aeroporto local e sugere viagens de fim de semana que combinam com os seus planos.",
+        "de": "Lakbay+ findet Flüge von deinem lokalen Flughafen und schlägt Wochenendausflüge vor, die zu deinen Plänen passen.",
+        "it": "Lakbay+ trova voli dal tuo aeroporto locale e suggerisce viaggi nel weekend che si adattano ai tuoi piani.",
+        "ru": "Lakbay+ ??????? ????? ?? ?????? ???????? ????????? ? ?????????? ??????? ?? ????????, ??????? ???????? ??? ???? ?????.",
+        "es": "Lakbay+ encuentra vuelos desde tu aeropuerto local y sugiere escapadas de fin de semana que se adaptan a tus planes.",
+        "en": "Lakbay+ finds flights from your local airport and suggests weekend trips that suit your plans.",
+        "ar": "????? ????? ????? ?? ????? ?????? ?????? ????? ????? ??????? ???? ????? ????."
+      },
+      "type": "location_share",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_discovery"
+    },
+    {
+      "stepId": "step_6_no_notification_allow",
+      "prompt": {
+        "fr": "Sois au courant des baisses de prix.",
+        "zh": "??????????",
+        "pl": "Dostaniesz info o spadkach cen.",
+        "pt": "Fique por dentro das quedas de preço.",
+        "de": "Erhalte eine Benachrichtigung über Preissenkungen.",
+        "it": "Ricevi un avviso sui cali di prezzo.",
+        "ru": "????? ? ???????? ??? ???????.",
+        "es": "Recibe un aviso sobre las bajadas de precio.",
+        "en": "Get a heads-up on price drops.",
+        "ar": "???? ??? ????? ????? ?????? ???????."
+      },
+      "media": {
+        "type": "image",
+        "url": "https://firebasestorage.googleapis.com/v0/b/bd-app-prod.firebasestorage.app/o/onboarding_config%2Fproduction%2Fstep_8_yes_notification_allow.png?alt=media&token=REPLACE_WITH_FINAL_TOKEN"
+      },
+      "text": {
+        "fr": "Lakbay+ te prévient quand les prix des vols changent, quand des offres apparaissent, ou quand ton voyage a besoin d'attention.",
+        "zh": "Lakbay+????????????????????????????",
+        "pl": "Lakbay+ powiadamia cie, gdy zmieniaja sie ceny lotów, pojawiaja sie oferty lub twoja podróz wymaga uwagi.",
+        "pt": "A Lakbay+ te avisa quando os preços dos voos mudam, aparecem ofertas ou sua viagem precisa de atenção.",
+        "de": "Lakbay+ informiert dich, wenn sich die Flugpreise ändern, Angebote auftauchen oder deine Reise Aufmerksamkeit braucht.",
+        "it": "Lakbay+ ti avvisa quando i prezzi dei voli cambiano, quando ci sono offerte o quando il tuo viaggio ha bisogno di attenzione.",
+        "ru": "????? ?????????? ????, ????? ???????? ???? ?? ?????, ?????????? ??????????? ??? ????? ??????? ????? ????????.",
+        "es": "Lakbay+ te avisa cuando cambian los precios de los vuelos, aparecen ofertas o tu viaje necesita atención.",
+        "en": "Lakbay+ notifies you when flight prices change, deals appear, or your trip needs attention.",
+        "ar": "???? Lakbay+ ??????? ????? ????? ????? ???????? ?? ???? ????? ?? ????? ????? ??? ??????."
+      },
+      "type": "notification_allow",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_discovery"
+    },
+    {
+      "prompt": {
+        "fr": "Inspire-moi sur où aller.",
+        "zh": "?????,???????",
+        "pl": "Zainspiruj mnie, dokad mam isc.",
+        "pt": "Me inspira sobre onde ir.",
+        "de": "Inspiriere mich, wo ich hinfahren soll.",
+        "it": "Ispirami su dove andare.",
+        "ru": "???????? ????, ???? ???????.",
+        "es": "Inspírame a dónde ir.",
+        "en": "Inspire me where to go.",
+        "ar": "?????? ??? ????."
+      },
+      "stepId": "step_7_no_chat",
+      "inputPlaceholder": {
+        "fr": "Inspire-moi sur où aller",
+        "zh": "?????,???????",
+        "pl": "Zainspiruj mnie, dokad mam isc.",
+        "pt": "Me inspira aonde ir",
+        "de": "Inspiriere mich, wohin ich gehen soll.",
+        "it": "Ispirami su dove andare",
+        "ru": "???????? ????, ???? ???????",
+        "es": "Inspírame a dónde ir",
+        "en": "Inspire me where to go",
+        "ar": "?????? ??? ????"
+      },
+      "lockOnComplete": true,
+      "completionRule": "requires_destination_or_trip_in_chat",
+      "onCompleteAction": "noop",
+      "type": "chat",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_discovery"
+    },
+    {
+      "stepId": "step_9_no_value",
+      "prompt": {
+        "fr": "Je peux faire tellement plus que trouver des destinations.",
+        "zh": "?????????????",
+        "pl": "Moge zrobic znacznie wiecej niz tylko znalezc miejsca.",
+        "pt": "Eu posso fazer muito mais do que encontrar destinos.",
+        "de": "Ich kann so viel mehr als nur Ziele finden.",
+        "it": "Posso fare molto di più che trovare destinazioni.",
+        "ru": "? ???? ??????? ??????? ??????, ??? ?????? ????? ?????.",
+        "es": "Puedo hacer mucho más que solo encontrar destinos.",
+        "en": "I can do so much more than find destinations",
+        "ar": "???? ???? ???? ????? ?? ???? ????? ?? ?????"
+      },
+      "cta": {
+        "label": {
+          "fr": "Continuer",
+          "zh": "??",
+          "pl": "Kontynuuj",
+          "pt": "Continuar",
+          "de": "Weiter",
+          "it": "Continua",
+          "ru": "??????????",
+          "es": "Continuar",
+          "en": "Continue",
+          "ar": "?????"
+        },
+        "action": "next_step"
+      },
+      "media": {
+        "alt": {
+          "fr": "Comment Lakbay+ aide avec les hôtels et les préférences",
+          "zh": "Lakbay+ ????????????",
+          "pl": "Jak Lakbay+ pomaga z hotelami i preferencjami",
+          "pt": "Como a Lakbay+ ajuda com hotéis e preferências",
+          "de": "Wie Lakbay+ dir bei Hotels und Vorlieben hilft",
+          "it": "Come Lakbay+ ti aiuta con gli hotel e le preferenze",
+          "ru": "??? Lakbay+ ???????? ? ??????? ? ??????????????",
+          "es": "Cómo Lakbay+ te ayuda con hoteles y preferencias",
+          "en": "How Lakbay+ helps with hotels and preferences",
+          "ar": "??? ????? Lakbay+ ?? ??????? ??????????"
+        },
+        "type": "image",
+        "url": "https://firebasestorage.googleapis.com/v0/b/bd-app-prod.firebasestorage.app/o/onboarding_config%2Fproduction%2Fstep_6_yes_value.png?alt=media&token=b9dbb669-1ee1-4b4a-85ab-cfab4b070b5b"
+      },
+      "text": {
+        "fr": "J'ai déjà fait gagner des heures à des voyageurs et je peux être le seul travel agent dont tu as besoin.",
+        "zh": "??????????????,????????????????",
+        "pl": "Juz zaoszczedzilem podróznikom mnóstwo czasu i moge byc jedynym travel agentem, którego potrzebujesz.",
+        "pt": "Já economizei horas preciosas para muitos viajantes e posso ser o único travel agent que você precisa.",
+        "de": "Ich habe schon unzähligen Reisenden Stunden gespart und kann der einzige Reiseberater sein, den du brauchst.",
+        "it": "Ho già fatto risparmiare ore a un sacco di viaggiatori e posso essere l'unico travel agent di cui hai bisogno.",
+        "ru": "? ??? ????????? ???????????????? ???? ??????? ? ???? ???? ???????????? travel agent, ??????? ???? ?????.",
+        "es": "Ya he ahorrado a los viajeros un montón de horas y puedo ser el único travel agent que necesitas.",
+        "en": "I have already saved travelers countless hours and can be the only travel agent you need.",
+        "ar": "??? ???? ?????? ????? ?? ???? ????????? ??????? ?? ???? ???? ????? ?????? ???? ??????."
+      },
+      "type": "info",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_discovery"
+    },
+    {
+      "phaseId": "phase_discovery",
+      "stepId": "step_10_no_destinations_ready",
+      "validation": {
+        "required": false
+      },
+      "prompt": {
+        "fr": "Tes destinations sont prêtes. Regarde-les avant de déverrouiller.",
+        "zh": "????????????????????",
+        "pl": "Twoje destynacje sa gotowe. Sprawdz je przed odblokowaniem.",
+        "pt": "Seus destinos estão prontos. Dê uma olhada neles antes de desbloquear.",
+        "de": "Deine Ziele sind bereit. Schau sie dir an, bevor du sie freischaltest.",
+        "it": "Le tue destinazioni sono pronte. Dagli un'occhiata prima di sbloccarle.",
+        "ru": "???? ??????????? ??????. ????????? ?? ????? ??????????????.",
+        "es": "Tus destinos están listos. Revísalos antes de desbloquear.",
+        "en": "Your destinations are ready. Review them before unlocking.",
+        "ar": "?????? ?????. ?????? ??? ?? ????."
+      },
+      "type": "trip_preview",
+      "text": {
+        "fr": "Explore tes destinations correspondantes sur la carte.",
+        "zh": "??????????????",
+        "pl": "Zobacz swoje dopasowane miejsca na mapie.",
+        "pt": "Explore seus destinos combinados no mapa.",
+        "de": "Entdecke deine passenden Reiseziele auf der Karte.",
+        "it": "Esplora le destinazioni che ti abbiamo abbinato sulla mappa.",
+        "ru": "???????? ???? ?????????? ??????????? ?? ?????.",
+        "es": "Explora tus destinos coincidentes en el mapa.",
+        "en": "Explore your matched destinations on the map.",
+        "ar": "?????? ??????? ???? ?????? ??? ???????."
+      }
+    },
+    {
+      "stepId": "step_11_no_sign_in",
+      "prompt": {
+        "fr": "Inscris-toi pour continuer",
+        "zh": "?????",
+        "pl": "Zarejestruj sie, zeby kontynuowac",
+        "pt": "Cadastre-se para continuar",
+        "de": "Meld dich an, um fortzufahren",
+        "it": "Iscriviti per continuare",
+        "ru": "???????????????, ????? ??????????",
+        "es": "Regístrate para continuar",
+        "en": "Sign up to continue",
+        "ar": "??? ???? ????"
+      },
+      "cta": {
+        "label": {
+          "fr": "Inscris-toi",
+          "zh": "??",
+          "pl": "Zarejestruj sie",
+          "pt": "Inscreva-se",
+          "de": "Registrieren",
+          "it": "Iscriviti",
+          "ru": "??????????????????",
+          "es": "Regístrate",
+          "en": "Sign up",
+          "ar": "??? ????"
+        }
+      },
+      "text": {
+        "fr": "Inscris-toi pour sauvegarder cette discussion et débloquer ta liste de destinations.",
+        "zh": "????????????????????",
+        "pl": "Zarejestruj sie, zeby zapisac te rozmowe i odblokowac swoja liste miejsc docelowych.",
+        "pt": "Cadastre-se para salvar este chat e desbloquear sua lista de destinos.",
+        "de": "Meld dich an, um diesen Chat zu speichern und deine Zielorte-Liste freizuschalten.",
+        "it": "Iscriviti per salvare questa chat e sbloccare la tua lista di destinazioni.",
+        "ru": "???????????????, ????? ????????? ???? ??? ? ?????????????? ???? ?????? ???? ??? ???????????.",
+        "es": "Regístrate para guardar este chat y desbloquear tu lista corta de destinos.",
+        "en": "Sign up to save this chat and unlock your destination shortlist.",
+        "ar": "??? ???? ???? ??? ???????? ????? ????? ??????? ????????."
+      },
+      "type": "sign_in_gate",
+      "validation": {
+        "required": true
+      },
+      "phaseId": "phase_conversion"
+    },
+    {
+      "stepId": "step_12_no_paywall",
+      "cta": {
+        "label": {
+          "fr": "Commence l'essai et débloque des destinations",
+          "zh": "????,?????",
+          "pl": "Rozpocznij próbe i odblokuj destynacje",
+          "pt": "Comece o teste e desbloqueie destinos",
+          "de": "Testversion starten und Reiseziele freischalten",
+          "it": "Inizia la prova e sblocca le destinazioni",
+          "ru": "????? ??????? ?????? ? ?????? ????? ???????????",
+          "es": "Empieza la prueba y desbloquea destinos",
+          "en": "Unlock destinations",
+          "ar": "???? ??????? ???? ???????"
+        },
+        "action": "unlock"
+      },
+      "subtext": {
+        "fr": "Commence ton essai pour débloquer les détails de la destination, puis continue avec un accès annuel ou mensuel.",
+        "zh": "??????,???????,????????????",
+        "pl": "Zacznij swój okres próbny, zeby odblokowac szczególy dotyczace destynacji, a potem kontynuuj z dostepem rocznym lub miesiecznym.",
+        "pt": "Comece seu teste para desbloquear os detalhes do destino e depois continue com acesso anual ou mensal.",
+        "de": "Starte deine Testphase, um die Details zu den Zielen freizuschalten, und mach dann mit dem jährlichen oder monatlichen Zugang weiter.",
+        "it": "Inizia la tua prova per sbloccare i dettagli della destinazione, poi continua con l'accesso annuale o mensile.",
+        "ru": "????? ???? ??????? ??????, ????? ??????? ?????? ??????????, ? ????? ???????? ? ??????? ??? ???????? ????????.",
+        "es": "Empieza tu prueba para desbloquear los detalles del destino, luego sigue con acceso anual o mensual.",
+        "en": "Start your trial to unlock destination details, then continue with annual or monthly access.",
+        "ar": "???? ?????? ???? ???? ?????? ??????? ????? ??? ??????? ?????? ?? ??????."
+      },
+      "preview": [
+        {
+          "id": "destination-preview",
+          "label": {
+            "fr": "Votre liste de destinations personnalisées depuis le chat",
+            "zh": "??????????????????",
+            "pl": "Twoja spersonalizowana lista miejsc docelowych z czatu",
+            "pt": "Sua lista personalizada de destinos a partir do chat",
+            "de": "Deine persönliche Auswahl an Reisezielen aus dem Chat",
+            "it": "La tua lista corta di destinazioni personalizzate dalla chat",
+            "ru": "??? ??????????????????? ?????? ???? ?????????? ?? ????",
+            "es": "Tu lista personalizada de destinos de la charla",
+            "en": "Your personalized destination shortlist from chat",
+            "ar": "????? ??????? ??????? ?? ?? ???????"
+          },
+          "state": "visible"
+        }
+      ],
+      "nextStepId": "step_done",
+      "planOptions": [
+        {
+          "id": "trial",
+          "label": {
+            "fr": "Essai",
+            "zh": "??",
+            "pl": "Próbny",
+            "pt": "Teste",
+            "de": "Testversion",
+            "it": "Prova",
+            "ru": "???????",
+            "es": "Prueba",
+            "en": "Trial",
+            "ar": "?????"
+          },
+          "description": {
+            "fr": "Explore ta liste de destinations.",
+            "zh": "???????????",
+            "pl": "Zobacz swoja liste miejsc do odwiedzenia.",
+            "pt": "Explore sua lista de destinos.",
+            "de": "Entdecke deine Auswahl an Reisezielen.",
+            "it": "Esplora la tua lista di destinazioni.",
+            "ru": "??????? ???? ?????? ???? ??????????.",
+            "es": "Explora tu lista corta de destinos.",
+            "en": "Explore your destination shortlist.",
+            "ar": "?????? ????? ?????? ????????."
+          }
+        },
+        {
+          "id": "annual",
+          "label": {
+            "fr": "Annuel",
+            "zh": "??",
+            "pl": "Roczny",
+            "pt": "Anual",
+            "de": "Jährlich",
+            "it": "Annuale",
+            "ru": "?????????",
+            "es": "Anual",
+            "en": "Annual",
+            "ar": "????"
+          },
+          "description": {
+            "fr": "Meilleure valeur pour des voyages toute l'année.",
+            "zh": "??????????",
+            "pl": "Najlepsza wartosc na podróze przez caly rok.",
+            "pt": "Melhor preço para viajar o ano todo.",
+            "de": "Bester Preis für ganzjähriges Reisen.",
+            "it": "Il miglior valore per viaggi tutto l'anno.",
+            "ru": "?????? ??????????? ??? ??????????? ??????? ???.",
+            "es": "Mejor precio para viajar todo el año.",
+            "en": "Best value for year-round travel.",
+            "ar": "???? ???? ????? ??? ???? ?????."
+          }
+        },
+        {
+          "id": "monthly",
+          "label": {
+            "fr": "Mensuel",
+            "zh": "??",
+            "pl": "Miesiecznie",
+            "pt": "Mensal",
+            "de": "Monatlich",
+            "it": "Mensile",
+            "ru": "??????????",
+            "es": "Mensual",
+            "en": "Monthly",
+            "ar": "????"
+          },
+          "description": {
+            "fr": "Accès flexible mois par mois.",
+            "zh": "????????",
+            "pl": "Elastyczny dostep miesiac po miesiacu.",
+            "pt": "Acesso flexível mês a mês.",
+            "de": "Flexibler Zugang von Monat zu Monat.",
+            "it": "Accesso flessibile mese per mese.",
+            "ru": "?????? ?????? ?????????.",
+            "es": "Acceso flexible mes a mes.",
+            "en": "Flexible month-to-month access.",
+            "ar": "???? ??? ?? ??? ????."
+          }
+        }
+      ],
+      "type": "paywall_locked_reveal_destination",
+      "validation": {
+        "required": false
+      },
+      "phaseId": "phase_conversion",
+      "headline": {
+        "fr": "Tu es proche de ta prochaine super destination.",
+        "zh": "??????????????!",
+        "pl": "Jestes blisko swojego nastepnego wspanialego miejsca!",
+        "pt": "Você está perto do seu próximo grande destino!",
+        "de": "Du bist nah dran an deinem nächsten tollen Ziel!",
+        "it": "Sei vicino alla tua prossima grande meta!",
+        "ru": "?? ?????? ? ?????? ?????????? ????????? ????? ??????????.",
+        "es": "Estás cerca de tu próximo gran destino.",
+        "en": "You're close to your next great destination",
+        "ar": "??? ???? ?? ????? ??????? ???????"
+      }
+    },
+    {
+      "phaseId": "phase_conversion",
+      "stepId": "step_done",
+      "validation": {
+        "required": false
+      },
+      "type": "info",
+      "cta": {
+        "label": {
+          "fr": "Terminé",
+          "zh": "??",
+          "pl": "Skoncz",
+          "pt": "Terminar",
+          "de": "Fertig",
+          "it": "Finito",
+          "ru": "?????????",
+          "es": "Termina",
+          "en": "Finish",
+          "ar": "?????"
+        },
+        "action": "complete"
+      },
+      "text": {
+        "fr": "C'est bon, t'es prêt !",
+        "zh": "??????",
+        "pl": "Masz wszystko gotowe.",
+        "pt": "Tá tudo certo.",
+        "de": "Du bist bereit.",
+        "it": "Sei a posto.",
+        "ru": "??? ??????.",
+        "es": "Estás listo.",
+        "en": "You're all set.",
+        "ar": "??? ????."
+      }
+    }
+  ],
+  "phases": [
+    {
+      "phaseId": "phase_intro",
+      "purpose": {
+        "fr": "Définis le contexte et précise le parcours utilisateur.",
+        "zh": "?????????????",
+        "pl": "Ustal kontekst i okresl sciezke uzytkownika.",
+        "pt": "Defina o contexto e qualifique o caminho do usuário.",
+        "de": "Kontext festlegen und den Nutzerpfad qualifizieren.",
+        "it": "Imposta il contesto e definisci il percorso dell'utente.",
+        "ru": "?????????? ???????? ? ???????? ???? ????????????.",
+        "es": "Establece el contexto y califica el camino del usuario.",
+        "en": "Set context and qualify the user path.",
+        "ar": "??? ?????? ???? ???? ????????."
+      },
+      "title": {
+        "fr": "Bienvenue",
+        "zh": "??",
+        "pl": "Czesc",
+        "pt": "Bem-vindo",
+        "de": "Willkommen",
+        "it": "Benvenuto",
+        "ru": "????? ??????????",
+        "es": "¡Bienvenido!",
+        "en": "Welcome",
+        "ar": "????? ??????"
+      }
+    },
+    {
+      "phaseId": "phase_trip_ready",
+      "purpose": {
+        "fr": "Construis et présente un voyage complet.",
+        "zh": "?????????????",
+        "pl": "Zbuduj i zaprezentuj pelna podróz.",
+        "pt": "Monte e apresente uma viagem completa.",
+        "de": "Stell eine komplette Reise zusammen und präsentiere sie.",
+        "it": "Crea e presenta un viaggio completo.",
+        "ru": "?????? ? ?????? ?????? ???????.",
+        "es": "Crea y presenta un viaje completo.",
+        "en": "Build and present a full trip.",
+        "ar": "???? ???? ???? ?????."
+      },
+      "title": {
+        "fr": "Création de voyage",
+        "zh": "????",
+        "pl": "Tworzenie wycieczki",
+        "pt": "Criação de Viagem",
+        "de": "Reise erstellen",
+        "it": "Creazione del viaggio",
+        "ru": "???????? ???????",
+        "es": "Creación de viaje",
+        "en": "Trip Creation",
+        "ar": "????? ????"
+      }
+    },
+    {
+      "phaseId": "phase_discovery",
+      "purpose": {
+        "fr": "Découvrez et affinez vos destinations.",
+        "zh": "?????????",
+        "pl": "Odkryj i zawezaj destynacje.",
+        "pt": "Descubra e refine os destinos.",
+        "de": "Entdecke und schränke die Ziele ein.",
+        "it": "Scopri e restringi le destinazioni.",
+        "ru": "?????? ? ???? ???????????.",
+        "es": "Descubre y acota destinos.",
+        "en": "Discover and narrow destinations.",
+        "ar": "????? ????? ???????."
+      },
+      "title": {
+        "fr": "Découverte de destination",
+        "zh": "?????",
+        "pl": "Odkrywanie Destynacji",
+        "pt": "Descoberta de Destinos",
+        "de": "Zielentdeckung",
+        "it": "Scopri la tua destinazione",
+        "ru": "???????? ???????????",
+        "es": "Descubre tu destino",
+        "en": "Destination Discovery",
+        "ar": "?????? ???????"
+      }
+    },
+    {
+      "phaseId": "phase_conversion",
+      "purpose": {
+        "fr": "Authentifie-toi et passe à l'abonnement.",
+        "zh": "?????????",
+        "pl": "Zaloguj sie i przeksztalc na subskrypcje.",
+        "pt": "Autentique e converta para assinatura.",
+        "de": "Authentifizieren und auf Abonnement umstellen.",
+        "it": "Autenticati e passa all'abbonamento.",
+        "ru": "???????????????? ? ???????? ?? ????????.",
+        "es": "Autentica y convierte a suscripción.",
+        "en": "Authenticate and convert to subscription.",
+        "ar": "?? ?????? ?????? ??? ??????."
+      },
+      "title": {
+        "fr": "Connecte-toi et débloque",
+        "zh": "?????",
+        "pl": "Zaloguj sie i odblokuj",
+        "pt": "Faça login e desbloqueie",
+        "de": "Anmelden und freischalten",
+        "it": "Accedi e sblocca",
+        "ru": "??????? ? ?????????????",
+        "es": "Inicia sesión y desbloquea",
+        "en": "Sign in and unlock",
+        "ar": "??? ????? ????"
+      }
+    }
+  ],
+  "flowId": "travel-onboarding-production-v1",
+  "title": {
+    "fr": "Intégration de Lakbay+ Production",
+    "zh": "Lakbay+ ????",
+    "pl": "Lakbay+ Wprowadzenie do Produkcji",
+    "pt": "Integração da Produção Lakbay+",
+    "de": "Lakbay+ Produktion Einarbeitung",
+    "it": "Lakbay+ Produzione Onboarding",
+    "ru": "????? ???????? ?????????",
+    "es": "Onboarding de Lakbay+ Production",
+    "en": "Lakbay+ Production Onboarding",
+    "ar": "????? ???? Lakbay+ Production"
+  }
+}
