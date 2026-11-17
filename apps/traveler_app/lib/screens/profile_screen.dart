@@ -216,7 +216,7 @@ class ProfileScreen extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(24),
                                   ),
                                 ),
-                                icon: const Icon(Icons.auto_awesome, size: 16),
+                                icon: const Icon(Icons.forum_outlined, size: 16),
                                 label: const Text(
                                   'Ask AI',
                                   style: TextStyle(fontWeight: FontWeight.w700),

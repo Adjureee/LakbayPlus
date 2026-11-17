@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'design/design_preview_screen.dart';
+import 'design/lakbay_tokens.dart';
 import 'screens/auth_screen.dart';
 import 'screens/explore_screen.dart';
 import 'screens/home_chat_screen.dart';
@@ -11,12 +13,25 @@ import 'screens/profile_screen.dart';
 import 'services/env_config.dart';
 import 'services/travel_repository.dart';
 import 'theme/lakbay_theme.dart';
-import 'widgets/brand/lakbay_compass_mark.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _registerFontLicenses();
   await EnvConfig.load();
   runApp(const LakbayTravelApp());
+}
+
+/// Bundled fonts are SIL Open Font License; list them on the licenses page.
+void _registerFontLicenses() {
+  LicenseRegistry.addLicense(() async* {
+    for (final (family, file) in const [
+      ('Manrope', 'OFL-Manrope.txt'),
+      ('Bricolage Grotesque', 'OFL-BricolageGrotesque.txt'),
+    ]) {
+      final text = await rootBundle.loadString('assets/google_fonts/$file');
+      yield LicenseEntryWithLineBreaks([family], text);
+    }
+  });
 }
 
 class LakbayTravelApp extends StatefulWidget {
@@ -112,14 +127,14 @@ class _SplashLoadingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: LakbayColors.tealDeep,
+      backgroundColor: LkColors.bg,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             LakbayBrandWordmark(fontSize: 32, lightText: true, showTagline: true),
             SizedBox(height: 24),
-            CircularProgressIndicator(color: LakbayColors.primary),
+            CircularProgressIndicator(color: LkColors.lagoon),
           ],
         ),
       ),
@@ -208,7 +223,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                       selected: selectedIndex == 1,
                       onTap: () => widget.repo.setActiveNavIndex(1),
                     ),
-                    // Spacer for center elevated S✦ Chat button
+                    // Spacer for the center Chat button
                     const SizedBox(width: 62),
                     _NavItem(
                       icon: Icons.photo_library_outlined,
@@ -250,10 +265,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                           ],
                         ),
                         alignment: Alignment.center,
-                        child: const LakbayCompassMark(
-                          size: 28,
-                          primaryColor: Colors.white,
-                          secondaryColor: Colors.white70,
+                        child: const Icon(
+                          Icons.forum_rounded,
+                          size: 26,
+                          color: Colors.white,
+                          semanticLabel: 'Chat',
                         ),
                       ),
                       const SizedBox(height: 2),

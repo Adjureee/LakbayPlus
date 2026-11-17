@@ -1083,17 +1083,19 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const LakbayAvatar(size: 46),
+              const Icon(
+                Icons.tips_and_updates_outlined,
+                color: LakbayColors.primaryDark,
+                size: 24,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      trip.expertName.trim().isNotEmpty
-                          ? trip.expertName
-                          : 'Travel notes',
-                      style: const TextStyle(
+                    const Text(
+                      'Travel notes',
+                      style: TextStyle(
                         fontFamily: 'FigGrotesk',
                         fontWeight: FontWeight.w700,
                         fontSize: 14,
@@ -1102,7 +1104,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '"${trip.expertTip}"',
+                      trip.expertTip.trim(),
                       style: const TextStyle(
                         fontSize: 13.5,
                         height: 1.4,

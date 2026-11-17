@@ -417,7 +417,7 @@ class DiscoverySectionItem {
   factory DiscoverySectionItem.fromJson(Map<String, dynamic> json) {
     return DiscoverySectionItem(
       tripId: json['tripId'] as String? ?? '',
-      tag: json['tag'] as String? ?? '✨',
+      tag: json['tag'] as String? ?? 'Place',
     );
   }
 }
@@ -1097,7 +1097,7 @@ class ItineraryTrip {
     required this.avgTemp,
     this.wmoWeatherCode = 2,
     required this.expertName,
-    this.expertAvatarAsset = 'assets/experts/carla.webp',
+    this.expertAvatarAsset = '',
     required this.expertTip,
     required this.days,
     required this.flights,
@@ -1344,7 +1344,7 @@ class ItineraryTrip {
         wmoWeatherCode: (json['wmoWeatherCode'] as num?)?.toInt() ?? 2,
         expertName: json['expertName'] as String? ?? 'Lakbay+ AI',
         expertAvatarAsset:
-            json['expertAvatarAsset'] as String? ?? 'assets/experts/carla.webp',
+            json['expertAvatarAsset'] as String? ?? '',
         expertTip: json['expertTip'] as String? ?? '',
         days: (json['days'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()

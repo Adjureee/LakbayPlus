@@ -292,17 +292,17 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
 
         final nextOptions = aiResult.suggestedReplies.isNotEmpty
             ? [
-                if (isReadyPlan) 'Looks perfect — build trip card ✨',
+                if (isReadyPlan) 'Looks perfect — build trip card',
                 ...aiResult.suggestedReplies,
               ]
             : (isReadyPlan
                 ? const [
-                    'Looks perfect — build trip card ✨',
+                    'Looks perfect — build trip card',
                     'Swap destinations or pace',
                     'Tighten budget',
                   ]
                 : const [
-                    'Build a full multi-day plan ✨',
+                    'Build a full multi-day plan',
                     'Show hidden local food & nature stops',
                     'Keep it slow and coastal',
                   ]);
@@ -674,7 +674,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                         ),
                         alignment: Alignment.center,
                         child: const Text(
-                          'S✦',
+                          'L+',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 11,
@@ -910,10 +910,14 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   color: LakbayColors.primaryLight,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  size: 15,
-                  color: LakbayColors.primaryDark,
+                alignment: Alignment.center,
+                child: const Text(
+                  'L+',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: LakbayColors.primaryDark,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1047,46 +1051,6 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
-            'Lakbay+✦ was made for people like you',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: LakbayColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (final asset in const [
-                'assets/experts/carla.webp',
-                'assets/experts/aleks.webp',
-                'assets/experts/rob.webp',
-              ])
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2.5),
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      asset,
-                      width: 56,
-                      height: 56,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const CircleAvatar(
-                        radius: 28,
-                        backgroundColor: LakbayColors.primaryLight,
-                        child: Icon(Icons.person, color: LakbayColors.primaryDark),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -1094,38 +1058,25 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: LakbayColors.cardBorder),
             ),
-            child: Column(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '"Lakbay+ doesn\'t feel like a generic bot. It feels like chatting with a super organized friend who already knows Samal\'s hidden coves, Mati\'s surf spots, and the ferry logistics you\'d forget to check."',
+                Text(
+                  'How your plan is made',
                   style: TextStyle(
-                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
                     color: LakbayColors.tealDeep,
-                    height: 1.45,
                   ),
                 ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    ClipOval(
-                      child: Image.asset(
-                        'assets/experts/carla.webp',
-                        width: 34,
-                        height: 34,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'Carla G',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: LakbayColors.tealDeep,
-                      ),
-                    ),
-                  ],
+                SizedBox(height: 8),
+                Text(
+                  'Lakbay AI picks real Region XI places from our catalog, orders them into days, and estimates rides and fares from local rates. You can change anything before you save it.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: LakbayColors.textSecondary,
+                    height: 1.45,
+                  ),
                 ),
               ],
             ),
@@ -1146,7 +1097,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                 ),
               ),
               child: const Text(
-                'Rate Lakbay+✦',
+                'Rate Lakbay+',
                 style: TextStyle(
                   fontFamily: 'FigGrotesk',
                   fontSize: 16,
@@ -1223,7 +1174,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                       ),
                       alignment: Alignment.center,
                       child: const Text(
-                        'S✦',
+                        'L+',
                         style: TextStyle(
                           fontFamily: 'FigGrotesk',
                           fontWeight: FontWeight.w800,
@@ -1276,11 +1227,11 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                 const _TimelineRow(
                   icon: Icons.check_rounded,
                   filled: true,
-                  title: 'Lakbay+✦',
+                  title: 'Lakbay AI',
                   subtitle: 'Drafted a plan from what you told me',
                 ),
                 _TimelineRow(
-                  icon: Icons.auto_awesome,
+                  icon: Icons.rate_review_outlined,
                   filled: isReady,
                   title: 'You',
                   subtitle: 'Review the plan, then save it',

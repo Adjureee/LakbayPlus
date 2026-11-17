@@ -168,7 +168,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 Navigator.of(ctx).pop();
                 widget.repo.planInChat('Help me plan a trip to ${cityObj.city}.');
               },
-              icon: const Icon(Icons.auto_awesome_rounded),
+              icon: const Icon(Icons.forum_outlined),
               label: Text('Plan a trip to ${cityObj.city} with Lakbay AI'),
             ),
           ],
@@ -1087,7 +1087,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '★ ${trip.tag ?? "DAVAO SIGNATURE"}',
+                  (trip.tag ?? 'Davao Region').toUpperCase(),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -1445,7 +1445,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ElevatedButton.icon(
                 onPressed: () =>
                     widget.repo.planInChat('Help me plan a trip to $_searchQuery.'),
-                icon: const Icon(Icons.auto_awesome_rounded),
+                icon: const Icon(Icons.forum_outlined),
                 label: Text('Plan a trip to $_searchQuery with Lakbay AI'),
               ),
             ],
@@ -1646,7 +1646,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       TextButton.icon(
                         onPressed: () => widget.repo
                             .planInChat('Help me plan a trip to ${cityObj.city}.'),
-                        icon: const Icon(Icons.auto_awesome_rounded, size: 16),
+                        icon: const Icon(Icons.forum_outlined, size: 16),
                         label: const Text('Plan Trip'),
                       ),
                     ],
@@ -1813,7 +1813,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       const SizedBox(width: 10),
                       ElevatedButton.icon(
                         onPressed: loading ? null : runMatch,
-                        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                        icon: const Icon(Icons.sort_rounded, size: 18),
                         label: const Text('Rank Top 5'),
                       ),
                     ],

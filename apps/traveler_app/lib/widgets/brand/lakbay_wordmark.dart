@@ -1,58 +1,64 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../core/theme/app_theme.dart';
-import 'lakbay_compass_mark.dart';
+import '../../design/lakbay_tokens.dart';
 
-/// The Lakbay+ wordmark: the original compass mark beside the name, with the
-/// "+" picked out in the brand's secondary color. Original type treatment —
-/// no copied logo file or third-party font.
+/// The Lakbay+ wordmark: the name alone, set in Bricolage Grotesque, with the
+/// "+" in mango. There is no symbol or mark; the old compass/star mark was
+/// retired because it read as a generic AI sparkle.
 class LakbayWordmark extends StatelessWidget {
   const LakbayWordmark({
     super.key,
-    this.markSize = 26,
-    this.fontSize = 20,
+    this.fontSize = 24,
     this.color,
-    this.compact = false,
+    this.plusColor,
   });
 
-  final double markSize;
   final double fontSize;
+
+  /// Color of "Lakbay". Defaults to white on dark themes and deep teal on
+  /// light ones.
   final Color? color;
 
-  /// When true, shows only the mark — for tight spaces such as a collapsed
-  /// nav rail or a favicon-sized slot.
-  final bool compact;
+  /// Color of "+". Defaults to mango, or a darker amber on light backgrounds
+  /// where mango would be too faint.
+  final Color? plusColor;
+
+  /// Darker amber for the "+" on light surfaces (mango fails contrast there).
+  static const Color amberOnLight = Color(0xFFB4690E);
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = color ?? (isDark ? Colors.white : AppTheme.primaryDeep);
-    final mark = LakbayCompassMark(size: markSize, primaryColor: textColor);
-    if (compact) return mark;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        mark,
-        const SizedBox(width: 8),
-        Text.rich(
-          TextSpan(
-            style: GoogleFonts.outfit(
-              fontSize: fontSize,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.3,
-              color: textColor,
-            ),
-            children: [
-              const TextSpan(text: 'Lakbay'),
-              TextSpan(
-                text: '+',
-                style: TextStyle(color: AppTheme.secondaryGreen),
-              ),
-            ],
+    final textColor = color ??
+        (Theme.of(context).brightness == Brightness.dark
+            ? Colors.white
+            : const Color(0xFF0D2E32));
+    final onDark = textColor.computeLuminance() > 0.5;
+    return Semantics(
+      label: 'Lakbay+',
+      excludeSemantics: true,
+      child: Text.rich(
+        TextSpan(
+          style: GoogleFonts.bricolageGrotesque(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -fontSize * 0.025,
+            height: 1.1,
+            color: textColor,
           ),
+          children: [
+            const TextSpan(text: 'Lakbay'),
+            TextSpan(
+              text: '+',
+              style: TextStyle(
+                color: plusColor ?? (onDark ? LkColors.mango : amberOnLight),
+              ),
+            ),
+          ],
         ),
-      ],
+        maxLines: 1,
+        softWrap: false,
+      ),
     );
   }
 }

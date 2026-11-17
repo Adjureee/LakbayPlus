@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Lakbay+ v8 deep teal (LkColors.bg); shown while Flutter starts. -->
+    <color name="lakbay_splash">#04191C</color>
+</resources>

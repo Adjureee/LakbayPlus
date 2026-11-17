@@ -27,7 +27,7 @@ The project folder is **not a git repository** today, so nothing can be reviewed
 >
 > **Changes from the original plan:**
 > - **The app-wide theme switches in Phase 4, not here.** The old screens hard-code the light palette (for example `LakbayColors.tealDeep` 212 times, often on white cards), so flipping the whole app to dark now would leave unreadable text. Each screen moves to `LakbayDesignTheme.dark` as it is rebuilt. The old `theme/lakbay_theme.dart` is deleted once the last screen has moved.
-> - **Fonts still load at runtime** through `google_fonts` (the package already in use), which caches them on the phone after the first launch. Bundling the `.ttf` files for a fully offline demo moves to Phase 7.
+> - **Fonts:** at first these loaded at runtime. They have been bundled since Phase 2 (see below).
 > - **The tab bar goes in `Scaffold.bottomNavigationBar` with `extendBody: true`,** so snackbars sit above it and scrolling content gets the right bottom padding automatically.
 
 This is the foundation. Every later phase uses it.
@@ -63,7 +63,25 @@ The traveler app currently has **two theme files** (`lib/theme/lakbay_theme.dart
 
 **Done when** (now checked at the end of Phase 4): the app builds on the new theme, no screen imports the old theme files, and `grep "Color(0x" lib/screens` returns nothing.
 
-## Phase 2: Brand cleanup (small)
+## Phase 2: Brand cleanup (small) ✅ done (except the app icon)
+
+> Done 2026-11-17.
+> - **Compass mark removed everywhere.** That covers the widget, the SVGs and the PNG in both apps. Its users now show:
+>   - the name-only wordmark (Bricolage, mango "+")
+>   - an "L+" tile for Lakbay AI in the traveler app
+>   - an "L+" monogram in the admin login and sidebar
+> - **All 11 sparkle icons replaced,** with chat, sort, review and hourglass icons, along with the ✦ and ✨ glyphs in text.
+> - **Invented claims removed from onboarding:**
+>   - "Your travel expert makes it", "No fees", "24/7 Davao care"
+>   - "1M+ Trips planned", "50k+ 5 star reviews"
+>   - the "Carla" and "Aleks, travel expert" testimonials
+>   - the stock-photo faces
+>
+>   They are replaced by short, true descriptions of what the product does. Sign-in no longer mentions a travel expert.
+> - **Trip tips:** shown as plain "Travel notes" from the catalog, not as a quote with an avatar. The `assets/experts/` photos and the model's default expert photo are deleted.
+> - **Splash:** the Android splash (including Android 12+), the Flutter loading screen and the web manifest now use deep teal `#04191C`.
+> - **Fonts bundled now, not in Phase 7:** Manrope 400–800 and Bricolage 800 are in `assets/google_fonts/`, hash-checked against Google Fonts, with their OFL licenses on the app's licenses page. `test/flutter_test_config.dart` preloads them for tests.
+> - **Still open: the launcher icon.** The current icon is the hand-drawn "LAKBAY+" bus artwork, not the compass. A proposed "L+" icon is in `.impeccable/mocks/icon/icon-options.png`, waiting for the owner's decision.
 
 1. **Retire the compass/star mark.** Delete `widgets/brand/lakbay_compass_mark.dart`, `assets/brand/lakbay_mark.svg` and `assets/images/lakbay_logo.png`, then fix their users:
    - traveler `main.dart`, `theme/lakbay_theme.dart`, `lakbay_wordmark.dart`, `lakbay_ai_avatar.dart`
@@ -220,7 +238,7 @@ The admin app already has light, dark and system themes and good AA tokens. It n
 ## Phase 7: Verify and prepare the defense (small)
 
 1. `flutter analyze` is clean, and `flutter test` passes in both apps.
-   Also bundle Bricolage Grotesque and Manrope as `.ttf` assets so the demo runs fully offline.
+   (Fonts are already bundled, since Phase 2.)
 2. Add a few **widget tests** for logic that is easy to break:
    - trip status from dates (Upcoming, Ongoing, Past, Undated)
    - countdown label

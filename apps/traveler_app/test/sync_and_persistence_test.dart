@@ -1308,7 +1308,7 @@ void main() {
     expect(find.byType(MainNavigationShell), findsNothing);
 
     // Stage 1 -> Stage 2 (First plan, done -> requires AuthScreen before dashboard)
-    await tester.tap(find.text('Rate Lakbay+✦'));
+    await tester.tap(find.text('Rate Lakbay+'));
     await tester.pump();
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 1400)));
     await tester.pump();

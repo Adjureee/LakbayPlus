@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'admin_widgets.dart';
+import 'lakbay_monogram.dart';
 
 class Sidebar extends StatelessWidget {
   final bool isCollapsed;
@@ -114,25 +115,7 @@ class Sidebar extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: theme.dividerColor),
-                    ),
-                    child: Image.asset(
-                      'assets/images/lakbay_logo.png',
-                      fit: BoxFit.contain,
-                      semanticLabel: 'Lakbay logo',
-                      errorBuilder: (_, _, _) => Icon(
-                        Icons.explore_outlined,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                  ),
+                  const LakbayMonogram(size: 40),
                   if (!isCollapsed) ...[
                     const SizedBox(width: 12),
                     Expanded(

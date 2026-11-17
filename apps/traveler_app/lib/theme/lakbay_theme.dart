@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/brand/lakbay_ai_avatar.dart';
-import '../widgets/brand/lakbay_compass_mark.dart';
+import '../widgets/brand/lakbay_wordmark.dart';
 
 /// Lakbay+ Brand Theme — Dark Cyan Teal & Cocoa Orange (from lakbay_monorepo).
 class LakbayColors {
@@ -87,7 +87,8 @@ class LakbayTheme {
   }
 }
 
-/// Lakbay+ Compass Avatar — renders the official eight-point compass rose.
+/// Lakbay AI's avatar ("L+" tile). [inverted] is kept for older call sites
+/// and has no effect: there is one avatar.
 class LakbayAvatar extends StatelessWidget {
   final double size;
   final bool inverted;
@@ -99,29 +100,10 @@ class LakbayAvatar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    if (!inverted) {
-      return LakbayAiAvatar(diameter: size);
-    }
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        border: Border.all(color: LakbayColors.cardBorder),
-      ),
-      alignment: Alignment.center,
-      child: LakbayCompassMark(
-        size: size * 0.62,
-        primaryColor: LakbayColors.primary,
-        secondaryColor: LakbayColors.primary.withValues(alpha: 0.45),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => LakbayAiAvatar(diameter: size);
 }
 
-/// Official Lakbay+ Wordmark pairing the eight-point compass mark with Outfit typography.
+/// The Lakbay+ wordmark (name only, no symbol), with an optional tagline.
 class LakbayBrandWordmark extends StatelessWidget {
   final double fontSize;
   final bool lightText;
@@ -136,50 +118,25 @@ class LakbayBrandWordmark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = lightText ? Colors.white : LakbayColors.primaryDark;
-    return Row(
+    final wordmark = LakbayWordmark(
+      fontSize: fontSize,
+      color: lightText ? Colors.white : LakbayColors.tealDeep,
+    );
+    if (!showTagline) return wordmark;
+    return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        LakbayCompassMark(
-          size: fontSize * 1.15,
-          primaryColor: lightText ? Colors.white : LakbayColors.primary,
-          secondaryColor: lightText
-              ? Colors.white70
-              : LakbayColors.primary.withValues(alpha: 0.45),
-        ),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text.rich(
-              TextSpan(
-                style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.w800,
-                  fontSize: fontSize,
-                  letterSpacing: -0.5,
-                  color: textColor,
-                ),
-                children: [
-                  const TextSpan(text: 'Lakbay'),
-                  TextSpan(
-                    text: '+',
-                    style: TextStyle(color: LakbayColors.cocoaOrange),
-                  ),
-                ],
-              ),
-            ),
-            if (showTagline)
-              Text(
-                'Davao Region AI Travel Planner',
-                style: GoogleFonts.outfit(
-                  fontSize: fontSize * 0.46,
-                  color: lightText
-                      ? Colors.white.withValues(alpha: 0.85)
-                      : LakbayColors.textSecondary,
-                ),
-              ),
-          ],
+        wordmark,
+        const SizedBox(height: 4),
+        Text(
+          'Davao Region AI travel planner',
+          style: GoogleFonts.manrope(
+            fontSize: fontSize * 0.44,
+            fontWeight: FontWeight.w600,
+            color: lightText
+                ? Colors.white.withValues(alpha: 0.85)
+                : LakbayColors.textSecondary,
+          ),
         ),
       ],
     );

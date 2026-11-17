@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/session_manager.dart';
+import '../widgets/lakbay_monogram.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -211,19 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _brand(ThemeData theme) => Row(
     children: [
-      Container(
-        width: 48,
-        height: 48,
-        padding: const EdgeInsets.all(5),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Image.asset(
-          'assets/images/lakbay_logo.png',
-          fit: BoxFit.contain,
-        ),
-      ),
+      const LakbayMonogram(size: 48),
       const SizedBox(width: 14),
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -236,7 +236,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   ),
                   const Spacer(),
                   const Text(
-                    'AI plans it.\nYour travel expert\nmakes it',
+                    'Tell it the vibe.\nGet the whole',
                     style: TextStyle(
                       fontFamily: 'FigGrotesk',
                       fontSize: 34,
@@ -260,7 +260,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           borderRadius: BorderRadius.circular(22),
                         ),
                         child: const Text(
-                          'unforgettable',
+                          'trip',
                           style: TextStyle(
                             fontFamily: 'FigGrotesk',
                             fontSize: 30,
@@ -285,13 +285,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   Row(
                     children: [
                       const Icon(
-                        Icons.auto_awesome,
+                        Icons.place_outlined,
                         size: 15,
                         color: LakbayColors.primaryLight,
                       ),
                       const SizedBox(width: 6),
                       const Text(
-                        'No fees',
+                        'Real Region XI places',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
@@ -300,13 +300,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       ),
                       const SizedBox(width: 18),
                       const Icon(
-                        Icons.auto_awesome,
+                        Icons.route_outlined,
                         size: 15,
                         color: LakbayColors.primaryLight,
                       ),
                       const SizedBox(width: 6),
                       const Text(
-                        '24/7 Davao care',
+                        'Day-by-day plans',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
@@ -350,7 +350,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             fontSize: 13.5,
                           ),
                           children: const [
-                            TextSpan(text: 'Already used Lakbay+✦? '),
+                            TextSpan(text: 'Already used Lakbay+? '),
                             TextSpan(
                               text: 'Sign in',
                               style: TextStyle(
@@ -450,7 +450,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     );
   }
 
-  // Step 2: "You're in good company." (Image 3)
+  // Step 2: what Lakbay+ actually does (no invented stats or testimonials).
   Widget _buildSocialProofStep(BuildContext context) {
     return Stack(
       key: const ValueKey('step_2'),
@@ -459,7 +459,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
           children: [
             const Text(
-              "You're in good company.",
+              'Plans built from real places.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'FigGrotesk',
@@ -468,75 +468,35 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 color: LakbayColors.tealDeep,
               ),
             ),
-            const SizedBox(height: 22),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  '1M+',
-                  style: TextStyle(
-                    fontFamily: 'FigGrotesk',
-                    fontSize: 42,
-                    fontWeight: FontWeight.w800,
-                    color: LakbayColors.tealDeep,
-                  ),
-                ),
-                SizedBox(width: 4),
-                Icon(
-                  Icons.auto_awesome,
-                  size: 20,
-                  color: LakbayColors.primary,
-                ),
-              ],
-            ),
+            const SizedBox(height: 8),
             const Text(
-              'Trips planned',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: LakbayColors.tealDeep,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                5,
-                (_) => const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 3),
-                  child: Icon(
-                    Icons.star_rounded,
-                    color: LakbayColors.primary,
-                    size: 26,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              '50k+ 5 star reviews',
+              'Lakbay AI plans from a catalog of Davao Region places that our team keeps up to date.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14.5,
-                fontWeight: FontWeight.w700,
-                color: LakbayColors.tealDeep,
+                height: 1.45,
+                color: LakbayColors.textSecondary,
               ),
             ),
             const SizedBox(height: 24),
-            const _TestimonialCard(
-              quote:
-                  '"Lakbay+ doesn\'t feel like a generic chatbot. It feels like chatting with a super organized friend who already knows Samal\'s hidden coves, Mati\'s surf breaks, and the ferry timings you\'d forget to check."',
-              author: 'Carla',
-              avatarAsset: 'assets/experts/carla.webp',
+            const _ProductPoint(
+              icon: Icons.place_outlined,
+              title: 'Real Region XI destinations',
+              body:
+                  'Beaches, falls, parks and islands with their real locations, from Samal to Mati.',
             ),
-            const SizedBox(height: 14),
-            const _TestimonialCard(
-              quote:
-                  '"I check every detail with you: does this resort really fit your pace? Does this Davao coastal transfer work? That way when you arrive, everything flows smoothly."',
-              author: 'Aleks, travel expert',
-              avatarAsset: 'assets/experts/aleks.webp',
+            const SizedBox(height: 12),
+            const _ProductPoint(
+              icon: Icons.directions_boat_outlined,
+              title: 'Ferries, rides and fares',
+              body:
+                  'Each day shows how to get from stop to stop and roughly what it costs. Fares are estimates.',
+            ),
+            const SizedBox(height: 12),
+            const _ProductPoint(
+              icon: Icons.groups_outlined,
+              title: 'Plan with your barkada',
+              body: 'Invite friends to a trip, share tasks and split the budget.',
             ),
           ],
         ),
@@ -691,7 +651,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       ),
                       const SizedBox(width: 4),
                       Icon(
-                        Icons.auto_awesome,
+                        Icons.hourglass_top_rounded,
                         size: 12,
                         color: LakbayColors.primary.withValues(alpha: 0.7),
                       ),
@@ -1045,67 +1005,62 @@ class _DecisionOptionCard extends StatelessWidget {
   }
 }
 
-class _TestimonialCard extends StatelessWidget {
-  final String quote;
-  final String author;
-  final String avatarAsset;
+class _ProductPoint extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String body;
 
-  const _TestimonialCard({
-    required this.quote,
-    required this.author,
-    required this.avatarAsset,
+  const _ProductPoint({
+    required this.icon,
+    required this.title,
+    required this.body,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: LakbayColors.cardBorder),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            quote,
-            style: const TextStyle(
-              fontSize: 14,
-              color: LakbayColors.tealDeep,
-              height: 1.45,
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: LakbayColors.primaryLight,
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: Icon(icon, color: LakbayColors.primaryDark, size: 22),
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              ClipOval(
-                child: Image.asset(
-                  avatarAsset,
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const CircleAvatar(
-                    radius: 18,
-                    backgroundColor: LakbayColors.primaryLight,
-                    child: Icon(
-                      Icons.person,
-                      size: 18,
-                      color: LakbayColors.primaryDark,
-                    ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: LakbayColors.tealDeep,
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                author,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                  color: LakbayColors.tealDeep,
+                const SizedBox(height: 4),
+                Text(
+                  body,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    height: 1.4,
+                    color: LakbayColors.textSecondary,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-import '../../core/theme/app_theme.dart';
-import 'lakbay_compass_mark.dart';
+import '../../design/lakbay_tokens.dart';
 
-/// The Lakbay AI planner's avatar: the original compass mark in white on a
-/// teal circle. Used beside assistant chat messages so the planner has a
-/// consistent, truthful identity — no real or implied human advisor.
+/// Lakbay AI's avatar: "L+" in mango on a deep teal rounded square. Shown
+/// beside assistant messages so the planner has one consistent, honest
+/// identity. It is not a person and never uses a face or a sparkle.
 class LakbayAiAvatar extends StatelessWidget {
   const LakbayAiAvatar({super.key, this.diameter = 32});
 
@@ -13,19 +13,27 @@ class LakbayAiAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      key: const ValueKey('lakbay-ai-avatar'),
-      width: diameter,
-      height: diameter,
-      decoration: const BoxDecoration(
-        color: AppTheme.primaryDeep,
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: LakbayCompassMark(
-        size: diameter * 0.6,
-        primaryColor: Colors.white,
-        secondaryColor: Colors.white70,
+    return Semantics(
+      label: 'Lakbay AI',
+      excludeSemantics: true,
+      child: Container(
+        key: const ValueKey('lakbay-ai-avatar'),
+        width: diameter,
+        height: diameter,
+        decoration: BoxDecoration(
+          color: LkColors.s3,
+          borderRadius: BorderRadius.circular(diameter * 0.32),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          'L+',
+          style: GoogleFonts.manrope(
+            fontSize: diameter * 0.4,
+            fontWeight: FontWeight.w800,
+            height: 1,
+            color: LkColors.mango,
+          ),
+        ),
       ),
     );
   }

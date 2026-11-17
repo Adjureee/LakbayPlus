@@ -241,7 +241,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         const SizedBox(height: 10),
                         Text(
                           _isRegister
-                              ? 'Keep your plan, and give your travel expert\na way to reach you.'
+                              ? 'Save your plans, trips and memories\nto your account.'
                               : 'Restore your saved Davao Region trips,\nbucket list, and memories.',
                           textAlign: TextAlign.center,
                           style: const TextStyle(

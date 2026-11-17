@@ -32,18 +32,18 @@ flutter:
 
   assets:
     - .env
-    - assets/images/
     - assets/icons/
-    - assets/brand/
     - assets/home_backdrops/
     - assets/data/
     - assets/onboarding/
     - assets/chatbot/quick/
     - assets/videos/
     - assets/png/weather/
-    - assets/experts/
     - assets/trip_icons/
     - assets/map_sprites/
+    # Bundled Google Fonts (Manrope, Bricolage Grotesque): google_fonts loads
+    # these instead of downloading them, so the app works offline.
+    - assets/google_fonts/
 
   fonts:
     - family: FigGrotesk
