@@ -226,6 +226,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             ),
           );
         },
+        // The bar has a fixed height, so its labels follow the phone's text
+        // size only up to 1.25x (larger text is kept for everything else).
+        child: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.25,
         child: SafeArea(
         minimum: const EdgeInsets.fromLTRB(14, 0, 14, 8),
         child: SizedBox(
@@ -337,6 +341,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         ),
       ),
       ),
+      ),
     );
   }
 }
@@ -364,11 +369,18 @@ class _NavItem extends StatelessWidget {
     // outline icon at 60% so the current tab reads without a background pill.
     final color = selected
         ? LakbayColors.primaryDark
-        : LakbayColors.tealDeep.withValues(alpha: 0.6);
+        : LakbayColors.tealDeep.withValues(
+            alpha: LakbayContrast.unselectedTabAlpha,
+          );
     // Tabs share the row equally, so labels can never push the bar wider than
     // a small screen, and each tap area stays at least 48 dp tall.
     return Expanded(
-      child: GestureDetector(
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: label,
+        excludeSemantics: true,
+        child: GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
@@ -390,16 +402,23 @@ class _NavItem extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                color: color,
+            // One line that shrinks to fit, so a long label on a narrow phone
+            // never wraps and pushes the bar taller.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  color: color,
+                ),
               ),
             ),
           ],
         ),
+      ),
       ),
       ),
     );
@@ -422,7 +441,12 @@ class _ProfileNavItem extends StatelessWidget {
     // Tabs share the row equally, so labels can never push the bar wider than
     // a small screen, and each tap area stays at least 48 dp tall.
     return Expanded(
-      child: GestureDetector(
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: 'Profile',
+        excludeSemantics: true,
+        child: GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
@@ -447,18 +471,25 @@ class _ProfileNavItem extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            Text(
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
               'Profile',
+              maxLines: 1,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                 color: selected
                     ? LakbayColors.primaryDark
-                    : LakbayColors.tealDeep.withValues(alpha: 0.6),
+                    : LakbayColors.tealDeep.withValues(
+                        alpha: LakbayContrast.unselectedTabAlpha,
+                      ),
               ),
+            ),
             ),
           ],
         ),
+      ),
       ),
       ),
     );

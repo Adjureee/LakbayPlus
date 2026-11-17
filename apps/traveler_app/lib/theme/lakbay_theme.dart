@@ -198,3 +198,19 @@ class LakbayBrandWordmark extends StatelessWidget {
     );
   }
 }
+
+/// Opacities that keep white text and icons readable over photos, and light
+/// labels readable on the white bar. They are checked against WCAG contrast in
+/// `test/redesign_phase6_a11y_test.dart`.
+class LakbayContrast {
+  LakbayContrast._();
+
+  /// Black behind the start-place pill (white text, 4.5:1 over any photo).
+  static const double startPillAlpha = 0.6;
+
+  /// Black at the top of the chat photo behind the header icons (3:1).
+  static const double headerFadeAlpha = 0.5;
+
+  /// Unselected bottom-tab icon and label strength (4.5:1 on the white bar).
+  static const double unselectedTabAlpha = 0.72;
+}

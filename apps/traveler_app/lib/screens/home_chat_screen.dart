@@ -244,7 +244,9 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.black.withValues(alpha: 0.38),
+                      Colors.black.withValues(
+                        alpha: LakbayContrast.headerFadeAlpha,
+                      ),
                       Colors.black.withValues(alpha: 0.0),
                     ],
                   ),
@@ -292,7 +294,9 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                 vertical: 9,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.28),
+                                color: Colors.black.withValues(
+                                  alpha: LakbayContrast.startPillAlpha,
+                                ),
                                 borderRadius: BorderRadius.circular(24),
                               ),
                               child: Row(
@@ -508,6 +512,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                     PopupMenuButton<String>(
                       key: const ValueKey('composer-plus-menu'),
                       tooltip: 'More options',
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size(48, 48),
+                        padding: EdgeInsets.zero,
+                      ),
                       icon: const Icon(
                         Icons.add_rounded,
                         color: LakbayColors.tealDeep,
@@ -573,7 +581,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    ElevatedButton(
+                    Flexible(
+                      child: ElevatedButton(
                       onPressed: _handleSend,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: LakbayColors.primary,
@@ -587,20 +596,26 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                           borderRadius: BorderRadius.circular(24),
                         ),
                       ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Plan it',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
+                      // Shrinks to fit when the phone's text is very large.
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Plan it',
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
                             ),
-                          ),
-                          SizedBox(width: 5),
-                          Icon(Icons.arrow_forward_rounded, size: 16),
-                        ],
+                            SizedBox(width: 5),
+                            Icon(Icons.arrow_forward_rounded, size: 16),
+                          ],
+                        ),
                       ),
+                    ),
                     ),
                   ],
                 ),
@@ -779,6 +794,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               PopupMenuButton<String>(
                 key: const ValueKey('chat-plus-menu'),
                 tooltip: 'More options',
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(48, 48),
+                  padding: EdgeInsets.zero,
+                ),
                 icon: const Icon(
                   Icons.add_rounded,
                   color: LakbayColors.tealDeep,
@@ -835,10 +854,15 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 ),
               ),
               IconButton(
+                tooltip: 'Send',
                 onPressed: _handleSend,
                 style: IconButton.styleFrom(
                   backgroundColor: LakbayColors.primary,
                   foregroundColor: Colors.white,
+                  // A round 44 dp button: roomy enough to tap, and it sits
+                  // inside the composer instead of touching its edge.
+                  fixedSize: const Size(44, 44),
+                  shape: const CircleBorder(),
                 ),
                 icon: const Icon(Icons.arrow_upward_rounded, size: 20),
               ),
@@ -1478,8 +1502,11 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           builder: (context, constraints) {
             // About four fifths of the answer, so the next card peeks in.
             final cardWidth = (constraints.maxWidth * 0.82).clamp(210.0, 300.0);
+            // Larger text needs a taller card, or the buttons would be cut.
+            final textScale =
+                MediaQuery.textScalerOf(context).scale(1.0).clamp(1.0, 2.0);
             return SizedBox(
-              height: 256,
+              height: 256 + (textScale - 1.0) * 150,
               child: ListView.separated(
                 key: const ValueKey('place-carousel'),
                 scrollDirection: Axis.horizontal,

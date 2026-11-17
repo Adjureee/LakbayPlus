@@ -7,6 +7,7 @@ import 'package:lakbay_travel/main.dart';
 import 'package:lakbay_travel/models/travel_models.dart';
 import 'package:lakbay_travel/services/lakbay_api_catalog_service.dart';
 import 'package:lakbay_travel/services/travel_repository.dart';
+import 'package:lakbay_travel/theme/lakbay_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Future<TravelRepository> _repo(WidgetTester tester, {int messages = 0}) async {
@@ -66,7 +67,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('the selected tab is filled and bold; the others are outline at 60%', (
+  testWidgets('the selected tab is filled and bold; the others are outline and lighter', (
     tester,
   ) async {
     final repo = await _repo(tester);
@@ -89,7 +90,7 @@ void main() {
     final selected = _labelColor(tester, 'Trips')!;
     final other = _labelColor(tester, 'Discover')!;
     expect(selected.a, 1.0);
-    expect(other.a, closeTo(0.6, 0.02));
+    expect(other.a, closeTo(LakbayContrast.unselectedTabAlpha, 0.02));
 
     // No pill behind the selected tab.
     final pills = find.byWidgetPredicate(
