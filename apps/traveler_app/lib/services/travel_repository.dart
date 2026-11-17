@@ -1257,6 +1257,8 @@ class TravelRepository extends ChangeNotifier {
           backendEstimatedCostPhp: estCostPhp > 0 ? estCostPhp : null,
           backendBudgetPhp:
               double.tryParse((row['total_budget'] ?? '0').toString()),
+          startDate: parseTripDate(row['start_date']),
+          endDate: parseTripDate(row['end_date']),
         ),
       );
       updated = true;
@@ -1683,6 +1685,45 @@ class TravelRepository extends ChangeNotifier {
     }
   }
 
+  /// Takes a memory off the list but keeps the cloud copy, so the removal
+  /// can be undone with [restoreMemory]; [commitMemoryRemoval] deletes it.
+  int takeMemory(TripMemoryItem memory) {
+    final idx = _memories.indexWhere(
+      (m) => identical(m, memory) || m.tripMemoryId == memory.tripMemoryId,
+    );
+    if (idx < 0) return -1;
+    _memories.removeAt(idx);
+    _scheduleSaveState();
+    notifyListeners();
+    return idx;
+  }
+
+  void restoreMemory(TripMemoryItem memory, int index) {
+    if (_memories.contains(memory)) return;
+    _memories.insert(index.clamp(0, _memories.length), memory);
+    _scheduleSaveState();
+    notifyListeners();
+  }
+
+  Future<void> commitMemoryRemoval(TripMemoryItem memory) async {
+    // A refresh during the undo window may have brought the cloud copy back.
+    if (memory.tripMemoryId > 0) {
+      final before = _memories.length;
+      _memories.removeWhere((m) => m.tripMemoryId == memory.tripMemoryId);
+      if (_memories.length != before) {
+        _scheduleSaveState();
+        notifyListeners();
+      }
+    }
+    if (isSignedIn && memory.tripMemoryId > 0 && memory.tripId > 0) {
+      await apiCatalog.deleteTripMemory(
+        _authSession!.accessToken,
+        memory.tripId,
+        memory.tripMemoryId,
+      );
+    }
+  }
+
   Future<void> deleteMemory(TripMemoryItem memory) async {
     _memories.removeWhere((m) => m.tripMemoryId == memory.tripMemoryId);
     _scheduleSaveState();
@@ -1966,6 +2007,8 @@ class TravelRepository extends ChangeNotifier {
               generationRunId: trip.aiGenerationRunId!,
               optionNumber: trip.aiOptionNumber!,
               notes: trip.overviewText,
+              startDate: _apiDate(trip.startDate),
+              endDate: _apiDate(trip.lastDay),
             )
             .then((cloudId) {
           if (cloudId == null) return;
@@ -1992,6 +2035,8 @@ class TravelRepository extends ChangeNotifier {
               destinationIds: trip.effectiveBackendDestinationIds,
               notes: trip.overviewText,
               itineraryDays: _serializeItineraryDays(trip.days, phpRate),
+              startDate: _apiDate(trip.startDate),
+              endDate: _apiDate(trip.lastDay),
             )
             .then((cloudId) {
           if (cloudId == null) return;
@@ -2026,7 +2071,64 @@ class TravelRepository extends ChangeNotifier {
             updated.backendEstimatedCostPhp ??
             (updated.totalEstimatedCostUsd * phpRate),
         notes: updated.overviewText,
+        startDate: _apiDate(updated.startDate),
+        endDate: _apiDate(updated.lastDay),
       );
+    }
+  }
+
+  static String? _apiDate(DateTime? d) => d == null ? null : formatTripDate(d);
+
+  /// Sets the trip's first day; the last day follows from its day count.
+  void setTripStartDate(String tripId, DateTime start) {
+    final idx = _savedTrips.indexWhere((t) => t.id == tripId);
+    if (idx < 0) return;
+    final trip = _savedTrips[idx];
+    final first = DateTime(start.year, start.month, start.day);
+    final days = trip.daysCount < 1 ? 1 : trip.daysCount;
+    updateTripDetails(
+      trip.copyWith(
+        startDate: first,
+        endDate: first.add(Duration(days: days - 1)),
+      ),
+    );
+  }
+
+  /// Takes a trip off the list but keeps the cloud copy, so the removal can
+  /// still be undone. Call [restoreSavedTrip] to undo, or
+  /// [commitTripRemoval] once the undo window has passed.
+  int takeSavedTrip(String tripId) {
+    final idx = _savedTrips.indexWhere((t) => t.id == tripId);
+    if (idx < 0) return -1;
+    _savedTrips.removeAt(idx);
+    _scheduleSaveState();
+    notifyListeners();
+    return idx;
+  }
+
+  void restoreSavedTrip(ItineraryTrip trip, int index) {
+    if (_savedTrips.any((t) => t.id == trip.id)) return;
+    _savedTrips.insert(index.clamp(0, _savedTrips.length), trip);
+    _scheduleSaveState();
+    notifyListeners();
+  }
+
+  void commitTripRemoval(ItineraryTrip trip) {
+    final cloudId = trip.backendTripId;
+    // A sync during the undo window may have brought the cloud copy back.
+    final before = _savedTrips.length;
+    _savedTrips.removeWhere(
+      (t) =>
+          t.id == trip.id ||
+          (cloudId != null &&
+              (t.backendTripId == cloudId || t.id == 'cloud_$cloudId')),
+    );
+    if (_savedTrips.length != before) {
+      _scheduleSaveState();
+      notifyListeners();
+    }
+    if (isSignedIn && cloudId != null) {
+      apiCatalog.deleteTrip(_authSession!.accessToken, cloudId);
     }
   }
 
@@ -3686,6 +3788,9 @@ class TravelRepository extends ChangeNotifier {
       backendEstimatedCostPhp: totalCostPhp > 0 ? totalCostPhp : null,
       aiGenerationRunId: generationRunId,
       aiOptionNumber: optionNumber,
+      // The date the traveler gave in chat ("When are you travelling?").
+      startDate: fallbackTrip?.startDate ??
+          parseTripDate(_planningState?['travel_start_date']),
     );
 
     return AiItineraryOptionDraft(
@@ -4287,19 +4392,14 @@ class TravelRepository extends ChangeNotifier {
     final city = destination.split(',').first.split('(').first.trim();
     return [
       HotelOffer(
+        // Not a real listing: a typical nightly rate, used for the budget
+        // until the admin catalog has stays for this destination.
         id: 'ht_${tripId}_1',
-        name: '$city Eco Lodge & Resort Stay',
+        name: 'Mid-range stay in $city',
         city: city,
-        rating: 9.2,
-        stars: 4,
         pricePerNightUsd: 65,
-        facilities: const [
-          'Breakfast Option',
-          'Air Conditioning',
-          'Wi-Fi',
-          'Near Attraction',
-        ],
-        partnerName: 'Region XI Estimate',
+        facilities: const ['Typical rate for the area'],
+        partnerName: 'Estimated rate',
         imageAsset: effectiveHero,
         remoteImageUrl: remoteUrl,
         lat: lat + 0.015,
@@ -4307,17 +4407,11 @@ class TravelRepository extends ChangeNotifier {
       ),
       HotelOffer(
         id: 'ht_${tripId}_2',
-        name: '$city Budget Traveler Inn',
+        name: 'Budget stay in $city',
         city: city,
-        rating: 8.7,
-        stars: 3,
         pricePerNightUsd: 35,
-        facilities: const [
-          'Fan / AC Rooms',
-          'Local Transport Access',
-          'Free Wi-Fi',
-        ],
-        partnerName: 'Value Estimate',
+        facilities: const ['Typical rate for the area'],
+        partnerName: 'Estimated rate',
         imageAsset: 'assets/home_backdrops/08-peoples-park.jpg',
         remoteImageUrl: remoteUrl,
         lat: lat - 0.018,

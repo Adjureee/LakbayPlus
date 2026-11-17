@@ -663,7 +663,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   TextButton(
                                     onPressed: () => setState(
                                         () => _selectedFilter = 'City Guides'),
-                                    child: const Text('See All 24 →'),
+                                    child: const Text('See all'),
                                   ),
                                 ],
                               ),

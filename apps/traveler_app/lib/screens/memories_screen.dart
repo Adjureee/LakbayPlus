@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../design/widgets/lk_feedback.dart';
 import '../models/travel_models.dart';
+import '../services/friendly_error.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 
@@ -25,6 +27,30 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
   void initState() {
     super.initState();
     _refresh();
+  }
+
+  Future<void> _confirmDelete(TripMemoryItem memory) async {
+    final ok = await showLkConfirm(
+      context,
+      title: 'Delete this memory?',
+      message: 'The photo and its caption will be deleted.',
+      confirmLabel: 'Delete memory',
+    );
+    if (!ok || !mounted) return;
+    final repo = widget.repo;
+    final index = repo.takeMemory(memory);
+    if (index < 0) return;
+    var undone = false;
+    showLkUndoSnack(
+      context,
+      message: 'Memory deleted',
+      onUndo: () {
+        undone = true;
+        repo.restoreMemory(memory, index);
+      },
+    ).closed.then((_) {
+      if (!undone) repo.commitMemoryRemoval(memory);
+    });
   }
 
   Future<void> _refresh() async {
@@ -80,7 +106,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
               } catch (e) {
                 if (!sheetContext.mounted) return;
                 ScaffoldMessenger.of(sheetContext).showSnackBar(
-                  SnackBar(content: Text('Could not pick photo: $e')),
+                  const SnackBar(
+                    content: Text("Couldn't open that photo. Try another one."),
+                  ),
                 );
               }
             }
@@ -255,7 +283,8 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                           .showSnackBar(
                                             SnackBar(
                                               content: Text(
-                                                'Failed to save memory: $e',
+                                                "Couldn't save the memory. "
+                                                '${friendlyError(e)}',
                                               ),
                                             ),
                                           );
@@ -465,7 +494,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                       return _MemoryCard(
                         memory: memory,
                         onLike: () => widget.repo.likeMemory(memory),
-                        onDelete: () => widget.repo.deleteMemory(memory),
+                        onDelete: () => _confirmDelete(memory),
                       );
                     },
                   ),
@@ -612,7 +641,7 @@ class _MemoryCard extends StatelessWidget {
                         color: Color(0xFF7D8A91),
                       ),
                       onPressed: onDelete,
-                      tooltip: 'Remove memory',
+                      tooltip: 'Delete memory',
                     ),
                   ],
                 ),

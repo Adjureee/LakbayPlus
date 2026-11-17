@@ -3,6 +3,7 @@ import '../services/voice_input_service.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
+import '../widgets/estimate_note.dart';
 import '../widgets/lakbay_image.dart';
 import '../widgets/origin_picker_sheet.dart';
 import 'trip_detail_screen.dart';
@@ -1409,6 +1410,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
             color: LakbayColors.tealDeep,
           ),
         ),
+        const SizedBox(height: 4),
+        const EstimateNote(),
         const SizedBox(height: 8),
         SizedBox(
           height: 238,
@@ -1668,6 +1671,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                       color: LakbayColors.textSecondary,
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  const EstimateNote(),
                   const SizedBox(height: 10),
                   Row(
                     children: [

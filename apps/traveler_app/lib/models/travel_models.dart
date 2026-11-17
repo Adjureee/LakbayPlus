@@ -1,5 +1,9 @@
 // Core domain models for Lakbay+ — Davao Region (Region XI) AI Travel Planner.
 
+import 'trip_timing.dart';
+
+export 'trip_timing.dart';
+
 enum TransportMode { flight, train, car, bus, ferry }
 
 TransportMode _transportModeFromName(String? value) {
@@ -659,8 +663,11 @@ class HotelOffer {
   final String id;
   final String name;
   final String city;
-  final double rating;
-  final int stars;
+
+  /// Guest score and star class. The catalog has neither today, so these
+  /// stay null and the UI shows nothing rather than an invented number.
+  final double? rating;
+  final int? stars;
   final int pricePerNightUsd;
   final List<String> facilities;
   final String partnerName;
@@ -674,8 +681,8 @@ class HotelOffer {
     required this.id,
     required this.name,
     required this.city,
-    required this.rating,
-    required this.stars,
+    this.rating,
+    this.stars,
     required this.pricePerNightUsd,
     required this.facilities,
     required this.partnerName,
@@ -690,8 +697,8 @@ class HotelOffer {
         'id': id,
         'name': name,
         'city': city,
-        'rating': rating,
-        'stars': stars,
+        'rating': ?rating,
+        'stars': ?stars,
         'pricePerNightUsd': pricePerNightUsd,
         'facilities': facilities,
         'partnerName': partnerName,
@@ -706,8 +713,9 @@ class HotelOffer {
         id: json['id'] as String? ?? '',
         name: json['name'] as String? ?? '',
         city: json['city'] as String? ?? 'Davao Region',
-        rating: (json['rating'] as num?)?.toDouble() ?? 9.0,
-        stars: (json['stars'] as num?)?.toInt() ?? 4,
+        // Older saved trips carry invented scores; they are not shown.
+        rating: null,
+        stars: null,
         pricePerNightUsd: (json['pricePerNightUsd'] as num?)?.toInt() ?? 78,
         facilities: (json['facilities'] as List<dynamic>? ?? const [])
             .map((e) => e.toString())
@@ -1080,6 +1088,14 @@ class ItineraryTrip {
   final List<RouteSegmentGeometry> routeSegments;
   final List<SeaCrossingInfo> seaCrossings;
 
+  /// First day of the trip (date only), from the API's `start_date`. Null
+  /// when the traveler has not picked dates yet.
+  final DateTime? startDate;
+
+  /// Last day of the trip, from the API's `end_date`. When null but
+  /// [startDate] is set, the end is derived from [daysCount].
+  final DateTime? endDate;
+
   const ItineraryTrip({
     required this.id,
     required this.title,
@@ -1121,6 +1137,8 @@ class ItineraryTrip {
     this.lockedFirstDestinationId,
     this.routeSegments = const [],
     this.seaCrossings = const [],
+    this.startDate,
+    this.endDate,
   });
 
   int get totalEstimatedCostUsd {
@@ -1227,6 +1245,9 @@ class ItineraryTrip {
     String? lockedFirstDestinationId,
     List<RouteSegmentGeometry>? routeSegments,
     List<SeaCrossingInfo>? seaCrossings,
+    DateTime? startDate,
+    DateTime? endDate,
+    bool clearDates = false,
   }) {
     return ItineraryTrip(
       id: id,
@@ -1272,6 +1293,8 @@ class ItineraryTrip {
           lockedFirstDestinationId ?? this.lockedFirstDestinationId,
       routeSegments: routeSegments ?? this.routeSegments,
       seaCrossings: seaCrossings ?? this.seaCrossings,
+      startDate: clearDates ? null : (startDate ?? this.startDate),
+      endDate: clearDates ? null : (endDate ?? this.endDate),
     );
   }
 
@@ -1323,6 +1346,8 @@ class ItineraryTrip {
           'routeSegments': routeSegments.map((s) => s.toJson()).toList(),
         if (seaCrossings.isNotEmpty)
           'seaCrossings': seaCrossings.map((c) => c.toJson()).toList(),
+        if (startDate != null) 'startDate': formatTripDate(startDate!),
+        if (endDate != null) 'endDate': formatTripDate(endDate!),
       };
 
   factory ItineraryTrip.fromJson(Map<String, dynamic> json) => ItineraryTrip(
@@ -1397,6 +1422,8 @@ class ItineraryTrip {
             .whereType<Map<String, dynamic>>()
             .map(SeaCrossingInfo.fromJson)
             .toList(),
+        startDate: parseTripDate(json['startDate']),
+        endDate: parseTripDate(json['endDate']),
       );
 }
 

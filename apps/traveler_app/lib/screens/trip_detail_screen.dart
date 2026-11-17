@@ -10,6 +10,7 @@ import '../widgets/trip_management_sheets.dart';
 import 'trip_route_map_screen.dart';
 import '../services/access_notices.dart';
 import '../widgets/access_notice_card.dart';
+import '../widgets/estimate_note.dart';
 
 class TripDetailScreen extends StatefulWidget {
   final ItineraryTrip trip;
@@ -566,6 +567,67 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     );
   }
 
+  Future<void> _pickStartDate(ItineraryTrip trip) async {
+    final today = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: trip.startDate ?? today,
+      firstDate: DateTime(today.year - 1),
+      lastDate: DateTime(today.year + 2, 12, 31),
+      helpText: 'First day of the trip',
+    );
+    if (picked == null || !mounted) return;
+    final first = DateTime(picked.year, picked.month, picked.day);
+    final days = trip.daysCount < 1 ? 1 : trip.daysCount;
+    setState(() {
+      _liveTrip = _activeTrip.copyWith(
+        startDate: first,
+        endDate: first.add(Duration(days: days - 1)),
+      );
+    });
+    if (widget.repo.savedTrips.any((t) => t.id == trip.id)) {
+      widget.repo.setTripStartDate(trip.id, first);
+    }
+  }
+
+  Widget _buildDatesTile(ItineraryTrip trip) {
+    final range = trip.dateRangeLabel;
+    final when = trip.whenLabel(DateTime.now());
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: LakbayColors.cardBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        minTileHeight: 56,
+        leading: const Icon(Icons.event_outlined, color: LakbayColors.tealDeep),
+        title: Text(
+          range ?? 'Add trip dates',
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            color: LakbayColors.tealDeep,
+          ),
+        ),
+        subtitle: Text(
+          range == null
+              ? 'Pick the first day so the trip shows as upcoming or past.'
+              : (when ?? ''),
+          style: const TextStyle(color: LakbayColors.textSecondary),
+        ),
+        trailing: Text(
+          range == null ? 'Add' : 'Change',
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            color: LakbayColors.primaryDark,
+          ),
+        ),
+        onTap: () => _pickStartDate(trip),
+      ),
+    );
+  }
+
   Widget _buildOverviewTab(ItineraryTrip trip) {
     final waypoints = trip.routeWaypoints;
     final totalKm =
@@ -640,6 +702,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        _buildDatesTile(trip),
+        const SizedBox(height: 14),
         Row(
           children: [
             // Weather and best months are shown only when real data exists.
@@ -1776,13 +1840,15 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           ),
         ],
         const Text(
-          'Handpicked Davao Region Stays',
+          'Places to stay',
           style: TextStyle(
             fontFamily: 'FigGrotesk',
             fontWeight: FontWeight.w700,
             fontSize: 19,
           ),
         ),
+        const SizedBox(height: 6),
+        const EstimateNote(),
         const SizedBox(height: 12),
         ...trip.hotels.map(
           (h) => Container(
@@ -1820,29 +1886,33 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         ),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: LakbayColors.tealDeep,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${h.rating} ★',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
+                    if (h.rating != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: LakbayColors.tealDeep,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${h.rating} ★',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${"★" * h.stars} • ${h.partnerName}',
+                  [
+                    if (h.stars != null) '★' * h.stars!,
+                    h.partnerName,
+                  ].join(' • '),
                   style: const TextStyle(
                     fontSize: 12.5,
                     color: LakbayColors.primary,

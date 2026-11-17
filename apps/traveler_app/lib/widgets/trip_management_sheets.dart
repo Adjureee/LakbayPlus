@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/travel_models.dart';
+import '../services/friendly_error.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 
@@ -167,7 +168,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
       }
     } catch (e) {
       // The server's own wording, for example "We couldn't find that person."
-      setState(() => _statusMessage = e.toString());
+      setState(() => _statusMessage = friendlyError(e));
     }
   }
 
@@ -223,7 +224,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
         setState(() => _tasks = [created, ..._tasks]);
       }
     } catch (e) {
-      setState(() => _statusMessage = e.toString());
+      setState(() => _statusMessage = friendlyError(e));
     }
   }
 

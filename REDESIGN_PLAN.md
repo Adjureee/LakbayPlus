@@ -92,7 +92,18 @@ The traveler app currently has **two theme files** (`lib/theme/lakbay_theme.dart
 5. **No fake expert.** `ItineraryTrip` has `expertName`, `expertAvatarAsset` and `expertTip`, used in **13** places on screens. Show the tip as "Lakbay tip" with no person, name or avatar. The model fields can stay for API compatibility, renamed later.
 6. Splash screen in `bg #04191C`. The launcher icon keeps the bus artwork (owner's decision).
 
-## Phase 3: UX and honesty fixes (medium)
+## Phase 3: UX and honesty fixes (medium) ✅ done
+
+> **What was built (2026-11-17)**
+> - **Trip dates:** `ItineraryTrip` has `startDate`/`endDate`, read from and sent to the API's `start_date`/`end_date` (create, from-AI-option, update, sync). A chat plan takes the date the traveler gave in chat. `lib/models/trip_timing.dart` works out Upcoming, Ongoing, Past or Undated, a relative label ("In 5 days", "Day 2 of 3", "Ended") and a range ("Dec 4 – 6").
+> - **Adding dates:** Trip detail opens with a "Trip dates" row; picking the first day sets the last day from the day count.
+> - **My Trips:** filters are All, Upcoming (includes trips happening now), No dates and Past. The featured card is the trip happening now, else the next one; its badge is the real relative label, or none. The create sheet has a vibe picker ("Any vibe" by default) in place of the hardcoded "Island Hopping & Highlands".
+> - **Deletes:** trips and memories ask first (`showLkConfirm`), then show "Deleted · Undo" for 5 seconds. The cloud copy is deleted only after the undo window passes.
+> - **Honest numbers:** "See All 24" is "See all". Stays no longer show invented star classes or the 9.2 score (the catalog has neither). The fallback stays are named "Mid-range stay in …" / "Budget stay in …" with "Estimated rate" in place of invented hotel names. "Handpicked" is dropped. The chat plan cards and the stays list carry "Fares are estimates from Lakbay's local rates." The sign-in disclaimer no longer mentions "verified partners".
+> - **Errors:** `lib/services/friendly_error.dart` maps exceptions to one plain sentence (offline, timeout, busy, Google sign-in), keeps readable server messages and hides code-like ones. Used on auth, trip sharing and memories.
+> - **Auth:** the lavender button is mango with mango ink.
+> - **Onboarding copy** was already rewritten in Phase 2.
+> - **Tests:** `test/phase3_ux_test.dart` (12 tests) covers timing labels, date round-trip, no invented ratings, error wording, take/restore/commit, the My Trips filters and confirm + undo.
 
 These are the bugs found in the UI/UX study.
 

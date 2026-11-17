@@ -1,5 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../design/lakbay_tokens.dart';
+import '../services/friendly_error.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 
@@ -122,7 +124,7 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = e.toString();
+        _error = friendlyError(e);
       });
     }
   }
@@ -142,7 +144,7 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
       setState(() {
         _googleBusy = false;
-        _error = e.toString();
+        _error = friendlyError(e);
       });
     }
   }
@@ -190,8 +192,9 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     const surfaceBg = Color(0xFFFAF7F4);
-    const pillLavender = Color(0xFFC5B3F9);
-    const pillLavenderText = Color(0xFF1E1B24);
+    // Mango is the one action color (PRODUCT.md, v8 direction).
+    const pillAction = LkColors.mango;
+    const pillActionText = LkColors.mangoInk;
     const fieldBorder = Color(0xFFDED9D3);
 
     return Scaffold(
@@ -412,10 +415,10 @@ class _AuthScreenState extends State<AuthScreen> {
                             onPressed:
                                 _busy || _googleBusy ? null : _submitEmailAuth,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: pillLavender,
+                              backgroundColor: pillAction,
                               disabledBackgroundColor:
-                                  pillLavender.withValues(alpha: 0.65),
-                              foregroundColor: pillLavenderText,
+                                  pillAction.withValues(alpha: 0.65),
+                              foregroundColor: pillActionText,
                               elevation: 0,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(32),
@@ -427,7 +430,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                     height: 22,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2.3,
-                                      color: pillLavenderText,
+                                      color: pillActionText,
                                     ),
                                   )
                                 : Text(
@@ -506,7 +509,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         ..onTap = () => _showLegalDialog(
                               context,
                               'Terms of Service',
-                              'Lakbay+ provides AI-assisted travel planning across Davao Region (Region XI). Market rates and schedules are synced from verified Lakbay+ partners and local databases; always confirm live operator availability before departure.',
+                              'Lakbay+ plans trips across the Davao Region (Region XI) with AI. Prices and schedules come from local rates kept by the Lakbay+ team and are estimates, so confirm with the operator before you travel.',
                             ),
                     ),
                     const TextSpan(text: ' and\n'),

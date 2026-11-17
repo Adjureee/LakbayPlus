@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../design/widgets/lk_feedback.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
@@ -20,6 +21,68 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
   String _selectedFilter = 'All';
   bool _sortAlphabetical = false;
 
+  static const _filters = ['All', 'Upcoming', 'No dates', 'Past'];
+  static const _vibes = [
+    'Any',
+    'Beaches & islands',
+    'Mountains & nature',
+    'Food & city',
+    'Culture & heritage',
+  ];
+
+  bool _matchesFilter(ItineraryTrip trip, DateTime now) {
+    final timing = trip.timingOn(now);
+    switch (_selectedFilter) {
+      case 'Upcoming':
+        return timing == TripTiming.upcoming || timing == TripTiming.ongoing;
+      case 'No dates':
+        return timing == TripTiming.undated;
+      case 'Past':
+        return timing == TripTiming.past;
+      default:
+        return true;
+    }
+  }
+
+  /// The trip happening now, else the next one coming up, else the newest.
+  ItineraryTrip? _heroTrip(List<ItineraryTrip> trips, DateTime now) {
+    if (trips.isEmpty) return null;
+    for (final t in trips) {
+      if (t.timingOn(now) == TripTiming.ongoing) return t;
+    }
+    final upcoming =
+        trips.where((t) => t.timingOn(now) == TripTiming.upcoming).toList()
+          ..sort((a, b) => a.startDate!.compareTo(b.startDate!));
+    if (upcoming.isNotEmpty) return upcoming.first;
+    return trips.first;
+  }
+
+  Future<void> _confirmDelete(ItineraryTrip trip) async {
+    final ok = await showLkConfirm(
+      context,
+      title: 'Delete "${trip.title}"?',
+      message: trip.backendTripId != null
+          ? 'It will be removed from your trips and your Lakbay+ account.'
+          : 'It will be removed from your trips.',
+      confirmLabel: 'Delete trip',
+    );
+    if (!ok || !mounted) return;
+    final repo = widget.repo;
+    final index = repo.takeSavedTrip(trip.id);
+    if (index < 0) return;
+    var undone = false;
+    showLkUndoSnack(
+      context,
+      message: 'Trip deleted',
+      onUndo: () {
+        undone = true;
+        repo.restoreSavedTrip(trip, index);
+      },
+    ).closed.then((_) {
+      if (!undone) repo.commitTripRemoval(trip);
+    });
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -29,7 +92,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
   void _showCreateTripDialog() {
     final destController = TextEditingController();
     int days = 3;
-    String vibe = 'Island Hopping & Highlands';
+    String vibe = _vibes.first;
 
     showModalBottomSheet(
       context: context,
@@ -100,15 +163,36 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
+                const Text(
+                  'Vibe',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final v in _vibes)
+                      ChoiceChip(
+                        label: Text(v == 'Any' ? 'Any vibe' : v),
+                        selected: vibe == v,
+                        onSelected: (_) => setSheetState(() => vibe = v),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
                     // The AI drafts it from what the traveler typed; the trip
                     // is saved from the chat once they like it.
                     final where = destController.text.trim();
+                    final vibeWords = vibe == 'Any'
+                        ? ''
+                        : ' ${vibe.toLowerCase()}';
                     Navigator.of(ctx).pop();
                     widget.repo.planInChat(
-                      'Plan a $days-day $vibe trip'
+                      'Plan a $days-day$vibeWords trip'
                       '${where.isEmpty ? '' : ' to $where'}.',
                     );
                   },
@@ -137,6 +221,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
   Widget build(BuildContext context) {
     final query = _searchController.text.trim().toLowerCase();
     final allTrips = widget.repo.savedTrips;
+    final now = DateTime.now();
 
     final filtered = allTrips.where((t) {
       if (query.isNotEmpty &&
@@ -144,18 +229,15 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
           !t.destination.toLowerCase().contains(query)) {
         return false;
       }
-      if (_selectedFilter == 'Past') return false;
-      if (_selectedFilter == 'Planning') {
-        return t.id.startsWith('ai_trip_');
-      }
-      return true;
+      return _matchesFilter(t, now);
     }).toList();
 
     if (_sortAlphabetical) {
       filtered.sort((a, b) => a.title.compareTo(b.title));
     }
 
-    final heroTrip = allTrips.isNotEmpty ? allTrips.first : null;
+    final heroTrip = _heroTrip(allTrips, now);
+    final heroWhen = heroTrip?.whenLabel(now);
 
     return Scaffold(
       backgroundColor: LakbayColors.canvasBg,
@@ -203,7 +285,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
 
             const SizedBox(height: 16),
 
-            // Featured "Starts tomorrow" Hero Card (Image 7)
+            // Featured trip: the one happening now or coming up next.
             if (heroTrip != null && query.isEmpty) ...[
               GestureDetector(
                 onTap: () => Navigator.of(context).push(
@@ -241,28 +323,29 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                           ),
                         ),
                       ),
-                      Positioned(
-                        top: 14,
-                        left: 14,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: LakbayColors.primaryLight,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            'Starts tomorrow',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: LakbayColors.primaryDark,
+                      if (heroWhen != null)
+                        Positioned(
+                          top: 14,
+                          left: 14,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: LakbayColors.primaryLight,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              heroWhen,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: LakbayColors.primaryDark,
+                              ),
                             ),
                           ),
                         ),
-                      ),
                       Positioned(
                         left: 16,
                         right: 16,
@@ -284,7 +367,12 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              '${heroTrip.daysCount} Days • ${heroTrip.adults + heroTrip.children} travellers • ${heroTrip.destination}',
+                              [
+                                ?heroTrip.dateRangeLabel,
+                                '${heroTrip.daysCount} days',
+                                '${heroTrip.adults + heroTrip.children} travellers',
+                                heroTrip.destination,
+                              ].join(' • '),
                               style: TextStyle(
                                 fontSize: 12.5,
                                 color: Colors.white.withValues(alpha: 0.9),
@@ -309,7 +397,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        for (final f in ['All', 'Upcoming', 'Planning', 'Past'])
+                        for (final f in _filters)
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: ChoiceChip(
@@ -375,7 +463,12 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'No $_selectedFilter trips yet',
+                      switch (_selectedFilter) {
+                        'Upcoming' => 'No upcoming trips',
+                        'No dates' => 'Every trip has dates',
+                        'Past' => 'No past trips yet',
+                        _ => 'No trips yet',
+                      },
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
@@ -398,22 +491,14 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
               for (final trip in filtered)
                 _TripListTile(
                   trip: trip,
+                  now: now,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) =>
                           TripDetailScreen(repo: widget.repo, trip: trip),
                     ),
                   ),
-                  onDelete: () {
-                    widget.repo.removeSavedTrip(trip.id);
-                    setState(() {});
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Removed "${trip.title}"'),
-                        backgroundColor: LakbayColors.tealDeep,
-                      ),
-                    );
-                  },
+                  onDelete: () => _confirmDelete(trip),
                 ),
           ],
         ),
@@ -424,17 +509,20 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
 
 class _TripListTile extends StatelessWidget {
   final ItineraryTrip trip;
+  final DateTime now;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
 
-  const _TripListTile({required this.trip, required this.onTap, this.onDelete});
+  const _TripListTile({
+    required this.trip,
+    required this.now,
+    required this.onTap,
+    this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isPlanning =
-        trip.id.startsWith('ai_trip_') ||
-        trip.id.startsWith('ai_opt_') ||
-        trip.id.startsWith('multi_');
+    final when = trip.whenLabel(now) ?? 'No dates yet';
 
     return GestureDetector(
       onTap: onTap,
@@ -475,7 +563,7 @@ class _TripListTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${isPlanning ? 'Planning' : 'Upcoming'} • ${trip.daysCount} Days • ${trip.destination}',
+                    '$when • ${trip.daysCount} days • ${trip.destination}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -488,7 +576,7 @@ class _TripListTile extends StatelessWidget {
             ),
             if (onDelete != null)
               IconButton(
-                tooltip: 'Archive Trip',
+                tooltip: 'Delete trip',
                 onPressed: onDelete,
                 icon: const Icon(
                   Icons.delete_outline_rounded,

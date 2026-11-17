@@ -553,7 +553,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
             lng: h.lng,
             badgeText: 'Stay',
             title: h.name,
-            subtitle: '${h.stars}★ • ${h.city}',
+            subtitle: h.city,
             imageUrl: hotelUrl,
             imageAsset: h.imageAsset,
           ),

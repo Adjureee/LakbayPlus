@@ -257,8 +257,6 @@ class LakbayApiCatalogService {
                 id: 'acc_${accId ?? hotels.length + 1}',
                 name: (raw['name'] ?? 'Partner Stay').toString(),
                 city: city,
-                rating: 9.2,
-                stars: pricePhp >= 6000 ? 5 : 4,
                 pricePerNightUsd: priceUsd,
                 facilities: [
                   roomType,
@@ -427,6 +425,8 @@ class LakbayApiCatalogService {
     required List<int> destinationIds,
     String? notes,
     List<Map<String, dynamic>>? itineraryDays,
+    String? startDate,
+    String? endDate,
   }) async {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty || destinationIds.isEmpty) {
@@ -444,6 +444,8 @@ class LakbayApiCatalogService {
         if (notes != null && notes.isNotEmpty) 'notes': notes,
         if (itineraryDays != null && itineraryDays.isNotEmpty)
           'itinerary_days': itineraryDays,
+        'start_date': ?startDate,
+        'end_date': ?endDate,
       };
       final encodedPayload = jsonEncode(payload);
       final res = await _sendAuthorized(
@@ -501,6 +503,8 @@ class LakbayApiCatalogService {
     double? estimatedTotalCostPhp,
     String? status,
     String? notes,
+    String? startDate,
+    String? endDate,
   }) async {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return false;
@@ -514,6 +518,8 @@ class LakbayApiCatalogService {
         'estimated_total_cost': estimatedTotalCostPhp.toStringAsFixed(2),
       'status': ?status,
       'notes': ?notes,
+      'start_date': ?startDate,
+      'end_date': ?endDate,
     };
     if (payload.isEmpty) return true;
     try {
@@ -558,6 +564,8 @@ class LakbayApiCatalogService {
     required int generationRunId,
     required int optionNumber,
     String? notes,
+    String? startDate,
+    String? endDate,
   }) async {
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return null;
@@ -566,6 +574,8 @@ class LakbayApiCatalogService {
         'generation_run_id': generationRunId,
         'option_number': optionNumber,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
+        'start_date': ?startDate,
+        'end_date': ?endDate,
       });
       final res = await _sendAuthorized(
         accessToken,
