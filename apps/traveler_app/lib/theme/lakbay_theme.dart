@@ -1,31 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../core/theme/app_theme.dart';
 import '../widgets/brand/lakbay_ai_avatar.dart';
 import '../widgets/brand/lakbay_wordmark.dart';
 
-/// Lakbay+ Brand Theme — Dark Cyan Teal & Cocoa Orange (from lakbay_monorepo).
+/// Legacy light palette. Only the Mapbox widget's markers still use it (they
+/// sit on the light map style); screens use `LkColors` from `design/`.
 class LakbayColors {
   // Primary Lakbay+ Teal
-  static const Color primary = AppTheme.primaryBlue; // #20878E
-  static const Color primaryDark = AppTheme.primaryDeep; // #16696F
-  static const Color primaryLight = AppTheme.primaryWash; // #E3F1F2
+  static const Color primary = Color(0xFF20878E); // #20878E
+  static const Color primaryDark = Color(0xFF16696F); // #16696F
+  static const Color primaryLight = Color(0xFFE3F1F2); // #E3F1F2
   static const Color primarySoft = Color(0xFFF1F8F8);
 
   // Secondary Deep Teal & Cocoa Orange
   static const Color tealDeep = Color(0xFF0D2E32);
-  static const Color tealAccent = AppTheme.accentTeal; // #178A90
-  static const Color tealWash = AppTheme.primaryWash; // #E3F1F2
+  static const Color tealAccent = Color(0xFF178A90); // #178A90
+  static const Color tealWash = Color(0xFFE3F1F2); // #E3F1F2
 
   // Accents & Neutrals
-  static const Color cocoaOrange = AppTheme.secondaryGreen; // #D66F29
-  static const Color canvasBg = AppTheme.backgroundLight; // #F5F9F9
-  static const Color surfaceWhite = AppTheme.cardColorLight; // #FFFFFF
-  static const Color cardBorder = AppTheme.outlineLight; // #CFDFDF
-  static const Color textPrimary = AppTheme.textPrimaryLight; // #1A2E2E
-  static const Color textSecondary = AppTheme.textSecondaryLight; // #4F6B6B
+  static const Color cocoaOrange = Color(0xFFD66F29); // #D66F29
+  static const Color canvasBg = Color(0xFFF5F9F9); // #F5F9F9
+  static const Color surfaceWhite = Color(0xFFFFFFFF); // #FFFFFF
+  static const Color cardBorder = Color(0xFFCFDFDF); // #CFDFDF
+  static const Color textPrimary = Color(0xFF1A2E2E); // #1A2E2E
+  static const Color textSecondary = Color(0xFF4F6B6B); // #4F6B6B
   static const Color textMuted = Color(0xFF6D8787);
-  static const Color successGreen = AppTheme.success; // #2E7D4F
+  static const Color successGreen = Color(0xFF2E7D4F); // #2E7D4F
 
   static const LinearGradient brandGradient = LinearGradient(
     colors: [Color(0xFF20878E), Color(0xFF178A90)],
@@ -49,42 +49,6 @@ class LakbayColors {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
-}
-
-class LakbayTheme {
-  static ThemeData get lightTheme {
-    final textTheme = AppTheme.textTheme(
-      LakbayColors.textPrimary,
-      LakbayColors.textSecondary,
-    );
-    return ThemeData(
-      useMaterial3: true,
-      fontFamily: GoogleFonts.outfit().fontFamily,
-      scaffoldBackgroundColor: LakbayColors.canvasBg,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: LakbayColors.primary,
-        primary: LakbayColors.primary,
-        secondary: LakbayColors.cocoaOrange,
-        surface: LakbayColors.surfaceWhite,
-      ),
-      textTheme: textTheme,
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: LakbayColors.primaryDark,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
-          ),
-          textStyle: GoogleFonts.outfit(
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// Lakbay AI's avatar ("L+" tile). [inverted] is kept for older call sites

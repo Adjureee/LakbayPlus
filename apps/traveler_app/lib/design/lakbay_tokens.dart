@@ -54,6 +54,13 @@ abstract final class LkColors {
   static const Color glassDark = Color(0x9E04191C);
   static const Color glassDarkBorder = Color(0x1FFFFFFF);
 
+  /// Raised dark panel (profile header, image placeholders).
+  static const LinearGradient surfaceGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [s2, s1],
+  );
+
   /// Bottom scrim that keeps white text readable on any photo.
   static const LinearGradient photoScrim = LinearGradient(
     begin: Alignment.topCenter,

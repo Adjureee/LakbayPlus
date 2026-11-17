@@ -7,6 +7,7 @@ import '../services/mapbox_service.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import 'route_trail.dart';
+import '../design/lakbay_type.dart';
 
 class LakbayMapMarker {
   final String id;
@@ -508,7 +509,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                       Text(
                         'Mapbox Style & API Configuration',
                         style: TextStyle(
-                          fontFamily: 'FigGrotesk',
+                          fontFamily: LkType.displayFamily,
                           fontWeight: FontWeight.w700,
                           fontSize: 19,
                         ),
@@ -855,7 +856,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                                     Text(
                                       s.title,
                                       style: const TextStyle(
-                                        fontFamily: 'FigGrotesk',
+                                        fontFamily: LkType.displayFamily,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 13.5,
                                       ),
@@ -893,7 +894,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                                     ? 'Mapbox Token (Live)'
                                     : 'Set Mapbox Access Token',
                                 style: const TextStyle(
-                                  fontFamily: 'FigGrotesk',
+                                  fontFamily: LkType.displayFamily,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
                                 ),
@@ -1178,7 +1179,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                 label,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontFamily: 'FigGrotesk',
+                  fontFamily: LkType.displayFamily,
                   fontWeight: FontWeight.w700,
                   fontSize: 11.5,
                 ),
@@ -1573,7 +1574,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontFamily: 'FigGrotesk',
+                              fontFamily: LkType.displayFamily,
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
                               fontSize: 9.5,
@@ -1662,7 +1663,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                       Text(
                         marker.badgeText,
                         style: const TextStyle(
-                          fontFamily: 'FigGrotesk',
+                          fontFamily: LkType.displayFamily,
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 11,

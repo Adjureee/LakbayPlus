@@ -9,6 +9,8 @@ import '../widgets/lakbay_image.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
 import 'trip_detail_screen.dart';
 
+import '../design/lakbay_tokens.dart';
+import '../design/lakbay_type.dart';
 class ExploreScreen extends StatefulWidget {
   final TravelRepository repo;
 
@@ -49,7 +51,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
@@ -68,7 +70,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 content: Text(
                   '$headline · ${built.optimizationSummary!.methodLabel}',
                 ),
-                backgroundColor: LakbayColors.tealDeep,
+                backgroundColor: LkColors.s3,
               ),
             );
           }
@@ -89,7 +91,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -107,11 +109,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: LakbayColors.primaryLight,
+                    color: LkColors.s2,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(Icons.place_rounded,
-                      color: LakbayColors.primary, size: 22),
+                      color: LkColors.lagoon, size: 22),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -121,7 +123,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       Text(
                         cityObj.city,
                         style: const TextStyle(
-                          fontFamily: 'FigGrotesk',
+                          fontFamily: LkType.displayFamily,
                           fontWeight: FontWeight.w700,
                           fontSize: 21,
                         ),
@@ -130,7 +132,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         cityObj.country,
                         style: const TextStyle(
                           fontSize: 13,
-                          color: LakbayColors.tealAccent,
+                          color: LkColors.lagoon,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -143,7 +145,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   height: 32,
                   errorBuilder: (_, _, _) => const Icon(
                     Icons.wb_sunny_rounded,
-                    color: LakbayColors.cocoaOrange,
+                    color: LkColors.mango,
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -159,7 +161,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               style: const TextStyle(
                 fontSize: 14.5,
                 height: 1.55,
-                color: LakbayColors.textPrimary,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 22),
@@ -208,7 +210,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final sections = widget.repo.discoverySections;
 
     return Scaffold(
-      backgroundColor: LakbayColors.canvasBg,
+      backgroundColor: LkColors.bg,
       body: SafeArea(
         child: Column(
           children: [
@@ -226,10 +228,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontFamily: 'FigGrotesk',
+                            fontFamily: LkType.displayFamily,
                             fontWeight: FontWeight.w800,
                             fontSize: 28,
-                            color: LakbayColors.tealDeep,
+                            color: LkColors.text,
                           ),
                         ),
                       ),
@@ -250,7 +252,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                           ? 'Synced $count live Region XI destination(s) from Lakbay+ Admin.'
                                           : 'Catalog refreshed (offline curated mode active).',
                                     ),
-                                    backgroundColor: LakbayColors.tealDeep,
+                                    backgroundColor: LkColors.s3,
                                   ),
                                 );
                               },
@@ -284,11 +286,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           ),
                           visualDensity: VisualDensity.compact,
                           backgroundColor: _isMapView
-                              ? LakbayColors.tealDeep
-                              : LakbayColors.primaryLight,
+                              ? LkColors.s3
+                              : LkColors.s2,
                           foregroundColor: _isMapView
                               ? Colors.white
-                              : LakbayColors.primaryDark,
+                              : LkColors.lagoon,
                         ),
                         icon: Icon(
                           _isMapView
@@ -299,7 +301,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         label: Text(
                           _isMapView ? 'List View' : 'Mapbox',
                           style: const TextStyle(
-                            fontFamily: 'FigGrotesk',
+                            fontFamily: LkType.displayFamily,
                             fontWeight: FontWeight.w700,
                             fontSize: 12.5,
                           ),
@@ -324,14 +326,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: LkColors.s1,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: LakbayColors.cardBorder),
+                            border: Border.all(color: LkColors.stroke),
                           ),
                           child: Text(
                             widget.repo.currency,
                             style: const TextStyle(
-                              fontFamily: 'FigGrotesk',
+                              fontFamily: LkType.displayFamily,
                               fontWeight: FontWeight.w700,
                               fontSize: 12.5,
                             ),
@@ -348,7 +350,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           'Single Region XI places, Mapbox pins & local guides',
                           style: TextStyle(
                             fontSize: 12.5,
-                            color: LakbayColors.textSecondary,
+                            color: LkColors.muted,
                           ),
                         ),
                       ),
@@ -357,13 +359,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         avatar: const Icon(
                           Icons.auto_graph_rounded,
                           size: 15,
-                          color: LakbayColors.primary,
+                          color: LkColors.lagoon,
                         ),
                         visualDensity: VisualDensity.compact,
                         label: const Text(
                           'Top-5 Match',
                           style: TextStyle(
-                            fontFamily: 'FigGrotesk',
+                            fontFamily: LkType.displayFamily,
                             fontWeight: FontWeight.w700,
                             fontSize: 12,
                           ),
@@ -379,20 +381,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       hintText:
                           'Search Samal, Mati, Buda, Tagum, Mt. Apo, or falls...',
                       prefixIcon: const Icon(Icons.search_rounded,
-                          color: LakbayColors.primary),
+                          color: LkColors.lagoon),
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: LkColors.s1,
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 11),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide:
-                            const BorderSide(color: LakbayColors.cardBorder),
+                            const BorderSide(color: LkColors.stroke),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide:
-                            const BorderSide(color: LakbayColors.cardBorder),
+                            const BorderSide(color: LkColors.stroke),
                       ),
                     ),
                   ),
@@ -409,12 +411,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         return ChoiceChip(
                           label: Text(f),
                           selected: selected,
-                          selectedColor: LakbayColors.primary,
-                          backgroundColor: Colors.white,
+                          selectedColor: LkColors.s3,
+                          backgroundColor: LkColors.s1,
                           labelStyle: TextStyle(
                             color: selected
                                 ? Colors.white
-                                : LakbayColors.textPrimary,
+                                : LkColors.text,
                             fontWeight: FontWeight.w600,
                             fontSize: 12.5,
                           ),
@@ -523,7 +525,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                   vertical: 4,
                                                 ),
                                                 decoration: BoxDecoration(
-                                                  color: LakbayColors.primaryLight,
+                                                  color: LkColors.s2,
                                                   borderRadius:
                                                       BorderRadius.circular(14),
                                                 ),
@@ -557,7 +559,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                   overflow:
                                                       TextOverflow.ellipsis,
                                                   style: const TextStyle(
-                                                    fontFamily: 'FigGrotesk',
+                                                    fontFamily: LkType.displayFamily,
                                                     fontSize: 14,
                                                     fontWeight: FontWeight.w700,
                                                     color: Colors.white,
@@ -597,7 +599,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                         color: inTray
                                                             ? LakbayColors
                                                                 .primary
-                                                            : Colors.white
+                                                            : LkColors.s1
                                                                 .withValues(
                                                                     alpha: 0.92),
                                                         borderRadius:
@@ -654,10 +656,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   const Text(
                                     'Davao Region Encyclopedia',
                                     style: TextStyle(
-                                      fontFamily: 'FigGrotesk',
+                                      fontFamily: LkType.displayFamily,
                                       fontWeight: FontWeight.w700,
                                       fontSize: 21,
-                                      color: LakbayColors.tealDeep,
+                                      color: LkColors.text,
                                     ),
                                   ),
                                   TextButton(
@@ -684,11 +686,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: LakbayColors.tealDeep,
+                  color: LkColors.s3,
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: LakbayColors.tealDeep.withValues(alpha: 0.28),
+                      color: Colors.black.withValues(alpha: 0.28),
                       blurRadius: 14,
                       offset: const Offset(0, 6),
                     ),
@@ -702,7 +704,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: LakbayColors.primary,
+                        color: LkColors.s3,
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Text(
@@ -736,7 +738,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ElevatedButton(
                       onPressed: _openMultiStopBuilderSheet,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: LakbayColors.primary,
+                        backgroundColor: LkColors.mango,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 8,
@@ -861,7 +863,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontFamily: 'FigGrotesk',
+                                fontFamily: LkType.displayFamily,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 15,
                               ),
@@ -873,7 +875,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: LakbayColors.textSecondary,
+                                color: LkColors.muted,
                               ),
                             ),
                           ],
@@ -883,7 +885,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       FilledButton(
                         onPressed: () => _openExploreTrip(activeTrip),
                         style: FilledButton.styleFrom(
-                          backgroundColor: LakbayColors.primary,
+                          backgroundColor: LkColors.mango,
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 10),
                         ),
@@ -922,10 +924,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 Text(
                   'Suggested routes',
                   style: TextStyle(
-                    fontFamily: 'FigGrotesk',
+                    fontFamily: LkType.displayFamily,
                     fontWeight: FontWeight.w700,
                     fontSize: 20,
-                    color: LakbayColors.tealDeep,
+                    color: LkColors.text,
                   ),
                 ),
                 SizedBox(height: 2),
@@ -933,7 +935,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   'Curated starter combinations — tap one to fill your trip tray',
                   style: TextStyle(
                     fontSize: 12.5,
-                    color: LakbayColors.textSecondary,
+                    color: LkColors.muted,
                   ),
                 ),
               ],
@@ -962,7 +964,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         content: Text(
                           'Loaded $loaded places from "${route.title}". Tap Plan trip below to set your days.',
                         ),
-                        backgroundColor: LakbayColors.tealDeep,
+                        backgroundColor: LkColors.s3,
                       ),
                     );
                   },
@@ -971,9 +973,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     width: 248,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: LkColors.s1,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: LakbayColors.cardBorder),
+                      border: Border.all(color: LkColors.stroke),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -986,7 +988,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 vertical: 3,
                               ),
                               decoration: BoxDecoration(
-                                color: LakbayColors.primaryLight,
+                                color: LkColors.s2,
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
@@ -994,7 +996,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
-                                  color: LakbayColors.primaryDark,
+                                  color: LkColors.lagoon,
                                 ),
                               ),
                             ),
@@ -1002,7 +1004,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             const Icon(
                               Icons.route_rounded,
                               size: 16,
-                              color: LakbayColors.primary,
+                              color: LkColors.lagoon,
                             ),
                           ],
                         ),
@@ -1012,10 +1014,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontFamily: 'FigGrotesk',
+                            fontFamily: LkType.displayFamily,
                             fontWeight: FontWeight.w700,
                             fontSize: 13.5,
-                            color: LakbayColors.tealDeep,
+                            color: LkColors.text,
                             height: 1.2,
                           ),
                         ),
@@ -1029,7 +1031,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           style: const TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
-                            color: LakbayColors.primary,
+                            color: LkColors.lagoon,
                           ),
                         ),
                       ],
@@ -1056,7 +1058,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: LakbayColors.tealDeep.withValues(alpha: 0.16),
+              color: Colors.black.withValues(alpha: 0.16),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
@@ -1073,7 +1075,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ),
             Container(
               decoration: const BoxDecoration(
-                gradient: LakbayColors.darkOverlayGradient,
+                gradient: LkColors.photoScrim,
               ),
             ),
             Positioned(
@@ -1083,7 +1085,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                 decoration: BoxDecoration(
-                  gradient: LakbayColors.brandGradient,
+                  gradient: LkColors.surfaceGradient,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -1112,7 +1114,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   isBucketed
                       ? Icons.favorite_rounded
                       : Icons.favorite_border_rounded,
-                  color: isBucketed ? LakbayColors.primary : Colors.white,
+                  color: isBucketed ? LkColors.lagoon : Colors.white,
                 ),
               ),
             ),
@@ -1126,7 +1128,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   Text(
                     trip.title,
                     style: const TextStyle(
-                      fontFamily: 'FigGrotesk',
+                      fontFamily: LkType.displayFamily,
                       fontWeight: FontWeight.w700,
                       fontSize: 22,
                       color: Colors.white,
@@ -1158,17 +1160,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: inTray ? LakbayColors.primary : Colors.white,
+                            color: inTray ? LkColors.s3 : LkColors.s1,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             inTray ? '✓ In trip' : '＋ Add to trip',
                             style: TextStyle(
-                              fontFamily: 'FigGrotesk',
+                              fontFamily: LkType.displayFamily,
                               fontWeight: FontWeight.w700,
                               fontSize: 12,
                               color:
-                                  inTray ? Colors.white : LakbayColors.tealDeep,
+                                  inTray ? Colors.white : LkColors.text,
                             ),
                           ),
                         ),
@@ -1201,10 +1203,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 Text(
                   section.title,
                   style: const TextStyle(
-                    fontFamily: 'FigGrotesk',
+                    fontFamily: LkType.displayFamily,
                     fontWeight: FontWeight.w700,
                     fontSize: 21,
-                    color: LakbayColors.tealDeep,
+                    color: LkColors.text,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1212,7 +1214,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   section.subtitle,
                   style: const TextStyle(
                     fontSize: 13,
-                    color: LakbayColors.textSecondary,
+                    color: LkColors.muted,
                   ),
                 ),
               ],
@@ -1235,9 +1237,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   child: Container(
                     width: 210,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: LkColors.s1,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: LakbayColors.cardBorder),
+                      border: Border.all(color: LkColors.stroke),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: Column(
@@ -1288,7 +1290,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                       style: IconButton.styleFrom(
                                         backgroundColor: widget.repo
                                                 .isInTripBuilder(trip.id)
-                                            ? LakbayColors.primary
+                                            ? LkColors.mango
                                             : Colors.black.withValues(alpha: 0.45),
                                         padding: EdgeInsets.zero,
                                         minimumSize: const Size(30, 30),
@@ -1316,7 +1318,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                             ? Icons.favorite_rounded
                                             : Icons.favorite_border_rounded,
                                         color: isBucketed
-                                            ? LakbayColors.primary
+                                            ? LkColors.lagoon
                                             : Colors.white,
                                         size: 20,
                                       ),
@@ -1337,7 +1339,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  fontFamily: 'FigGrotesk',
+                                  fontFamily: LkType.displayFamily,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14.5,
                                   height: 1.2,
@@ -1353,7 +1355,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         fontSize: 11.5,
-                                        color: LakbayColors.textSecondary,
+                                        color: LkColors.muted,
                                       ),
                                     ),
                                   ),
@@ -1372,8 +1374,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                       decoration: BoxDecoration(
                                         color: widget.repo
                                                 .isInTripBuilder(trip.id)
-                                            ? LakbayColors.primary
-                                            : LakbayColors.primaryLight,
+                                            ? LkColors.s3
+                                            : LkColors.s2,
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
@@ -1381,13 +1383,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                             ? '✓ Added'
                                             : '＋ Add',
                                         style: TextStyle(
-                                          fontFamily: 'FigGrotesk',
+                                          fontFamily: LkType.displayFamily,
                                           fontWeight: FontWeight.w700,
                                           fontSize: 11.5,
                                           color: widget.repo
                                                   .isInTripBuilder(trip.id)
                                               ? Colors.white
-                                              : LakbayColors.primaryDark,
+                                              : LkColors.lagoon,
                                         ),
                                       ),
                                     ),
@@ -1430,13 +1432,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
           child: Column(
             children: [
               const Icon(Icons.travel_explore_rounded,
-                  size: 48, color: LakbayColors.primary),
+                  size: 48, color: LkColors.lagoon),
               const SizedBox(height: 12),
               Text(
                 'Generate a custom "$_searchQuery" Davao trip?',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontFamily: 'FigGrotesk',
+                  fontFamily: LkType.displayFamily,
                   fontWeight: FontWeight.w700,
                   fontSize: 18,
                 ),
@@ -1464,10 +1466,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
             final trip = matchedTrips[index];
             return ListTile(
               onTap: () => _openExploreTrip(trip),
-              tileColor: Colors.white,
+              tileColor: LkColors.s1,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: LakbayColors.cardBorder),
+                side: const BorderSide(color: LkColors.stroke),
               ),
               contentPadding: const EdgeInsets.all(10),
               leading: ClipRRect(
@@ -1482,7 +1484,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               title: Text(
                 trip.title,
                 style: const TextStyle(
-                  fontFamily: 'FigGrotesk',
+                  fontFamily: LkType.displayFamily,
                   fontWeight: FontWeight.w700,
                   fontSize: 15,
                 ),
@@ -1505,20 +1507,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
             final city = matchedCities[index - matchedTrips.length];
             return ListTile(
               onTap: () => _openCityEncyclopediaSheet(city),
-              tileColor: Colors.white,
+              tileColor: LkColors.s1,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: LakbayColors.cardBorder),
+                side: const BorderSide(color: LkColors.stroke),
               ),
               leading: const CircleAvatar(
-                backgroundColor: LakbayColors.primaryLight,
+                backgroundColor: LkColors.s2,
                 child: Icon(Icons.place_rounded,
-                    color: LakbayColors.primary),
+                    color: LkColors.lagoon),
               ),
               title: Text(
                 city.city,
                 style: const TextStyle(
-                  fontFamily: 'FigGrotesk',
+                  fontFamily: LkType.displayFamily,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1526,7 +1528,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               trailing: const Text(
                 'Guide →',
                 style: TextStyle(
-                  color: LakbayColors.tealAccent,
+                  color: LkColors.lagoon,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1556,9 +1558,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: LkColors.s1,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: LakbayColors.cardBorder),
+                border: Border.all(color: LkColors.stroke),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1568,11 +1570,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: LakbayColors.primaryLight,
+                          color: LkColors.s2,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(Icons.place_rounded,
-                            color: LakbayColors.primary, size: 18),
+                            color: LkColors.lagoon, size: 18),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -1582,7 +1584,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             Text(
                               cityObj.city,
                               style: const TextStyle(
-                                fontFamily: 'FigGrotesk',
+                                fontFamily: LkType.displayFamily,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 16.5,
                               ),
@@ -1591,7 +1593,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               cityObj.country,
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: LakbayColors.tealAccent,
+                                color: LkColors.lagoon,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -1615,8 +1617,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               ? Icons.favorite_rounded
                               : Icons.favorite_border_rounded,
                           color: inBucket
-                              ? LakbayColors.primary
-                              : LakbayColors.textMuted,
+                              ? LkColors.lagoon
+                              : LkColors.muted,
                         ),
                       ),
                     ],
@@ -1629,7 +1631,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     style: const TextStyle(
                       fontSize: 13,
                       height: 1.45,
-                      color: LakbayColors.textSecondary,
+                      color: LkColors.muted,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -1640,7 +1642,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         'Tap for full Davao guide',
                         style: TextStyle(
                           fontSize: 11.5,
-                          color: LakbayColors.textMuted,
+                          color: LkColors.muted,
                         ),
                       ),
                       TextButton.icon(
@@ -1672,7 +1674,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1724,16 +1726,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   const Text(
                     'Personalized Top 5',
                     style: TextStyle(
-                      fontFamily: 'FigGrotesk',
+                      fontFamily: LkType.displayFamily,
                       fontSize: 21,
                       fontWeight: FontWeight.w800,
-                      color: LakbayColors.tealDeep,
+                      color: LkColors.text,
                     ),
                   ),
                   const SizedBox(height: 4),
                   const Text(
                     'The places that best fit what you like, your budget and where you start.',
-                    style: TextStyle(fontSize: 13, color: LakbayColors.textSecondary),
+                    style: TextStyle(fontSize: 13, color: LkColors.muted),
                   ),
                   const SizedBox(height: 10),
                   if (repo.preferenceGroups.isEmpty)
@@ -1741,7 +1743,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       'Preferences load from Lakbay when you are online.',
                       style: TextStyle(
                         fontSize: 12.5,
-                        color: LakbayColors.textSecondary,
+                        color: LkColors.muted,
                       ),
                     )
                   else ...[
@@ -1835,7 +1837,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           style: const TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
-                            color: LakbayColors.textSecondary,
+                            color: LkColors.muted,
                           ),
                         ),
                       ),
@@ -1845,7 +1847,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           padding: EdgeInsets.symmetric(vertical: 12),
                           child: Text(
                             'No places match yet. Try another preference.',
-                            style: TextStyle(color: LakbayColors.textSecondary),
+                            style: TextStyle(color: LkColors.muted),
                           ),
                         ),
                       for (final item in result!.items)
@@ -1853,7 +1855,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           margin: const EdgeInsets.only(bottom: 10),
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: LakbayColors.tealDeep,
+                              backgroundColor: LkColors.s3,
                               foregroundColor: Colors.white,
                               child: Text('#${item.rank}'),
                             ),
@@ -2015,7 +2017,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.route_rounded, color: LakbayColors.primary),
+                  const Icon(Icons.route_rounded, color: LkColors.lagoon),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -2024,17 +2026,17 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                         const Text(
                           'Plan Your Route',
                           style: TextStyle(
-                            fontFamily: 'FigGrotesk',
+                            fontFamily: LkType.displayFamily,
                             fontWeight: FontWeight.w800,
                             fontSize: 20,
-                            color: LakbayColors.tealDeep,
+                            color: LkColors.text,
                           ),
                         ),
                         Text(
                           '${stops.length} ${stops.length == 1 ? 'place' : 'places'} · You choose the days & pace',
                           style: const TextStyle(
                             fontSize: 12,
-                            color: LakbayColors.textSecondary,
+                            color: LkColors.muted,
                           ),
                         ),
                       ],
@@ -2067,13 +2069,13 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                     ),
                     decoration: BoxDecoration(
                       color: isLocked
-                          ? LakbayColors.tealWash.withValues(alpha: 0.45)
-                          : LakbayColors.canvasBg,
+                          ? LkColors.s2.withValues(alpha: 0.45)
+                          : LkColors.bg,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isLocked
-                            ? LakbayColors.primary
-                            : LakbayColors.cardBorder,
+                            ? LkColors.lagoon
+                            : LkColors.stroke,
                       ),
                     ),
                     child: Row(
@@ -2084,8 +2086,8 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: isLocked
-                                ? LakbayColors.primary
-                                : LakbayColors.tealDeep,
+                                ? LkColors.s3
+                                : LkColors.s3,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -2109,7 +2111,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 13.5,
-                                  color: LakbayColors.tealDeep,
+                                  color: LkColors.text,
                                 ),
                               ),
                               Text(
@@ -2118,7 +2120,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontSize: 11.5,
-                                  color: LakbayColors.textSecondary,
+                                  color: LkColors.muted,
                                 ),
                               ),
                             ],
@@ -2139,8 +2141,8 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                                 : Icons.push_pin_outlined,
                             size: 18,
                             color: isLocked
-                                ? LakbayColors.primary
-                                : LakbayColors.textMuted,
+                                ? LkColors.lagoon
+                                : LkColors.muted,
                           ),
                         ),
                         InkWell(
@@ -2158,13 +2160,13 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                             ),
                             decoration: BoxDecoration(
                               color: isMustVisit
-                                  ? LakbayColors.tealDeep
-                                  : Colors.white,
+                                  ? LkColors.s3
+                                  : LkColors.s1,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: isMustVisit
-                                    ? LakbayColors.tealDeep
-                                    : LakbayColors.cardBorder,
+                                    ? LkColors.strokeStrong
+                                    : LkColors.stroke,
                               ),
                             ),
                             child: Text(
@@ -2174,7 +2176,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                                 fontWeight: FontWeight.w700,
                                 color: isMustVisit
                                     ? Colors.white
-                                    : LakbayColors.textSecondary,
+                                    : LkColors.muted,
                               ),
                             ),
                           ),
@@ -2195,7 +2197,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                           icon: const Icon(
                             Icons.close_rounded,
                             size: 18,
-                            color: LakbayColors.textMuted,
+                            color: LkColors.muted,
                           ),
                         ),
                       ],
@@ -2211,7 +2213,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 13,
-                  color: LakbayColors.tealDeep,
+                  color: LkColors.text,
                 ),
               ),
               const SizedBox(height: 6),
@@ -2258,7 +2260,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                     'GPS location not locked yet — ordering will begin at your first stop.',
                     style: TextStyle(
                       fontSize: 11.5,
-                      color: LakbayColors.textSecondary,
+                      color: LkColors.muted,
                     ),
                   ),
                 ),
@@ -2333,7 +2335,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 15,
-                            color: LakbayColors.tealDeep,
+                            color: LkColors.text,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -2349,7 +2351,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: LakbayColors.tealWash,
+                              color: LkColors.s2,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -2357,7 +2359,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                               style: const TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
-                                color: LakbayColors.tealDeep,
+                                color: LkColors.text,
                               ),
                             ),
                           ),
@@ -2397,7 +2399,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 13,
-                  color: LakbayColors.tealDeep,
+                  color: LkColors.text,
                 ),
               ),
               const SizedBox(height: 6),
@@ -2465,12 +2467,12 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                 decoration: BoxDecoration(
                   color: overloadedDays.isNotEmpty
                       ? Colors.amber.shade50
-                      : LakbayColors.tealWash.withValues(alpha: 0.45),
+                      : LkColors.s2.withValues(alpha: 0.45),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: overloadedDays.isNotEmpty
                         ? Colors.amber.shade300
-                        : LakbayColors.cardBorder,
+                        : LkColors.stroke,
                   ),
                 ),
                 child: Column(
@@ -2481,7 +2483,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 13,
-                        color: LakbayColors.tealDeep,
+                        color: LkColors.text,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -2491,7 +2493,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                           : 'Order method: ${_preview.orderMethod == 'exact_held_karp' ? 'Exact Held-Karp' : 'Adaptive NN + 2-opt'}',
                       style: const TextStyle(
                         fontSize: 11.5,
-                        color: LakbayColors.textSecondary,
+                        color: LkColors.muted,
                       ),
                     ),
                     if (_preview.warnings.isNotEmpty) ...[

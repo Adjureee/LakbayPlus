@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import '../design/widgets/lk_feedback.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
-import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_image.dart';
 import 'trip_detail_screen.dart';
 
+import '../design/lakbay_tokens.dart';
+import '../design/lakbay_type.dart';
 class MyTripsScreen extends StatefulWidget {
   final TravelRepository repo;
 
@@ -97,7 +98,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -117,10 +118,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                 const Text(
                   'Create Davao Region Trip',
                   style: TextStyle(
-                    fontFamily: 'FigGrotesk',
+                    fontFamily: LkType.displayFamily,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: LakbayColors.tealDeep,
+                    color: LkColors.text,
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -197,8 +198,8 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: LakbayColors.primary,
-                    foregroundColor: Colors.white,
+                    backgroundColor: LkColors.mango,
+                    foregroundColor: LkColors.mangoInk,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24),
@@ -240,7 +241,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
     final heroWhen = heroTrip?.whenLabel(now);
 
     return Scaffold(
-      backgroundColor: LakbayColors.canvasBg,
+      backgroundColor: LkColors.bg,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
@@ -252,9 +253,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: LkColors.s1,
                       borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: LakbayColors.cardBorder),
+                      border: Border.all(color: LkColors.stroke),
                     ),
                     child: TextField(
                       controller: _searchController,
@@ -262,7 +263,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                       decoration: const InputDecoration(
                         icon: Icon(
                           Icons.search_rounded,
-                          color: LakbayColors.textSecondary,
+                          color: LkColors.muted,
                         ),
                         hintText: 'Search Trips...',
                         border: InputBorder.none,
@@ -272,7 +273,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                 ),
                 const SizedBox(width: 10),
                 Material(
-                  color: LakbayColors.primary,
+                  color: LkColors.s3,
                   shape: const CircleBorder(),
                   child: IconButton(
                     tooltip: 'Create Trip',
@@ -333,7 +334,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: LakbayColors.primaryLight,
+                              color: LkColors.s2,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -341,7 +342,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
-                                color: LakbayColors.primaryDark,
+                                color: LkColors.lagoon,
                               ),
                             ),
                           ),
@@ -358,7 +359,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontFamily: 'FigGrotesk',
+                                fontFamily: LkType.displayFamily,
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800,
                                 color: Colors.white,
@@ -405,19 +406,19 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                               selected: _selectedFilter == f,
                               onSelected: (_) =>
                                   setState(() => _selectedFilter = f),
-                              selectedColor: LakbayColors.tealDeep,
-                              backgroundColor: Colors.white,
+                              selectedColor: LkColors.s3,
+                              backgroundColor: LkColors.s1,
                               labelStyle: TextStyle(
                                 color: _selectedFilter == f
                                     ? Colors.white
-                                    : LakbayColors.tealDeep,
+                                    : LkColors.text,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13,
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(22),
                                 side: const BorderSide(
-                                  color: LakbayColors.cardBorder,
+                                  color: LkColors.stroke,
                                 ),
                               ),
                             ),
@@ -427,7 +428,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                   ),
                 ),
                 Material(
-                  color: Colors.white,
+                  color: LkColors.s1,
                   shape: const CircleBorder(),
                   child: IconButton(
                     tooltip: _sortAlphabetical ? 'Sort: Default' : 'Sort: A-Z',
@@ -436,8 +437,8 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                     icon: Icon(
                       Icons.swap_vert_rounded,
                       color: _sortAlphabetical
-                          ? LakbayColors.primary
-                          : LakbayColors.tealDeep,
+                          ? LkColors.lagoon
+                          : LkColors.text,
                     ),
                   ),
                 ),
@@ -450,16 +451,16 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
               Container(
                 padding: const EdgeInsets.all(28),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: LkColors.s1,
                   borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: LakbayColors.cardBorder),
+                  border: Border.all(color: LkColors.stroke),
                 ),
                 child: Column(
                   children: [
                     const Icon(
                       Icons.map_outlined,
                       size: 40,
-                      color: LakbayColors.textSecondary,
+                      color: LkColors.muted,
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -472,7 +473,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
-                        color: LakbayColors.tealDeep,
+                        color: LkColors.text,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -481,7 +482,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
-                        color: LakbayColors.textSecondary,
+                        color: LkColors.muted,
                       ),
                     ),
                   ],
@@ -530,9 +531,9 @@ class _TripListTile extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: LkColors.s1,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: LakbayColors.cardBorder),
+          border: Border.all(color: LkColors.stroke),
         ),
         child: Row(
           children: [
@@ -555,10 +556,10 @@ class _TripListTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontFamily: 'FigGrotesk',
+                      fontFamily: LkType.displayFamily,
                       fontWeight: FontWeight.w700,
                       fontSize: 15.5,
-                      color: LakbayColors.tealDeep,
+                      color: LkColors.text,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -568,7 +569,7 @@ class _TripListTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 12.5,
-                      color: LakbayColors.textSecondary,
+                      color: LkColors.muted,
                     ),
                   ),
                 ],
@@ -580,13 +581,13 @@ class _TripListTile extends StatelessWidget {
                 onPressed: onDelete,
                 icon: const Icon(
                   Icons.delete_outline_rounded,
-                  color: LakbayColors.textMuted,
+                  color: LkColors.muted,
                   size: 20,
                 ),
               ),
             const Icon(
               Icons.chevron_right_rounded,
-              color: LakbayColors.textSecondary,
+              color: LkColors.muted,
             ),
           ],
         ),

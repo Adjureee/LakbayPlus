@@ -8,6 +8,10 @@ import 'lakbay_tokens.dart';
 abstract final class LkType {
   static const List<FontFeature> _tabular = [FontFeature.tabularFigures()];
 
+  /// Bricolage Grotesque ExtraBold, declared in pubspec so it can be used in
+  /// `const TextStyle(fontFamily: LkType.displayFamily)`.
+  static const String displayFamily = 'LakbayDisplay';
+
   static TextStyle _display(double size, double height, double tracking) =>
       GoogleFonts.bricolageGrotesque(
         fontSize: size,

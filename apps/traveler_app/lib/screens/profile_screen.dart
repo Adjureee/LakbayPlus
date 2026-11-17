@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
-import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_image.dart';
 import 'auth_screen.dart';
 import 'settings_screen.dart';
 import 'trip_detail_screen.dart';
 
+import '../design/lakbay_tokens.dart';
 class ProfileScreen extends StatelessWidget {
   final TravelRepository repo;
 
@@ -22,7 +22,7 @@ class ProfileScreen extends StatelessWidget {
         : 'assets/home_backdrops/01-samal-island.jpg';
 
     return Scaffold(
-      backgroundColor: LakbayColors.canvasBg,
+      backgroundColor: LkColors.bg,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 110),
@@ -32,7 +32,7 @@ class ProfileScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 30,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
                 letterSpacing: -0.6,
               ),
             ),
@@ -41,9 +41,9 @@ class ProfileScreen extends StatelessWidget {
             // Cover banner + Avatar + Edit button
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: LkColors.s1,
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: LakbayColors.cardBorder),
+                border: Border.all(color: LkColors.stroke),
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(
@@ -60,7 +60,7 @@ class ProfileScreen extends StatelessWidget {
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => Container(
                             decoration: const BoxDecoration(
-                              gradient: LakbayColors.deepTealGradient,
+                              gradient: LkColors.surfaceGradient,
                             ),
                           ),
                         ),
@@ -85,7 +85,7 @@ class ProfileScreen extends StatelessWidget {
                                   Icon(
                                     Icons.edit_outlined,
                                     size: 16,
-                                    color: LakbayColors.tealDeep,
+                                    color: LkColors.text,
                                   ),
                                   SizedBox(width: 6),
                                   Text(
@@ -93,7 +93,7 @@ class ProfileScreen extends StatelessWidget {
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 13,
-                                      color: LakbayColors.tealDeep,
+                                      color: LkColors.text,
                                     ),
                                   ),
                                 ],
@@ -109,7 +109,7 @@ class ProfileScreen extends StatelessWidget {
                           width: 62,
                           height: 62,
                           decoration: BoxDecoration(
-                            color: LakbayColors.primaryLight,
+                            color: LkColors.s2,
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 3),
                           ),
@@ -119,7 +119,7 @@ class ProfileScreen extends StatelessWidget {
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
-                              color: LakbayColors.primaryDark,
+                              color: LkColors.lagoon,
                             ),
                           ),
                         ),
@@ -143,8 +143,8 @@ class ProfileScreen extends StatelessWidget {
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
                               color: profile.fullName.isEmpty
-                                  ? LakbayColors.primaryDark
-                                  : LakbayColors.tealDeep,
+                                  ? LkColors.lagoon
+                                  : LkColors.text,
                             ),
                           ),
                         ),
@@ -155,7 +155,7 @@ class ProfileScreen extends StatelessWidget {
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: LakbayColors.primaryDark,
+                              color: LkColors.lagoon,
                             ),
                           ),
                         ],
@@ -166,14 +166,14 @@ class ProfileScreen extends StatelessWidget {
                               : '${profile.location.trim().isNotEmpty ? profile.location.trim() : "Detecting location…"} • ${repo.travelCompanion} Traveler',
                           style: const TextStyle(
                             fontSize: 13,
-                            color: LakbayColors.textSecondary,
+                            color: LkColors.muted,
                           ),
                         ),
                         const SizedBox(height: 12),
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: LakbayColors.canvasBg,
+                            color: LkColors.bg,
                             borderRadius: BorderRadius.circular(18),
                           ),
                           child: Row(
@@ -187,7 +187,7 @@ class ProfileScreen extends StatelessWidget {
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 14,
-                                        color: LakbayColors.tealDeep,
+                                        color: LkColors.text,
                                       ),
                                     ),
                                     SizedBox(height: 2),
@@ -195,7 +195,7 @@ class ProfileScreen extends StatelessWidget {
                                       'Plans with you, maps routes & stays on call.',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: LakbayColors.textSecondary,
+                                        color: LkColors.muted,
                                       ),
                                     ),
                                   ],
@@ -205,8 +205,8 @@ class ProfileScreen extends StatelessWidget {
                               ElevatedButton.icon(
                                 onPressed: () => repo.setActiveNavIndex(2),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: LakbayColors.primaryLight,
-                                  foregroundColor: LakbayColors.primaryDark,
+                                  backgroundColor: LkColors.s2,
+                                  foregroundColor: LkColors.lagoon,
                                   elevation: 0,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 14,
@@ -242,7 +242,7 @@ class ProfileScreen extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: LakbayColors.tealDeep,
+                    color: LkColors.text,
                   ),
                 ),
                 const Spacer(),
@@ -251,7 +251,7 @@ class ProfileScreen extends StatelessWidget {
                   child: const Text(
                     'See all',
                     style: TextStyle(
-                      color: LakbayColors.primary,
+                      color: LkColors.lagoon,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -276,7 +276,7 @@ class ProfileScreen extends StatelessWidget {
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.0,
-                color: LakbayColors.textSecondary,
+                color: LkColors.muted,
               ),
             ),
             const SizedBox(height: 8),
@@ -324,7 +324,7 @@ class ProfileScreen extends StatelessWidget {
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.0,
-                color: LakbayColors.textSecondary,
+                color: LkColors.muted,
               ),
             ),
             const SizedBox(height: 8),
@@ -376,7 +376,7 @@ class ProfileScreen extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -403,7 +403,7 @@ class ProfileScreen extends StatelessWidget {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: LakbayColors.cardBorder,
+                        color: LkColors.stroke,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -414,7 +414,7 @@ class ProfileScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: LakbayColors.tealDeep,
+                      color: LkColors.text,
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -423,13 +423,13 @@ class ProfileScreen extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 42,
-                          backgroundColor: LakbayColors.primaryLight,
+                          backgroundColor: LkColors.s2,
                           child: Text(
                             p.initials,
                             style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.w800,
-                              color: LakbayColors.primaryDark,
+                              color: LkColors.lagoon,
                             ),
                           ),
                         ),
@@ -439,15 +439,15 @@ class ProfileScreen extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: LkColors.s1,
                               shape: BoxShape.circle,
                               border:
-                                  Border.all(color: LakbayColors.primaryLight),
+                                  Border.all(color: LkColors.stroke),
                             ),
                             child: const Icon(
                               Icons.camera_alt_outlined,
                               size: 16,
-                              color: LakbayColors.tealDeep,
+                              color: LkColors.text,
                             ),
                           ),
                         ),
@@ -475,7 +475,7 @@ class ProfileScreen extends StatelessWidget {
                           fontSize: 11.5,
                           color: usernameError != null
                               ? Colors.red.shade700
-                              : LakbayColors.textSecondary,
+                              : LkColors.muted,
                         ),
                       ),
                     ),
@@ -536,7 +536,7 @@ class ProfileScreen extends StatelessWidget {
                         gpsNotice!,
                         style: const TextStyle(
                           fontSize: 12,
-                          color: LakbayColors.textSecondary,
+                          color: LkColors.muted,
                         ),
                       ),
                     ),
@@ -575,7 +575,7 @@ class ProfileScreen extends StatelessWidget {
                               Navigator.of(ctx).pop();
                             },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: LakbayColors.tealDeep,
+                        backgroundColor: LkColors.s3,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
@@ -603,7 +603,7 @@ class ProfileScreen extends StatelessWidget {
   void _showConnectedAppsSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -618,7 +618,7 @@ class ProfileScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 12),
@@ -645,7 +645,7 @@ class ProfileScreen extends StatelessWidget {
                             content: Text(
                               'Synced $count destination(s) from Lakbay+ Admin.',
                             ),
-                            backgroundColor: LakbayColors.tealDeep,
+                            backgroundColor: LkColors.s3,
                           ),
                         );
                       },
@@ -665,8 +665,8 @@ class ProfileScreen extends StatelessWidget {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: LakbayColors.primary,
-                        foregroundColor: Colors.white,
+                        backgroundColor: LkColors.mango,
+                        foregroundColor: LkColors.mangoInk,
                       ),
                       icon: Icon(
                         repo.isSignedIn
@@ -715,12 +715,12 @@ class _StatusTile extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: active ? LakbayColors.successGreen : LakbayColors.textSecondary,
+            color: active ? LkColors.lagoon : LkColors.muted,
           ),
         ),
         backgroundColor: active
-            ? LakbayColors.successGreen.withValues(alpha: 0.12)
-            : LakbayColors.canvasBg,
+            ? LkColors.s3.withValues(alpha: 0.12)
+            : LkColors.bg,
       ),
     );
   }
@@ -744,7 +744,7 @@ class _ProfileField extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: LakbayColors.canvasBg,
+        color: LkColors.bg,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -756,7 +756,7 @@ class _ProfileField extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: LakbayColors.textSecondary,
+                color: LkColors.muted,
               ),
             ),
           ),
@@ -771,7 +771,7 @@ class _ProfileField extends StatelessWidget {
               ),
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
           ),
@@ -795,9 +795,9 @@ class _ProfileTripTile extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: LkColors.s1,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: LakbayColors.cardBorder),
+          border: Border.all(color: LkColors.stroke),
         ),
         child: Row(
           children: [
@@ -822,7 +822,7 @@ class _ProfileTripTile extends StatelessWidget {
                     style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
-                      color: LakbayColors.tealDeep,
+                      color: LkColors.text,
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -832,7 +832,7 @@ class _ProfileTripTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 12,
-                      color: LakbayColors.textSecondary,
+                      color: LkColors.muted,
                     ),
                   ),
                 ],
@@ -842,7 +842,7 @@ class _ProfileTripTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: LakbayColors.successGreen.withValues(alpha: 0.14),
+                color: LkColors.s3.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: const Text(
@@ -850,7 +850,7 @@ class _ProfileTripTile extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: LakbayColors.successGreen,
+                  color: LkColors.lagoon,
                 ),
               ),
             ),
@@ -877,7 +877,7 @@ class _SettingsRowCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: LkColors.s1,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -886,11 +886,11 @@ class _SettingsRowCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: LakbayColors.cardBorder),
+            border: Border.all(color: LkColors.stroke),
           ),
           child: Row(
             children: [
-              Icon(icon, color: LakbayColors.tealDeep, size: 22),
+              Icon(icon, color: LkColors.text, size: 22),
               const SizedBox(width: 14),
               Expanded(
                 flex: 3,
@@ -901,7 +901,7 @@ class _SettingsRowCard extends StatelessWidget {
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
-                    color: LakbayColors.tealDeep,
+                    color: LkColors.text,
                   ),
                 ),
               ),
@@ -917,14 +917,14 @@ class _SettingsRowCard extends StatelessWidget {
                       textAlign: TextAlign.end,
                       style: const TextStyle(
                         fontSize: 13,
-                        color: LakbayColors.textSecondary,
+                        color: LkColors.muted,
                       ),
                     ),
                   ),
                 ),
               const Icon(
                 Icons.chevron_right_rounded,
-                color: LakbayColors.textSecondary,
+                color: LkColors.muted,
               ),
             ],
           ),

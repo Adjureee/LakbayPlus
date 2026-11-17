@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
 import '../services/lakbay_ai_service.dart';
 import '../services/travel_repository.dart';
-import '../theme/lakbay_theme.dart';
 import '../widgets/origin_picker_sheet.dart';
 import 'auth_screen.dart';
 
+import '../design/lakbay_tokens.dart';
+import '../design/lakbay_type.dart';
 class _OnboardingCarouselSpot {
   final String name;
   final String province;
@@ -557,7 +558,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
     };
 
     return Scaffold(
-      backgroundColor: LakbayColors.canvasBg,
+      backgroundColor: LkColors.bg,
       body: SafeArea(
         child: Column(
           children: [
@@ -577,7 +578,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                     icon: const Icon(
                       Icons.chevron_left_rounded,
                       size: 28,
-                      color: LakbayColors.tealDeep,
+                      color: LkColors.text,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -588,9 +589,9 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                         value: progress,
                         minHeight: 6,
                         backgroundColor:
-                            LakbayColors.primaryLight.withValues(alpha: 0.45),
+                            LkColors.s2.withValues(alpha: 0.45),
                         valueColor: const AlwaysStoppedAnimation<Color>(
-                          LakbayColors.primary,
+                          LkColors.lagoon,
                         ),
                       ),
                     ),
@@ -608,7 +609,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                       child: const Text(
                         'Skip',
                         style: TextStyle(
-                          color: LakbayColors.tealDeep,
+                          color: LkColors.text,
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
                         ),
@@ -648,10 +649,10 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                       "Where to? I'll plan it.",
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontFamily: 'FigGrotesk',
+                        fontFamily: LkType.displayFamily,
                         fontSize: 27,
                         fontWeight: FontWeight.w800,
-                        color: LakbayColors.tealDeep,
+                        color: LkColors.text,
                       ),
                     ),
                   );
@@ -669,7 +670,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                         width: 30,
                         height: 30,
                         decoration: const BoxDecoration(
-                          color: LakbayColors.tealDeep,
+                          color: LkColors.s3,
                           shape: BoxShape.circle,
                         ),
                         alignment: Alignment.center,
@@ -686,7 +687,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                       const Text(
                         'Lakbay+ is thinking...',
                         style: TextStyle(
-                          color: LakbayColors.textSecondary,
+                          color: LkColors.muted,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -709,9 +710,9 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           margin: const EdgeInsets.fromLTRB(16, 4, 16, 14),
           padding: const EdgeInsets.fromLTRB(18, 8, 8, 8),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: LkColors.s1,
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: LakbayColors.cardBorder),
+            border: Border.all(color: LkColors.stroke),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.06),
@@ -730,7 +731,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   decoration: const InputDecoration(
                     hintText: "Tell me where you'd like to travel",
                     hintStyle: TextStyle(
-                      color: LakbayColors.textSecondary,
+                      color: LkColors.muted,
                       fontSize: 14.5,
                     ),
                     border: InputBorder.none,
@@ -739,7 +740,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                 ),
               ),
               Material(
-                color: LakbayColors.primaryLight,
+                color: LkColors.s2,
                 shape: const CircleBorder(),
                 child: IconButton(
                   onPressed: () => _handleUserSelectionOrInput(
@@ -748,7 +749,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   ),
                   icon: const Icon(
                     Icons.arrow_upward_rounded,
-                    color: LakbayColors.primaryDark,
+                    color: LkColors.lagoon,
                     size: 20,
                   ),
                 ),
@@ -771,7 +772,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           margin: const EdgeInsets.only(bottom: 14, left: 60),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
           decoration: BoxDecoration(
-            color: LakbayColors.primaryLight.withValues(alpha: 0.72),
+            color: LkColors.s2.withValues(alpha: 0.72),
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(18),
               topRight: Radius.circular(18),
@@ -782,7 +783,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           child: Text(
             turn.body,
             style: const TextStyle(
-              color: LakbayColors.tealDeep,
+              color: LkColors.text,
               fontSize: 14.5,
               fontWeight: FontWeight.w600,
             ),
@@ -830,7 +831,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => Container(
                               decoration: const BoxDecoration(
-                                gradient: LakbayColors.deepTealGradient,
+                                gradient: LkColors.surfaceGradient,
                               ),
                             ),
                           ),
@@ -856,7 +857,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                                 Text(
                                   '${spot.flagOrBadge} ${spot.name}',
                                   style: const TextStyle(
-                                    fontFamily: 'FigGrotesk',
+                                    fontFamily: LkType.displayFamily,
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
                                     fontSize: 18,
@@ -907,7 +908,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                 height: 28,
                 margin: const EdgeInsets.only(top: 4),
                 decoration: const BoxDecoration(
-                  color: LakbayColors.primaryLight,
+                  color: LkColors.s2,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
@@ -916,7 +917,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: LakbayColors.primaryDark,
+                    color: LkColors.lagoon,
                   ),
                 ),
               ),
@@ -925,9 +926,9 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: LkColors.s1,
                     borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: LakbayColors.cardBorder),
+                    border: Border.all(color: LkColors.stroke),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -936,10 +937,10 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                         Text(
                           turn.title!,
                           style: const TextStyle(
-                            fontFamily: 'FigGrotesk',
+                            fontFamily: LkType.displayFamily,
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
-                            color: LakbayColors.tealDeep,
+                            color: LkColors.text,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -948,7 +949,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                         turn.body,
                         style: const TextStyle(
                           fontSize: 14.5,
-                          color: LakbayColors.tealDeep,
+                          color: LkColors.text,
                           height: 1.45,
                         ),
                       ),
@@ -966,12 +967,12 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                                   vertical: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: LakbayColors.canvasBg,
+                                  color: LkColors.bg,
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: _selectedOptionText == opt
-                                        ? LakbayColors.primary
-                                        : LakbayColors.cardBorder,
+                                        ? LkColors.lagoon
+                                        : LkColors.stroke,
                                   ),
                                 ),
                                 child: Row(
@@ -982,7 +983,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                                         style: const TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
-                                          color: LakbayColors.tealDeep,
+                                          color: LkColors.text,
                                         ),
                                       ),
                                     ),
@@ -992,8 +993,8 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                                           : Icons.radio_button_off_rounded,
                                       size: 20,
                                       color: _selectedOptionText == opt
-                                          ? LakbayColors.primary
-                                          : LakbayColors.textMuted,
+                                          ? LkColors.lagoon
+                                          : LkColors.muted,
                                     ),
                                   ],
                                 ),
@@ -1028,7 +1029,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             'While I set up your trip',
             style: TextStyle(
               fontSize: 14,
-              color: LakbayColors.textSecondary,
+              color: LkColors.muted,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1036,10 +1037,10 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           const Text(
             'Good so far?',
             style: TextStyle(
-              fontFamily: 'FigGrotesk',
+              fontFamily: LkType.displayFamily,
               fontSize: 28,
               fontWeight: FontWeight.w800,
-              color: LakbayColors.tealDeep,
+              color: LkColors.text,
             ),
           ),
           const SizedBox(height: 6),
@@ -1047,16 +1048,16 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             'A rating helps more people find Lakbay+.',
             style: TextStyle(
               fontSize: 14,
-              color: LakbayColors.textSecondary,
+              color: LkColors.muted,
             ),
           ),
           const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: LkColors.s1,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: LakbayColors.cardBorder),
+              border: Border.all(color: LkColors.stroke),
             ),
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1066,7 +1067,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
-                    color: LakbayColors.tealDeep,
+                    color: LkColors.text,
                   ),
                 ),
                 SizedBox(height: 8),
@@ -1074,7 +1075,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   'Lakbay AI picks real Region XI places from our catalog, orders them into days, and estimates rides and fares from local rates. You can change anything before you save it.',
                   style: TextStyle(
                     fontSize: 14,
-                    color: LakbayColors.textSecondary,
+                    color: LkColors.muted,
                     height: 1.45,
                   ),
                 ),
@@ -1088,8 +1089,8 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             child: ElevatedButton(
               onPressed: _enterStageThreeAndGenerate,
               style: ElevatedButton.styleFrom(
-                backgroundColor: LakbayColors.primaryLight,
-                foregroundColor: LakbayColors.tealDeep,
+                backgroundColor: LkColors.s2,
+                foregroundColor: LkColors.text,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -1099,7 +1100,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
               child: const Text(
                 'Rate Lakbay+',
                 style: TextStyle(
-                  fontFamily: 'FigGrotesk',
+                  fontFamily: LkType.displayFamily,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1131,10 +1132,10 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           const Text(
             'First plan, done.',
             style: TextStyle(
-              fontFamily: 'FigGrotesk',
+              fontFamily: LkType.displayFamily,
               fontSize: 28,
               fontWeight: FontWeight.w800,
-              color: LakbayColors.tealDeep,
+              color: LkColors.text,
             ),
           ),
           const SizedBox(height: 6),
@@ -1142,16 +1143,16 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             'Review it, then save it to your trips.',
             style: TextStyle(
               fontSize: 14.5,
-              color: LakbayColors.textSecondary,
+              color: LkColors.muted,
             ),
           ),
           const SizedBox(height: 22),
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: LkColors.s1,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: LakbayColors.cardBorder),
+              border: Border.all(color: LkColors.stroke),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
@@ -1169,17 +1170,17 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                       width: 44,
                       height: 44,
                       decoration: const BoxDecoration(
-                        color: LakbayColors.primaryLight,
+                        color: LkColors.s2,
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
                       child: const Text(
                         'L+',
                         style: TextStyle(
-                          fontFamily: 'FigGrotesk',
+                          fontFamily: LkType.displayFamily,
                           fontWeight: FontWeight.w800,
                           fontSize: 17,
-                          color: LakbayColors.primaryDark,
+                          color: LkColors.lagoon,
                         ),
                       ),
                     ),
@@ -1197,7 +1198,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 15.5,
-                              color: LakbayColors.tealDeep,
+                              color: LkColors.text,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -1209,7 +1210,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 12.5,
-                              color: LakbayColors.textSecondary,
+                              color: LkColors.muted,
                             ),
                           ),
                         ],
@@ -1251,7 +1252,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                     const Icon(
                       Icons.bolt_rounded,
                       size: 16,
-                      color: LakbayColors.textSecondary,
+                      color: LkColors.muted,
                     ),
                     const SizedBox(width: 4),
                     const Text(
@@ -1259,7 +1260,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: LakbayColors.textSecondary,
+                        color: LkColors.muted,
                       ),
                     ),
                     const Spacer(),
@@ -1268,7 +1269,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                       style: const TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w800,
-                        color: LakbayColors.primary,
+                        color: LkColors.lagoon,
                       ),
                     ),
                   ],
@@ -1279,9 +1280,9 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   child: LinearProgressIndicator(
                     value: _planningPercent / 100,
                     minHeight: 7,
-                    backgroundColor: LakbayColors.canvasBg,
+                    backgroundColor: LkColors.bg,
                     valueColor: const AlwaysStoppedAnimation<Color>(
-                      LakbayColors.primary,
+                      LkColors.lagoon,
                     ),
                   ),
                 ),
@@ -1294,7 +1295,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             const Text(
               "I couldn't reach Lakbay AI to draft your trip. Check your connection and try again.",
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13.5, color: LakbayColors.textSecondary),
+              style: TextStyle(fontSize: 13.5, color: LkColors.muted),
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -1310,8 +1311,8 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             child: ElevatedButton(
               onPressed: isReady ? _openGeneratedTrip : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: LakbayColors.primaryLight,
-                foregroundColor: LakbayColors.tealDeep,
+                backgroundColor: LkColors.s2,
+                foregroundColor: LkColors.text,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -1323,7 +1324,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                     ? 'Continue to dashboard'
                     : 'Sign in or create account to save trip',
                 style: const TextStyle(
-                  fontFamily: 'FigGrotesk',
+                  fontFamily: LkType.displayFamily,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1398,26 +1399,26 @@ class _TimelineRow extends StatelessWidget {
               width: 30,
               height: 30,
               decoration: BoxDecoration(
-                color: filled ? LakbayColors.primary : Colors.white,
+                color: filled ? LkColors.s3 : LkColors.s1,
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: filled
-                      ? LakbayColors.primary
-                      : LakbayColors.primaryLight,
+                      ? LkColors.lagoon
+                      : LkColors.stroke,
                   width: 1.5,
                 ),
               ),
               child: Icon(
                 icon,
                 size: 16,
-                color: filled ? Colors.white : LakbayColors.primaryDark,
+                color: filled ? Colors.white : LkColors.lagoon,
               ),
             ),
             if (!isLast)
               Container(
                 width: 2,
                 height: 22,
-                color: LakbayColors.primaryLight,
+                color: LkColors.s2,
               ),
           ],
         ),
@@ -1435,14 +1436,14 @@ class _TimelineRow extends StatelessWidget {
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
-                    color: LakbayColors.tealDeep,
+                    color: LkColors.text,
                   ),
                 ),
                 Text(
                   subtitle,
                   style: const TextStyle(
                     fontSize: 12.5,
-                    color: LakbayColors.textSecondary,
+                    color: LkColors.muted,
                   ),
                 ),
               ],

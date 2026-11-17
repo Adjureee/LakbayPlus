@@ -46,21 +46,9 @@ flutter:
     - assets/google_fonts/
 
   fonts:
-    - family: FigGrotesk
+    # Bricolage Grotesque ExtraBold (OFL) under a const-friendly family name.
+    # Manrope is the default UI font through the theme (google_fonts, bundled).
+    - family: LakbayDisplay
       fonts:
-        - asset: assets/fonts/FigGrotesk-Light.ttf
-          weight: 300
-        - asset: assets/fonts/FigGrotesk-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/FigGrotesk-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/FigGrotesk-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/FigGrotesk-Bold.ttf
-          weight: 700
-    - family: Inter
-      fonts:
-        - asset: assets/fonts/Inter-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/Inter-Bold.ttf
-          weight: 700
+        - asset: assets/google_fonts/BricolageGrotesque-ExtraBold.ttf
+          weight: 800

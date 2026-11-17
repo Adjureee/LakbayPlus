@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../design/lakbay_tokens.dart';
 import '../services/friendly_error.dart';
 import '../services/travel_repository.dart';
-import '../theme/lakbay_theme.dart';
+import '../design/lakbay_type.dart';
 
 /// Full-screen traveler authentication flow supporting Account Creation
 /// (`Create your account`) and Sign In (`Welcome back`), including Google Sign-In,
@@ -166,9 +166,9 @@ class _AuthScreenState extends State<AuthScreen> {
         title: Text(
           title,
           style: const TextStyle(
-            fontFamily: 'FigGrotesk',
+            fontFamily: LkType.displayFamily,
             fontWeight: FontWeight.w800,
-            color: LakbayColors.tealDeep,
+            color: LkColors.text,
           ),
         ),
         content: Text(
@@ -176,7 +176,7 @@ class _AuthScreenState extends State<AuthScreen> {
           style: const TextStyle(
             fontSize: 13.5,
             height: 1.5,
-            color: LakbayColors.textSecondary,
+            color: LkColors.muted,
           ),
         ),
         actions: [
@@ -212,7 +212,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   icon: const Icon(
                     Icons.arrow_back_ios_new_rounded,
                     size: 20,
-                    color: LakbayColors.tealDeep,
+                    color: LkColors.text,
                   ),
                   tooltip: 'Back',
                 ),
@@ -234,7 +234,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               : 'Sign in to Lakbay+',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
-                            fontFamily: 'FigGrotesk',
+                            fontFamily: LkType.displayFamily,
                             fontSize: 28,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.5,
@@ -262,7 +262,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             onPressed:
                                 _busy || _googleBusy ? null : _submitGoogleAuth,
                             style: OutlinedButton.styleFrom(
-                              backgroundColor: Colors.white,
+                              backgroundColor: LkColors.s2,
                               foregroundColor: const Color(0xFF1F1629),
                               side: const BorderSide(color: fieldBorder),
                               shape: RoundedRectangleBorder(

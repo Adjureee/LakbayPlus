@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../theme/lakbay_theme.dart';
+import '../design/lakbay_tokens.dart';
 
 /// The one wording used wherever prices appear, so no total reads like a
 /// quote or a guarantee (PRODUCT.md: no fee or pricing guarantees).
 const String kFareEstimateNote = "Fares are estimates from Lakbay's local rates.";
 
 class EstimateNote extends StatelessWidget {
-  const EstimateNote({super.key, this.color = LakbayColors.textSecondary});
+  const EstimateNote({super.key, this.color = LkColors.muted});
 
   final Color color;
 

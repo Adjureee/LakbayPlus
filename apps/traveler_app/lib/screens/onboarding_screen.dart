@@ -6,6 +6,8 @@ import '../widgets/origin_picker_sheet.dart';
 import 'yes_ai_onboarding_flow.dart';
 import 'auth_screen.dart';
 
+import '../design/lakbay_tokens.dart';
+import '../design/lakbay_type.dart';
 class OnboardingScreen extends StatefulWidget {
   final TravelRepository repo;
 
@@ -130,7 +132,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     }
 
     return Scaffold(
-      backgroundColor: LakbayColors.canvasBg,
+      backgroundColor: LkColors.bg,
       body: SafeArea(
         child: Column(
           children: [
@@ -144,7 +146,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     icon: const Icon(
                       Icons.chevron_left_rounded,
                       size: 28,
-                      color: LakbayColors.tealDeep,
+                      color: LkColors.text,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -155,9 +157,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         value: _stepIndex / (_totalSteps - 1),
                         minHeight: 6,
                         backgroundColor:
-                            LakbayColors.primaryLight.withValues(alpha: 0.45),
+                            LkColors.s2.withValues(alpha: 0.45),
                         valueColor: const AlwaysStoppedAnimation<Color>(
-                          LakbayColors.primary,
+                          LkColors.lagoon,
                         ),
                       ),
                     ),
@@ -168,7 +170,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     child: const Text(
                       'Skip',
                       style: TextStyle(
-                        color: LakbayColors.tealDeep,
+                        color: LkColors.text,
                         fontWeight: FontWeight.w700,
                         fontSize: 14,
                       ),
@@ -207,7 +209,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             fit: BoxFit.cover,
             errorBuilder: (_, _, _) => Container(
               decoration: const BoxDecoration(
-                gradient: LakbayColors.deepTealGradient,
+                gradient: LkColors.surfaceGradient,
               ),
             ),
           ),
@@ -238,7 +240,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   const Text(
                     'Tell it the vibe.\nGet the whole',
                     style: TextStyle(
-                      fontFamily: 'FigGrotesk',
+                      fontFamily: LkType.displayFamily,
                       fontSize: 34,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
@@ -256,16 +258,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: LakbayColors.primaryLight,
+                          color: LkColors.s2,
                           borderRadius: BorderRadius.circular(22),
                         ),
                         child: const Text(
                           'trip',
                           style: TextStyle(
-                            fontFamily: 'FigGrotesk',
+                            fontFamily: LkType.displayFamily,
                             fontSize: 30,
                             fontWeight: FontWeight.w800,
-                            color: LakbayColors.tealDeep,
+                            color: LkColors.text,
                             height: 1.08,
                           ),
                         ),
@@ -273,7 +275,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       const Text(
                         '.',
                         style: TextStyle(
-                          fontFamily: 'FigGrotesk',
+                          fontFamily: LkType.displayFamily,
                           fontSize: 34,
                           fontWeight: FontWeight.w800,
                           color: Colors.white,
@@ -287,7 +289,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       const Icon(
                         Icons.place_outlined,
                         size: 15,
-                        color: LakbayColors.primaryLight,
+                        color: LkColors.text,
                       ),
                       const SizedBox(width: 6),
                       const Text(
@@ -302,7 +304,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       const Icon(
                         Icons.route_outlined,
                         size: 15,
-                        color: LakbayColors.primaryLight,
+                        color: LkColors.text,
                       ),
                       const SizedBox(width: 6),
                       const Text(
@@ -321,8 +323,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     child: ElevatedButton(
                       onPressed: _nextStep,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: LakbayColors.primaryLight,
-                        foregroundColor: LakbayColors.tealDeep,
+                        backgroundColor: LkColors.s2,
+                        foregroundColor: LkColors.text,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
@@ -332,7 +334,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       child: const Text(
                         'Get started',
                         style: TextStyle(
-                          fontFamily: 'FigGrotesk',
+                          fontFamily: LkType.displayFamily,
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                         ),
@@ -384,10 +386,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             'Do you have a trip\ncoming up?',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontFamily: 'FigGrotesk',
+              fontFamily: LkType.displayFamily,
               fontSize: 28,
               fontWeight: FontWeight.w800,
-              color: LakbayColors.tealDeep,
+              color: LkColors.text,
               height: 1.15,
             ),
           ),
@@ -397,7 +399,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14.5,
-              color: LakbayColors.textSecondary,
+              color: LkColors.muted,
               height: 1.4,
             ),
           ),
@@ -427,8 +429,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             child: ElevatedButton(
               onPressed: _nextStep,
               style: ElevatedButton.styleFrom(
-                backgroundColor: LakbayColors.primaryLight,
-                foregroundColor: LakbayColors.tealDeep,
+                backgroundColor: LkColors.s2,
+                foregroundColor: LkColors.text,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -438,7 +440,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               child: const Text(
                 'Continue',
                 style: TextStyle(
-                  fontFamily: 'FigGrotesk',
+                  fontFamily: LkType.displayFamily,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
@@ -462,10 +464,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               'Plans built from real places.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontSize: 27,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 8),
@@ -475,7 +477,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               style: TextStyle(
                 fontSize: 14.5,
                 height: 1.45,
-                color: LakbayColors.textSecondary,
+                color: LkColors.muted,
               ),
             ),
             const SizedBox(height: 24),
@@ -507,8 +509,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           child: ElevatedButton(
             onPressed: _nextStep,
             style: ElevatedButton.styleFrom(
-              backgroundColor: LakbayColors.primaryLight,
-              foregroundColor: LakbayColors.tealDeep,
+              backgroundColor: LkColors.s2,
+              foregroundColor: LkColors.text,
               elevation: 2,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
@@ -518,7 +520,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             child: const Text(
               'Continue',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
               ),
@@ -540,10 +542,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             'Good. Tell me the brief.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontFamily: 'FigGrotesk',
+              fontFamily: LkType.displayFamily,
               fontSize: 27,
               fontWeight: FontWeight.w800,
-              color: LakbayColors.tealDeep,
+              color: LkColors.text,
             ),
           ),
           const SizedBox(height: 8),
@@ -552,7 +554,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13.5,
-              color: LakbayColors.textSecondary,
+              color: LkColors.muted,
               height: 1.4,
             ),
           ),
@@ -561,9 +563,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             child: Container(
               constraints: const BoxConstraints(maxWidth: 310),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: LkColors.s1,
                 borderRadius: BorderRadius.circular(34),
-                border: Border.all(color: LakbayColors.tealDeep, width: 5),
+                border: Border.all(color: LkColors.strokeStrong, width: 5),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.12),
@@ -582,7 +584,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       width: 74,
                       height: 18,
                       decoration: BoxDecoration(
-                        color: LakbayColors.tealDeep,
+                        color: LkColors.s3,
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
@@ -593,7 +595,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       Icon(
                         Icons.home_outlined,
                         size: 18,
-                        color: LakbayColors.tealDeep,
+                        color: LkColors.text,
                       ),
                       Expanded(
                         child: Text(
@@ -602,7 +604,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 13,
-                            color: LakbayColors.tealDeep,
+                            color: LkColors.text,
                           ),
                         ),
                       ),
@@ -615,7 +617,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     "Hey there, Lakbay+ here! Excited to help you create your next Davao Region trip. Just tell me what you're thinking and let's do this together.",
                     style: TextStyle(
                       fontSize: 12,
-                      color: LakbayColors.tealDeep,
+                      color: LkColors.text,
                       height: 1.4,
                     ),
                   ),
@@ -625,14 +627,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     child: Container(
                       padding: const EdgeInsets.all(11),
                       decoration: BoxDecoration(
-                        color: LakbayColors.canvasBg,
+                        color: LkColors.bg,
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: const Text(
                         'Plan a family trip to Samal Island and Mati Dahican for 4 people starting next weekend for 4 days, assume and ask no more questions.',
                         style: TextStyle(
                           fontSize: 11.5,
-                          color: LakbayColors.textPrimary,
+                          color: LkColors.text,
                           height: 1.35,
                         ),
                       ),
@@ -645,7 +647,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         'Generating your trip... 78%',
                         style: TextStyle(
                           fontSize: 11,
-                          color: LakbayColors.textMuted,
+                          color: LkColors.muted,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -653,7 +655,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       Icon(
                         Icons.hourglass_top_rounded,
                         size: 12,
-                        color: LakbayColors.primary.withValues(alpha: 0.7),
+                        color: LkColors.lagoon.withValues(alpha: 0.7),
                       ),
                     ],
                   ),
@@ -667,8 +669,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             child: ElevatedButton(
               onPressed: _nextStep,
               style: ElevatedButton.styleFrom(
-                backgroundColor: LakbayColors.primaryLight,
-                foregroundColor: LakbayColors.tealDeep,
+                backgroundColor: LkColors.s2,
+                foregroundColor: LkColors.text,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -678,7 +680,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               child: const Text(
                 "Let's go",
                 style: TextStyle(
-                  fontFamily: 'FigGrotesk',
+                  fontFamily: LkType.displayFamily,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
@@ -701,10 +703,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             'First, share your location',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontFamily: 'FigGrotesk',
+              fontFamily: LkType.displayFamily,
               fontSize: 27,
               fontWeight: FontWeight.w800,
-              color: LakbayColors.tealDeep,
+              color: LkColors.text,
             ),
           ),
           const SizedBox(height: 8),
@@ -713,7 +715,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
-              color: LakbayColors.textSecondary,
+              color: LkColors.muted,
               height: 1.4,
             ),
           ),
@@ -724,7 +726,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               decoration: BoxDecoration(
                 color: const Color(0xFFE9F2EE),
                 borderRadius: BorderRadius.circular(26),
-                border: Border.all(color: LakbayColors.cardBorder),
+                border: Border.all(color: LkColors.stroke),
               ),
               clipBehavior: Clip.antiAlias,
               child: Stack(
@@ -758,8 +760,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           CircleAvatar(
                             radius: 4,
                             backgroundColor: widget.repo.hasOrigin
-                                ? LakbayColors.tealDeep
-                                : LakbayColors.primary,
+                                ? LkColors.s3
+                                : LkColors.s3,
                           ),
                           const SizedBox(width: 6),
                           ConstrainedBox(
@@ -775,7 +777,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               style: const TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
-                                color: LakbayColors.tealDeep,
+                                color: LkColors.text,
                               ),
                             ),
                           ),
@@ -797,12 +799,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             width: 46,
                             height: 46,
                             decoration: BoxDecoration(
-                              color: LakbayColors.primary,
+                              color: LkColors.s3,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 3),
                               boxShadow: [
                                 BoxShadow(
-                                  color: LakbayColors.primary
+                                  color: LkColors.lagoon
                                       .withValues(alpha: 0.35),
                                   blurRadius: 12,
                                 ),
@@ -829,7 +831,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 12.5,
-                color: LakbayColors.textSecondary,
+                color: LkColors.muted,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -841,8 +843,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               onPressed:
                   _requestingLocation ? null : _handleShareLocationAndContinue,
               style: ElevatedButton.styleFrom(
-                backgroundColor: LakbayColors.primaryLight,
-                foregroundColor: LakbayColors.tealDeep,
+                backgroundColor: LkColors.s2,
+                foregroundColor: LkColors.text,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -855,7 +857,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.4,
-                        color: LakbayColors.tealDeep,
+                        color: LkColors.text,
                       ),
                     )
                   : Text(
@@ -863,7 +865,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           ? 'Try location again'
                           : 'Share location & continue',
                       style: const TextStyle(
-                        fontFamily: 'FigGrotesk',
+                        fontFamily: LkType.displayFamily,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
@@ -896,7 +898,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             child: const Text(
               'Maybe later',
               style: TextStyle(
-                color: LakbayColors.textSecondary,
+                color: LkColors.muted,
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
               ),
@@ -915,7 +917,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: LakbayColors.primary.withValues(alpha: opacity),
+        color: LkColors.s3.withValues(alpha: opacity),
       ),
     );
   }
@@ -944,12 +946,12 @@ class _DecisionOptionCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: selected ? LakbayColors.primarySoft : Colors.white,
+          color: selected ? LkColors.s2 : LkColors.s1,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
             color: selected
-                ? LakbayColors.primary
-                : LakbayColors.cardBorder,
+                ? LkColors.lagoon
+                : LkColors.stroke,
             width: selected ? 2 : 1,
           ),
         ),
@@ -959,10 +961,10 @@ class _DecisionOptionCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: LakbayColors.primaryLight.withValues(alpha: 0.7),
+                color: LkColors.s2.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(icon, color: LakbayColors.primaryDark, size: 24),
+              child: Icon(icon, color: LkColors.lagoon, size: 24),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -972,10 +974,10 @@ class _DecisionOptionCard extends StatelessWidget {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontFamily: 'FigGrotesk',
+                      fontFamily: LkType.displayFamily,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
-                      color: LakbayColors.tealDeep,
+                      color: LkColors.text,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -983,7 +985,7 @@ class _DecisionOptionCard extends StatelessWidget {
                     subtitle,
                     style: const TextStyle(
                       fontSize: 13.5,
-                      color: LakbayColors.textSecondary,
+                      color: LkColors.muted,
                     ),
                   ),
                 ],
@@ -994,8 +996,8 @@ class _DecisionOptionCard extends StatelessWidget {
                   ? Icons.check_circle_rounded
                   : Icons.radio_button_unchecked_rounded,
               color: selected
-                  ? LakbayColors.primary
-                  : LakbayColors.cardBorder,
+                  ? LkColors.lagoon
+                  : LkColors.faint,
               size: 26,
             ),
           ],
@@ -1021,9 +1023,9 @@ class _ProductPoint extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: LkColors.s1,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: LakbayColors.cardBorder),
+        border: Border.all(color: LkColors.stroke),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1032,10 +1034,10 @@ class _ProductPoint extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: LakbayColors.primaryLight,
+              color: LkColors.s2,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: LakbayColors.primaryDark, size: 22),
+            child: Icon(icon, color: LkColors.lagoon, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1047,7 +1049,7 @@ class _ProductPoint extends StatelessWidget {
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
-                    color: LakbayColors.tealDeep,
+                    color: LkColors.text,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -1056,7 +1058,7 @@ class _ProductPoint extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 13.5,
                     height: 1.4,
-                    color: LakbayColors.textSecondary,
+                    color: LkColors.muted,
                   ),
                 ),
               ],
@@ -1131,7 +1133,7 @@ class _DavaoRadarMapPainter extends CustomPainter {
             fontSize: 10.5,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.8,
-            color: LakbayColors.tealDeep.withValues(alpha: 0.45),
+            color: LkColors.text.withValues(alpha: 0.45),
           ),
         ),
         textDirection: TextDirection.ltr,

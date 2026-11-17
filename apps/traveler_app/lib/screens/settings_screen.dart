@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 
+import '../design/lakbay_tokens.dart';
+import '../design/lakbay_type.dart';
 class SettingsScreen extends StatelessWidget {
   final TravelRepository repo;
 
@@ -19,7 +21,7 @@ class SettingsScreen extends StatelessWidget {
             : repo.travelerId;
 
         return Scaffold(
-          backgroundColor: LakbayColors.canvasBg,
+          backgroundColor: LkColors.bg,
           body: SafeArea(
             child: Column(
               children: [
@@ -29,7 +31,7 @@ class SettingsScreen extends StatelessWidget {
                   child: Row(
                     children: [
                       Material(
-                        color: Colors.white,
+                        color: LkColors.s1,
                         shape: const CircleBorder(),
                         elevation: 1,
                         child: IconButton(
@@ -37,7 +39,7 @@ class SettingsScreen extends StatelessWidget {
                           icon: const Icon(
                             Icons.chevron_left_rounded,
                             size: 28,
-                            color: LakbayColors.tealDeep,
+                            color: LkColors.text,
                           ),
                         ),
                       ),
@@ -46,10 +48,10 @@ class SettingsScreen extends StatelessWidget {
                           'Settings',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontFamily: 'FigGrotesk',
+                            fontFamily: LkType.displayFamily,
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
-                            color: LakbayColors.tealDeep,
+                            color: LkColors.text,
                           ),
                         ),
                       ),
@@ -128,7 +130,7 @@ class SettingsScreen extends StatelessWidget {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(result.statusMessage),
-                              backgroundColor: LakbayColors.tealDeep,
+                              backgroundColor: LkColors.s3,
                             ),
                           );
                         },
@@ -181,7 +183,7 @@ class SettingsScreen extends StatelessWidget {
                           'Version: 1.0.0+1',
                           style: TextStyle(
                             fontSize: 12.5,
-                            color: LakbayColors.textSecondary,
+                            color: LkColors.muted,
                           ),
                         ),
                       ),
@@ -197,7 +199,7 @@ class SettingsScreen extends StatelessWidget {
                               SnackBar(
                                 content:
                                     Text('Copied traveler ID: ${repo.travelerId}'),
-                                backgroundColor: LakbayColors.tealDeep,
+                                backgroundColor: LkColors.s3,
                               ),
                             );
                           },
@@ -210,7 +212,7 @@ class SettingsScreen extends StatelessWidget {
                               'ID $shortId • Tap to copy',
                               style: const TextStyle(
                                 fontSize: 12.5,
-                                color: LakbayColors.textSecondary,
+                                color: LkColors.muted,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -237,7 +239,7 @@ class SettingsScreen extends StatelessWidget {
     ];
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -250,10 +252,10 @@ class SettingsScreen extends StatelessWidget {
             const Text(
               'Default Payment Method',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 10),
@@ -263,7 +265,7 @@ class SettingsScreen extends StatelessWidget {
                 trailing: repo.preferredPaymentMethod == opt
                     ? const Icon(
                         Icons.check_circle,
-                        color: LakbayColors.primary,
+                        color: LkColors.lagoon,
                       )
                     : null,
                 onTap: () {
@@ -280,7 +282,7 @@ class SettingsScreen extends StatelessWidget {
   void _showConnectedAppsSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -293,10 +295,10 @@ class SettingsScreen extends StatelessWidget {
             const Text(
               'Connected Apps & APIs',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 12),
@@ -314,7 +316,7 @@ class SettingsScreen extends StatelessWidget {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -328,10 +330,10 @@ class SettingsScreen extends StatelessWidget {
               const Text(
                 'Travel Preferences',
                 style: TextStyle(
-                  fontFamily: 'FigGrotesk',
+                  fontFamily: LkType.displayFamily,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: LakbayColors.tealDeep,
+                  color: LkColors.text,
                 ),
               ),
               const SizedBox(height: 12),
@@ -345,7 +347,7 @@ class SettingsScreen extends StatelessWidget {
                   'Preferences load from Lakbay when you are online.',
                   style: TextStyle(
                     fontSize: 12.5,
-                    color: LakbayColors.textSecondary,
+                    color: LkColors.muted,
                   ),
                 )
               else
@@ -358,7 +360,7 @@ class SettingsScreen extends StatelessWidget {
                         label: Text('${group.label} · ${group.count}'),
                         tooltip: group.description,
                         selected: repo.selectedVibes.contains(group.key),
-                        selectedColor: LakbayColors.primaryLight,
+                        selectedColor: LkColors.s2,
                         onSelected: (_) {
                           repo.toggleVibe(group.key);
                           setSheetState(() {});
@@ -389,7 +391,7 @@ class SettingsScreen extends StatelessWidget {
                           label: Text('${sub.label} · ${sub.count}'),
                           visualDensity: VisualDensity.compact,
                           selected: repo.selectedVibes.contains(sub.key),
-                          selectedColor: LakbayColors.primaryLight,
+                          selectedColor: LkColors.s2,
                           onSelected: (_) {
                             repo.toggleVibe(sub.key);
                             setSheetState(() {});
@@ -411,7 +413,7 @@ class SettingsScreen extends StatelessWidget {
                       (c) => ChoiceChip(
                         label: Text(c),
                         selected: repo.travelCompanion == c,
-                        selectedColor: LakbayColors.primaryLight,
+                        selectedColor: LkColors.s2,
                         onSelected: (_) {
                           repo.setTravelCompanion(c);
                           setSheetState(() {});
@@ -449,7 +451,7 @@ class SettingsScreen extends StatelessWidget {
     ];
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -462,10 +464,10 @@ class SettingsScreen extends StatelessWidget {
             const Text(
               'Language',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 8),
@@ -475,7 +477,7 @@ class SettingsScreen extends StatelessWidget {
                 trailing: repo.locale == code
                     ? const Icon(
                         Icons.check_circle,
-                        color: LakbayColors.primary,
+                        color: LkColors.lagoon,
                       )
                     : null,
                 onTap: () {
@@ -500,7 +502,7 @@ class SettingsScreen extends StatelessWidget {
     ];
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -513,10 +515,10 @@ class SettingsScreen extends StatelessWidget {
             const Text(
               'Currency',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 8),
@@ -526,7 +528,7 @@ class SettingsScreen extends StatelessWidget {
                 trailing: repo.currency == code
                     ? const Icon(
                         Icons.check_circle,
-                        color: LakbayColors.primary,
+                        color: LkColors.lagoon,
                       )
                     : null,
                 onTap: () {
@@ -543,7 +545,7 @@ class SettingsScreen extends StatelessWidget {
   void _showTemperatureSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -556,10 +558,10 @@ class SettingsScreen extends StatelessWidget {
             const Text(
               'Temperature Unit',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 8),
@@ -568,7 +570,7 @@ class SettingsScreen extends StatelessWidget {
               trailing: repo.temperatureUnit == 'C'
                   ? const Icon(
                       Icons.check_circle,
-                      color: LakbayColors.primary,
+                      color: LkColors.lagoon,
                     )
                   : null,
               onTap: () {
@@ -581,7 +583,7 @@ class SettingsScreen extends StatelessWidget {
               trailing: repo.temperatureUnit == 'F'
                   ? const Icon(
                       Icons.check_circle,
-                      color: LakbayColors.primary,
+                      color: LkColors.lagoon,
                     )
                   : null,
               onTap: () {
@@ -630,7 +632,7 @@ class SettingsScreen extends StatelessWidget {
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(),
             style: FilledButton.styleFrom(
-              backgroundColor: LakbayColors.tealDeep,
+              backgroundColor: LkColors.s3,
             ),
             child: const Text('Close'),
           ),
@@ -651,7 +653,7 @@ class SettingsScreen extends StatelessWidget {
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(),
             style: FilledButton.styleFrom(
-              backgroundColor: LakbayColors.tealDeep,
+              backgroundColor: LkColors.s3,
             ),
             child: const Text('OK'),
           ),
@@ -663,7 +665,7 @@ class SettingsScreen extends StatelessWidget {
   void _showPhotoCreditsSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -676,10 +678,10 @@ class SettingsScreen extends StatelessWidget {
             const Text(
               'Photo Credits',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 10),
@@ -715,7 +717,7 @@ class SettingsScreen extends StatelessWidget {
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(),
             style: FilledButton.styleFrom(
-              backgroundColor: LakbayColors.tealDeep,
+              backgroundColor: LkColors.s3,
             ),
             child: const Text('Close'),
           ),
@@ -746,7 +748,7 @@ class SettingsScreen extends StatelessWidget {
               repo.restartOnboarding();
             },
             style: FilledButton.styleFrom(
-              backgroundColor: LakbayColors.tealDeep,
+              backgroundColor: LkColors.s3,
             ),
             child: const Text('Log out'),
           ),
@@ -800,7 +802,7 @@ class _SectionHeader extends StatelessWidget {
           fontSize: 12,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.0,
-          color: LakbayColors.textSecondary,
+          color: LkColors.muted,
         ),
       ),
     );
@@ -826,12 +828,12 @@ class _SettingsItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fgColor = isDestructive ? Colors.redAccent : LakbayColors.tealDeep;
+    final fgColor = isDestructive ? Colors.redAccent : LkColors.text;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Colors.white,
+        color: LkColors.s1,
         borderRadius: BorderRadius.circular(18),
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
@@ -840,7 +842,7 @@ class _SettingsItemCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: LakbayColors.cardBorder),
+              border: Border.all(color: LkColors.stroke),
             ),
             child: Row(
               children: [
@@ -864,7 +866,7 @@ class _SettingsItemCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 13.5,
-                            color: LakbayColors.textSecondary,
+                            color: LkColors.muted,
                           ),
                         )
                       : const SizedBox.shrink(),
@@ -873,7 +875,7 @@ class _SettingsItemCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   const Icon(
                     Icons.chevron_right_rounded,
-                    color: LakbayColors.textSecondary,
+                    color: LkColors.muted,
                   ),
                 ],
               ],
@@ -904,13 +906,13 @@ class _SettingsToggleCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: LkColors.s1,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: LakbayColors.cardBorder),
+        border: Border.all(color: LkColors.stroke),
       ),
       child: Row(
         children: [
-          Icon(icon, color: LakbayColors.tealDeep, size: 22),
+          Icon(icon, color: LkColors.text, size: 22),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -918,13 +920,13 @@ class _SettingsToggleCard extends StatelessWidget {
               style: const TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 15,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
           ),
           Switch(
             value: value,
-            activeTrackColor: LakbayColors.tealDeep,
+            activeTrackColor: LkColors.mango,
             activeThumbColor: Colors.white,
             onChanged: onChanged,
           ),
@@ -951,12 +953,12 @@ class _StatusRow extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: active ? LakbayColors.successGreen : LakbayColors.textSecondary,
+            color: active ? LkColors.lagoon : LkColors.muted,
           ),
         ),
         backgroundColor: active
-            ? LakbayColors.successGreen.withValues(alpha: 0.12)
-            : LakbayColors.canvasBg,
+            ? LkColors.s3.withValues(alpha: 0.12)
+            : LkColors.bg,
       ),
     );
   }

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'design/design_preview_screen.dart';
-import 'design/lakbay_tokens.dart';
+import 'design/design.dart';
 import 'screens/auth_screen.dart';
 import 'screens/explore_screen.dart';
 import 'screens/home_chat_screen.dart';
@@ -99,7 +99,9 @@ class _LakbayTravelAppState extends State<LakbayTravelApp>
         return MaterialApp(
           title: 'Lakbay+ — AI Travel Planner',
           debugShowCheckedModeBanner: false,
-          theme: LakbayTheme.lightTheme,
+          theme: LakbayDesignTheme.dark,
+          darkTheme: LakbayDesignTheme.dark,
+          themeMode: ThemeMode.dark,
           // Debug-only gallery of the v8 design system (open /#/design-preview).
           onGenerateRoute: (settings) =>
               kDebugMode && settings.name == '/design-preview'
@@ -176,238 +178,42 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       ProfileScreen(repo: widget.repo),
     ];
 
-    final selectedIndex = widget.repo.activeNavIndex;
-    final memoriesCount = widget.repo.memories.length;
-    final initials = widget.repo.profile.initials;
-
     return Scaffold(
       extendBody: true,
       body: IndexedStack(
-        index: selectedIndex,
+        index: widget.repo.activeNavIndex,
         children: pages,
       ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-        child: SizedBox(
-          height: 76,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.bottomCenter,
-            children: [
-              Container(
-                height: 64,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.96),
-                  borderRadius: BorderRadius.circular(32),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      blurRadius: 18,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _NavItem(
-                      icon: Icons.map_outlined,
-                      label: 'Trips',
-                      selected: selectedIndex == 0,
-                      onTap: () => widget.repo.setActiveNavIndex(0),
-                    ),
-                    _NavItem(
-                      icon: Icons.ondemand_video_outlined,
-                      label: 'Discover',
-                      selected: selectedIndex == 1,
-                      onTap: () => widget.repo.setActiveNavIndex(1),
-                    ),
-                    // Spacer for the center Chat button
-                    const SizedBox(width: 62),
-                    _NavItem(
-                      icon: Icons.photo_library_outlined,
-                      label: 'Memories',
-                      badgeCount: memoriesCount,
-                      selected: selectedIndex == 3,
-                      onTap: () => widget.repo.setActiveNavIndex(3),
-                    ),
-                    _ProfileNavItem(
-                      initials: initials,
-                      selected: selectedIndex == 4,
-                      onTap: () => widget.repo.setActiveNavIndex(4),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                top: 0,
-                child: GestureDetector(
-                  onTap: () => widget.repo.setActiveNavIndex(2),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 54,
-                        height: 54,
-                        decoration: BoxDecoration(
-                          color: selectedIndex == 2
-                              ? LakbayColors.tealDeep
-                              : LakbayColors.primary,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.forum_rounded,
-                          size: 26,
-                          color: Colors.white,
-                          semanticLabel: 'Chat',
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Chat',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: selectedIndex == 2
-                              ? FontWeight.w800
-                              : FontWeight.w600,
-                          color: selectedIndex == 2
-                              ? LakbayColors.tealDeep
-                              : LakbayColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+      bottomNavigationBar: LkFloatingNavBar(
+        currentIndex: widget.repo.activeNavIndex,
+        onSelected: widget.repo.setActiveNavIndex,
+        items: const [
+          LkNavItem(
+            icon: Icons.luggage_outlined,
+            selectedIcon: Icons.luggage_rounded,
+            label: 'Trips',
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final int badgeCount;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    this.badgeCount = 0,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? LakbayColors.primaryLight : Colors.transparent,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Badge(
-              isLabelVisible: badgeCount > 0,
-              label: Text('$badgeCount'),
-              backgroundColor: LakbayColors.primary,
-              child: Icon(
-                icon,
-                size: 21,
-                color: selected
-                    ? LakbayColors.primaryDark
-                    : LakbayColors.tealDeep,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                color: selected
-                    ? LakbayColors.primaryDark
-                    : LakbayColors.tealDeep,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileNavItem extends StatelessWidget {
-  final String initials;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ProfileNavItem({
-    required this.initials,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: selected ? LakbayColors.primaryLight : Colors.transparent,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 11,
-              backgroundColor: selected
-                  ? LakbayColors.primary
-                  : LakbayColors.canvasBg,
-              child: Text(
-                initials.length > 3 ? initials.substring(0, 3) : initials,
-                style: TextStyle(
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w800,
-                  color: selected ? Colors.white : LakbayColors.tealDeep,
-                ),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Profile',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                color: selected
-                    ? LakbayColors.primaryDark
-                    : LakbayColors.tealDeep,
-              ),
-            ),
-          ],
-        ),
+          LkNavItem(
+            icon: Icons.explore_outlined,
+            selectedIcon: Icons.explore_rounded,
+            label: 'Discover',
+          ),
+          LkNavItem(
+            icon: Icons.forum_outlined,
+            selectedIcon: Icons.forum_rounded,
+            label: 'Chat',
+          ),
+          LkNavItem(
+            icon: Icons.photo_library_outlined,
+            selectedIcon: Icons.photo_library_rounded,
+            label: 'Memories',
+          ),
+          LkNavItem(
+            icon: Icons.person_outline_rounded,
+            selectedIcon: Icons.person_rounded,
+            label: 'Profile',
+          ),
+        ],
       ),
     );
   }

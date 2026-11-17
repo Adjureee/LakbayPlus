@@ -9,8 +9,9 @@ import 'package:share_plus/share_plus.dart';
 import '../models/travel_models.dart';
 import '../services/friendly_error.dart';
 import '../services/travel_repository.dart';
-import '../theme/lakbay_theme.dart';
 
+import '../design/lakbay_tokens.dart';
+import '../design/lakbay_type.dart';
 Future<void> showTripCollaborationSheet(
   BuildContext context, {
   required TravelRepository repo,
@@ -19,7 +20,7 @@ Future<void> showTripCollaborationSheet(
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
+    backgroundColor: LkColors.s1,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -35,7 +36,7 @@ Future<void> showTripBudgetAndPdfSheet(
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
+    backgroundColor: LkColors.s1,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -51,7 +52,7 @@ Future<void> showTripReviewAndAssessmentSheet(
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
+    backgroundColor: LkColors.s1,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -285,10 +286,10 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
             const Text(
               'Collaborate & Shared Tasks',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontSize: 21,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 4),
@@ -301,14 +302,14 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: LakbayColors.primary.withValues(alpha: 0.1),
+                  color: LkColors.s3.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   _statusMessage!,
                   style: const TextStyle(
                     fontSize: 12.5,
-                    color: LakbayColors.tealDeep,
+                    color: LkColors.text,
                   ),
                 ),
               ),
@@ -317,7 +318,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
             const Text(
               'Group Members',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontWeight: FontWeight.w700,
                 fontSize: 16,
               ),
@@ -355,7 +356,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(
-                  backgroundColor: LakbayColors.primary.withValues(alpha: 0.15),
+                  backgroundColor: LkColors.s3.withValues(alpha: 0.15),
                   child: Text(s.fullName.isNotEmpty ? s.fullName[0].toUpperCase() : '?'),
                 ),
                 title: Text(s.fullName),
@@ -389,7 +390,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                   leading: CircleAvatar(
                     backgroundColor: m.isPending
                         ? Colors.grey.shade400
-                        : LakbayColors.tealDeep,
+                        : LkColors.s3,
                     foregroundColor: Colors.white,
                     child: Text(
                       m.fullName.isNotEmpty
@@ -427,7 +428,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
             const Text(
               'Trip Tasks',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontWeight: FontWeight.w700,
                 fontSize: 16,
               ),
@@ -715,10 +716,10 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
                   child: Text(
                     'Budget, Expenses & Split',
                     style: TextStyle(
-                      fontFamily: 'FigGrotesk',
+                      fontFamily: LkType.displayFamily,
                       fontSize: 21,
                       fontWeight: FontWeight.w800,
-                      color: LakbayColors.tealDeep,
+                      color: LkColors.text,
                     ),
                   ),
                 ),
@@ -806,7 +807,7 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
                         ? Colors.red
                         : (alertLevel == 'warning_80'
                             ? Colors.orange
-                            : LakbayColors.primary),
+                            : LkColors.lagoon),
                   ),
                 ],
               ),
@@ -815,7 +816,7 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
             const Text(
               'Equal vs Age-Weighted Split (50% Child)',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontWeight: FontWeight.w700,
                 fontSize: 16,
               ),
@@ -870,7 +871,7 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: LakbayColors.tealDeep.withValues(alpha: 0.06),
+                color: LkColors.s3.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
@@ -884,7 +885,7 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 16,
-                          color: LakbayColors.tealDeep,
+                          color: LkColors.text,
                         ),
                       ),
                     ],
@@ -897,7 +898,7 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 16,
-                          color: LakbayColors.primary,
+                          color: LkColors.lagoon,
                         ),
                       ),
                     ],
@@ -909,7 +910,7 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
             const Text(
               'Log Expense',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontWeight: FontWeight.w700,
                 fontSize: 16,
               ),
@@ -1146,7 +1147,7 @@ class _TripReviewAndAssessmentSheetState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Review & ISO 25010 feedback saved locally!'),
-          backgroundColor: LakbayColors.tealDeep,
+          backgroundColor: LkColors.s3,
         ),
       );
       return;
@@ -1181,7 +1182,7 @@ class _TripReviewAndAssessmentSheetState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Thank you! Review & ISO/IEC 25010 survey submitted.'),
-          backgroundColor: LakbayColors.tealDeep,
+          backgroundColor: LkColors.s3,
         ),
       );
     } catch (e) {
@@ -1212,10 +1213,10 @@ class _TripReviewAndAssessmentSheetState
             const Text(
               'Post-Trip Review & App Quality',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontSize: 21,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 6),
@@ -1243,7 +1244,7 @@ class _TripReviewAndAssessmentSheetState
             const Text(
               'ISO/IEC 25010 System Evaluation',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontWeight: FontWeight.w700,
                 fontSize: 15.5,
               ),
@@ -1295,8 +1296,8 @@ class _TripReviewAndAssessmentSheetState
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: LakbayColors.primary,
-                  foregroundColor: Colors.white,
+                  backgroundColor: LkColors.mango,
+                  foregroundColor: LkColors.mangoInk,
                   minimumSize: const Size(double.infinity, 48),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -1340,7 +1341,7 @@ class _StarRow extends StatelessWidget {
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             icon: Icon(
               i <= value ? Icons.star_rounded : Icons.star_border_rounded,
-              color: LakbayColors.primary,
+              color: LkColors.lagoon,
               size: 22,
             ),
             onPressed: () => onChanged(i),

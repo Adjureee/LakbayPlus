@@ -8,8 +8,9 @@ import '../design/widgets/lk_feedback.dart';
 import '../models/travel_models.dart';
 import '../services/friendly_error.dart';
 import '../services/travel_repository.dart';
-import '../theme/lakbay_theme.dart';
 
+import '../design/lakbay_tokens.dart';
+import '../design/lakbay_type.dart';
 class MemoriesScreen extends StatefulWidget {
   final TravelRepository repo;
 
@@ -71,7 +72,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
           content: Text(
             'Save a Davao Region trip first before adding memories.',
           ),
-          backgroundColor: LakbayColors.tealDeep,
+          backgroundColor: LkColors.s3,
         ),
       );
       return;
@@ -86,7 +87,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -143,10 +144,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                       const Text(
                         'Add Trip Memory',
                         style: TextStyle(
-                          fontFamily: 'FigGrotesk',
+                          fontFamily: LkType.displayFamily,
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          color: LakbayColors.tealDeep,
+                          color: LkColors.text,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -251,8 +252,8 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: LakbayColors.primary,
-                            foregroundColor: Colors.white,
+                            backgroundColor: LkColors.mango,
+                            foregroundColor: LkColors.mangoInk,
                             minimumSize: const Size(double.infinity, 48),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 20,
@@ -352,10 +353,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                             Text(
                               'Memories',
                               style: TextStyle(
-                                fontFamily: 'FigGrotesk',
+                                fontFamily: LkType.displayFamily,
                                 fontSize: 28,
                                 fontWeight: FontWeight.w800,
-                                color: LakbayColors.tealDeep,
+                                color: LkColors.text,
                               ),
                             ),
                             SizedBox(height: 2),
@@ -371,8 +372,8 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                       ),
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
-                          backgroundColor: LakbayColors.primary,
-                          foregroundColor: Colors.white,
+                          backgroundColor: LkColors.mango,
+                          foregroundColor: LkColors.mangoInk,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -429,7 +430,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                             width: 72,
                             height: 72,
                             decoration: BoxDecoration(
-                              color: LakbayColors.primary.withValues(
+                              color: LkColors.s3.withValues(
                                 alpha: 0.12,
                               ),
                               shape: BoxShape.circle,
@@ -437,17 +438,17 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                             child: const Icon(
                               Icons.photo_album_outlined,
                               size: 36,
-                              color: LakbayColors.primary,
+                              color: LkColors.lagoon,
                             ),
                           ),
                           const SizedBox(height: 16),
                           const Text(
                             'No trip memories yet',
                             style: TextStyle(
-                              fontFamily: 'FigGrotesk',
+                              fontFamily: LkType.displayFamily,
                               fontSize: 19,
                               fontWeight: FontWeight.w700,
-                              color: LakbayColors.tealDeep,
+                              color: LkColors.text,
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -462,7 +463,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                           const SizedBox(height: 18),
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: LakbayColors.tealDeep,
+                              backgroundColor: LkColors.s3,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 20,
@@ -533,7 +534,7 @@ class _MemoryCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: LkColors.s1,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -575,7 +576,7 @@ class _MemoryCard extends StatelessWidget {
                         const Icon(
                           Icons.location_on_outlined,
                           size: 14,
-                          color: LakbayColors.primary,
+                          color: LkColors.lagoon,
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -584,7 +585,7 @@ class _MemoryCard extends StatelessWidget {
                             style: const TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
-                              color: LakbayColors.primary,
+                              color: LkColors.lagoon,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -598,7 +599,7 @@ class _MemoryCard extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: LakbayColors.tealDeep,
+                      color: LkColors.text,
                     ),
                   ),
                 const SizedBox(height: 8),
@@ -626,7 +627,7 @@ class _MemoryCard extends StatelessWidget {
                             const Icon(
                               Icons.favorite_outline,
                               size: 18,
-                              color: LakbayColors.primary,
+                              color: LkColors.lagoon,
                             ),
                             const SizedBox(width: 4),
                             Text('${memory.likeCount}'),
@@ -656,7 +657,7 @@ class _MemoryCard extends StatelessWidget {
   Widget _fallbackTile() => Container(
     color: const Color(0xFFE9EEF0),
     child: const Center(
-      child: Icon(Icons.photo_outlined, size: 42, color: LakbayColors.tealDeep),
+      child: Icon(Icons.photo_outlined, size: 42, color: LkColors.text),
     ),
   );
 }

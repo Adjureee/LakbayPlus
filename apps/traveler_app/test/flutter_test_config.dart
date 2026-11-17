@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -20,5 +21,12 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   }
   GoogleFonts.bricolageGrotesque(fontWeight: FontWeight.w800);
   await GoogleFonts.pendingFonts();
+  // LkType.displayFamily is a pubspec font; widget tests only get those when
+  // they are loaded by hand.
+  final display = FontLoader('LakbayDisplay')
+    ..addFont(rootBundle.load(
+      'assets/google_fonts/BricolageGrotesque-ExtraBold.ttf',
+    ));
+  await display.load();
   await testMain();
 }

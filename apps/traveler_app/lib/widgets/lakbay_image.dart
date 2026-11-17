@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/lakbay_theme.dart';
+import '../design/lakbay_tokens.dart';
 
 /// Shared Davao Region image renderer that prefers verified Cloudinary URLs,
 /// then falls back smoothly to bundled local Davao Region photography.
@@ -40,7 +40,7 @@ class LakbayNetworkOrAssetImage extends StatelessWidget {
         errorBuilder: (_, _, _) => Container(
           width: width,
           height: height,
-          decoration: const BoxDecoration(gradient: LakbayColors.deepTealGradient),
+          decoration: const BoxDecoration(gradient: LkColors.surfaceGradient),
         ),
       ),
     );

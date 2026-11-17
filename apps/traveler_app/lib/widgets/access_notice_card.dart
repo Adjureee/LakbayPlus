@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../services/access_notices.dart';
-import '../theme/lakbay_theme.dart';
 
+import '../design/lakbay_tokens.dart';
+import '../design/lakbay_type.dart';
 /// Full permit / access notice for the trip detail screen.
 class AccessNoticeCard extends StatelessWidget {
   const AccessNoticeCard({super.key, required this.notice});
@@ -38,10 +39,10 @@ class AccessNoticeCard extends StatelessWidget {
                     Text(
                       notice.title,
                       style: const TextStyle(
-                        fontFamily: 'FigGrotesk',
+                        fontFamily: LkType.displayFamily,
                         fontWeight: FontWeight.w700,
                         fontSize: 14.5,
-                        color: LakbayColors.tealDeep,
+                        color: LkColors.text,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -50,7 +51,7 @@ class AccessNoticeCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 12.5,
                         height: 1.4,
-                        color: LakbayColors.textPrimary,
+                        color: LkColors.text,
                       ),
                     ),
                   ],

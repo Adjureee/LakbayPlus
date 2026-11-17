@@ -7,12 +7,13 @@ import '../services/location_service.dart';
 import '../services/mapbox_service.dart';
 import '../services/route_progress.dart';
 import '../services/travel_repository.dart';
-import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
 import '../services/access_notices.dart';
 import '../services/nearby_places.dart';
 import '../widgets/access_notice_card.dart';
 
+import '../design/lakbay_tokens.dart';
+import '../design/lakbay_type.dart';
 class TripRouteMapScreen extends StatefulWidget {
   final ItineraryTrip trip;
   final TravelRepository repo;
@@ -344,10 +345,10 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
               Text(
                 place.title,
                 style: const TextStyle(
-                  fontFamily: 'FigGrotesk',
+                  fontFamily: LkType.displayFamily,
                   fontWeight: FontWeight.w700,
                   fontSize: 18,
-                  color: LakbayColors.tealDeep,
+                  color: LkColors.text,
                 ),
               ),
               const SizedBox(height: 4),
@@ -356,7 +357,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                 '${item.distanceKm.toStringAsFixed(1)} km from ${item.nearestStopName}',
                 style: const TextStyle(
                   fontSize: 12.5,
-                  color: LakbayColors.textSecondary,
+                  color: LkColors.muted,
                 ),
               ),
               if (place.description?.isNotEmpty == true) ...[
@@ -600,7 +601,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
-                gradient: LakbayColors.deepTealGradient,
+                gradient: LkColors.surfaceGradient,
               ),
               child: Row(
                 children: [
@@ -614,7 +615,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                     child: Text(
                       'Mapbox Static Davao Route Card',
                       style: TextStyle(
-                        fontFamily: 'FigGrotesk',
+                        fontFamily: LkType.displayFamily,
                         fontWeight: FontWeight.w700,
                         fontSize: 17.5,
                         color: Colors.white,
@@ -668,7 +669,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                   Text(
                     widget.trip.title,
                     style: const TextStyle(
-                      fontFamily: 'FigGrotesk',
+                      fontFamily: LkType.displayFamily,
                       fontWeight: FontWeight.w700,
                       fontSize: 18,
                     ),
@@ -678,14 +679,14 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                     '${widget.trip.daysCount} Days • ${totalKm.toStringAsFixed(0)} km Region XI Route • ${widget.trip.hotels.first.name}',
                     style: const TextStyle(
                       fontSize: 13,
-                      color: LakbayColors.textSecondary,
+                      color: LkColors.muted,
                     ),
                   ),
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: LakbayColors.canvasBg,
+                      color: LkColors.bg,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -694,7 +695,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                           : 'Tip: Tap "Mapbox Key" on the map to set MAPBOX_ACCESS_TOKEN for high-DPI Static Images export.',
                       style: const TextStyle(
                         fontSize: 11.5,
-                        color: LakbayColors.tealDeep,
+                        color: LkColors.text,
                       ),
                     ),
                   ),
@@ -742,7 +743,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
   void _showSeaCrossingsSheet(List<SeaCrossingInfo> crossings) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -768,10 +769,10 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                   ? 'Boat Crossing Details'
                   : 'Boat Crossings (${crossings.length})',
               style: const TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontWeight: FontWeight.w700,
                 fontSize: 18,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 10),
@@ -792,7 +793,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: LakbayColors.tealDeep,
+        backgroundColor: LkColors.s3,
         foregroundColor: Colors.white,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -800,7 +801,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
             Text(
               trip.title,
               style: const TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontWeight: FontWeight.w700,
                 fontSize: 16,
               ),
@@ -821,7 +822,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
               _isTourPlaying
                   ? Icons.pause_circle_filled_rounded
                   : Icons.play_circle_fill_rounded,
-              color: _isTourPlaying ? LakbayColors.cocoaOrange : Colors.white,
+              color: _isTourPlaying ? LkColors.mango : Colors.white,
             ),
           ),
           IconButton(
@@ -830,7 +831,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                 setState(() => _showHotelsOnMap = !_showHotelsOnMap),
             icon: Icon(
               _showHotelsOnMap ? Icons.hotel_rounded : Icons.hotel_outlined,
-              color: _showHotelsOnMap ? LakbayColors.primary : Colors.white70,
+              color: _showHotelsOnMap ? LkColors.lagoon : Colors.white70,
             ),
           ),
           IconButton(
@@ -925,7 +926,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                           children: [
                             const Icon(
                               Icons.alt_route_rounded,
-                              color: LakbayColors.tealDeep,
+                              color: LkColors.text,
                               size: 15,
                             ),
                             const SizedBox(width: 5),
@@ -934,8 +935,8 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                                   ? 'Routing...'
                                   : 'Optimize Order',
                               style: const TextStyle(
-                                color: LakbayColors.tealDeep,
-                                fontFamily: 'FigGrotesk',
+                                color: LkColors.text,
+                                fontFamily: LkType.displayFamily,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 11.5,
                               ),
@@ -951,22 +952,22 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                       Icons.travel_explore_rounded,
                       size: 15,
                       color: _showNearby
-                          ? LakbayColors.tealDeep
-                          : LakbayColors.textSecondary,
+                          ? LkColors.text
+                          : LkColors.muted,
                     ),
                     label: Text(
                       'Nearby (${nearby.length})',
                       style: const TextStyle(
-                        fontFamily: 'FigGrotesk',
+                        fontFamily: LkType.displayFamily,
                         fontWeight: FontWeight.w700,
                         fontSize: 11.5,
-                        color: LakbayColors.tealDeep,
+                        color: LkColors.text,
                       ),
                     ),
                     selected: _showNearby,
                     showCheckmark: false,
                     backgroundColor: Colors.white.withValues(alpha: 0.94),
-                    selectedColor: Colors.white,
+                    selectedColor: LkColors.s1,
                     visualDensity: VisualDensity.compact,
                     tooltip: _showNearby
                         ? 'Hide other places near this trip'
@@ -1024,7 +1025,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                                   label,
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontFamily: 'FigGrotesk',
+                                    fontFamily: LkType.displayFamily,
                                     fontWeight: FontWeight.w700,
                                     fontSize: 11.5,
                                   ),
@@ -1076,8 +1077,8 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
                       color: isSelected
-                          ? LakbayColors.primary
-                          : LakbayColors.cardBorder,
+                          ? LkColors.lagoon
+                          : LkColors.stroke,
                       width: isSelected ? 2 : 1,
                     ),
                     boxShadow: [
@@ -1099,7 +1100,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: LakbayColors.primary,
+                              color: LkColors.s3,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
@@ -1121,7 +1122,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontFamily: 'FigGrotesk',
+                                fontFamily: LkType.displayFamily,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 15.5,
                               ),
@@ -1134,17 +1135,17 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                             errorBuilder: (_, _, _) => const Icon(
                               Icons.wb_sunny_rounded,
                               size: 18,
-                              color: LakbayColors.cocoaOrange,
+                              color: LkColors.mango,
                             ),
                           ),
                           const SizedBox(width: 4),
                           Text(
                             '${day.tempCelsius}°C',
                             style: const TextStyle(
-                              fontFamily: 'FigGrotesk',
+                              fontFamily: LkType.displayFamily,
                               fontWeight: FontWeight.w700,
                               fontSize: 12,
-                              color: LakbayColors.tealDeep,
+                              color: LkColors.text,
                             ),
                           ),
                         ],
@@ -1156,7 +1157,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12.5,
-                          color: LakbayColors.textSecondary,
+                          color: LkColors.muted,
                         ),
                       ),
                       const Spacer(),
@@ -1169,7 +1170,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                           const Icon(
                             Icons.place_rounded,
                             size: 15,
-                            color: LakbayColors.tealAccent,
+                            color: LkColors.lagoon,
                           ),
                           const SizedBox(width: 4),
                           Expanded(
@@ -1180,7 +1181,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                               style: const TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w600,
-                                color: LakbayColors.tealDeep,
+                                color: LkColors.text,
                               ),
                             ),
                           ),
@@ -1303,7 +1304,7 @@ class _LiveStatusChip extends StatelessWidget {
             label,
             style: const TextStyle(
               color: Colors.white,
-              fontFamily: 'FigGrotesk',
+              fontFamily: LkType.displayFamily,
               fontWeight: FontWeight.w700,
               fontSize: 12,
             ),

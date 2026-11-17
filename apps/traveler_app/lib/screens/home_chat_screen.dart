@@ -8,6 +8,8 @@ import '../widgets/lakbay_image.dart';
 import '../widgets/origin_picker_sheet.dart';
 import 'trip_detail_screen.dart';
 
+import '../design/lakbay_tokens.dart';
+import '../design/lakbay_type.dart';
 class HomeChatScreen extends StatefulWidget {
   final TravelRepository repo;
 
@@ -77,7 +79,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               height: double.infinity,
               errorBuilder: (_, _, _) => Container(
                 decoration:
-                    const BoxDecoration(gradient: LakbayColors.deepTealGradient),
+                    const BoxDecoration(gradient: LkColors.surfaceGradient),
               ),
             ),
           ),
@@ -120,7 +122,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                               _scaffoldKey.currentState?.openDrawer(),
                           icon: const Icon(
                             Icons.menu_rounded,
-                            color: LakbayColors.tealDeep,
+                            color: LkColors.text,
                           ),
                         ),
                       ),
@@ -156,7 +158,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        color: LakbayColors.tealDeep,
+                                        color: LkColors.text,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -181,7 +183,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                               onPressed: () => _openNotificationsSheet(context),
                               icon: const Icon(
                                 Icons.notifications_none_rounded,
-                                color: LakbayColors.tealDeep,
+                                color: LkColors.text,
                               ),
                             ),
                             if (widget.repo.unreadNotificationCount > 0)
@@ -194,7 +196,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                     vertical: 1,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: LakbayColors.primary,
+                                    color: LkColors.s3,
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
@@ -235,7 +237,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -253,16 +255,16 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
             const Text(
               'Tell Lakbay+ your Davao plans',
               style: TextStyle(
-                fontFamily: 'FigGrotesk',
+                fontFamily: LkType.displayFamily,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
             const SizedBox(height: 6),
             const Text(
               'Voice dictation is unavailable in this browser session. Type or pick a quick Davao prompt below:',
-              style: TextStyle(fontSize: 13, color: LakbayColors.textSecondary),
+              style: TextStyle(fontSize: 13, color: LkColors.muted),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -306,8 +308,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 _handleSend(text);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: LakbayColors.primary,
-                foregroundColor: Colors.white,
+                backgroundColor: LkColors.mango,
+                foregroundColor: LkColors.mangoInk,
               ),
               child: const Text('Plan my trip'),
             ),
@@ -330,7 +332,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           Text(
             'Hi $firstName,\nwhere do you want to',
             style: const TextStyle(
-              fontFamily: 'FigGrotesk',
+              fontFamily: LkType.displayFamily,
               fontSize: 30,
               fontWeight: FontWeight.w800,
               color: Colors.white,
@@ -345,13 +347,13 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  color: LakbayColors.primary,
+                  color: LkColors.s3,
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: const Text(
                   'wake up',
                   style: TextStyle(
-                    fontFamily: 'FigGrotesk',
+                    fontFamily: LkType.displayFamily,
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
@@ -363,7 +365,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               const Text(
                 'next?',
                 style: TextStyle(
-                  fontFamily: 'FigGrotesk',
+                  fontFamily: LkType.displayFamily,
                   fontSize: 30,
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
@@ -400,7 +402,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                     hintText:
                         'Where to in Davao Region? tell Lakbay+ your dates, budget and style...',
                     hintStyle: TextStyle(
-                      color: LakbayColors.textSecondary,
+                      color: LkColors.muted,
                       fontSize: 15,
                       height: 1.35,
                     ),
@@ -412,7 +414,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 Row(
                   children: [
                     Material(
-                      color: LakbayColors.canvasBg,
+                      color: LkColors.bg,
                       shape: const CircleBorder(),
                       child: IconButton(
                         tooltip: 'New chat',
@@ -420,7 +422,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                         onPressed: widget.repo.startNewChat,
                         icon: const Icon(
                           Icons.add_rounded,
-                          color: LakbayColors.tealDeep,
+                          color: LkColors.text,
                         ),
                       ),
                     ),
@@ -448,8 +450,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                     ElevatedButton(
                       onPressed: _handleSend,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: LakbayColors.primary,
-                        foregroundColor: Colors.white,
+                        backgroundColor: LkColors.mango,
+                        foregroundColor: LkColors.mangoInk,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -522,7 +524,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 style: const TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
-                  color: LakbayColors.tealDeep,
+                  color: LkColors.text,
                 ),
               ),
             ),
@@ -556,12 +558,12 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                     height: 78,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: LakbayColors.brandGradient,
+                      gradient: LkColors.surfaceGradient,
                       boxShadow: [
                         BoxShadow(
                           color: (_isListeningVoice
-                                  ? LakbayColors.tealAccent
-                                  : LakbayColors.primary)
+                                  ? LkColors.lagoon
+                                  : LkColors.lagoon)
                               .withValues(alpha: _isListeningVoice ? 0.72 : 0.45),
                           blurRadius: _isListeningVoice ? 32 : 24,
                           spreadRadius: _isListeningVoice ? 8 : 4,
@@ -630,14 +632,14 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                               height: 14,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: LakbayColors.primary,
+                                color: LkColors.lagoon,
                               ),
                             ),
                             SizedBox(width: 10),
                             Text(
                               'Lakbay+ AI is planning your Davao route...',
                               style: TextStyle(
-                                color: LakbayColors.tealAccent,
+                                color: LkColors.lagoon,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -683,7 +685,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                         'Ask Lakbay+ to plan a trip, find hotels, or routes...',
                     hintStyle: TextStyle(
                       fontSize: 13.5,
-                      color: LakbayColors.textMuted,
+                      color: LkColors.muted,
                     ),
                     border: InputBorder.none,
                     isDense: true,
@@ -693,8 +695,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               IconButton(
                 onPressed: _handleSend,
                 style: IconButton.styleFrom(
-                  backgroundColor: LakbayColors.primary,
-                  foregroundColor: Colors.white,
+                  backgroundColor: LkColors.mango,
+                  foregroundColor: LkColors.mangoInk,
                 ),
                 icon: const Icon(Icons.arrow_upward_rounded, size: 20),
               ),
@@ -717,7 +719,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
         sessions.where((s) => s.groupLabel != 'Today').toList();
 
     return Drawer(
-      backgroundColor: LakbayColors.canvasBg,
+      backgroundColor: LkColors.bg,
       width: MediaQuery.of(context).size.width * 0.80,
       child: SafeArea(
         child: Column(
@@ -732,16 +734,16 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: LkColors.s1,
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: LakbayColors.cardBorder),
+                  border: Border.all(color: LkColors.stroke),
                 ),
                 child: TextField(
                   controller: _drawerSearchController,
                   onChanged: (_) => setState(() {}),
                   decoration: const InputDecoration(
                     icon: Icon(Icons.search_rounded,
-                        color: LakbayColors.textSecondary),
+                        color: LkColors.muted),
                     hintText: 'Search chats',
                     border: InputBorder.none,
                   ),
@@ -761,7 +763,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                         style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
-                          color: LakbayColors.textSecondary,
+                          color: LkColors.muted,
                         ),
                       ),
                     ),
@@ -776,7 +778,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                         style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
-                          color: LakbayColors.textSecondary,
+                          color: LkColors.muted,
                         ),
                       ),
                     ),
@@ -797,13 +799,13 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                     },
                     child: CircleAvatar(
                       radius: 22,
-                      backgroundColor: LakbayColors.primaryLight,
+                      backgroundColor: LkColors.s2,
                       child: Text(
                         widget.repo.profile.initials,
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 13,
-                          color: LakbayColors.primaryDark,
+                          color: LkColors.lagoon,
                         ),
                       ),
                     ),
@@ -815,7 +817,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                       Navigator.of(context).pop();
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: LakbayColors.tealDeep,
+                      backgroundColor: LkColors.s3,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
@@ -844,11 +846,11 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
     final isSelected = session.id == widget.repo.activeChatId;
     return ListTile(
       selected: isSelected,
-      selectedTileColor: LakbayColors.primaryLight.withValues(alpha: 0.45),
+      selectedTileColor: LkColors.s2.withValues(alpha: 0.45),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       leading: Icon(
         session.isTrip ? Icons.map_outlined : Icons.chat_bubble_outline_rounded,
-        color: LakbayColors.tealDeep,
+        color: LkColors.text,
         size: 20,
       ),
       title: Text(
@@ -857,7 +859,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-          color: LakbayColors.tealDeep,
+          color: LkColors.text,
           fontSize: 14.5,
         ),
       ),
@@ -876,7 +878,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           margin: const EdgeInsets.only(bottom: 14, left: 48),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: const BoxDecoration(
-            gradient: LakbayColors.brandGradient,
+            gradient: LkColors.surfaceGradient,
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(20),
               topRight: Radius.circular(20),
@@ -924,7 +926,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                       Text(
                         msg.text.replaceAll('**', ''),
                         style: const TextStyle(
-                          color: LakbayColors.textPrimary,
+                          color: LkColors.text,
                           fontSize: 14,
                           height: 1.45,
                         ),
@@ -1013,7 +1015,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: LakbayColors.primary),
+        border: Border.all(color: LkColors.lagoon),
       ),
       child: Row(
         children: [
@@ -1021,7 +1023,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
             child: Text(
               '$count of ${TravelRepository.maxChatPicks} places picked',
               style: const TextStyle(
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
@@ -1030,8 +1032,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           ElevatedButton(
             onPressed: widget.repo.planWithPicks,
             style: ElevatedButton.styleFrom(
-              backgroundColor: LakbayColors.primary,
-              foregroundColor: Colors.white,
+              backgroundColor: LkColors.mango,
+              foregroundColor: LkColors.mangoInk,
               minimumSize: Size.zero,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             ),
@@ -1084,7 +1086,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
       for (final (label, onTap) in chips)
         ActionChip(
           onPressed: onTap,
-          backgroundColor: LakbayColors.primary.withValues(alpha: 0.9),
+          backgroundColor: LkColors.s3.withValues(alpha: 0.9),
           side: BorderSide.none,
           label: Text(
             label,
@@ -1126,7 +1128,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               const SizedBox(height: 4),
               const Text(
                 'Tap up to 3, most important first.',
-                style: TextStyle(color: LakbayColors.textSecondary),
+                style: TextStyle(color: LkColors.muted),
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -1189,10 +1191,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
         const Text(
           'Recommended Destinations',
           style: TextStyle(
-            fontFamily: 'FigGrotesk',
+            fontFamily: LkType.displayFamily,
             fontWeight: FontWeight.w700,
             fontSize: 13.5,
-            color: LakbayColors.tealDeep,
+            color: LkColors.text,
           ),
         ),
         const SizedBox(height: 8),
@@ -1226,12 +1228,12 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               return Container(
                 width: 230,
                 decoration: BoxDecoration(
-                  color: LakbayColors.canvasBg,
+                  color: LkColors.bg,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: isAdded
-                        ? LakbayColors.primary
-                        : LakbayColors.cardBorder,
+                        ? LkColors.lagoon
+                        : LkColors.stroke,
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
@@ -1262,7 +1264,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                     vertical: 3,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: LakbayColors.tealDeep,
+                                    color: LkColors.s3,
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
@@ -1292,10 +1294,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontFamily: 'FigGrotesk',
+                                fontFamily: LkType.displayFamily,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13.5,
-                                color: LakbayColors.tealDeep,
+                                color: LkColors.text,
                               ),
                             ),
                             const SizedBox(height: 3),
@@ -1307,7 +1309,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                 fontSize: 11.5,
                                 color: place.matchTier > 1
                                     ? const Color(0xFFB45309)
-                                    : LakbayColors.textSecondary,
+                                    : LkColors.muted,
                                 height: 1.3,
                               ),
                             ),
@@ -1359,11 +1361,11 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                     },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: isAdded
-                                          ? LakbayColors.primaryLight
-                                          : LakbayColors.primary,
+                                          ? LkColors.s2
+                                          : LkColors.mango,
                                       foregroundColor: isAdded
-                                          ? LakbayColors.tealDeep
-                                          : Colors.white,
+                                          ? LkColors.mangoInk
+                                          : LkColors.mangoInk,
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 10,
                                         vertical: 4,
@@ -1404,10 +1406,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
         const Text(
           'Compare AI Itinerary Options',
           style: TextStyle(
-            fontFamily: 'FigGrotesk',
+            fontFamily: LkType.displayFamily,
             fontWeight: FontWeight.w700,
             fontSize: 13.5,
-            color: LakbayColors.tealDeep,
+            color: LkColors.text,
           ),
         ),
         const SizedBox(height: 4),
@@ -1425,12 +1427,12 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               return Container(
                 width: 245,
                 decoration: BoxDecoration(
-                  color: LakbayColors.canvasBg,
+                  color: LkColors.bg,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: index == 0
-                        ? LakbayColors.primary
-                        : LakbayColors.cardBorder,
+                        ? LkColors.lagoon
+                        : LkColors.stroke,
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
@@ -1461,7 +1463,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                 decoration: BoxDecoration(
                                   color: opt.isOverBudget
                                       ? Colors.red.shade700
-                                      : LakbayColors.tealDeep,
+                                      : LkColors.s3,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
@@ -1491,10 +1493,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontFamily: 'FigGrotesk',
+                                fontFamily: LkType.displayFamily,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13.5,
-                                color: LakbayColors.tealDeep,
+                                color: LkColors.text,
                               ),
                             ),
                             const SizedBox(height: 3),
@@ -1504,7 +1506,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 11.5,
-                                color: LakbayColors.textSecondary,
+                                color: LkColors.muted,
                                 height: 1.3,
                               ),
                             ),
@@ -1517,12 +1519,12 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                         ? 'Est. ₱${opt.estimatedTotalCostPhp.toStringAsFixed(0)}'
                                         : 'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)}',
                                     style: TextStyle(
-                                      fontFamily: 'FigGrotesk',
+                                      fontFamily: LkType.displayFamily,
                                       fontWeight: FontWeight.w700,
                                       fontSize: 12.5,
                                       color: opt.isOverBudget
                                           ? Colors.red.shade700
-                                          : LakbayColors.primary,
+                                          : LkColors.lagoon,
                                     ),
                                   ),
                                 ),
@@ -1558,7 +1560,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                         content: Text(
                                           'Saved "${trip.title}" to My Trips!',
                                         ),
-                                        backgroundColor: LakbayColors.tealDeep,
+                                        backgroundColor: LkColors.s3,
                                       ),
                                     );
                                   },
@@ -1602,9 +1604,9 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: LakbayColors.canvasBg,
+          color: LkColors.bg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: LakbayColors.cardBorder),
+          border: Border.all(color: LkColors.stroke),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -1630,7 +1632,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: LakbayColors.primary,
+                          color: LkColors.s3,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -1657,10 +1659,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                   Text(
                     trip.title,
                     style: const TextStyle(
-                      fontFamily: 'FigGrotesk',
+                      fontFamily: LkType.displayFamily,
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
-                      color: LakbayColors.textPrimary,
+                      color: LkColors.text,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1668,7 +1670,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                     'Est. ${widget.repo.formatPrice(trip.totalEstimatedCostUsd)} • ${trip.flights.isNotEmpty ? 'Flights, ' : ''}${trip.hotels.isNotEmpty ? '${trip.hotels.first.name} & ' : ''}Daily Route',
                     style: const TextStyle(
                       fontSize: 12,
-                      color: LakbayColors.textSecondary,
+                      color: LkColors.muted,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -1703,12 +1705,12 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                             SnackBar(
                               content:
                                   Text('Saved "${trip.title}" to My Trips!'),
-                              backgroundColor: LakbayColors.tealDeep,
+                              backgroundColor: LkColors.s3,
                             ),
                           );
                         },
                         icon: const Icon(Icons.bookmark_add_rounded,
-                            color: LakbayColors.tealDeep),
+                            color: LkColors.text),
                       ),
                     ],
                   ),
@@ -1798,7 +1800,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: LkColors.s1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1821,10 +1823,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                         child: Text(
                           'Notifications',
                           style: TextStyle(
-                            fontFamily: 'FigGrotesk',
+                            fontFamily: LkType.displayFamily,
                             fontSize: 21,
                             fontWeight: FontWeight.w800,
-                            color: LakbayColors.tealDeep,
+                            color: LkColors.text,
                           ),
                         ),
                       ),
@@ -1856,14 +1858,14 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                         leading: CircleAvatar(
                           backgroundColor: n.isRead
                               ? Colors.grey.shade200
-                              : LakbayColors.primary.withValues(alpha: 0.16),
+                              : LkColors.s3.withValues(alpha: 0.16),
                           child: Icon(
                             n.eventType == 'trip_updated'
                                 ? Icons.warning_amber_rounded
                                 : Icons.notifications_active_outlined,
                             color: n.isRead
                                 ? Colors.grey.shade600
-                                : LakbayColors.primary,
+                                : LkColors.lagoon,
                             size: 20,
                           ),
                         ),
@@ -1880,7 +1882,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                             : const Icon(
                                 Icons.circle,
                                 size: 9,
-                                color: LakbayColors.primary,
+                                color: LkColors.lagoon,
                               ),
                         onTap: () {
                           widget.repo.markNotificationRead(n.notificationId);
@@ -1916,7 +1918,7 @@ class _HeroChip extends StatelessWidget {
             child: Text(
               label,
               style: const TextStyle(
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
                 fontWeight: FontWeight.w700,
                 fontSize: 13,
               ),

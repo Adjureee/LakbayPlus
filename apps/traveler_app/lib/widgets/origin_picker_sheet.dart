@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import '../services/location_service.dart';
 import '../services/mapbox_service.dart';
 import '../services/travel_repository.dart';
-import '../theme/lakbay_theme.dart';
 import 'lakbay_mapbox_widget.dart';
 
+import '../design/lakbay_tokens.dart';
+import '../design/lakbay_type.dart';
 /// Opens a modal sheet letting the traveler set their starting place via GPS,
 /// place search, or map pin without ever assuming Davao City.
 Future<bool?> showOriginPickerSheet(
@@ -14,7 +15,7 @@ Future<bool?> showOriginPickerSheet(
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
+    backgroundColor: LkColors.s1,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
     ),
@@ -159,10 +160,10 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
                   child: Text(
                     'Set your starting place',
                     style: TextStyle(
-                      fontFamily: 'FigGrotesk',
+                      fontFamily: LkType.displayFamily,
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: LakbayColors.tealDeep,
+                      color: LkColors.text,
                     ),
                   ),
                 ),
@@ -178,7 +179,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
                   : 'Allow GPS, search any city or landmark, or pin your starting spot on the map.',
               style: const TextStyle(
                 fontSize: 13,
-                color: LakbayColors.textSecondary,
+                color: LkColors.muted,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -247,8 +248,8 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
                 ElevatedButton(
                   onPressed: _searching ? null : _runSearch,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: LakbayColors.primary,
-                    foregroundColor: Colors.white,
+                    backgroundColor: LkColors.mango,
+                    foregroundColor: LkColors.mangoInk,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 14,
@@ -276,7 +277,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
                 _statusNote!,
                 style: const TextStyle(
                   fontSize: 12.5,
-                  color: LakbayColors.textSecondary,
+                  color: LkColors.muted,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -289,7 +290,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(
                     Icons.place_rounded,
-                    color: LakbayColors.primary,
+                    color: LkColors.lagoon,
                   ),
                   title: Text(
                     item.label,
@@ -311,7 +312,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: LakbayColors.tealDeep,
+                  color: LkColors.text,
                 ),
               ),
               const SizedBox(height: 8),
@@ -352,7 +353,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
                 ElevatedButton.icon(
                   onPressed: _resolvingPin ? null : _confirmPinned,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: LakbayColors.tealDeep,
+                    backgroundColor: LkColors.s3,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -387,10 +388,10 @@ class _RegionNoteBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: LakbayColors.tealWash,
+        color: LkColors.s2,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: LakbayColors.tealDeep.withValues(alpha: 0.2),
+          color: LkColors.strokeStrong.withValues(alpha: 0.2),
         ),
       ),
       child: Row(
@@ -398,7 +399,7 @@ class _RegionNoteBanner extends StatelessWidget {
           const Icon(
             Icons.info_outline_rounded,
             size: 16,
-            color: LakbayColors.tealDeep,
+            color: LkColors.text,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -407,7 +408,7 @@ class _RegionNoteBanner extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: LakbayColors.tealDeep,
+                color: LkColors.text,
               ),
             ),
           ),
