@@ -106,3 +106,18 @@ Examples from the run:
 - "Are there entrance fees?": the recorded fees (30 and 15 for Huyong-huyong, 100 plus 5 for Monfort), and the unlisted ones are said to need confirming.
 
 Still not covered: claims without numbers ("bring cash for parking", "the road is paved") and replies that are honest but thin when the catalog has little to say.
+
+## Live check of phase 1c on the deployed API (17 Nov 2026, commit `ba474e9`)
+
+Run through the public guest chat, single runs, Gemini 3.5 Flash Lite. (An earlier attempt hit a deploy that was still on the previous commit: the caption had no place names. After the redeploy the new behaviour showed.)
+
+| Case | Result |
+|---|---|
+| "show me beach resorts" | Caption built from the cards: "Here are 4 places that match what you asked for: Chema's by the Sea, Isla Reta Beach Resort, Banana Beach at Hijo Resorts Davao and Lanikai Hijo Estate Resort." |
+| "Show me nature parks" (start Panabo) | "We have 3 nature parks listed ..." beside exactly 3 cards: the count agrees |
+| "How do I get to Dahican Surf Resort?" (start Mati) | No route figures; the reply ends with the "I left out some times, distances and prices" note, with one tip and a follow-up question. Honest, thin |
+| "is there a place to go in panabo?" (start Panabo) | Five Panabo cards, but the text kept "taking about 45 to 60 minutes and costing around ₱150 if traveling from nearby Davao City" |
+
+### New weak spot
+
+The Panabo sentence slipped past the start-place rule because it says "from **nearby** Davao City", and the rule only matches "from Davao City". The figures themselves are the place's own recorded ones (₱150, 45 to 60 minutes) and the sentence says they are from Davao City, so it is not wrong, but it is about the wrong starting place for a traveler in Panabo. Proposed: let the rule match up to two words between "from" and "Davao City".
