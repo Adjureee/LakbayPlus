@@ -1881,8 +1881,15 @@ def _parse_planning_chat_output(
         return None, []
     required = {"chat_response"}
     optional = {"state_updates", "intent", "suggested_replies", "place_query"}
-    if not isinstance(raw, dict) or not required <= set(raw) <= required | optional:
+    if not isinstance(raw, dict) or not required <= set(raw):
         return None, []
+    if set(raw) - (required | optional):
+        # A stray top-level key (for example "tag") changes nothing, so it is ignored.
+        raw = {key: value for key, value in raw.items() if key in required | optional}
+        try:
+            return AIPlanningChatOutput.model_validate(raw), []
+        except ValidationError:
+            pass
     updates = raw.get("state_updates", {})
     if updates is None:
         updates = {}
