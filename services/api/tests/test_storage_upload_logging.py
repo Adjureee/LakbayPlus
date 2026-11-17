@@ -8,6 +8,15 @@ from app.core.exceptions import LakbayAPIError
 from app.integrations.storage.client import CloudinaryStorageClient
 
 SECRET = "super-secret-value-123"
+LOGGER = "app.integrations.storage.client"
+
+
+@pytest.fixture(autouse=True)
+def _logger_enabled():
+    # The migration tests run Alembic's logging setup, which disables every logger
+    # that already exists. Turn this one back on so the test is order-independent.
+    logging.getLogger(LOGGER).disabled = False
+    yield
 
 
 def _client() -> CloudinaryStorageClient:
