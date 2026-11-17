@@ -78,7 +78,7 @@ MONEY = re.compile(r"(?:₱|PHP\s?|P(?=\d))\s?(\d[\d,]*(?:\.\d+)?)", re.IGNORECA
 BISAYA = {"nga", "ang", "sa", "ug", "naa", "nindot", "puwede", "pwede", "kini", "dinhi",
           "tay", "kamo", "mga", "unsa", "asa", "gyud", "ka", "na", "og", "ni", "ayaw", "salamat"}
 CLOCK = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s?(am|pm)\b", re.IGNORECASE)
-CLOCK24 = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b")
+CLOCK24 = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b(?!\s?(?i:am|pm))")
 
 
 def clock_times(text: str) -> set[str]:

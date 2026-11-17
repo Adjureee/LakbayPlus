@@ -150,6 +150,28 @@ def test_the_chat_keeps_figures_the_catalog_gave(client, monkeypatch) -> None:
     assert body["chat_response"] == "Entry is ₱160 per person and it opens 6:00 AM to 5:00 PM."
 
 
+def test_a_stray_top_level_key_does_not_spoil_a_good_answer(client, monkeypatch) -> None:
+    """Live case: the model added "tag": "" and a good answer was thrown away."""
+    configure_ai(monkeypatch)
+    reply = json.dumps({
+        "chat_response": "Samal is a short boat ride away.",
+        "state_updates": {}, "intent": "question", "tag": "",
+    })
+    body = _chat(client, "Is Samal close?", reply, use_rag=False)
+    assert body["chat_response"] == "Samal is a short boat ride away."
+    assert body["planning"]["update_status"] == "no_changes"
+
+
+def test_a_stray_key_never_smuggles_in_a_state_change(client, monkeypatch) -> None:
+    configure_ai(monkeypatch)
+    reply = json.dumps({
+        "chat_response": "Done.", "state_updates": {"day_count": 2},
+        "intent": "question", "destination_ids": [1],
+    })
+    body = _chat(client, "Is Samal close?", reply, use_rag=False)
+    assert "destination_ids" not in body["planning"]["state_updates"]
+
+
 def test_the_travelers_own_budget_is_not_flagged(client, monkeypatch) -> None:
     configure_ai(monkeypatch)
     reply = json.dumps({
