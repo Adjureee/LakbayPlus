@@ -687,8 +687,18 @@ class TravelRepository extends ChangeNotifier {
     if (account == null) return;
     final username = account.username ?? _profile.username;
     final avatar = account.avatarUrl ?? _profile.avatarUrl;
-    if (username == _profile.username && avatar == _profile.avatarUrl) return;
-    _profile = _profile.copyWith(username: username, avatarUrl: avatar);
+    // The server is the source of truth: no cover there means the default.
+    final cover = account.coverUrl ?? '';
+    if (username == _profile.username &&
+        avatar == _profile.avatarUrl &&
+        cover == _profile.coverUrl) {
+      return;
+    }
+    _profile = _profile.copyWith(
+      username: username,
+      avatarUrl: avatar,
+      coverUrl: cover,
+    );
     _scheduleSaveState();
     notifyListeners();
   }
@@ -716,6 +726,49 @@ class TravelRepository extends ChangeNotifier {
       return e.message;
     } catch (_) {
       return "Couldn't upload the photo. Please try again.";
+    }
+  }
+
+  /// Uploads a new profile cover photo. Returns null on success, or the reason
+  /// it failed, in the server's words.
+  Future<String?> uploadCoverPhoto({
+    Uint8List? bytes,
+    String? path,
+    String? filename,
+  }) async {
+    if (!isSignedIn) return 'Sign in to add a cover photo.';
+    try {
+      final url = await apiCatalog.uploadMyCover(
+        _authSession!.accessToken,
+        fileBytes: bytes,
+        filePath: path,
+        filename: filename,
+      );
+      _profile = _profile.copyWith(coverUrl: url);
+      _scheduleSaveState();
+      notifyListeners();
+      return null;
+    } on LakbayApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return "Couldn't upload the photo. Please try again.";
+    }
+  }
+
+  /// Removes the cover photo, back to the default banner. Returns null on
+  /// success, or the reason it failed.
+  Future<String?> removeCoverPhoto() async {
+    if (!isSignedIn) return null;
+    try {
+      await apiCatalog.removeMyCover(_authSession!.accessToken);
+      _profile = _profile.copyWith(coverUrl: '');
+      _scheduleSaveState();
+      notifyListeners();
+      return null;
+    } on LakbayApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return "Couldn't remove the photo. Please try again.";
     }
   }
 

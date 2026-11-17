@@ -154,6 +154,12 @@ class UserRepository:
 
         return user
 
+    async def set_cover_url(self, *, user: User, cover_url: str | None) -> User:
+        """Sets the profile banner photo, or clears it with None."""
+        user.cover_url = cover_url
+        await self.session.flush()
+        return user
+
     async def set_active_status(self, *, user: User, is_active: bool) -> tuple[User, bool]:
         """Update account activation state and revoke active tokens on deactivation."""
         now = datetime.now(UTC)
