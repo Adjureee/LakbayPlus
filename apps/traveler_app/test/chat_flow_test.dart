@@ -468,6 +468,57 @@ void main() {
       expect(repo.chatMessages.last.offerPriorities, isFalse);
     });
 
+    test('no model quick replies while the app asks with its own buttons', () async {
+      final server = _Server((path, body) {
+        final base = _planningReply(
+          body,
+          replies: ['Tomorrow', 'Next weekend', 'This coming Friday'],
+        );
+        (base['planning'] as Map<String, dynamic>)['conversation'] = {
+          'stage': 'recommend',
+          'missing_details': ['travel_start_date'],
+          'ask_next': 'When are you travelling?',
+          'optional_details': [],
+        };
+        return base;
+      });
+      final repo = _repo(server);
+      await repo.initialize();
+
+      await repo.sendChatMessage('Easy');
+
+      final last = repo.chatMessages.last;
+      expect(last.askNext, 'travel_start_date');
+      // The app's own date buttons are the only ones; the AI's would be typed as text.
+      expect(last.suggestedReplies, isEmpty);
+    });
+
+    test('model quick replies stay when the next question is a free one', () async {
+      final server = _Server((path, body) {
+        final base = _planningReply(
+          body,
+          replies: ['Just a day trip', '2 days, 1 night'],
+        );
+        (base['planning'] as Map<String, dynamic>)['conversation'] = {
+          'stage': 'recommend',
+          'missing_details': ['day_count'],
+          'ask_next': 'How many days do you have?',
+          'optional_details': [],
+        };
+        return base;
+      });
+      final repo = _repo(server);
+      await repo.initialize();
+
+      await repo.sendChatMessage('Just me');
+
+      expect(repo.chatMessages.last.askNext, isNull);
+      expect(
+        repo.chatMessages.last.suggestedReplies,
+        ['Just a day trip', '2 days, 1 night'],
+      );
+    });
+
     test('"what matters most" is offered, saved in order, and can be skipped', () async {
       final server = _Server((path, body) => reply(body, conversation: {
             'stage': 'recommend',
