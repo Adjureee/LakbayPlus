@@ -1079,6 +1079,13 @@ def _build_chat_input_summary(data: AIChatRequest) -> dict:
 # With stops already picked, "more" requests show a short list, not a full row.
 MORE_WITH_PICKS = 3
 
+# Appended when the model names a destination that is not in the catalog context.
+UNMATCHED_DESTINATION_NOTE = (
+    "\n\nI couldn't match that destination to an active "
+    "Lakbay catalog entry, so I kept your current destination selection. "
+    "Choose a destination from the preview or clarify the place."
+)
+
 _ADD_WORDS = re.compile(
     r"\b(add|include|put|insert|idagdag|dugang|dagdag)\b", re.IGNORECASE,
 )
@@ -1202,11 +1209,7 @@ async def _build_planning_chat_result(
                 changes.pop("destination_ids")
                 changes_json.pop("destination_ids", None)
                 update_status = "needs_clarification"
-                chat_response = (
-                    f"{chat_response}\n\nI couldn't match that destination to an active "
-                    "Lakbay catalog entry, so I kept your current destination selection. "
-                    "Choose a destination from the preview or clarify the place."
-                )
+                chat_response = f"{chat_response}{UNMATCHED_DESTINATION_NOTE}"
 
         current_values = current_state.model_dump(mode="json")
         for field_name, value in list(changes_json.items()):
@@ -1282,6 +1285,7 @@ async def _build_planning_chat_result(
     # "add" puts it in the plan; anything else offers that one place as a card. Either
     # way the place they named is never swapped for a ranking of the whole category.
     named_card_ids: list[int] = []
+    named_add_done = False
     output_intent_early = output.intent if output is not None else None
     if (
         catalog
@@ -1299,6 +1303,10 @@ async def _build_planning_chat_result(
                 )
                 changes_json["destination_ids"] = list(next_state.destination_ids)
                 update_status = "applied"
+                named_add_done = True
+                # The model's own id was refused above, but the place is now added by
+                # name, so the "couldn't match" note would contradict the reply.
+                chat_response = chat_response.replace(UNMATCHED_DESTINATION_NOTE, "")
                 chat_response = (
                     f"{chat_response}\n\nI added {single.name} to your plan."
                 )
@@ -1415,8 +1423,10 @@ async def _build_planning_chat_result(
                 # With no cards there is nothing to introduce, so say why. With
                 # some cards the model's reply stays and the reason is a note.
                 chat_response = recommendation_shortfall_reason
-    elif output_intent in {"question", "logistics", "smalltalk"}:
+    elif output_intent in {"question", "logistics", "smalltalk"} or named_add_done:
         # Q&A, logistics, and small talk stay concise text replies without card dumps.
+        # So does a named place that was just added: the traveler got what they asked
+        # for, and an earlier interest in the chat must not bring other cards back.
         pass
     elif named_card_ids:
         recommendations = await _named_place_cards(
