@@ -15,6 +15,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lakbay_travel/main.dart';
 import 'package:lakbay_travel/models/travel_models.dart';
+import 'package:lakbay_travel/screens/auth_screen.dart';
 import 'package:lakbay_travel/screens/trip_detail_screen.dart';
 import 'package:lakbay_travel/services/lakbay_api_catalog_service.dart';
 import 'package:lakbay_travel/services/travel_repository.dart';
@@ -86,6 +87,8 @@ void main() {
   final skip = _outDir == null ? 'Set SHOTS_DIR to render screenshots' : null;
 
   testWidgets('screens', skip: skip != null, (tester) async {
+    // flutter_test draws shadows as solid shapes; render them for real.
+    debugDisableShadows = false;
     await tester.runAsync(_loadIconFont);
     tester.view
       ..physicalSize = _size * _ratio
@@ -100,6 +103,14 @@ void main() {
       RepaintBoundary(key: key, child: LakbayTravelApp(repository: fresh)),
     );
     await _shot(tester, key, '00_welcome');
+    await tester.tap(find.text('Start planning'));
+    await _shot(tester, key, '00b_onboarding_step');
+    tester.state<NavigatorState>(find.byType(Navigator).first).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AuthScreen(repo: fresh, initialRegisterMode: true),
+      ),
+    );
+    await _shot(tester, key, '00c_auth');
     await tester.pumpWidget(const SizedBox());
 
     // Signed in, with a dated upcoming trip and an undated one.
@@ -183,6 +194,6 @@ void main() {
     );
     await _shot(tester, key, '07_chat_thread');
     await tester.pumpWidget(const SizedBox());
-    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));    debugDisableShadows = true;
   });
 }

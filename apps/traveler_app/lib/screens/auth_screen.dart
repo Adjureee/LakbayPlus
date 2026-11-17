@@ -1,9 +1,10 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import '../design/lakbay_tokens.dart';
+
+import '../design/design.dart';
 import '../services/friendly_error.dart';
 import '../services/travel_repository.dart';
-import '../design/lakbay_type.dart';
+import '../widgets/brand/lakbay_wordmark.dart';
 
 /// Full-screen traveler authentication flow supporting Account Creation
 /// (`Create your account`) and Sign In (`Welcome back`), including Google Sign-In,
@@ -59,15 +60,13 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _submitEmailAuth() async {
     if (_busy || _googleBusy) return;
-    final fullName =
-        _fullNameCtrl.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final fullName = _fullNameCtrl.text.trim().replaceAll(RegExp(r'\s+'), ' ');
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     final confirmPassword = _confirmPasswordCtrl.text;
 
     if (_isRegister &&
-        (fullName.length < 2 ||
-            fullName.toLowerCase() == 'lakbay traveler')) {
+        (fullName.length < 2 || fullName.toLowerCase() == 'lakbay traveler')) {
       setState(
         () => _error = 'Please enter your full name (at least 2 characters).',
       );
@@ -79,9 +78,7 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
     if (password.length < 8) {
-      setState(
-        () => _error = 'Password must be at least 8 characters long.',
-      );
+      setState(() => _error = 'Password must be at least 8 characters long.');
       return;
     }
     if (_isRegister && password != confirmPassword) {
@@ -104,16 +101,12 @@ class _AuthScreenState extends State<AuthScreen> {
             confirmPassword: confirmPassword,
           );
         } else {
-          await widget.repo.signInWithBackend(
-            email: email,
-            password: password,
-          );
+          await widget.repo.signInWithBackend(email: email, password: password);
         }
       } else {
         setState(() {
           _busy = false;
-          _error =
-              'Connect LAKBAY_API_BASE_URL to sign in or create your Lakbay+ account.';
+          _error = 'Connect LAKBAY_API_BASE_URL to sign in or create your Lakbay+ account.';
         });
         return;
       }
@@ -191,367 +184,353 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const surfaceBg = Color(0xFFFAF7F4);
-    // Mango is the one action color (PRODUCT.md, v8 direction).
-    const pillAction = LkColors.mango;
-    const pillActionText = LkColors.mangoInk;
-    const fieldBorder = Color(0xFFDED9D3);
+    final busy = _busy || _googleBusy;
+    final photo = widget.repo.currentBackdrop.localAssetPath;
+    final canPop = Navigator.of(context).canPop();
 
     return Scaffold(
-      backgroundColor: surfaceBg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (Navigator.of(context).canPop())
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  onPressed: _busy || _googleBusy
-                      ? null
-                      : () => Navigator.of(context).maybePop(false),
-                  icon: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 20,
-                    color: LkColors.text,
+      // The sheet's color, so it reads as one sheet down to the bottom edge.
+      backgroundColor: LkColors.s1,
+      body: Stack(
+        children: [
+          // Region XI photo behind the top of the sheet.
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: MediaQuery.sizeOf(context).height * 0.36,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  photo,
+                  fit: BoxFit.cover,
+                  excludeFromSemantics: true,
+                  errorBuilder: (_, _, _) => const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LkColors.surfaceGradient,
+                    ),
                   ),
-                  tooltip: 'Back',
                 ),
-              )
-            else
-              const SizedBox(height: 12),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 6, 24, 24),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                const DecoratedBox(
+                  decoration: BoxDecoration(gradient: LkColors.heroScrim),
+                ),
+              ],
+            ),
+          ),
+          SafeArea(
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      LkSpace.l,
+                      LkSpace.s,
+                      LkSpace.l,
+                      0,
+                    ),
+                    child: Row(
                       children: [
-                        Text(
-                          _isRegister
-                              ? 'Create your account'
-                              : 'Sign in to Lakbay+',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontFamily: LkType.displayFamily,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
-                            color: Color(0xFF1F1629),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          _isRegister
-                              ? 'Save your plans, trips and memories\nto your account.'
-                              : 'Restore your saved Davao Region trips,\nbucket list, and memories.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            height: 1.4,
-                            color: Color(0xFF6B6570),
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-
-                        // Continue with Google outlined pill
-                        SizedBox(
-                          height: 56,
-                          child: OutlinedButton(
-                            onPressed:
-                                _busy || _googleBusy ? null : _submitGoogleAuth,
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: LkColors.s2,
-                              foregroundColor: const Color(0xFF1F1629),
-                              side: const BorderSide(color: fieldBorder),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(32),
-                              ),
-                            ),
-                            child: _googleBusy
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.2,
-                                    ),
-                                  )
-                                : const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      _GoogleGMark(size: 22),
-                                      SizedBox(width: 14),
-                                      Text(
-                                        'Continue with Google',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF1F1629),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 22),
-                        const Row(
-                          children: [
-                            Expanded(child: Divider(color: fieldBorder)),
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 14),
-                              child: Text(
-                                'or',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1F1629),
-                                ),
-                              ),
-                            ),
-                            Expanded(child: Divider(color: fieldBorder)),
-                          ],
-                        ),
-                        const SizedBox(height: 22),
-
-                        if (_isRegister) ...[
-                          _AuthTextField(
-                            controller: _fullNameCtrl,
-                            hintText: 'Full name',
-                            keyboardType: TextInputType.name,
-                            borderColor: fieldBorder,
-                          ),
-                          const SizedBox(height: 14),
-                        ],
-                        // Email input
-                        _AuthTextField(
-                          controller: _emailCtrl,
-                          hintText: 'Email',
-                          keyboardType: TextInputType.emailAddress,
-                          borderColor: fieldBorder,
-                        ),
-                        const SizedBox(height: 14),
-
-                        // Password input with eye toggle
-                        _AuthTextField(
-                          controller: _passwordCtrl,
-                          hintText: 'Password',
-                          obscureText: _obscurePassword,
-                          borderColor: fieldBorder,
-                          suffixIcon: IconButton(
-                            onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            ),
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: const Color(0xFF3E3A45),
-                              size: 22,
-                            ),
-                            tooltip: _obscurePassword
-                                ? 'Show password'
-                                : 'Hide password',
-                          ),
-                        ),
-
-                        if (_isRegister) ...[
-                          const SizedBox(height: 14),
-                          _AuthTextField(
-                            controller: _confirmPasswordCtrl,
-                            hintText: 'Confirm password',
-                            obscureText: _obscureConfirm,
-                            borderColor: fieldBorder,
-                            suffixIcon: IconButton(
-                              onPressed: () => setState(
-                                () => _obscureConfirm = !_obscureConfirm,
-                              ),
-                              icon: Icon(
-                                _obscureConfirm
-                                    ? Icons.visibility_off_outlined
-                                    : Icons.visibility_outlined,
-                                color: const Color(0xFF3E3A45),
-                                size: 22,
-                              ),
-                              tooltip: _obscureConfirm
-                                  ? 'Show confirm password'
-                                  : 'Hide confirm password',
-                            ),
-                          ),
-                        ],
-
-                        if (_error != null) ...[
-                          const SizedBox(height: 14),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.redAccent.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: Colors.redAccent.withValues(alpha: 0.25),
-                              ),
-                            ),
-                            child: Text(
-                              _error!,
-                              style: const TextStyle(
-                                color: Colors.redAccent,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-
-                        const SizedBox(height: 24),
-
-                        // Primary Create account / Sign in pill
-                        SizedBox(
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed:
-                                _busy || _googleBusy ? null : _submitEmailAuth,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: pillAction,
-                              disabledBackgroundColor:
-                                  pillAction.withValues(alpha: 0.65),
-                              foregroundColor: pillActionText,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(32),
-                              ),
-                            ),
-                            child: _busy
-                                ? const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.3,
-                                      color: pillActionText,
-                                    ),
-                                  )
-                                : Text(
-                                    _isRegister ? 'Create account' : 'Sign in',
-                                    style: const TextStyle(
-                                      fontSize: 16.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 18),
-
-                        // Toggle Sign in / Create account
-                        Center(
-                          child: TextButton(
-                            onPressed: _busy || _googleBusy
+                        if (canPop)
+                          LkIconButton(
+                            icon: Icons.arrow_back_rounded,
+                            tooltip: 'Back',
+                            style: LkIconButtonStyle.glass,
+                            onPressed: busy
                                 ? null
-                                : () => setState(() {
-                                      _isRegister = !_isRegister;
-                                      _error = null;
-                                    }),
-                            child: RichText(
-                              text: TextSpan(
-                                style: const TextStyle(
-                                  fontSize: 14.5,
-                                  color: Color(0xFF49454F),
-                                ),
-                                children: [
-                                  TextSpan(
-                                    text: _isRegister
-                                        ? 'Already have an account? '
-                                        : 'New to Lakbay+? ',
-                                  ),
-                                  TextSpan(
-                                    text:
-                                        _isRegister ? 'Sign in' : 'Create account',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: Color(0xFF1F1629),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                                : () => Navigator.of(context).maybePop(false),
                           ),
-                        ),
+                        const Spacer(),
+                        const LakbayWordmark(fontSize: 24),
+                        const Spacer(),
+                        if (canPop) const SizedBox(width: kLkMinTarget),
                       ],
                     ),
                   ),
                 ),
-              ),
-            ),
-
-            // Bottom Legal Footer
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 18),
-              child: RichText(
-                textAlign: TextAlign.center,
-                text: TextSpan(
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    height: 1.45,
-                    color: Color(0xFF6B6570),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: MediaQuery.sizeOf(context).height * 0.14,
                   ),
-                  children: [
-                    const TextSpan(text: 'By continuing you agree to the '),
-                    TextSpan(
-                      text: 'Terms',
-                      style: const TextStyle(
-                        decoration: TextDecoration.underline,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      recognizer: TapGestureRecognizer()
-                        ..onTap = () => _showLegalDialog(
-                              context,
-                              'Terms of Service',
-                              'Lakbay+ plans trips across the Davao Region (Region XI) with AI. Prices and schedules come from local rates kept by the Lakbay+ team and are estimates, so confirm with the operator before you travel.',
-                            ),
-                    ),
-                    const TextSpan(text: ' and\n'),
-                    TextSpan(
-                      text: 'Privacy Policy.',
-                      style: const TextStyle(
-                        decoration: TextDecoration.underline,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      recognizer: TapGestureRecognizer()
-                        ..onTap = () => _showLegalDialog(
-                              context,
-                              'Privacy Policy',
-                              'Your account credentials, saved trips, and optional GPS location preferences are stored securely on your device and synced only to your Lakbay+ backend account when signed in.',
-                            ),
-                    ),
-                  ],
                 ),
+                SliverToBoxAdapter(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: LkColors.s1,
+                      borderRadius: LkRadius.sheetTop,
+                      border: Border(top: BorderSide(color: LkColors.stroke)),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(
+                      LkSpace.xxl,
+                      LkSpace.xxl,
+                      LkSpace.xxl,
+                      LkSpace.l,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: _buildForm(context, busy),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildForm(BuildContext context, bool busy) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          header: true,
+          child: Text(
+            _isRegister ? 'Create your account' : 'Sign in to Lakbay+',
+            style: LkType.h2,
+          ),
+        ),
+        const SizedBox(height: LkSpace.s),
+        Text(
+          _isRegister
+              ? 'Save your plans, trips and memories to your account.'
+              : 'Pick up your saved Davao Region trips, bucket list and '
+                    'memories.',
+          style: LkType.body.copyWith(color: LkColors.muted),
+        ),
+        const SizedBox(height: LkSpace.xxl),
+        SizedBox(
+          height: 52,
+          child: OutlinedButton(
+            onPressed: busy ? null : _submitGoogleAuth,
+            style: OutlinedButton.styleFrom(
+              backgroundColor: LkColors.s2,
+              foregroundColor: LkColors.text,
+              side: const BorderSide(color: LkColors.strokeStrong),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(LkRadius.sm),
               ),
             ),
+            child: _googleBusy
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const _GoogleGMark(size: 20),
+                      const SizedBox(width: LkSpace.m),
+                      Text(
+                        'Continue with Google',
+                        style: LkType.button.copyWith(fontSize: 15),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+        const SizedBox(height: LkSpace.xl),
+        Row(
+          children: [
+            const Expanded(child: Divider(color: LkColors.stroke)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: LkSpace.m),
+              child: Text('or with email', style: LkType.caption),
+            ),
+            const Expanded(child: Divider(color: LkColors.stroke)),
           ],
         ),
-      ),
+        const SizedBox(height: LkSpace.xl),
+        if (_isRegister) ...[
+          _AuthTextField(
+            controller: _fullNameCtrl,
+            label: 'Full name',
+            keyboardType: TextInputType.name,
+            autofillHints: const [AutofillHints.name],
+          ),
+          const SizedBox(height: LkSpace.m),
+        ],
+        _AuthTextField(
+          controller: _emailCtrl,
+          label: 'Email',
+          keyboardType: TextInputType.emailAddress,
+          autofillHints: const [AutofillHints.email],
+        ),
+        const SizedBox(height: LkSpace.m),
+        _AuthTextField(
+          controller: _passwordCtrl,
+          label: 'Password',
+          obscureText: _obscurePassword,
+          autofillHints: [
+            _isRegister ? AutofillHints.newPassword : AutofillHints.password,
+          ],
+          suffixIcon: IconButton(
+            onPressed: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
+            icon: Icon(
+              _obscurePassword
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              color: LkColors.muted,
+            ),
+            tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+          ),
+        ),
+        if (_isRegister) ...[
+          const SizedBox(height: LkSpace.m),
+          _AuthTextField(
+            controller: _confirmPasswordCtrl,
+            label: 'Confirm password',
+            obscureText: _obscureConfirm,
+            autofillHints: const [AutofillHints.newPassword],
+            suffixIcon: IconButton(
+              onPressed: () =>
+                  setState(() => _obscureConfirm = !_obscureConfirm),
+              icon: Icon(
+                _obscureConfirm
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                color: LkColors.muted,
+              ),
+              tooltip: _obscureConfirm
+                  ? 'Show confirm password'
+                  : 'Hide confirm password',
+            ),
+          ),
+        ],
+        if (_error != null) ...[
+          const SizedBox(height: LkSpace.m),
+          Semantics(
+            liveRegion: true,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: LkSpace.m,
+                vertical: LkSpace.s,
+              ),
+              decoration: BoxDecoration(
+                color: LkColors.danger.withValues(alpha: 0.12),
+                borderRadius: LkRadius.smAll,
+                border: Border.all(
+                  color: LkColors.danger.withValues(alpha: 0.45),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 1),
+                    child: Icon(
+                      Icons.error_outline_rounded,
+                      size: 18,
+                      color: LkColors.danger,
+                    ),
+                  ),
+                  const SizedBox(width: LkSpace.s),
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: LkType.label.copyWith(color: LkColors.text),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: LkSpace.xxl),
+        LkButton(
+          label: _isRegister ? 'Create account' : 'Sign in',
+          size: LkButtonSize.large,
+          expand: true,
+          loading: _busy,
+          onPressed: busy ? null : _submitEmailAuth,
+        ),
+        const SizedBox(height: LkSpace.s),
+        Center(
+          child: TextButton(
+            onPressed: busy
+                ? null
+                : () => setState(() {
+                    _isRegister = !_isRegister;
+                    _error = null;
+                  }),
+            child: Text.rich(
+              TextSpan(
+                text: _isRegister
+                    ? 'Already have an account? '
+                    : 'New to Lakbay+? ',
+                style: LkType.body.copyWith(color: LkColors.muted),
+                children: [
+                  TextSpan(
+                    text: _isRegister ? 'Sign in' : 'Create account',
+                    style: LkType.bodyStrong.copyWith(color: LkColors.mango),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: LkSpace.l),
+        Text.rich(
+          TextSpan(
+            style: LkType.caption,
+            children: [
+              const TextSpan(text: 'By continuing you agree to the '),
+              TextSpan(
+                text: 'Terms',
+                style: const TextStyle(
+                  decoration: TextDecoration.underline,
+                  color: LkColors.text,
+                ),
+                recognizer: TapGestureRecognizer()
+                  ..onTap = () => _showLegalDialog(
+                    context,
+                    'Terms of Service',
+                    'Lakbay+ plans trips across the Davao Region (Region XI) with AI. Prices and schedules come from local rates kept by the Lakbay+ team and are estimates, so confirm with the operator before you travel.',
+                  ),
+              ),
+              const TextSpan(text: ' and '),
+              TextSpan(
+                text: 'Privacy Policy.',
+                style: const TextStyle(
+                  decoration: TextDecoration.underline,
+                  color: LkColors.text,
+                ),
+                recognizer: TapGestureRecognizer()
+                  ..onTap = () => _showLegalDialog(
+                    context,
+                    'Privacy Policy',
+                    'Your account credentials, saved trips, and optional GPS location preferences are stored securely on your device and synced only to your Lakbay+ backend account when signed in.',
+                  ),
+              ),
+            ],
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }
 
 class _AuthTextField extends StatelessWidget {
   final TextEditingController controller;
-  final String hintText;
+  final String label;
   final TextInputType keyboardType;
   final bool obscureText;
   final Widget? suffixIcon;
-  final Color borderColor;
+  final Iterable<String>? autofillHints;
 
   const _AuthTextField({
     required this.controller,
-    required this.hintText,
+    required this.label,
     this.keyboardType = TextInputType.text,
     this.obscureText = false,
     this.suffixIcon,
-    required this.borderColor,
+    this.autofillHints,
   });
 
   @override
@@ -560,33 +539,9 @@ class _AuthTextField extends StatelessWidget {
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
-      style: const TextStyle(
-        fontSize: 15.5,
-        color: Color(0xFF1F1629),
-        fontWeight: FontWeight.w500,
-      ),
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: const TextStyle(
-          color: Color(0xFF8C8793),
-          fontSize: 15.5,
-        ),
-        filled: true,
-        fillColor: const Color(0xFFFAF7F4),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 18,
-          vertical: 18,
-        ),
-        suffixIcon: suffixIcon,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: borderColor, width: 1.2),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Color(0xFF8C6CEB), width: 1.6),
-        ),
-      ),
+      autofillHints: autofillHints,
+      style: LkType.bodyLarge,
+      decoration: InputDecoration(labelText: label, suffixIcon: suffixIcon),
     );
   }
 }

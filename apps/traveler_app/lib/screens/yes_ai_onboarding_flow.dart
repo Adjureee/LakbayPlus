@@ -1089,8 +1089,8 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             child: ElevatedButton(
               onPressed: _enterStageThreeAndGenerate,
               style: ElevatedButton.styleFrom(
-                backgroundColor: LkColors.s2,
-                foregroundColor: LkColors.text,
+                backgroundColor: LkColors.mango,
+                foregroundColor: LkColors.mangoInk,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -1311,8 +1311,8 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             child: ElevatedButton(
               onPressed: isReady ? _openGeneratedTrip : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: LkColors.s2,
-                foregroundColor: LkColors.text,
+                backgroundColor: LkColors.mango,
+                foregroundColor: LkColors.mangoInk,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(

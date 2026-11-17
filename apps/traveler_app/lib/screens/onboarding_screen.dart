@@ -1,13 +1,13 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/travel_repository.dart';
-import '../theme/lakbay_theme.dart';
 import '../widgets/origin_picker_sheet.dart';
 import 'yes_ai_onboarding_flow.dart';
 import 'auth_screen.dart';
 
 import '../design/lakbay_tokens.dart';
 import '../design/lakbay_type.dart';
+import '../widgets/welcome_hero.dart';
 class OnboardingScreen extends StatefulWidget {
   final TravelRepository repo;
 
@@ -198,180 +198,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   // Step 0: Hero Welcome Splash (Image 4)
   Widget _buildWelcomeSplash(BuildContext context) {
-    final backdrop = widget.repo.currentBackdrop;
-
-    return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.asset(
-            backdrop.localAssetPath,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => Container(
-              decoration: const BoxDecoration(
-                gradient: LkColors.surfaceGradient,
-              ),
-            ),
-          ),
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0x99071E26),
-                  Color(0x33071E26),
-                  Color(0xE6071E26),
-                ],
-                stops: [0.0, 0.42, 0.92],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Center(
-                    child: LakbayBrandWordmark(fontSize: 32, lightText: true),
-                  ),
-                  const Spacer(),
-                  const Text(
-                    'Tell it the vibe.\nGet the whole',
-                    style: TextStyle(
-                      fontFamily: LkType.displayFamily,
-                      fontSize: 34,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      height: 1.12,
-                      letterSpacing: -0.7,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: LkColors.s2,
-                          borderRadius: BorderRadius.circular(22),
-                        ),
-                        child: const Text(
-                          'trip',
-                          style: TextStyle(
-                            fontFamily: LkType.displayFamily,
-                            fontSize: 30,
-                            fontWeight: FontWeight.w800,
-                            color: LkColors.text,
-                            height: 1.08,
-                          ),
-                        ),
-                      ),
-                      const Text(
-                        '.',
-                        style: TextStyle(
-                          fontFamily: LkType.displayFamily,
-                          fontSize: 34,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.place_outlined,
-                        size: 15,
-                        color: LkColors.text,
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'Real Region XI places',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13.5,
-                        ),
-                      ),
-                      const SizedBox(width: 18),
-                      const Icon(
-                        Icons.route_outlined,
-                        size: 15,
-                        color: LkColors.text,
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'Day-by-day plans',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _nextStep,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: LkColors.s2,
-                        foregroundColor: LkColors.text,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      child: const Text(
-                        'Get started',
-                        style: TextStyle(
-                          fontFamily: LkType.displayFamily,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Center(
-                    child: TextButton(
-                      onPressed: _showSignInSheet,
-                      child: RichText(
-                        text: TextSpan(
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            fontSize: 13.5,
-                          ),
-                          children: const [
-                            TextSpan(text: 'Already used Lakbay+? '),
-                            TextSpan(
-                              text: 'Sign in',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+    return WelcomeHero(
+      photoAsset: widget.repo.currentBackdrop.localAssetPath,
+      onStart: _nextStep,
+      onSignIn: _showSignInSheet,
     );
   }
 
@@ -429,8 +259,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             child: ElevatedButton(
               onPressed: _nextStep,
               style: ElevatedButton.styleFrom(
-                backgroundColor: LkColors.s2,
-                foregroundColor: LkColors.text,
+                backgroundColor: LkColors.mango,
+                foregroundColor: LkColors.mangoInk,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -509,8 +339,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           child: ElevatedButton(
             onPressed: _nextStep,
             style: ElevatedButton.styleFrom(
-              backgroundColor: LkColors.s2,
-              foregroundColor: LkColors.text,
+              backgroundColor: LkColors.mango,
+              foregroundColor: LkColors.mangoInk,
               elevation: 2,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
@@ -669,8 +499,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             child: ElevatedButton(
               onPressed: _nextStep,
               style: ElevatedButton.styleFrom(
-                backgroundColor: LkColors.s2,
-                foregroundColor: LkColors.text,
+                backgroundColor: LkColors.mango,
+                foregroundColor: LkColors.mangoInk,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -843,8 +673,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               onPressed:
                   _requestingLocation ? null : _handleShareLocationAndContinue,
               style: ElevatedButton.styleFrom(
-                backgroundColor: LkColors.s2,
-                foregroundColor: LkColors.text,
+                backgroundColor: LkColors.mango,
+                foregroundColor: LkColors.mangoInk,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(

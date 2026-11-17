@@ -555,6 +555,7 @@ void main() {
     await tester.enterText(fields.at(2), 'Password123!');
     await tester.enterText(fields.at(3), 'Password123!');
     await tester.ensureVisible(find.text('Create account'));
+    await tester.pump();
     await tester.tap(find.text('Create account'));
     await tester.pump();
     expect(
@@ -567,6 +568,7 @@ void main() {
     await tester.enterText(fields.at(0), 'Elena Cruz');
     await tester.enterText(fields.at(3), 'Different123!');
     await tester.ensureVisible(find.text('Create account'));
+    await tester.pump();
     await tester.tap(find.text('Create account'));
     await tester.pump();
     expect(find.text('Passwords do not match.'), findsOneWidget);
@@ -575,6 +577,7 @@ void main() {
     // Matching passwords submit to /auth/register with explicit full name
     await tester.enterText(fields.at(3), 'Password123!');
     await tester.ensureVisible(find.text('Create account'));
+    await tester.pump();
     await tester.tap(find.text('Create account'));
     await tester.pump();
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
@@ -589,6 +592,7 @@ void main() {
 
     // Continue with Google calls /auth/google and replaces previous account profile
     await tester.ensureVisible(find.text('Continue with Google'));
+    await tester.pump();
     await tester.tap(find.text('Continue with Google'));
     await tester.pump();
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
@@ -1127,7 +1131,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('Get started'));
+    await tester.tap(find.text('Start planning'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -1291,7 +1295,7 @@ void main() {
     await tester.pump();
 
     // Welcome -> Trip decision ('Yes' selected by default) -> YesAiOnboardingFlow Stage 0 (Try AI)
-    await tester.tap(find.text('Get started'));
+    await tester.tap(find.text('Start planning'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
