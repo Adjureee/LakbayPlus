@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../core/day_labels.dart';
 import '../core/lakbay_motion.dart';
 import 'package:animations/animations.dart';
@@ -10,6 +11,7 @@ import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_image.dart';
 import '../widgets/notifications_sheet.dart';
 import '../widgets/origin_picker_sheet.dart';
+import '../widgets/user_avatar.dart';
 import 'trip_detail_screen.dart';
 
 class HomeChatScreen extends StatefulWidget {
@@ -963,7 +965,34 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton.icon(
+                  key: const ValueKey('drawer-new-chat'),
+                  onPressed: () {
+                    widget.repo.startNewChat();
+                    Navigator.of(context).pop();
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: LakbayColors.tealDeep,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 20),
+                  label: const Text(
+                    'New chat',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1001,49 +1030,102 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 ],
               ),
             ),
+            if (_lastDeleted != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Material(
+                  color: LakbayColors.tealDeep,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 14),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Chat deleted',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        TextButton(
+                          key: const ValueKey('undo-delete'),
+                          onPressed: _undoDelete,
+                          child: const Text(
+                            'Undo',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            const Divider(height: 1, color: LakbayColors.cardBorder),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      widget.repo.setActiveNavIndex(4);
-                    },
-                    child: CircleAvatar(
-                      radius: 22,
-                      backgroundColor: LakbayColors.primaryLight,
-                      child: Text(
-                        widget.repo.profile.initials,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          color: LakbayColors.primaryDark,
+                  Expanded(
+                    child: InkWell(
+                      key: const ValueKey('drawer-profile'),
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        widget.repo.setActiveNavIndex(4);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Row(
+                          children: [
+                            UserAvatar(
+                              imageUrl: widget.repo.profile.avatarUrl,
+                              initials: widget.repo.profile.initials,
+                              size: 44,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.repo.profile.fullName.isEmpty
+                                        ? 'Your profile'
+                                        : widget.repo.profile.fullName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14.5,
+                                      color: LakbayColors.tealDeep,
+                                    ),
+                                  ),
+                                  if (widget.repo.profile.username.isNotEmpty)
+                                    Text(
+                                      '@${widget.repo.profile.username}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        color: LakbayColors.textSecondary,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                  const Spacer(),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      widget.repo.startNewChat();
-                      Navigator.of(context).pop();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: LakbayColors.tealDeep,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 13,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                    ),
-                    icon: const Icon(Icons.add_rounded, size: 20),
-                    label: const Text(
-                      'New Chat',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                  IconButton(
+                    key: const ValueKey('drawer-clear-all'),
+                    tooltip: 'Clear all chats',
+                    onPressed: () => _confirmClearAllChats(context),
+                    icon: const Icon(
+                      Icons.delete_sweep_outlined,
+                      color: LakbayColors.textSecondary,
                     ),
                   ),
                 ],
@@ -1055,8 +1137,79 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
     );
   }
 
+  // The last deleted chat, offered back inside the drawer (a snackbar would sit
+  // under the drawer's dark overlay, where its Undo cannot be tapped).
+  ({ChatSession session, int index})? _lastDeleted;
+  Timer? _undoTimer;
+
+  void _deleteChat(BuildContext context, ChatSession session) {
+    final removed = widget.repo.deleteChatSession(session.id);
+    if (removed == null) return;
+    _undoTimer?.cancel();
+    setState(() => _lastDeleted = removed);
+    _undoTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) setState(() => _lastDeleted = null);
+    });
+  }
+
+  void _undoDelete() {
+    final removed = _lastDeleted;
+    if (removed == null) return;
+    _undoTimer?.cancel();
+    setState(() => _lastDeleted = null);
+    widget.repo.restoreChatSession(removed.session, removed.index);
+  }
+
+  Future<void> _confirmClearAllChats(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear all chats?'),
+        content: const Text(
+          'This removes every chat from this phone. It cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            key: const ValueKey('confirm-clear-all'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Clear all'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    widget.repo.clearChatHistory();
+    if (context.mounted) Navigator.of(context).pop();
+  }
+
   Widget _buildDrawerSessionTile(BuildContext context, ChatSession session) {
     final isSelected = session.id == widget.repo.activeChatId;
+    return Dismissible(
+      key: ValueKey('chat-tile-${session.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: Colors.red.shade600,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+      ),
+      onDismissed: (_) => _deleteChat(context, session),
+      child: _drawerTile(context, session, isSelected),
+    );
+  }
+
+  Widget _drawerTile(
+    BuildContext context,
+    ChatSession session,
+    bool isSelected,
+  ) {
     return ListTile(
       selected: isSelected,
       selectedTileColor: LakbayColors.primaryLight.withValues(alpha: 0.45),
