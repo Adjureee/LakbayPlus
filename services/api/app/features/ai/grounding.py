@@ -41,6 +41,11 @@ _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 # Keys whose values are identifiers or coordinates, never a price or a time.
 _SKIP_KEYS = {"score", "lat", "lng", "arrival_lat", "arrival_lng"}
 
+NO_DATA_ANSWER = (
+    "I don't have confirmed times, distances or prices for that in Lakbay's records, "
+    "so I won't guess."
+)
+
 FIGURE_NOTE = (
     "I left out some times, distances and prices because Lakbay's records "
     "do not confirm them."
@@ -154,6 +159,12 @@ def ground_figures(reply: str, support_text: str) -> tuple[str, int]:
     if not dropped:
         return reply, 0
     text = re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip()
-    if FIGURE_NOTE not in text:
-        text = f"{text}\n\n{FIGURE_NOTE}" if text else FIGURE_NOTE
+    if NO_DATA_ANSWER in text or FIGURE_NOTE in text:
+        return text, dropped
+    sentences = [s for line in text.split("\n") for s in _SENTENCE_END.split(line) if s.strip()]
+    if all(s.rstrip().endswith("?") for s in sentences):
+        # Only a follow-up question is left: the answer itself was the unsupported part.
+        text = f"{NO_DATA_ANSWER}\n\n{text}" if text else NO_DATA_ANSWER
+    else:
+        text = f"{text}\n\n{FIGURE_NOTE}"
     return text, dropped
