@@ -38,3 +38,30 @@ Results at the last full runs: traveler app 275 passing; API 907 passing, 1 skip
 
 1. Deploy the API on Render and apply the migration to the production database.
 2. After that: upload a cover from the phone, remove it, and run the three-picks conversation against the live model.
+
+## Live check against production (17 Nov 2026)
+
+Done on the phone against the live API, in a new chat: "show me beach resorts", pick one resort, "add the National Museum", then "any other museums".
+
+| Round | Deployed | Result |
+|---|---|---|
+| 1 | Prompt v13 and card rules (`efe7a7b`) | The museum was added, but the reply also said "I couldn't match that destination…", and beach cards came back after the add. |
+| 2 | `c749793` | Both fixed. But the model wrote "Added Dahican Surf Resort" while the server added the National Museum. |
+| 3 | `9b64fe4` | The model labelled the message a question and said the museum was outside the region; nothing was added. |
+| 4 | `52e2639` | Passed: "Added National Museum of the Philippines - Davao: that makes 2 stops in your plan (Lanikai Hijo Estate Resort, National Museum of the Philippines - Davao). Want to add more or start planning?" No contradictory note, no stray cards. |
+
+"Any other museums?" in the final round returned museum cards (Museo Panabo and others).
+
+Fixes made because of the live runs, each with a test that reproduces the live case: a name-based add no longer prints the "couldn't match" note and shows no cards; only the named place is added and the server writes the confirmation; an explicit "add" works whatever intent the model chose.
+
+### Still imperfect
+
+- The model's wording is not fully controlled. In round 1 of one run it listed place names in prose, and "any other museums?" named D' Bone Collector and Museo Dabawenyo in the text while the cards showed Museo Panabo and another. The cards come from the server; the prose comes from the model.
+- On one run the model's first reply was unusable and the app showed "I couldn't safely update your plan from that response" (the cards still appeared).
+- The 3-card limit for "more of a kind" was seen only in tests; the number of cards on the phone was not counted.
+- The "any other museums?" step after a name-based add was run once.
+
+### Still not checked
+
+- Cover photo upload and remove from the phone (the endpoint is live; no photo was uploaded).
+- Swipe-to-delete and Clear all on the phone.
