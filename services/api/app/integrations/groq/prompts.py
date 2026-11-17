@@ -1,4 +1,5 @@
 import json
+import re
 from decimal import Decimal
 from typing import Any
 
@@ -12,7 +13,7 @@ from app.features.recommendations.schemas import RecommendationItem
 
 PROMPT_VERSION = "phase5_itinerary_picks_only_v4"
 PLANNING_PROMPT_VERSION = "phase15e_picks_compact_v7"
-CHAT_PROMPT_VERSION = "phase5_chat_v14_english_stays_english"
+CHAT_PROMPT_VERSION = "phase5_chat_v15_cards_origin_names"
 ONBOARDING_CHAT_PROMPT_VERSION = "onboarding_v1"
 
 _LANGUAGE_LABELS: dict[str, str] = {
@@ -461,6 +462,17 @@ def build_chat_messages(
             "padding. 5) Questions, logistics, thanks and small talk get no cards. "
             "6) In the picking stage the reply names ALL the picks and how many "
             "there are, then offers add more or plan the trip. "
+            "7) START PLACE. The traveler starts at traveler_origin.label. A route, "
+            "fare or travel time in retrieved_lakbay_context with "
+            "starts_at_traveler_origin false is NOT their trip: use it only if you "
+            "say where it starts (for example \"from Davao City\"), and never offer "
+            "it to someone who already starts in that town. Text such as "
+            "how_to_get_there is written for travelers coming from Davao City unless "
+            "it says otherwise. Never say a place in the traveler's own town is "
+            "far away. When you have no figure from their start place, say so. "
+            "8) NAMES. When cards are shown, do not name any place in chat_response "
+            "that is not one of the cards; describe the kind of place and let the "
+            "cards show the names. "
             "Examples with picked_places = Beach A, Beach B, Beach C. "
             "Traveler: \"add the National Museum\" -> intent \"modify_trip\", "
             "state_updates.destination_ids = the three picked ids plus the "
@@ -534,6 +546,16 @@ def build_chat_messages(
             request.planning_state,
         ).as_prompt_payload()
         context_payload["picked_places"] = picked_places or []
+        origin = request.planning_state.origin
+        origin_label = origin.label if origin is not None and origin.label else None
+        context_payload["traveler_origin"] = {
+            "label": origin_label,
+            "is_davao_city": bool(origin_label and "davao city" in origin_label.lower()),
+        }
+        # A fare or route that starts somewhere else is not this traveler's trip.
+        context_payload["retrieved_lakbay_context"] = [
+            _with_origin_flag(item, origin_label) for item in (retrieved_context or [])
+        ]
         context_payload["available_interests"] = available_interests()
         context_payload["available_categories"] = available_categories or []
     messages.append(
@@ -546,6 +568,37 @@ def build_chat_messages(
     )
 
     return messages
+
+
+_ORIGIN_STOP_WORDS = {
+    "city", "proper", "del", "norte", "sur", "oriental", "occidental", "oro", "and", "the",
+}
+
+
+def _place_tokens(text: str) -> set[str]:
+    return {
+        word for word in re.findall(r"[a-z]+", text.lower())
+        if len(word) >= 4 and word not in _ORIGIN_STOP_WORDS
+    }
+
+
+def origin_applies(route_from: str, origin_label: str | None) -> bool:
+    """True when a route that starts at `route_from` starts where the traveler does."""
+    if not origin_label:
+        return False
+    a, b = _place_tokens(route_from), _place_tokens(origin_label)
+    return bool(a & b)
+
+
+def _with_origin_flag(item: dict[str, Any], origin_label: str | None) -> dict[str, Any]:
+    """Marks transport records with whether they start at the traveler's own place."""
+    if item.get("source") != "transportation" or not isinstance(item.get("facts"), dict):
+        return item
+    facts = dict(item["facts"])
+    facts["starts_at_traveler_origin"] = origin_applies(
+        str(facts.get("route_from") or ""), origin_label,
+    )
+    return {**item, "facts": facts}
 
 
 def available_interests() -> list[dict[str, Any]]:
