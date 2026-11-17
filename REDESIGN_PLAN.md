@@ -123,7 +123,24 @@ These are the bugs found in the UI/UX study.
 
 **Done when:** a dated trip moves between Upcoming, Ongoing and Past on its own, every delete can be confirmed and undone, and no screen shows a number the data doesn't support.
 
-## Phase 4: Traveler screen rebuilds (large)
+## Phase 4: Traveler screen rebuilds (large) ✅ done, with gaps listed below
+
+> **What was built (2026-11-17)**
+> - **Whole app on v8:** `MaterialApp` uses `LakbayDesignTheme.dark`. Every legacy screen was recolored by role (text, surface, border) to `LkColors`, then the main screens were rebuilt by hand. FigGrotesk, Inter, Outfit and the light `AppTheme` are gone; headings use Bricolage (`LkType.displayFamily`, bundled as `LakbayDisplay`), body text Manrope. `LakbayColors` remains only for the Mapbox widget's markers.
+> - **4.1 Shell:** `LkFloatingNavBar` (Trips, Discover, Chat, Memories, Profile).
+> - **4.2 Welcome and sign-in:** `widgets/welcome_hero.dart` (drifting photo, mango route Davao City → Samal with glass pins, headline, Start planning / Sign in, reduced-motion aware, scrolls on short screens). Sign-in/register is a dark sheet over the photo with labelled fields, autofill hints and announced errors. No language chip on Welcome: the language setting only changes catalog content, so the chip would overpromise.
+> - **4.3 Trips home:** countdown, next-trip card with route line and stacked cards, Explore Region XI rail, date filters, confirm/undo delete. Weather chip only with real data.
+> - **4.4 Chat:** v8 header, landing, mango user bubbles, plain AI replies, typing skeleton, quick follow-ups, composer with trip options, mic and send. `widgets/chat_plan_card.dart` draws the route from the trip's own coordinates and shows the budget split only when the server's `budget.category_totals` add up to the total.
+> - **4.5 Trip detail:** glass header buttons, mango tab indicator, numbered dotted Day-by-Day timeline with ride/ferry chips. Maps default to the dark Night Nav style. Placeholder day temperatures are no longer shown.
+> - **4.6 / 4.7:** Discover copy, Memories grouped by place with the shared empty state, Profile badges from real dates, no assumed travel companion.
+> - **Screenshots:** `SHOTS_DIR=<dir> flutter test test/screenshots` renders the main screens to PNG with real fonts, icons and shadows.
+>
+> **Not built yet (carry into Phase 5 or later):**
+> - The **live-day view** (draggable sheet with next stop, ETA, progress bar, "Move earlier" warnings, Directions button). `trip_route_map_screen.dart` is recolored but keeps its old layout.
+> - **Onboarding** still has the original steps (trip decision, try-AI, product points, location), restyled. The 3-step "who, budget, interests" version was not built because the try-AI flow is covered by tests and works.
+> - **Place detail** with a gallery and sticky "Add to trip" (Discover's existing detail is recolored only).
+> - Not checked on a real Android phone yet; all checks were widget tests and test-rendered screenshots (network photos don't load in tests).
+
 
 Rebuild one screen at a time, in this order, so each step stays demoable. The biggest files get split into `widgets/` as they are touched:
 - `explore_screen.dart` (2,553 lines)
