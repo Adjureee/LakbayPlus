@@ -806,7 +806,9 @@ def test_planning_chat_invalid_structured_output_keeps_current_preview(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["planning"]["update_status"] == "invalid_output"
+    # A plain-text answer is shown as it is; nothing in the plan changes from it.
+    assert body["chat_response"] == "This is not the required JSON object."
+    assert body["planning"]["update_status"] == "no_changes"
     assert body["planning"]["state_updates"] == {}
     assert body["planning"]["preview"]["input_revision"] == 3
     assert body["planning"]["preview"]["state"]["day_count"] == 3
@@ -1804,3 +1806,72 @@ def test_quick_replies_stay_when_the_next_question_is_a_free_one(
     assert response.json()["planning"]["suggested_replies"] == [
         "Just a day trip", "2 days, 1 night",
     ]
+
+
+def _chat_with_model_reply(client, model_reply, message, state=None):
+    admin = admin_headers(client)
+    destination = create_destination(client, headers=admin, name="Bemwa Farm", **verified_arrival(0))
+    client.app.dependency_overrides[get_groq_client] = lambda: FakeGroqClient([model_reply])
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=user_headers(client),
+        json={
+            "message": message,
+            "use_rag": True,
+            "planning_state": state or {"origin": {"label": "Davao City"}},
+        },
+    )
+    assert response.status_code == 200, response.text
+    return destination, response.json()
+
+
+def test_cut_off_json_still_gives_the_traveler_its_answer(client, monkeypatch) -> None:
+    configure_ai(monkeypatch)
+    _, body = _chat_with_model_reply(
+        client, '{"chat_response": "Samal is a short boat ride from Davao City.", "state_upd',
+        "How far is Samal?",
+    )
+    assert body["chat_response"] == "Samal is a short boat ride from Davao City."
+    assert "couldn't safely update" not in body["chat_response"]
+    assert body["planning"]["state_updates"] == {}
+
+
+@pytest.mark.parametrize(
+    "model_reply",
+    [
+        "", "   ", '{"unexpected": 1}', "```python print(1) ```",
+        # Text that says something was saved, when nothing was.
+        "I added Bemwa Farm to your plan.",
+        '{"chat_response": "I set your budget to 700.", "state_upd',
+    ],
+)
+def test_an_unusable_model_reply_keeps_the_generic_fallback(
+    client, monkeypatch, model_reply,
+) -> None:
+    configure_ai(monkeypatch)
+    _, body = _chat_with_model_reply(client, model_reply, "Tell me about Samal")
+    assert "couldn't safely update your plan" in body["chat_response"]
+    assert body["planning"]["update_status"] == "invalid_output"
+
+
+def test_a_question_about_a_place_never_adds_it(client, monkeypatch) -> None:
+    """Live case: "What time does Museo Panabo open?" ended with
+    "I added Museo Panabo to your plan."."""
+    configure_ai(monkeypatch)
+    _, body = _chat_with_model_reply(
+        client, "Sorry, I am not sure about the hours.", "What time does Bemwa Farm open?",
+    )
+    assert "I added" not in body["chat_response"]
+    assert body["planning"]["state_updates"] == {}
+    assert body["planning"]["preview"]["state"]["destination_ids"] == []
+
+
+def test_a_question_label_from_the_model_also_blocks_the_add(client, monkeypatch) -> None:
+    configure_ai(monkeypatch)
+    reply = json.dumps({
+        "chat_response": "Bemwa Farm is a quiet farm stay.",
+        "state_updates": {}, "intent": "question",
+    })
+    _, body = _chat_with_model_reply(client, reply, "bemwa farm tell me more")
+    assert "I added" not in body["chat_response"]
+    assert body["planning"]["state_updates"] == {}

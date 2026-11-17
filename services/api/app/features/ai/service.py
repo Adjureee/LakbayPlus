@@ -1193,9 +1193,12 @@ async def _build_planning_chat_result(
     if output is not None:
         output, unconfirmed_fields = _reject_unconfirmed_trip_details(output, data)
 
-    update_status = "invalid_output"
+    # When the model ignored the JSON format but still wrote a usable answer, the
+    # traveler gets that answer; nothing in the plan is changed from it.
+    salvaged = _salvage_reply(content) if output is None else None
+    update_status = "no_changes" if salvaged else "invalid_output"
     validation_status = "invalid"
-    chat_response = fallback_response
+    chat_response = salvaged or fallback_response
     changes_json: dict = {}
     next_state = current_state
     if output is not None:
@@ -1293,9 +1296,14 @@ async def _build_planning_chat_result(
         if catalog and not next_state.destination_ids
         else []
     )
+    # A question about a place ("What time does Museo Panabo open?") is not a request
+    # to add it.
+    asking = _looks_like_question(data.message) or (
+        output is not None and output.intent in {"question", "logistics", "smalltalk"}
+    )
     auto_added = (
         pick_single_destination(data.message, catalog)
-        if resolver_matches and not current_state.destination_ids
+        if resolver_matches and not current_state.destination_ids and not asking
         else None
     )
     if auto_added is not None:
@@ -1599,6 +1607,66 @@ def _parse_trip_draft(content: str) -> dict | None:
                 activity["lat"] = None
                 activity["lng"] = None
     return draft
+
+
+_QUESTION_START = re.compile(
+    r"^\s*(what|when|where|which|who|whom|whose|why|how|is|are|was|were|does|do|did|"
+    r"can|could|will|would|should|may|might|unsa|asa|kanus-a|kanusa|pila|ngano|ano|"
+    r"saan|kailan|magkano|paano|sino|bakit)\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_question(message: str) -> bool:
+    text = message.strip()
+    return text.endswith("?") or _QUESTION_START.match(text) is not None
+
+
+_CHAT_RESPONSE_FIELD = re.compile(
+    r'"chat_response"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL,
+)
+
+
+_CLAIMS_A_CHANGE = re.compile(
+    r"\b(i(?:'ve|\s+have)?\s+(?:added|set|updated|saved|changed|chose|selected|booked|removed)"
+    r"|(?:added|updated|saved|booked|removed)\s+(?:the|your|it|that|them|those)\b"
+    r"|(?:has|have)\s+been\s+(?:added|updated|saved|booked|removed))",
+    re.IGNORECASE,
+)
+
+
+def _salvage_reply(content: str) -> str | None:
+    """The traveler-facing text from a model reply that is not valid planning JSON.
+
+    Broken or cut-off JSON still holds a "chat_response" string; a plain-text reply
+    is the answer itself. Anything else (empty, a bare JSON object, code) gives None
+    and the caller keeps the generic fallback.
+    """
+    text = (content or "").strip()
+    if not text:
+        return None
+    candidate: str | None = None
+    field = _CHAT_RESPONSE_FIELD.search(text)
+    if field is not None:
+        try:
+            json.loads(_strip_json_fence(text))
+            # Valid JSON that was still refused (for example a field the model may
+            # not set): its text may claim changes that were never made.
+            return None
+        except (TypeError, ValueError):
+            pass
+        try:
+            candidate = json.loads(f'"{field.group(1)}"').strip()
+        except ValueError:
+            return None
+    elif text[0] not in "{[`" and '"state_updates"' not in text and len(text) <= 1500:
+        candidate = text
+    if not candidate:
+        return None
+    # Nothing was saved, so never show text that says something was.
+    if _CLAIMS_A_CHANGE.search(candidate):
+        return None
+    return _restore_line_breaks(candidate)
 
 
 def _restore_line_breaks(text: str) -> str:
