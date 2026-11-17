@@ -9,14 +9,26 @@ The plan has seven phases, done in order. Each phase ends with something you can
 
 ---
 
-## Phase 0: Safety net (small)
+## Phase 0: Safety net (small) ✅ done
+
+> Done 2026-11-17. Git initialized with a baseline commit (`.env` files and local `.pgdata` excluded). Baseline: `flutter analyze` clean, 124 traveler tests passing.
 
 The project folder is **not a git repository** today, so nothing can be reviewed or undone.
 
 1. Run `git init` and make a first commit of the current state. Each phase then becomes its own commit, so any step can be rolled back before the defense.
 2. Record a baseline: `flutter analyze` and `flutter test` in both apps, plus a screenshot of each current screen for before/after slides.
 
-## Phase 1: Design system (medium)
+## Phase 1: Design system (medium) ✅ done
+
+> Done 2026-11-17.
+> - **Code:** `lib/design/`. Tokens are in `lakbay_tokens.dart`, type in `lakbay_type.dart`, the theme in `lakbay_design_theme.dart`, and shared widgets in `widgets/`. Import everything with `design/design.dart`.
+> - **Tests:** `test/design_system_test.dart` (21 tests) covers AA contrast for every text color pair, 48dp targets, screen-reader labels, motion off, confirm and undo, the snackbar sitting above the tab bar, and the preview at 1.0× and 1.3× text without overflow.
+> - **Live gallery:** in debug builds, open `/#/design-preview`.
+>
+> **Changes from the original plan:**
+> - **The app-wide theme switches in Phase 4, not here.** The old screens hard-code the light palette (for example `LakbayColors.tealDeep` 212 times, often on white cards), so flipping the whole app to dark now would leave unreadable text. Each screen moves to `LakbayDesignTheme.dark` as it is rebuilt. The old `theme/lakbay_theme.dart` is deleted once the last screen has moved.
+> - **Fonts still load at runtime** through `google_fonts` (the package already in use), which caches them on the phone after the first launch. Bundling the `.ttf` files for a fully offline demo moves to Phase 7.
+> - **The tab bar goes in `Scaffold.bottomNavigationBar` with `extendBody: true`,** so snackbars sit above it and scrolling content gets the right bottom padding automatically.
 
 This is the foundation. Every later phase uses it.
 
@@ -49,7 +61,7 @@ The traveler app currently has **two theme files** (`lib/theme/lakbay_theme.dart
 | `LkEmptyState`, `LkErrorState`, `LkSkeleton` | One look for loading, empty and failed states on every screen |
 | `showLkConfirm()`, `showLkUndoSnack()` | Confirmation sheet for destructive actions, and a snackbar with Undo |
 
-**Done when:** the app builds on the new theme, no screen imports the old theme files, and `grep "Color(0x" lib/screens` returns nothing.
+**Done when** (now checked at the end of Phase 4): the app builds on the new theme, no screen imports the old theme files, and `grep "Color(0x" lib/screens` returns nothing.
 
 ## Phase 2: Brand cleanup (small)
 
@@ -208,6 +220,7 @@ The admin app already has light, dark and system themes and good AA tokens. It n
 ## Phase 7: Verify and prepare the defense (small)
 
 1. `flutter analyze` is clean, and `flutter test` passes in both apps.
+   Also bundle Bricolage Grotesque and Manrope as `.ttf` assets so the demo runs fully offline.
 2. Add a few **widget tests** for logic that is easy to break:
    - trip status from dates (Upcoming, Ongoing, Past, Undated)
    - countdown label

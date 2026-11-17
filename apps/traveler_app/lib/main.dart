@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'design/design_preview_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/explore_screen.dart';
 import 'screens/home_chat_screen.dart';
@@ -83,6 +85,14 @@ class _LakbayTravelAppState extends State<LakbayTravelApp>
           title: 'Lakbay+ — AI Travel Planner',
           debugShowCheckedModeBanner: false,
           theme: LakbayTheme.lightTheme,
+          // Debug-only gallery of the v8 design system (open /#/design-preview).
+          onGenerateRoute: (settings) =>
+              kDebugMode && settings.name == '/design-preview'
+                  ? MaterialPageRoute<void>(
+                      settings: settings,
+                      builder: (_) => const DesignPreviewScreen(),
+                    )
+                  : null,
           home: !_repo.isInitialized
               ? const _SplashLoadingScreen()
               : (!_repo.hasCompletedOnboarding

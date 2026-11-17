@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "traveler-web",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": ["run", "-d", "web-server", "--web-port", "8790", "--web-hostname", "127.0.0.1"],
+      "cwd": "apps/traveler_app",
+      "port": 8790
+    }
+  ]
+}
