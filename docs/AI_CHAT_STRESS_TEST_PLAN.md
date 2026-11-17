@@ -505,3 +505,14 @@ Fine-tuning stays out of scope until the stress results show problems that promp
 2. **New data fields and tables.** Phase 2 needs new columns (for example last-verified date and source, structured hours) and probably an activities table. Each needs your approval and a migration. Should I draft that design for review before any change?
 3. **Scope and order.** This is several weeks of work. Recommended order: stress baseline first (it measures what is actually broken), then Phase 1, then Phase 2 data design, then Phases 3 and 4. Is that right, or do you want Phase 2 or 3 earlier?
 4. **Data entry.** Structured hours, fees, last-verified dates, photos and activities have to come from someone who knows the places. Will you or your team enter them in the admin app?
+
+## C5. Decisions recorded (17 Nov 2026)
+
+| Question | Your answer | What it changes |
+|---|---|---|
+| Five itineraries or one? | **One itinerary plus revisions** | The "Compare AI Itinerary Options" row of five becomes a single itinerary that respects the picks, with revisions. The five cards stay as five **places** to choose from. Planned in Phase 3. |
+| Design the new place data first? | **Yes, design first** | Before any database change I write a short design doc: new columns (last-verified date and source, structured hours, an "unknown" value for accessibility flags), an activities table, migration steps and admin app forms. Nothing changes until you approve it. |
+| Order of work | **Stress baseline, then Phase 1** | S0 audit, S1 stress script, S2 baseline run, then the conversation fixes, then the data design, then Phases 3 and 4. |
+| Who enters the place data | **You, in the admin app** | I build the admin forms; you fill them in over time. Places without data keep showing "not listed". |
+
+Still open from section 6: the run budget for the stress baseline (proposed cap: 300 AI calls), and where it runs (recommended: a local API reading the production catalog read-only).
