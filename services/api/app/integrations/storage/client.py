@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from io import BytesIO
 
@@ -6,6 +7,8 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import LakbayAPIError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -66,6 +69,16 @@ class CloudinaryStorageClient:
                 overwrite=False,
             )
         except Exception as exc:
+            # The traveler only sees a short message; the real reason (quota, bad key,
+            # network) goes to the server log. No keys or secrets are logged.
+            logger.error(
+                "Cloudinary upload failed (folder=%s, bytes=%d, content_type=%s): %s: %s",
+                folder,
+                len(file_bytes),
+                content_type,
+                type(exc).__name__,
+                str(exc)[:300],
+            )
             raise LakbayAPIError(
                 "Image upload failed.",
                 code="storage_upload_failed",
@@ -120,6 +133,12 @@ class CloudinaryStorageClient:
                 invalidate=True,
             )
         except Exception as exc:
+            logger.error(
+                "Cloudinary delete failed (public_id=%s): %s: %s",
+                public_id,
+                type(exc).__name__,
+                str(exc)[:300],
+            )
             raise LakbayAPIError(
                 "Cloudinary image deletion failed.",
                 code="storage_delete_failed",
