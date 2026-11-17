@@ -83,6 +83,10 @@ class LakbayMapboxMap extends StatefulWidget {
   final double borderRadius;
   final double controlsBottomOffset;
 
+  /// Space kept clear at the top for the host screen's own buttons, used
+  /// for route notices when [showControls] is false.
+  final double overlayTopInset;
+
   const LakbayMapboxMap({
     super.key,
     required this.repo,
@@ -106,6 +110,7 @@ class LakbayMapboxMap extends StatefulWidget {
     this.clampToDavao = false,
     this.borderRadius = 20,
     this.controlsBottomOffset = 36,
+    this.overlayTopInset = 0,
   });
 
   @override
@@ -686,7 +691,9 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                       bottom: widget.showControls
                           ? widget.controlsBottomOffset + 4
                           : null,
-                      top: widget.showControls ? null : 12,
+                      top: widget.showControls
+                          ? null
+                          : 12 + widget.overlayTopInset,
                       child: IgnorePointer(
                         child: widget.routeNotice != null
                             ? _buildUnroutedNotice(widget.routeNotice!)
@@ -757,7 +764,9 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                           ? widget.controlsBottomOffset +
                               (showTrailControls ? 46 : 4)
                           : null,
-                      top: widget.showControls ? null : 12,
+                      top: widget.showControls
+                          ? null
+                          : 12 + widget.overlayTopInset,
                       child: IgnorePointer(
                         child: _buildUnroutedNotice(
                           widget.routeNotice ??

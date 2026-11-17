@@ -6,6 +6,7 @@ import '../services/travel_repository.dart';
 import '../widgets/brand/lakbay_wordmark.dart';
 import '../widgets/lakbay_image.dart';
 import '../widgets/notifications_sheet.dart';
+import 'live_day_screen.dart';
 import 'trip_detail_screen.dart';
 
 /// Trips home (v8): countdown to the next trip, the next-trip card, a rail
@@ -71,10 +72,14 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
     return trips.first;
   }
 
+  /// A trip that is happening today opens straight into its live day.
   void _openTrip(ItineraryTrip trip) {
+    final live = trip.timingOn(DateTime.now()) == TripTiming.ongoing;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => TripDetailScreen(repo: _repo, trip: trip),
+        builder: (_) => live
+            ? LiveDayScreen(repo: _repo, trip: trip)
+            : TripDetailScreen(repo: _repo, trip: trip),
       ),
     );
   }

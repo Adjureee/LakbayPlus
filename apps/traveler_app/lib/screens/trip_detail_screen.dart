@@ -6,6 +6,7 @@ import '../services/travel_repository.dart';
 import '../widgets/lakbay_image.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
 import '../widgets/trip_management_sheets.dart';
+import 'live_day_screen.dart';
 import 'trip_route_map_screen.dart';
 import '../services/access_notices.dart';
 import '../widgets/access_notice_card.dart';
@@ -606,6 +607,54 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     }
   }
 
+  /// "Day 2 is live" while the trip is on; otherwise a preview of day 1.
+  Widget _buildLiveDayCard(ItineraryTrip trip) {
+    final now = DateTime.now();
+    final live = trip.timingOn(now) == TripTiming.ongoing;
+    final label = trip.whenLabel(now);
+    return Material(
+      color: live ? LkColors.mango : LkColors.s1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: live ? LkColors.mango : LkColors.stroke),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        minTileHeight: 56,
+        leading: Icon(
+          live ? Icons.navigation_rounded : Icons.route_outlined,
+          color: live ? LkColors.mangoInk : LkColors.lagoon,
+        ),
+        title: Text(
+          live ? '${label ?? 'Today'}: your day is live' : 'Preview a day on the ground',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: live ? LkColors.mangoInk : LkColors.text,
+          ),
+        ),
+        subtitle: Text(
+          live
+              ? 'Next stop, progress and closing times.'
+              : 'See day 1 the way it looks while you travel.',
+          style: TextStyle(
+            color: live
+                ? LkColors.mangoInk.withValues(alpha: 0.8)
+                : LkColors.muted,
+          ),
+        ),
+        trailing: Icon(
+          Icons.chevron_right_rounded,
+          color: live ? LkColors.mangoInk : LkColors.muted,
+        ),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => LiveDayScreen(repo: widget.repo, trip: trip),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDatesTile(ItineraryTrip trip) {
     final range = trip.dateRangeLabel;
     final when = trip.whenLabel(DateTime.now());
@@ -719,6 +768,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
       padding: const EdgeInsets.all(20),
       children: [
         _buildDatesTile(trip),
+        const SizedBox(height: 14),
+        _buildLiveDayCard(trip),
         const SizedBox(height: 14),
         Row(
           children: [

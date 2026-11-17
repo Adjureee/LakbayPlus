@@ -16,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lakbay_travel/main.dart';
 import 'package:lakbay_travel/models/travel_models.dart';
 import 'package:lakbay_travel/screens/auth_screen.dart';
+import 'package:lakbay_travel/screens/live_day_screen.dart';
 import 'package:lakbay_travel/screens/trip_detail_screen.dart';
 import 'package:lakbay_travel/services/lakbay_api_catalog_service.dart';
 import 'package:lakbay_travel/services/travel_repository.dart';
@@ -136,6 +137,9 @@ void main() {
     );
     final first = repo.savedTrips.last;
     final samalPlan = repo.savedTrips.first;
+    final samalLive = repo.savedTrips.last.copyWith(
+      startDate: today.subtract(const Duration(days: 1)),
+    );
 
     await tester.pumpWidget(
       RepaintBoundary(key: key, child: LakbayTravelApp(repository: repo)),
@@ -159,6 +163,15 @@ void main() {
     await _shot(tester, key, '06b_trip_days');
     await tester.tap(find.text('Stays & Transit'));
     await _shot(tester, key, '06c_trip_stays');
+    nav.push(
+      MaterialPageRoute<void>(
+        builder: (_) => LiveDayScreen(
+          repo: repo,
+          trip: samalLive,
+        ),
+      ),
+    );
+    await _shot(tester, key, '06d_live_day');
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));

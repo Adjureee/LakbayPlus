@@ -133,10 +133,10 @@ These are the bugs found in the UI/UX study.
 > - **4.4 Chat:** v8 header, landing, mango user bubbles, plain AI replies, typing skeleton, quick follow-ups, composer with trip options, mic and send. `widgets/chat_plan_card.dart` draws the route from the trip's own coordinates and shows the budget split only when the server's `budget.category_totals` add up to the total.
 > - **4.5 Trip detail:** glass header buttons, mango tab indicator, numbered dotted Day-by-Day timeline with ride/ferry chips. Maps default to the dark Night Nav style. Placeholder day temperatures are no longer shown.
 > - **4.6 / 4.7:** Discover copy, Memories grouped by place with the shared empty state, Profile badges from real dates, no assumed travel companion.
+> - **Live day** (`screens/live_day_screen.dart`, logic in `services/live_day.dart`): today's stops on the dark map with a "Day 2 live, Tue 17" pill (a "preview" of day 1 when the trip isn't on), a draggable sheet with the next stop (distance from a real GPS fix, otherwise the planned time), "I'm here", a segmented progress bar, and the stop list. A closing warning with "Move earlier" appears only when the catalog's hours are clock times (`parseOpeningHours`); free text such as "Daytime visits" never produces one. "Route to …" asks the API for a road route from the traveler's position; there is no turn-by-turn. Opened from Trips (a trip happening today) and from Trip detail. `LkButton` no longer stretches to fill a loose height.
 > - **Screenshots:** `SHOTS_DIR=<dir> flutter test test/screenshots` renders the main screens to PNG with real fonts, icons and shadows.
 >
 > **Not built yet (carry into Phase 5 or later):**
-> - The **live-day view** (draggable sheet with next stop, ETA, progress bar, "Move earlier" warnings, Directions button). `trip_route_map_screen.dart` is recolored but keeps its old layout.
 > - **Onboarding** still has the original steps (trip decision, try-AI, product points, location), restyled. The 3-step "who, budget, interests" version was not built because the try-AI flow is covered by tests and works.
 > - **Place detail** with a gallery and sticky "Add to trip" (Discover's existing detail is recolored only).
 > - Not checked on a real Android phone yet; all checks were widget tests and test-rendered screenshots (network photos don't load in tests).

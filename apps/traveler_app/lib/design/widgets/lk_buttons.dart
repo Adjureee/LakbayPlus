@@ -133,16 +133,24 @@ class LkButton extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: _enabled ? onPressed : null,
-            child: Container(
+            // Sized by its content (at least [size.height] tall), never by
+            // spare room: a Container with alignment would fill any loose
+            // height it is given, such as a Scaffold bottom bar's.
+            child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: size.height),
-              padding: EdgeInsets.fromLTRB(
-                trailingArrow ? 22 : 18,
-                0,
-                trailingArrow ? 7 : 18,
-                0,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  trailingArrow ? 22 : 18,
+                  0,
+                  trailingArrow ? 7 : 18,
+                  0,
+                ),
+                child: Center(
+                  heightFactor: 1,
+                  widthFactor: expand ? null : 1,
+                  child: content,
+                ),
               ),
-              alignment: Alignment.center,
-              child: content,
             ),
           ),
         ),
