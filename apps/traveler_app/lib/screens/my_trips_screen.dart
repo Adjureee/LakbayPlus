@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
@@ -234,10 +235,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                       Container(
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [
-                              Color(0x11000000),
-                              Color(0xBB071E26),
-                            ],
+                            colors: [Color(0x11000000), Color(0xBB071E26)],
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                           ),
@@ -429,15 +427,12 @@ class _TripListTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onDelete;
 
-  const _TripListTile({
-    required this.trip,
-    required this.onTap,
-    this.onDelete,
-  });
+  const _TripListTile({required this.trip, required this.onTap, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
-    final isPlanning = trip.id.startsWith('ai_trip_') ||
+    final isPlanning =
+        trip.id.startsWith('ai_trip_') ||
         trip.id.startsWith('ai_opt_') ||
         trip.id.startsWith('multi_');
 

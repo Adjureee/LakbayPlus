@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/travel_models.dart';
 import '../services/mapbox_service.dart';
 import '../services/travel_repository.dart';
@@ -14,11 +15,7 @@ class TripDetailScreen extends StatefulWidget {
   final ItineraryTrip trip;
   final TravelRepository repo;
 
-  const TripDetailScreen({
-    super.key,
-    required this.trip,
-    required this.repo,
-  });
+  const TripDetailScreen({super.key, required this.trip, required this.repo});
 
   @override
   State<TripDetailScreen> createState() => _TripDetailScreenState();
@@ -50,7 +47,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
       if (trip.wmoWeatherCode >= 51 ||
           trip.avgTemp.toLowerCase().contains('rain') ||
           trip.avgTemp.toLowerCase().contains('shower')) {
-        items.addAll(['Compact Umbrella / Rain Poncho', 'Dry Bag for Electronics']);
+        items.addAll([
+          'Compact Umbrella / Rain Poncho',
+          'Dry Bag for Electronics',
+        ]);
       } else {
         items.addAll(['SPF50+ Sunscreen & Shades', 'Refillable Water Bottle']);
       }
@@ -81,13 +81,11 @@ class _TripDetailScreenState extends State<TripDetailScreen>
       _routeWarnings = nextWarnings;
       _isRefining = false;
     });
-    final msg = updated.optimizationSummary?.savingsHeadline ??
+    final msg =
+        updated.optimizationSummary?.savingsHeadline ??
         'Route order optimized across Davao Region stops!';
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: LakbayColors.tealDeep,
-      ),
+      SnackBar(content: Text(msg), backgroundColor: LakbayColors.tealDeep),
     );
   }
 
@@ -146,7 +144,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
 
   Future<void> _handleAiRefine(String instruction) async {
     setState(() => _isRefining = true);
-    final refined = await widget.repo.refineTripWithAi(_activeTrip, instruction);
+    final refined = await widget.repo.refineTripWithAi(
+      _activeTrip,
+      instruction,
+    );
     if (!mounted) return;
     setState(() {
       if (refined != null) _liveTrip = refined;
@@ -155,9 +156,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          refined != null
-              ? 'Updated itinerary: "$instruction"'
-              : 'AI refinement saved locally — inspect or customize stops below.',
+          refined != null ? 'Updated itinerary: "$instruction"' : 'AI refinement saved locally — inspect or customize stops below.',
         ),
         backgroundColor: LakbayColors.tealDeep,
       ),
@@ -177,7 +176,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           children: [
             TextField(
               controller: timeCtrl,
-              decoration: const InputDecoration(labelText: 'Time (e.g. 02:00 PM)'),
+              decoration: const InputDecoration(
+                labelText: 'Time (e.g. 02:00 PM)',
+              ),
             ),
             TextField(
               controller: titleCtrl,
@@ -207,7 +208,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
       final updatedStops = List<ItineraryStop>.from(day.stops)
         ..add(
           ItineraryStop(
-            time: timeCtrl.text.trim().isNotEmpty ? timeCtrl.text.trim() : '02:00 PM',
+            time: timeCtrl.text.trim().isNotEmpty
+                ? timeCtrl.text.trim()
+                : '02:00 PM',
             title: titleCtrl.text.trim(),
             description: descCtrl.text.trim().isNotEmpty
                 ? descCtrl.text.trim()
@@ -232,7 +235,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     final days = List<ItineraryDay>.from(_activeTrip.days);
     final day = days[dayIndex];
     if (day.stops.length <= 1) return;
-    final updatedStops = List<ItineraryStop>.from(day.stops)..removeAt(stopIndex);
+    final updatedStops = List<ItineraryStop>.from(day.stops)
+      ..removeAt(stopIndex);
     days[dayIndex] = day.copyWith(stops: updatedStops);
     final nextTrip = _activeTrip.copyWith(days: days);
     setState(() => _liveTrip = nextTrip);
@@ -251,7 +255,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     _loadingLive = true;
     try {
       final base = widget.trip;
-      final needsRoute = base.routeSegments.isEmpty &&
+      final needsRoute =
+          base.routeSegments.isEmpty &&
           base.effectiveBackendDestinationIds.isNotEmpty;
       final liveFuture = widget.repo.loadLiveDetailsForTrip(base);
       final routeFuture = needsRoute
@@ -395,7 +400,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: LakbayColors.primary,
                                 borderRadius: BorderRadius.circular(20),
@@ -413,7 +420,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                             ),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.black.withValues(alpha: 0.45),
                                 borderRadius: BorderRadius.circular(20),
@@ -544,7 +553,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     trip: trip,
                   );
                 },
-                icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
+                icon: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  size: 18,
+                ),
                 label: const Text('Budget & PDF'),
               ),
             ],
@@ -556,7 +568,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
 
   Widget _buildOverviewTab(ItineraryTrip trip) {
     final waypoints = trip.routeWaypoints;
-    final totalKm = trip.optimizationSummary?.optimizedDistanceKm ??
+    final totalKm =
+        trip.optimizationSummary?.optimizedDistanceKm ??
         MapboxService.calculateRouteDistanceKm(waypoints);
     final stopMarkers = <LakbayMapMarker>[];
     for (final day in trip.days) {
@@ -636,8 +649,11 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   'assets/png/weather/${trip.wmoWeatherCode}.png',
                   width: 22,
                   height: 22,
-                  errorBuilder: (_, _, _) => const Icon(Icons.wb_sunny_rounded,
-                      color: LakbayColors.primary, size: 20),
+                  errorBuilder: (_, _, _) => const Icon(
+                    Icons.wb_sunny_rounded,
+                    color: LakbayColors.primary,
+                    size: 20,
+                  ),
                 ),
                 label: 'Weather',
                 value: trip.avgTemp,
@@ -646,16 +662,22 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             ],
             if (trip.bestMonths.trim().isNotEmpty) ...[
               _buildInfoChip(
-                iconWidget: const Icon(Icons.calendar_month_rounded,
-                    color: LakbayColors.primary, size: 20),
+                iconWidget: const Icon(
+                  Icons.calendar_month_rounded,
+                  color: LakbayColors.primary,
+                  size: 20,
+                ),
                 label: 'Best time',
                 value: trip.bestMonths,
               ),
               const SizedBox(width: 10),
             ],
             _buildInfoChip(
-              iconWidget: const Icon(Icons.route_rounded,
-                  color: LakbayColors.primary, size: 20),
+              iconWidget: const Icon(
+                Icons.route_rounded,
+                color: LakbayColors.primary,
+                size: 20,
+              ),
               label: 'Region XI Route',
               value: '${totalKm.toStringAsFixed(0)} km',
             ),
@@ -743,7 +765,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             ),
             child: Text(
               combinedWarnings.join('\n'),
-              style: const TextStyle(fontSize: 12.5, color: LakbayColors.tealDeep),
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: LakbayColors.tealDeep,
+              ),
             ),
           ),
         ],
@@ -826,7 +851,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           builder: (context) {
             final originLat = widget.repo.originLat;
             final originLng = widget.repo.originLng;
-            final hasNearbyOrigin = originLat != null &&
+            final hasNearbyOrigin =
+                originLat != null &&
                 originLng != null &&
                 (waypoints.isEmpty ||
                     waypoints.any(
@@ -844,10 +870,13 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               for (final seg in trip.routeSegments) ...seg.points,
               if (hasNearbyOrigin) GeoPoint(lat: originLat, lng: originLng),
             ];
-            final (previewLat, previewLng, previewZoom) =
-                previewBoundsPts.isEmpty
-                    ? (trip.centerLat, trip.centerLng, 8.4)
-                    : MapboxService.computeBoundsCenterAndZoom(previewBoundsPts);
+            final (
+              previewLat,
+              previewLng,
+              previewZoom,
+            ) = previewBoundsPts.isEmpty
+                ? (trip.centerLat, trip.centerLng, 8.4)
+                : MapboxService.computeBoundsCenterAndZoom(previewBoundsPts);
             return Container(
               height: 240,
               decoration: BoxDecoration(
@@ -952,8 +981,11 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.health_and_safety_rounded,
-                        color: Colors.deepOrange, size: 18),
+                    Icon(
+                      Icons.health_and_safety_rounded,
+                      color: Colors.deepOrange,
+                      size: 18,
+                    ),
                     SizedBox(width: 8),
                     Text(
                       'Smart Planning Advisories',
@@ -1015,7 +1047,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               label: const Text('Add chill scenic stop'),
               onPressed: _isRefining
                   ? null
-                  : () => _handleAiRefine('Include chill coastal or viewpoint stop'),
+                  : () => _handleAiRefine(
+                      'Include chill coastal or viewpoint stop',
+                    ),
             ),
           ],
         ),
@@ -1072,51 +1106,53 @@ class _TripDetailScreenState extends State<TripDetailScreen>
         const SizedBox(height: 20),
 
         // Travel notes from the catalog; hidden when there are none.
-        if (trip.expertTip.trim().isNotEmpty) Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: LakbayColors.primarySoft,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-                color: LakbayColors.primary.withValues(alpha: 0.25)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(
-                Icons.tips_and_updates_outlined,
-                color: LakbayColors.primaryDark,
-                size: 24,
+        if (trip.expertTip.trim().isNotEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: LakbayColors.primarySoft,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: LakbayColors.primary.withValues(alpha: 0.25),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Travel notes',
-                      style: TextStyle(
-                        fontFamily: 'FigGrotesk',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: LakbayColors.primaryDark,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      trip.expertTip.trim(),
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        height: 1.4,
-                        color: LakbayColors.textPrimary,
-                      ),
-                    ),
-                  ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.tips_and_updates_outlined,
+                  color: LakbayColors.primaryDark,
+                  size: 24,
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Travel notes',
+                        style: TextStyle(
+                          fontFamily: 'FigGrotesk',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: LakbayColors.primaryDark,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        trip.expertTip.trim(),
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          height: 1.4,
+                          color: LakbayColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
         const SizedBox(height: 22),
 
         const Text(
@@ -1189,8 +1225,11 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                 IconButton(
                   tooltip: 'View on Mapbox',
                   onPressed: _openFullRouteMap,
-                  icon: const Icon(Icons.location_on_outlined,
-                      color: LakbayColors.primary, size: 20),
+                  icon: const Icon(
+                    Icons.location_on_outlined,
+                    color: LakbayColors.primary,
+                    size: 20,
+                  ),
                 ),
               ],
             ),
@@ -1266,8 +1305,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             if (day.transportFromPrevious != null && !day.isContinuationDay)
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: LakbayColors.tealWash.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(12),
@@ -1316,7 +1357,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: day.isContinuationDay
                               ? LakbayColors.tealDeep
@@ -1335,8 +1378,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          day.cityTitle
-                              .replaceFirst(RegExp(r'^Day \d+ • '), ''),
+                          day.cityTitle.replaceFirst(
+                            RegExp(r'^Day \d+ • '),
+                            '',
+                          ),
                           style: const TextStyle(
                             fontFamily: 'FigGrotesk',
                             fontWeight: FontWeight.w700,
@@ -1388,8 +1433,11 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       IconButton(
                         tooltip: 'Inspect Day on Mapbox',
                         onPressed: _openFullRouteMap,
-                        icon: const Icon(Icons.map_outlined,
-                            color: LakbayColors.tealAccent, size: 20),
+                        icon: const Icon(
+                          Icons.map_outlined,
+                          color: LakbayColors.tealAccent,
+                          size: 20,
+                        ),
                       ),
                     ],
                   ),
@@ -1525,7 +1573,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                                       ),
                                     ),
                                     if (_stayLengthLabel(
-                                            day.stops[sIdx].stayDurationType) !=
+                                          day.stops[sIdx].stayDurationType,
+                                        ) !=
                                         null)
                                       Container(
                                         padding: const EdgeInsets.symmetric(
@@ -1534,12 +1583,14 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                                         ),
                                         decoration: BoxDecoration(
                                           color: LakbayColors.canvasBg,
-                                          borderRadius:
-                                              BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
                                         ),
                                         child: Text(
                                           _stayLengthLabel(
-                                              day.stops[sIdx].stayDurationType)!,
+                                            day.stops[sIdx].stayDurationType,
+                                          )!,
                                           style: const TextStyle(
                                             fontSize: 10.5,
                                             fontWeight: FontWeight.w600,
@@ -1625,8 +1676,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       color: LakbayColors.primaryLight,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.flight_takeoff_rounded,
-                        color: LakbayColors.primary),
+                    child: const Icon(
+                      Icons.flight_takeoff_rounded,
+                      color: LakbayColors.primary,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -1665,8 +1718,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       ),
                       const Text(
                         'per traveler',
-                        style:
-                            TextStyle(fontSize: 11, color: LakbayColors.textMuted),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: LakbayColors.textMuted,
+                        ),
                       ),
                     ],
                   ),
@@ -1686,8 +1741,11 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             ),
             child: const Row(
               children: [
-                Icon(Icons.directions_bus_rounded,
-                    color: LakbayColors.tealAccent, size: 26),
+                Icon(
+                  Icons.directions_bus_rounded,
+                  color: LakbayColors.tealAccent,
+                  size: 26,
+                ),
                 SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -1764,7 +1822,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: LakbayColors.tealDeep,
                         borderRadius: BorderRadius.circular(8),
@@ -1797,7 +1857,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       .map(
                         (fac) => Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: LakbayColors.canvasBg,
                             borderRadius: BorderRadius.circular(8),
@@ -1831,7 +1893,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         widget.repo.saveTripToMyTrips(trip);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Pinned ${h.name} reference to "${trip.title}"!'),
+                            content: Text(
+                              'Pinned ${h.name} reference to "${trip.title}"!',
+                            ),
                             backgroundColor: LakbayColors.tealAccent,
                           ),
                         );
@@ -1846,7 +1910,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           ),
         ),
         for (final destId in trip.effectiveBackendDestinationIds)
-          ...widget.repo.transportRatesForDestination(destId).map(
+          ...widget.repo
+              .transportRatesForDestination(destId)
+              .map(
                 (tr) => Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(14),
@@ -1857,8 +1923,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.directions_bus_rounded,
-                          color: LakbayColors.tealDeep),
+                      const Icon(
+                        Icons.directions_bus_rounded,
+                        color: LakbayColors.tealDeep,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(

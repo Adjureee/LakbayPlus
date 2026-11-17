@@ -42,7 +42,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     if (trips.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Save a Davao Region trip first before adding memories.'),
+          content: Text(
+            'Save a Davao Region trip first before adding memories.',
+          ),
           backgroundColor: LakbayColors.tealDeep,
         ),
       );
@@ -95,186 +97,187 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                       24,
                 ),
                 child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        margin: const EdgeInsets.only(bottom: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
                       ),
-                    ),
-                    const Text(
-                      'Add Trip Memory',
-                      style: TextStyle(
-                        fontFamily: 'FigGrotesk',
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: LakbayColors.tealDeep,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedTrip.id,
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        labelText: 'Trip',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
+                      const Text(
+                        'Add Trip Memory',
+                        style: TextStyle(
+                          fontFamily: 'FigGrotesk',
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: LakbayColors.tealDeep,
                         ),
                       ),
-                      items: [
-                        for (final t in trips)
-                          DropdownMenuItem(
-                            value: t.id,
-                            child: Text(
-                              t.title,
-                              overflow: TextOverflow.ellipsis,
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedTrip.id,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'Trip',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                        ),
+                        items: [
+                          for (final t in trips)
+                            DropdownMenuItem(
+                              value: t.id,
+                              child: Text(
+                                t.title,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          final match = trips.firstWhere((t) => t.id == value);
+                          setSheetState(() {
+                            selectedTrip = match;
+                            locationCtrl.text = match.destination;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: saving
+                                  ? null
+                                  : () => pickImage(ImageSource.gallery),
+                              icon: const Icon(Icons.photo_library_outlined),
+                              label: const Text('Gallery'),
                             ),
                           ),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        final match = trips.firstWhere((t) => t.id == value);
-                        setSheetState(() {
-                          selectedTrip = match;
-                          locationCtrl.text = match.destination;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: saving
-                                ? null
-                                : () => pickImage(ImageSource.gallery),
-                            icon: const Icon(Icons.photo_library_outlined),
-                            label: const Text('Gallery'),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: saving
+                                  ? null
+                                  : () => pickImage(ImageSource.camera),
+                              icon: const Icon(Icons.camera_alt_outlined),
+                              label: const Text('Camera'),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: saving
-                                ? null
-                                : () => pickImage(ImageSource.camera),
-                            icon: const Icon(Icons.camera_alt_outlined),
-                            label: const Text('Camera'),
-                          ),
+                        ],
+                      ),
+                      if (pickedFile != null) ...[
+                        const SizedBox(height: 10),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: kIsWeb
+                              ? Image.network(
+                                  pickedFile!.path,
+                                  height: 160,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                )
+                              : Image.file(
+                                  File(pickedFile!.path),
+                                  height: 160,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                ),
                         ),
                       ],
-                    ),
-                    if (pickedFile != null) ...[
-                      const SizedBox(height: 10),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: kIsWeb
-                            ? Image.network(
-                                pickedFile!.path,
-                                height: 160,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              )
-                            : Image.file(
-                                File(pickedFile!.path),
-                                height: 160,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              ),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: captionCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Caption / Moment',
-                        hintText: 'e.g., Sunset view at Hagimit Falls',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: locationCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Location Tag',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: LakbayColors.primary,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(double.infinity, 48),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: captionCtrl,
+                        decoration: InputDecoration(
+                          labelText: 'Caption / Moment',
+                          hintText: 'e.g., Sunset view at Hagimit Falls',
+                          border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        onPressed: saving || pickedFile == null
-                            ? null
-                            : () async {
-                                setSheetState(() => saving = true);
-                                try {
-                                  await widget.repo.uploadAndAddMemory(
-                                    trip: selectedTrip,
-                                    localFilePath: pickedFile!.path,
-                                    caption: captionCtrl.text.trim(),
-                                    locationTag: locationCtrl.text.trim(),
-                                  );
-                                  if (sheetContext.mounted) {
-                                    Navigator.of(sheetContext).pop();
-                                  }
-                                } catch (e) {
-                                  setSheetState(() => saving = false);
-                                  if (sheetContext.mounted) {
-                                    ScaffoldMessenger.of(sheetContext)
-                                        .showSnackBar(
-                                      SnackBar(
-                                        content:
-                                            Text('Failed to save memory: $e'),
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                        icon: saving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.cloud_upload_outlined),
-                        label: Text(saving ? 'Uploading...' : 'Save Memory'),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: locationCtrl,
+                        decoration: InputDecoration(
+                          labelText: 'Location Tag',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: LakbayColors.primary,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 48),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: saving || pickedFile == null
+                              ? null
+                              : () async {
+                                  setSheetState(() => saving = true);
+                                  try {
+                                    await widget.repo.uploadAndAddMemory(
+                                      trip: selectedTrip,
+                                      localFilePath: pickedFile!.path,
+                                      caption: captionCtrl.text.trim(),
+                                      locationTag: locationCtrl.text.trim(),
+                                    );
+                                    if (sheetContext.mounted) {
+                                      Navigator.of(sheetContext).pop();
+                                    }
+                                  } catch (e) {
+                                    setSheetState(() => saving = false);
+                                    if (sheetContext.mounted) {
+                                      ScaffoldMessenger.of(sheetContext)
+                                          .showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Failed to save memory: $e',
+                                              ),
+                                            ),
+                                          );
+                                    }
+                                  }
+                                },
+                          icon: saving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.cloud_upload_outlined),
+                          label: Text(saving ? 'Uploading...' : 'Save Memory'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
               ),
             );
           },
@@ -289,12 +292,12 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     final filtered = _selectedTripFilter == null
         ? allMemories
         : allMemories
-            .where(
-              (m) =>
-                  m.locationTag == _selectedTripFilter ||
-                  m.destinationName == _selectedTripFilter,
-            )
-            .toList();
+              .where(
+                (m) =>
+                    m.locationTag == _selectedTripFilter ||
+                    m.destinationName == _selectedTripFilter,
+              )
+              .toList();
 
     final filterLabels = {
       for (final m in allMemories)
@@ -397,7 +400,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                             width: 72,
                             height: 72,
                             decoration: BoxDecoration(
-                              color: LakbayColors.primary.withValues(alpha: 0.12),
+                              color: LakbayColors.primary.withValues(
+                                alpha: 0.12,
+                              ),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -439,7 +444,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                               ),
                             ),
                             onPressed: _openAddMemorySheet,
-                            icon: const Icon(Icons.add_photo_alternate_outlined),
+                            icon: const Icon(
+                              Icons.add_photo_alternate_outlined,
+                            ),
                             label: const Text('Upload First Memory'),
                           ),
                         ],
@@ -488,7 +495,8 @@ class _MemoryCard extends StatelessWidget {
         !kIsWeb &&
         memory.localFilePath != null &&
         File(memory.localFilePath!).existsSync();
-    final webBlobUrl = kIsWeb &&
+    final webBlobUrl =
+        kIsWeb &&
             memory.imageUrl.isEmpty &&
             (memory.localFilePath ?? '').startsWith('blob:')
         ? memory.localFilePath!
@@ -514,19 +522,16 @@ class _MemoryCard extends StatelessWidget {
             height: 210,
             width: double.infinity,
             child: hasLocalFile
-                ? Image.file(
-                    File(memory.localFilePath!),
-                    fit: BoxFit.cover,
-                  )
+                ? Image.file(File(memory.localFilePath!), fit: BoxFit.cover)
                 : ((memory.imageUrl.isNotEmpty || webBlobUrl.isNotEmpty)
-                    ? Image.network(
-                        memory.imageUrl.isNotEmpty
-                            ? memory.imageUrl
-                            : webBlobUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => _fallbackTile(),
-                      )
-                    : _fallbackTile()),
+                      ? Image.network(
+                          memory.imageUrl.isNotEmpty
+                              ? memory.imageUrl
+                              : webBlobUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => _fallbackTile(),
+                        )
+                      : _fallbackTile()),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -620,13 +625,9 @@ class _MemoryCard extends StatelessWidget {
   }
 
   Widget _fallbackTile() => Container(
-        color: const Color(0xFFE9EEF0),
-        child: const Center(
-          child: Icon(
-            Icons.photo_outlined,
-            size: 42,
-            color: LakbayColors.tealDeep,
-          ),
-        ),
-      );
+    color: const Color(0xFFE9EEF0),
+    child: const Center(
+      child: Icon(Icons.photo_outlined, size: 42, color: LakbayColors.tealDeep),
+    ),
+  );
 }
