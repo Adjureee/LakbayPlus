@@ -13,7 +13,7 @@ from app.features.recommendations.schemas import RecommendationItem
 
 PROMPT_VERSION = "phase5_itinerary_picks_only_v4"
 PLANNING_PROMPT_VERSION = "phase15e_picks_compact_v7"
-CHAT_PROMPT_VERSION = "phase5_chat_v15_cards_origin_names"
+CHAT_PROMPT_VERSION = "phase5_chat_v16_grounded_figures"
 ONBOARDING_CHAT_PROMPT_VERSION = "onboarding_v1"
 
 _LANGUAGE_LABELS: dict[str, str] = {

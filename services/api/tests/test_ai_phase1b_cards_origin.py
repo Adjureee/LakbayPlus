@@ -139,7 +139,7 @@ def test_a_route_from_davao_city_stays_for_a_traveler_starting_there(
 ) -> None:
     configure_ai(monkeypatch)
     reply = json.dumps({
-        "chat_response": "It takes about 60 minutes from Davao City by bus.",
+        "chat_response": "It is a short bus ride from Davao City.",
         "state_updates": {}, "intent": "question",
     })
 

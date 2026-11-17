@@ -13,6 +13,7 @@ from app.core.exceptions import LakbayAPIError
 from app.core.provider_usage import ProviderLimiter
 from app.features.accommodations.models import Accommodation
 from app.features.ai.models import AIGenerationRun
+from app.features.ai.grounding import card_figures_text, facts_text, ground_figures
 from app.features.ai.destination_resolver import (
     _distinctive,
     _tokens,
@@ -385,6 +386,7 @@ class AIItineraryService:
             _log_timing("retrieval", chat_started, matches=len(rag_matches))
 
         retrieved_context = [match.to_prompt_dict() for match in rag_matches]
+        support_text = _support_text(data, retrieved_context)
         picked_places: list[dict] = []
         if data.planning_state is not None and data.planning_state.destination_ids:
             picked = await self.ai.list_active_destinations_by_ids(
@@ -469,6 +471,7 @@ class AIItineraryService:
                         "I could not generate a helpful answer just now. "
                         "Please try asking in another way."
                     )
+                    chat_response, _ = ground_figures(chat_response, support_text)
                 else:
                     planning_started = perf_counter()
                     # Recognize a place the traveler named even if the model does not.
@@ -501,6 +504,7 @@ class AIItineraryService:
                         ),
                         retrieval_interest=retrieval_coverage.get("interest"),
                         catalog=catalog,
+                        support_text=support_text,
                     )
                     _log_timing("planning_total", planning_started)
                 updated_run = await self.ai.update_generation_run(
@@ -1182,6 +1186,7 @@ async def _build_planning_chat_result(
     requested_locations: list[str] | None = None,
     retrieval_interest: str | None = None,
     catalog: list[tuple[int, str]] | None = None,
+    support_text: str | None = None,
 ) -> tuple[str, AIPlanningChatResult, str]:
     assert data.planning_state is not None
     current_state = data.planning_state
@@ -1599,6 +1604,11 @@ async def _build_planning_chat_result(
         catalog=catalog or [],
         origin_label=(next_state.origin.label if next_state.origin else None),
     )
+    if support_text is not None:
+        # No price, distance, travel time or opening hour the facts do not hold.
+        chat_response, _ = ground_figures(
+            chat_response, f"{support_text} {card_figures_text(recommendations)}",
+        )
     return (
         chat_response,
         AIPlanningChatResult(
@@ -1672,6 +1682,22 @@ def _looks_like_question(message: str) -> bool:
 _CHAT_RESPONSE_FIELD = re.compile(
     r'"chat_*response"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL,
 )
+
+
+def _support_text(data: AIChatRequest, retrieved_context: list[dict]) -> str:
+    """The facts a reply may quote figures from: the catalog records it was given, the
+    traveler's own words and the numbers in their plan."""
+    parts = [facts_text(retrieved_context), data.message]
+    parts.extend(item.content for item in data.history if item.role == "user")
+    state = data.planning_state
+    if state is not None:
+        parts.extend(
+            str(value) for value in (
+                state.total_budget, state.reserve_amount, state.traveler_count,
+                state.day_count, state.night_count,
+            ) if value is not None
+        )
+    return " ".join(parts)
 
 
 _BROWSE_PATTERNS = (
