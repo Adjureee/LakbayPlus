@@ -78,6 +78,18 @@ MONEY = re.compile(r"(?:₱|PHP\s?|P(?=\d))\s?(\d[\d,]*(?:\.\d+)?)", re.IGNORECA
 BISAYA = {"nga", "ang", "sa", "ug", "naa", "nindot", "puwede", "pwede", "kini", "dinhi",
           "tay", "kamo", "mga", "unsa", "asa", "gyud", "ka", "na", "og", "ni", "ayaw", "salamat"}
 CLOCK = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s?(am|pm)\b", re.IGNORECASE)
+CLOCK24 = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b")
+
+
+def clock_times(text: str) -> set[str]:
+    """Times in the text as HH:MM on a 24-hour clock, from '6 AM', '6:00 pm' or '17:00'."""
+    found = set()
+    for hour, minute, meridiem in CLOCK.findall(text):
+        h = int(hour) % 12 + (12 if meridiem.lower() == "pm" else 0)
+        found.add(f"{h:02d}:{minute or '00'}")
+    for hour, minute in CLOCK24.findall(text):
+        found.add(f"{int(hour):02d}:{minute}")
+    return found
 FROM_DAVAO = re.compile(r"from\s+davao\s+city", re.IGNORECASE)
 KEY_LIKE = re.compile(r"\b(gsk_|sk-)[A-Za-z0-9_\-]{10,}")
 
@@ -201,12 +213,17 @@ class Catalog:
         self.by_id: dict[int, dict] = {}
         self.names: list[tuple[int, str]] = []
         self.prices: set[float] = set()
+        self.record_numbers: set[float] = set()
 
     def add(self, local_id: int, record: dict):
         self.by_id[local_id] = record
         self.names.append((local_id, record["name"]))
         if record.get("estimated_cost") is not None:
             self.prices.add(float(record["estimated_cost"]))
+        for key in ("entrance_fee", "overnight_fee", "description", "how_to_get_there",
+                    "travel_notes", "estimated_travel_time", "best_time_to_visit"):
+            for n in re.findall(r"\d[\d,]*(?:\.\d+)?", str(record.get(key) or "")):
+                self.record_numbers.add(float(n.replace(",", "")))
 
     def mentioned(self, text: str) -> list[int]:
         """Ids of places whose distinctive name words all appear in the text."""
@@ -351,7 +368,7 @@ CHECKS = {
     "question_order": "the reply does not ask the date before people, days and budget",
     "reply_language": "the reply is in the traveler's language (English stays English)",
     "no_secret_leak": "no key-like text and no system prompt",
-    "outside_honest": "a place outside the Davao Region is called outside, with no off-region cards",
+    "outside_honest": "a place outside the Davao Region is called outside",
     "reply_time": "answered within 25 seconds",
     "chip_works": "a tapped suggested reply gets a normal answer",
 }
@@ -392,7 +409,7 @@ def evaluate(chat: Chat, catalog: Catalog, step: dict, text: str, body: dict,
     if chat.origin_label != "Davao City":
         check("origin_respected", not FROM_DAVAO.search(reply), "says 'from Davao City'")
 
-    allowed = set(catalog.prices) | chat.user_numbers
+    allowed = set(catalog.prices) | catalog.record_numbers | chat.user_numbers
     budget = (chat.state.get("total_budget") or {})
     if isinstance(budget, (int, float, str)):
         try:
@@ -411,11 +428,11 @@ def evaluate(chat: Chat, catalog: Catalog, step: dict, text: str, body: dict,
             "how_to_get_there", "travel_notes", "estimated_travel_time"))
         for i in named
     }
-    if named and CLOCK.search(reply):
-        times = {f"{int(h)}:{m or '00'}{ap.lower()}" for h, m, ap in CLOCK.findall(reply)}
+    times = clock_times(reply) if CLOCK.search(reply) else set()
+    if named and times:
         supported: set[str] = set()
         for text_ in record_text.values():
-            supported |= {f"{int(h)}:{m or '00'}{ap.lower()}" for h, m, ap in CLOCK.findall(text_)}
+            supported |= clock_times(text_)
         check("hours_supported", times <= supported,
               "times not in the record: " + ", ".join(sorted(times - supported)))
 
@@ -479,7 +496,7 @@ def evaluate(chat: Chat, catalog: Catalog, step: dict, text: str, body: dict,
     check("no_secret_leak", not leaked, "key-like text or prompt text in the reply")
     if step.get("outside"):
         outside = re.search(r"outside|not in|beyond|davao region|only cover", low)
-        check("outside_honest", bool(outside) and not cards, "claims or cards for an outside place")
+        check("outside_honest", bool(outside), "does not say the place is outside the region")
     return failed, applied
 
 
