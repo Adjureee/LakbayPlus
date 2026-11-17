@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../lakbay_tokens.dart';
 import '../lakbay_type.dart';
+import 'lk_motion.dart';
 
 enum LkButtonVariant { primary, secondary, ghost }
 
@@ -167,9 +168,10 @@ class LkButton extends StatelessWidget {
           )
         : button;
 
+    final pressable = LkPressScale(enabled: _enabled, child: shadowed);
     return expand
-        ? SizedBox(width: double.infinity, child: shadowed)
-        : shadowed;
+        ? SizedBox(width: double.infinity, child: pressable)
+        : pressable;
   }
 }
 

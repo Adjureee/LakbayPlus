@@ -38,7 +38,7 @@ class _WelcomeHeroState extends State<WelcomeHero>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final reduced = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final reduced = !LkMotion.of(context).enabled;
     if (reduced) {
       _drift.stop();
       _route.value = 1;

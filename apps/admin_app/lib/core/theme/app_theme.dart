@@ -138,6 +138,12 @@ class AppTheme {
       textTheme: textTheme,
       fontFamily: GoogleFonts.manrope().fontFamily,
       visualDensity: VisualDensity.standard,
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: {
+          for (final platform in TargetPlatform.values)
+            platform: FadeForwardsPageTransitionsBuilder(),
+        },
+      ),
       focusColor: mango.withValues(alpha: 0.28),
       hoverColor: (isDark ? Colors.white : Colors.black).withValues(
         alpha: 0.05,

@@ -73,13 +73,13 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
   }
 
   /// A trip that is happening today opens straight into its live day.
-  void _openTrip(ItineraryTrip trip) {
+  void _openTrip(ItineraryTrip trip, {String? heroTag}) {
     final live = trip.timingOn(DateTime.now()) == TripTiming.ongoing;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => live
             ? LiveDayScreen(repo: _repo, trip: trip)
-            : TripDetailScreen(repo: _repo, trip: trip),
+            : TripDetailScreen(repo: _repo, trip: trip, heroTag: heroTag),
       ),
     );
   }
@@ -261,13 +261,15 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                   LkSpace.gutter,
                   0,
                 ),
-                child: counting
-                    ? _Countdown(trip: hero!, now: now, greeting: greeting)
-                    : _PlanNextCard(
-                        greeting: greeting,
-                        onPlan: () => _repo.setActiveNavIndex(2),
-                        onCreate: _showCreateTripSheet,
-                      ),
+                child: LkRiseIn(
+                  child: counting
+                      ? _Countdown(trip: hero!, now: now, greeting: greeting)
+                      : _PlanNextCard(
+                          greeting: greeting,
+                          onPlan: () => _repo.setActiveNavIndex(2),
+                          onCreate: _showCreateTripSheet,
+                        ),
+                ),
               ),
             ),
             if (hero != null)
@@ -279,16 +281,26 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                     LkSpace.gutter,
                     0,
                   ),
-                  child: _NextTripCard(
-                    trip: hero,
-                    now: now,
-                    stacked: (allTrips.length - 1).clamp(0, 2),
-                    priceLabel: _perPersonLabel(hero),
-                    onOpen: () => _openTrip(hero),
+                  child: LkRiseIn(
+                    delay: LkRiseIn.stagger(1),
+                    child: _NextTripCard(
+                      trip: hero,
+                      now: now,
+                      stacked: (allTrips.length - 1).clamp(0, 2),
+                      priceLabel: _perPersonLabel(hero),
+                      onOpen: () =>
+                          _openTrip(hero, heroTag: 'trip-card-${hero.id}'),
+                      heroTag: 'trip-card-${hero.id}',
+                    ),
                   ),
                 ),
               ),
-            SliverToBoxAdapter(child: _ExploreRail(repo: _repo)),
+            SliverToBoxAdapter(
+              child: LkRiseIn(
+                delay: LkRiseIn.stagger(2),
+                child: _ExploreRail(repo: _repo),
+              ),
+            ),
             SliverToBoxAdapter(
               child: LkSectionHeader(
                 title: 'Your trips',
@@ -402,11 +414,19 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                 sliver: SliverList.separated(
                   itemCount: filtered.length,
                   separatorBuilder: (_, _) => const SizedBox(height: LkSpace.s),
-                  itemBuilder: (_, i) => _TripListTile(
-                    trip: filtered[i],
-                    now: now,
-                    onTap: () => _openTrip(filtered[i]),
-                    onDelete: () => _confirmDelete(filtered[i]),
+                  itemBuilder: (_, i) => LkRiseIn(
+                    key: ValueKey('trip-row-${filtered[i].id}'),
+                    delay: LkRiseIn.stagger(3 + i),
+                    child: _TripListTile(
+                      trip: filtered[i],
+                      now: now,
+                      heroTag: 'trip-row-${filtered[i].id}',
+                      onTap: () => _openTrip(
+                        filtered[i],
+                        heroTag: 'trip-row-${filtered[i].id}',
+                      ),
+                      onDelete: () => _confirmDelete(filtered[i]),
+                    ),
                   ),
                 ),
               ),
@@ -445,6 +465,10 @@ String _greeting(DateTime now, String firstName) {
   final name = firstName.trim();
   return name.isEmpty ? part : '$part, $name';
 }
+
+/// The trip photo flies into Trip detail's header when [tag] is set.
+Widget _maybeHero(String? tag, Widget child) =>
+    tag == null ? child : Hero(tag: tag, child: child);
 
 String _placeName(ItineraryTrip trip) {
   final d = trip.destination.split(',').first.trim();
@@ -561,7 +585,7 @@ class _Countdown extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(big, style: LkType.countdown),
+          LkCountUp(value: int.parse(big), style: LkType.countdown),
           const SizedBox(width: LkSpace.m),
           Expanded(
             child: Padding(
@@ -668,10 +692,12 @@ class _NextTripCard extends StatelessWidget {
     required this.stacked,
     required this.priceLabel,
     required this.onOpen,
+    this.heroTag,
   });
 
   final ItineraryTrip trip;
   final DateTime now;
+  final String? heroTag;
 
   /// How many darker cards peek out above it (other saved trips), 0–2.
   final int stacked;
@@ -706,9 +732,12 @@ class _NextTripCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                LakbayNetworkOrAssetImage(
-                  networkUrl: trip.remoteImageUrl,
-                  assetPath: trip.heroAsset,
+                _maybeHero(
+                  heroTag,
+                  LakbayNetworkOrAssetImage(
+                    networkUrl: trip.remoteImageUrl,
+                    assetPath: trip.heroAsset,
+                  ),
                 ),
                 const DecoratedBox(
                   decoration: BoxDecoration(gradient: LkColors.photoScrim),
@@ -954,12 +983,14 @@ class _TripListTile extends StatelessWidget {
     required this.now,
     required this.onTap,
     required this.onDelete,
+    this.heroTag,
   });
 
   final ItineraryTrip trip;
   final DateTime now;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final String? heroTag;
 
   @override
   Widget build(BuildContext context) {
@@ -980,11 +1011,14 @@ class _TripListTile extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(LkRadius.sm),
-                child: LakbayNetworkOrAssetImage(
-                  networkUrl: trip.remoteImageUrl,
-                  assetPath: trip.heroAsset,
-                  width: 60,
-                  height: 60,
+                child: _maybeHero(
+                  heroTag,
+                  LakbayNetworkOrAssetImage(
+                    networkUrl: trip.remoteImageUrl,
+                    assetPath: trip.heroAsset,
+                    width: 60,
+                    height: 60,
+                  ),
                 ),
               ),
               const SizedBox(width: LkSpace.m),

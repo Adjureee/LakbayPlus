@@ -288,6 +288,13 @@ The admin app already has light, dark and system themes and good AA tokens. It n
 3. **`screens/dashboard_screen.dart`:** stat cards with big Bricolage numbers taken from real API counts only, and a pending-review list.
 4. **Data screens** (destinations, sea links, market rates, users, reviews, trips): keep tables dense, apply the new tokens, use the shared confirm dialog, and keep the existing `confirmAdminNavigation` unsaved-changes guard.
 
+## Motion and app-open intro (added 2026-11-17, owner's request) ✅ done
+
+- **Intro** (`widgets/lakbay_intro.dart`): plays on every app open, on the same deep teal as the Android splash. A dashed mango route draws in from the lower left and lands where the mango "+" pops, while the letters of "Lakbay" rise in one by one and the tagline fades in (about 2.1 s). Tap to skip. If the app is still loading afterwards, a lagoon line sweeps under the tagline. It then cross-fades into onboarding, sign-in or the tabs.
+- **Traveler motion** (`design/widgets/lk_motion.dart`): `LkRiseIn` (fade and rise, staggered), `LkCountUp` (the Trips countdown counts up), `LkPressScale` (every `LkButton` gives slightly under the finger). Tab switches fade and lift; trip photos fly from Trips into Trip detail (Hero); new chat messages rise in (old ones don't replay); Memories cards rise in; on the live day the next-stop card slides over when a stop is done and the progress bar fills smoothly.
+- **Admin motion** (`widgets/admin_motion.dart`): Overview cards rise in, staggered, and stat numbers count up; the sign-in form rises in; sections change with a fade-forward transition.
+- **Reduced motion:** everything goes through `LkMotion` / `AdminMotion`, so the system "remove animations" setting turns it off and the intro shows its final frame. Widget tests run with motion off (set in each app's `flutter_test_config.dart`); `test/motion_test.dart` turns it on to check the intro hand-off, tap-to-skip, reduced motion and the rise-in/count-up end states.
+
 ## Phase 7: Verify and prepare the defense (small)
 
 1. `flutter analyze` is clean, and `flutter test` passes in both apps.

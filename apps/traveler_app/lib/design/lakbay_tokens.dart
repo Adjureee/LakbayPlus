@@ -154,8 +154,15 @@ class LkMotion {
   static const Curve standard = Curves.easeOutCubic;
   static const Curve emphasized = Cubic(0.6, 0, 0.2, 1);
 
-  static LkMotion of(BuildContext context) =>
-      LkMotion._(!(MediaQuery.maybeDisableAnimationsOf(context) ?? false));
+  /// App-wide switch. Widget tests turn it off (see
+  /// `test/flutter_test_config.dart`) so screens render in their final state;
+  /// motion tests turn it back on.
+  static bool globallyEnabled = true;
+
+  static LkMotion of(BuildContext context) => LkMotion._(
+    globallyEnabled &&
+        !(MediaQuery.maybeDisableAnimationsOf(context) ?? false),
+  );
 
   /// [d] when motion is allowed, otherwise [Duration.zero].
   Duration duration(Duration d) => enabled ? d : Duration.zero;

@@ -460,10 +460,14 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                           const SizedBox(height: LkSpace.m),
                       itemBuilder: (context, index) {
                         final memory = entry.value[index];
-                        return _MemoryCard(
-                          memory: memory,
-                          onLike: () => widget.repo.likeMemory(memory),
-                          onDelete: () => _confirmDelete(memory),
+                        return LkRiseIn(
+                          key: ValueKey('memory-${memory.tripMemoryId}-$index'),
+                          delay: LkRiseIn.stagger(index),
+                          child: _MemoryCard(
+                            memory: memory,
+                            onLike: () => widget.repo.likeMemory(memory),
+                            onDelete: () => _confirmDelete(memory),
+                          ),
                         );
                       },
                     ),

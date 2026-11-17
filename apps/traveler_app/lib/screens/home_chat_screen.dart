@@ -30,6 +30,11 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
   bool _isListeningVoice = false;
   final ScrollController _scrollController = ScrollController();
 
+  /// Messages already on screen when Chat opened don't animate; new ones do.
+  late final Set<String> _seenMessageIds = {
+    for (final m in widget.repo.chatMessages) m.id,
+  };
+
   void _handleSend([String? presetPrompt]) {
     final text = presetPrompt ?? _inputController.text;
     if (text.trim().isEmpty) return;
@@ -536,8 +541,15 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
       ),
       itemCount: messages.length + (typing ? 1 : 0),
       itemBuilder: (context, index) {
-        if (typing && index == messages.length) return const _TypingRow();
-        return _buildMessageBubble(context, messages[index]);
+        if (typing && index == messages.length) {
+          return const LkRiseIn(key: ValueKey('typing'), child: _TypingRow());
+        }
+        final msg = messages[index];
+        return LkRiseIn(
+          key: ValueKey('msg-${msg.id}'),
+          animate: _seenMessageIds.add(msg.id),
+          child: _buildMessageBubble(context, msg),
+        );
       },
     );
   }

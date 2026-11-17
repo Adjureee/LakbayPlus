@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 import '../services/api_service.dart';
+import '../widgets/admin_motion.dart';
 import '../widgets/admin_widgets.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -89,7 +90,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   : 1;
               final width =
                   (constraints.maxWidth - (columns - 1) * 16) / columns;
-              Widget card(Widget child) => SizedBox(width: width, child: child);
+              var n = 0;
+              Widget card(Widget child) => SizedBox(
+                width: width,
+                child: AdminRiseIn(
+                  delay: AdminMotion.stagger(n++),
+                  child: child,
+                ),
+              );
               return Wrap(
                 spacing: 16,
                 runSpacing: 16,
@@ -149,12 +157,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             },
           ),
           const SizedBox(height: 24),
-          FutureBuilder<List<dynamic>>(
-            future: _pending,
-            builder: (context, snapshot) => _PendingReviews(
-              loading: snapshot.connectionState != ConnectionState.done,
-              items: snapshot.data ?? const [],
-              onOpen: () => _open('/destination-candidates'),
+          AdminRiseIn(
+            delay: AdminMotion.stagger(4),
+            child: FutureBuilder<List<dynamic>>(
+              future: _pending,
+              builder: (context, snapshot) => _PendingReviews(
+                loading: snapshot.connectionState != ConnectionState.done,
+                items: snapshot.data ?? const [],
+                onOpen: () => _open('/destination-candidates'),
+              ),
             ),
           ),
           const SizedBox(height: 32),
@@ -183,12 +194,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 spacing: 16,
                 runSpacing: 16,
                 children: [
-                  for (final area in _workAreas)
+                  for (final (i, area) in _workAreas.indexed)
                     SizedBox(
                       width: cardWidth,
-                      child: _WorkspaceCard(
-                        area: area,
-                        onOpen: () => _open(area.route),
+                      child: AdminRiseIn(
+                        delay: AdminMotion.stagger(5 + i),
+                        child: _WorkspaceCard(
+                          area: area,
+                          onOpen: () => _open(area.route),
+                        ),
                       ),
                     ),
                 ],
@@ -386,13 +400,22 @@ class _StatCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 14),
-                Text(
-                  shown,
-                  style: AppTheme.display(
-                    size: 44,
-                    color: theme.colorScheme.onSurface,
+                if (!loading && value != null)
+                  AdminCountUp(
+                    value: value!,
+                    style: AppTheme.display(
+                      size: 44,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  )
+                else
+                  Text(
+                    shown,
+                    style: AppTheme.display(
+                      size: 44,
+                      color: theme.colorScheme.onSurface,
+                    ),
                   ),
-                ),
                 const SizedBox(height: 6),
                 Text(caption, style: theme.textTheme.bodySmall),
               ],

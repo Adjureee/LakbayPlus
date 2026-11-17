@@ -82,6 +82,8 @@ void main() {
   });
 
   testWidgets('LkMotion returns zero durations when animations are off', (tester) async {
+    LkMotion.globallyEnabled = true;
+    addTearDown(() => LkMotion.globallyEnabled = false);
     late LkMotion on, off;
     await tester.pumpWidget(_host(Builder(builder: (c) {
       on = LkMotion.of(c);

@@ -86,7 +86,7 @@ class _LiveDayScreenState extends State<LiveDayScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final reduced = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final reduced = !LkMotion.of(context).enabled;
     if (reduced) {
       _pulse.stop();
     } else if (!_pulse.isAnimating) {
@@ -393,17 +393,31 @@ class _LiveDayScreenState extends State<LiveDayScreen>
                       ),
                     ),
                   ),
-                  if (next != null)
-                    _NextStopCard(
-                      stop: next,
-                      image: _imageFor(next.stop),
-                      metersAway: fix == null
-                          ? null
-                          : plan.distanceTo(nextIndex!, fix.lat, fix.lng),
-                      onHere: () => _markHere(plan),
-                    )
-                  else
-                    const _DayDoneCard(),
+                  AnimatedSwitcher(
+                    duration: LkMotion.of(context).duration(LkMotion.slow),
+                    switchInCurve: LkMotion.standard,
+                    transitionBuilder: (child, a) => FadeTransition(
+                      opacity: a,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0.08, 0),
+                          end: Offset.zero,
+                        ).animate(a),
+                        child: child,
+                      ),
+                    ),
+                    child: next != null
+                        ? _NextStopCard(
+                            key: ValueKey('next-$nextIndex'),
+                            stop: next,
+                            image: _imageFor(next.stop),
+                            metersAway: fix == null
+                                ? null
+                                : plan.distanceTo(nextIndex!, fix.lat, fix.lng),
+                            onHere: () => _markHere(plan),
+                          )
+                        : const _DayDoneCard(key: ValueKey('done')),
+                  ),
                   const SizedBox(height: LkSpace.l),
                   _Progress(
                     total: stops.length,
@@ -552,6 +566,7 @@ String _legLabel(ItineraryStop s) {
 
 class _NextStopCard extends StatelessWidget {
   const _NextStopCard({
+    super.key,
     required this.stop,
     required this.image,
     required this.metersAway,
@@ -662,7 +677,7 @@ class _NextStopCard extends StatelessWidget {
 }
 
 class _DayDoneCard extends StatelessWidget {
-  const _DayDoneCard();
+  const _DayDoneCard({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -716,7 +731,9 @@ class _Progress extends StatelessWidget {
               for (var i = 0; i < total; i++) ...[
                 if (i > 0) const SizedBox(width: 4),
                 Expanded(
-                  child: Container(
+                  child: AnimatedContainer(
+                    duration: LkMotion.of(context).duration(LkMotion.slow),
+                    curve: LkMotion.standard,
                     height: 6,
                     decoration: BoxDecoration(
                       color: i < reached

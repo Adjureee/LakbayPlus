@@ -20,6 +20,8 @@ import 'package:lakbay_travel/screens/live_day_screen.dart';
 import 'package:lakbay_travel/screens/trip_detail_screen.dart';
 import 'package:lakbay_travel/services/lakbay_api_catalog_service.dart';
 import 'package:lakbay_travel/services/travel_repository.dart';
+import 'package:lakbay_travel/design/design.dart';
+import 'package:lakbay_travel/widgets/lakbay_intro.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final _outDir = Platform.environment['SHOTS_DIR'];
@@ -212,5 +214,39 @@ void main() {
     await _shot(tester, key, '07_chat_thread');
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));    debugDisableShadows = true;
+  });
+
+  testWidgets('intro frames', skip: skip != null, (tester) async {
+    LkMotion.globallyEnabled = true;
+    addTearDown(() => LkMotion.globallyEnabled = false);
+    await tester.runAsync(_loadIconFont);
+    tester.view
+      ..physicalSize = _size * _ratio
+      ..devicePixelRatio = _ratio;
+    addTearDown(tester.view.reset);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: LakbayIntro(onFinished: () {}),
+        ),
+      ),
+    );
+    var elapsed = 0;
+    for (final ms in const [250, 600, 900, 1250, 1600, 2100]) {
+      await tester.pump(Duration(milliseconds: ms - elapsed));
+      elapsed = ms;
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      await tester.runAsync(() async {
+        final image = await boundary.toImage(pixelRatio: 0.5);
+        final data = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$_outDir/intro_$ms.png')
+            .writeAsBytesSync(data!.buffer.asUint8List());
+      });
+    }
+    await tester.pumpWidget(const SizedBox());
   });
 }

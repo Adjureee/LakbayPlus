@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'design/design_preview_screen.dart';
 import 'design/design.dart';
 import 'screens/auth_screen.dart';
@@ -12,6 +13,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/profile_screen.dart';
 import 'services/env_config.dart';
 import 'services/travel_repository.dart';
+import 'widgets/lakbay_intro.dart';
 import 'theme/lakbay_theme.dart';
 
 Future<void> main() async {
@@ -47,6 +49,9 @@ class _LakbayTravelAppState extends State<LakbayTravelApp>
     with WidgetsBindingObserver {
   late TravelRepository _repo = widget.repository ?? TravelRepository();
   late bool _ownsRepo = widget.repository == null;
+
+  /// The intro plays once per launch, before onboarding, sign-in or tabs.
+  bool _introDone = !LakbayIntro.enabled;
 
   @override
   void initState() {
@@ -105,20 +110,113 @@ class _LakbayTravelAppState extends State<LakbayTravelApp>
           // Debug-only gallery of the v8 design system (open /#/design-preview).
           onGenerateRoute: (settings) =>
               kDebugMode && settings.name == '/design-preview'
-                  ? MaterialPageRoute<void>(
-                      settings: settings,
-                      builder: (_) => const DesignPreviewScreen(),
-                    )
-                  : null,
-          home: !_repo.isInitialized
-              ? const _SplashLoadingScreen()
-              : (!_repo.hasCompletedOnboarding
-                  ? OnboardingScreen(repo: _repo)
-                  : (!_repo.isSignedIn
-                      ? AuthScreen(repo: _repo, initialRegisterMode: false)
-                      : MainNavigationShell(repo: _repo))),
+              ? MaterialPageRoute<void>(
+                  settings: settings,
+                  builder: (_) => const DesignPreviewScreen(),
+                )
+              : null,
+          home: _AppHome(
+            showIntro:
+                !_introDone || (LakbayIntro.enabled && !_repo.isInitialized),
+            intro: LakbayIntro(
+              loading: !_repo.isInitialized,
+              onFinished: () => setState(() => _introDone = true),
+            ),
+            child: !_repo.isInitialized
+                ? const _SplashLoadingScreen()
+                : (!_repo.hasCompletedOnboarding
+                      ? OnboardingScreen(repo: _repo)
+                      : (!_repo.isSignedIn
+                            ? AuthScreen(
+                                repo: _repo,
+                                initialRegisterMode: false,
+                              )
+                            : MainNavigationShell(repo: _repo))),
+          ),
         );
       },
+    );
+  }
+}
+
+/// Fades and lifts the tab content a little each time the tab changes.
+class _TabSwitchFade extends StatefulWidget {
+  const _TabSwitchFade({required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<_TabSwitchFade> createState() => _TabSwitchFadeState();
+}
+
+class _TabSwitchFadeState extends State<_TabSwitchFade>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: LkMotion.base,
+    value: 1,
+  );
+
+  @override
+  void didUpdateWidget(covariant _TabSwitchFade oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index != widget.index && LkMotion.of(context).enabled) {
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = CurvedAnimation(parent: _c, curve: LkMotion.standard);
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.35, end: 1).animate(t),
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.012),
+          end: Offset.zero,
+        ).animate(t),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Cross-fades from the intro into the first real screen.
+class _AppHome extends StatelessWidget {
+  const _AppHome({
+    required this.showIntro,
+    required this.intro,
+    required this.child,
+  });
+
+  final bool showIntro;
+  final Widget intro;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final motion = LkMotion.of(context);
+    return AnimatedSwitcher(
+      duration: motion.duration(const Duration(milliseconds: 520)),
+      switchInCurve: LkMotion.standard,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (widget, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 1.03, end: 1).animate(animation),
+          child: widget,
+        ),
+      ),
+      child: showIntro
+          ? KeyedSubtree(key: const ValueKey('intro'), child: intro)
+          : KeyedSubtree(key: const ValueKey('app'), child: child),
     );
   }
 }
@@ -134,7 +232,11 @@ class _SplashLoadingScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            LakbayBrandWordmark(fontSize: 32, lightText: true, showTagline: true),
+            LakbayBrandWordmark(
+              fontSize: 32,
+              lightText: true,
+              showTagline: true,
+            ),
             SizedBox(height: 24),
             CircularProgressIndicator(color: LkColors.lagoon),
           ],
@@ -168,6 +270,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     widget.repo.stopNotificationPolling();
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -180,9 +283,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(
+      body: _TabSwitchFade(
         index: widget.repo.activeNavIndex,
-        children: pages,
+        child: IndexedStack(index: widget.repo.activeNavIndex, children: pages),
       ),
       bottomNavigationBar: LkFloatingNavBar(
         currentIndex: widget.repo.activeNavIndex,

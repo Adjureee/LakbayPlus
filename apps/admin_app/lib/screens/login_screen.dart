@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/session_manager.dart';
 import '../core/theme/app_theme.dart';
+import '../widgets/admin_motion.dart';
 import '../widgets/lakbay_wordmark.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -202,7 +203,10 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Center(
               child: SingleChildScrollView(
                 padding: EdgeInsets.all(wide ? 56 : 24),
-                child: form,
+                child: AdminRiseIn(
+                  delay: const Duration(milliseconds: 160),
+                  child: form,
+                ),
               ),
             ),
           );

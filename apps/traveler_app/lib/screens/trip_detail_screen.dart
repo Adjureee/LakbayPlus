@@ -18,7 +18,16 @@ class TripDetailScreen extends StatefulWidget {
   final ItineraryTrip trip;
   final TravelRepository repo;
 
-  const TripDetailScreen({super.key, required this.trip, required this.repo});
+  /// Hero tag of the photo this screen was opened from, so it flies into
+  /// the header.
+  final String? heroTag;
+
+  const TripDetailScreen({
+    super.key,
+    required this.trip,
+    required this.repo,
+    this.heroTag,
+  });
 
   @override
   State<TripDetailScreen> createState() => _TripDetailScreenState();
@@ -396,10 +405,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  LakbayNetworkOrAssetImage(
-                    networkUrl: _activeTrip.remoteImageUrl,
-                    assetPath: _activeTrip.heroAsset,
-                  ),
+                  _headerPhoto(),
                   Container(
                     decoration: const BoxDecoration(
                       gradient: LkColors.photoScrim,
@@ -609,6 +615,15 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     }
   }
 
+  Widget _headerPhoto() {
+    final photo = LakbayNetworkOrAssetImage(
+      networkUrl: _activeTrip.remoteImageUrl,
+      assetPath: _activeTrip.heroAsset,
+    );
+    final tag = widget.heroTag;
+    return tag == null ? photo : Hero(tag: tag, child: photo);
+  }
+
   /// "Day 2 is live" while the trip is on; otherwise a preview of day 1.
   Widget _buildLiveDayCard(ItineraryTrip trip) {
     final now = DateTime.now();
@@ -769,9 +784,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        _buildDatesTile(trip),
+        LkRiseIn(child: _buildDatesTile(trip)),
         const SizedBox(height: 14),
-        _buildLiveDayCard(trip),
+        LkRiseIn(delay: LkRiseIn.stagger(1), child: _buildLiveDayCard(trip)),
         const SizedBox(height: 14),
         Row(
           children: [
