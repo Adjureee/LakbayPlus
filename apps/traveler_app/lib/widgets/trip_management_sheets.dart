@@ -295,7 +295,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
             const SizedBox(height: 4),
             Text(
               'Invite companions by @username or email, and track Pending, Ongoing, and Completed tasks.',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 13, color: LkColors.muted),
             ),
             if (_statusMessage != null) ...[
               const SizedBox(height: 8),
@@ -379,7 +379,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                   widget.repo.isSignedIn && widget.trip.backendTripId != null
                       ? 'No members yet.'
                       : 'Save this trip to your account to invite companions.',
-                  style: TextStyle(color: Colors.grey.shade600),
+                  style: TextStyle(color: LkColors.muted),
                 ),
               )
             else
@@ -389,7 +389,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                   contentPadding: EdgeInsets.zero,
                   leading: CircleAvatar(
                     backgroundColor: m.isPending
-                        ? Colors.grey.shade400
+                        ? LkColors.strokeStrong
                         : LkColors.s3,
                     foregroundColor: Colors.white,
                     child: Text(
@@ -481,7 +481,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(
                   'No tasks in this view yet.',
-                  style: TextStyle(color: Colors.grey.shade600),
+                  style: TextStyle(color: LkColors.muted),
                 ),
               )
             else
@@ -743,13 +743,13 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: alertLevel == 'exceeded'
-                      ? Colors.red.shade50
-                      : Colors.amber.shade50,
+                      ? LkColors.danger.withValues(alpha: 0.12)
+                      : LkColors.mangoSoft,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: alertLevel == 'exceeded'
-                        ? Colors.red.shade300
-                        : Colors.amber.shade400,
+                        ? LkColors.danger
+                        : LkColors.mango,
                   ),
                 ),
                 child: Row(
@@ -757,8 +757,8 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
                     Icon(
                       Icons.warning_amber_rounded,
                       color: alertLevel == 'exceeded'
-                          ? Colors.red.shade700
-                          : Colors.orange.shade800,
+                          ? LkColors.danger
+                          : LkColors.mango,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -778,14 +778,14 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
             if (_bannerMsg != null) ...[
               Text(
                 _bannerMsg!,
-                style: TextStyle(color: Colors.red.shade700, fontSize: 12.5),
+                style: TextStyle(color: LkColors.danger, fontSize: 12.5),
               ),
               const SizedBox(height: 8),
             ],
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF3F6F7),
+                color: LkColors.s2,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
@@ -1060,7 +1060,7 @@ class _CounterTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: LkColors.strokeStrong),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

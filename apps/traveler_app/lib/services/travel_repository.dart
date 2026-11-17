@@ -134,7 +134,8 @@ class TravelRepository extends ChangeNotifier {
     'choose_where_to_go',
     'build_itinerary'
   };
-  String travelCompanion = 'Couple';
+  /// Who the traveler usually goes with; empty until they choose in Settings.
+  String travelCompanion = '';
   bool priceDropAlertsEnabled = true;
   bool locationSharingEnabled = true;
   double? _userLat;

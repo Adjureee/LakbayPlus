@@ -839,9 +839,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.amber.shade50,
+              color: LkColors.mangoSoft,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber.shade300),
+              border: Border.all(color: LkColors.mango),
             ),
             child: Text(
               combinedWarnings.join('\n'),
@@ -1052,9 +1052,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.amber.shade50,
+              color: LkColors.mangoSoft,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.amber.shade300),
+              border: Border.all(color: LkColors.mango),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1426,7 +1426,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: day.overloadWarning != null
-                      ? Colors.amber.shade400
+                      ? LkColors.mango
                       : LkColors.stroke,
                 ),
               ),
@@ -1477,7 +1477,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                           ),
                           decoration: BoxDecoration(
                             color: day.overloadWarning != null
-                                ? Colors.amber.shade100
+                                ? LkColors.mangoSoft
                                 : LkColors.bg,
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -1558,9 +1558,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.amber.shade50,
+                        color: LkColors.mangoSoft,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.amber.shade300),
+                        border: Border.all(color: LkColors.mango),
                       ),
                       child: Row(
                         children: [

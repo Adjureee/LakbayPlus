@@ -758,7 +758,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                 width: 38,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: LkColors.strokeStrong,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -910,7 +910,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                 if (trip.effectiveBackendDestinationIds.length >= 2 ||
                     trip.days.length >= 2)
                   Material(
-                    color: Colors.white.withValues(alpha: 0.94),
+                    color: LkColors.s1,
                     borderRadius: BorderRadius.circular(18),
                     elevation: 2,
                     child: InkWell(
@@ -966,7 +966,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                     ),
                     selected: _showNearby,
                     showCheckmark: false,
-                    backgroundColor: Colors.white.withValues(alpha: 0.94),
+                    backgroundColor: LkColors.s2,
                     selectedColor: LkColors.s1,
                     visualDensity: VisualDensity.compact,
                     tooltip: _showNearby
@@ -1073,7 +1073,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                   ),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.96),
+                    color: LkColors.s1,
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
                       color: isSelected
@@ -1220,7 +1220,7 @@ class _SeaCrossingCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
+        color: LkColors.s1,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFF1E88E5), width: 1.2),
         boxShadow: [
@@ -1253,7 +1253,7 @@ class _SeaCrossingCard extends StatelessWidget {
                   crossing.verified
                       ? details
                       : '$details · schedule not yet verified',
-                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+                  style: TextStyle(fontSize: 11.5, color: LkColors.muted),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),

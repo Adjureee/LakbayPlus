@@ -4,13 +4,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../design/widgets/lk_feedback.dart';
 import '../models/travel_models.dart';
 import '../services/friendly_error.dart';
 import '../services/travel_repository.dart';
 
-import '../design/lakbay_tokens.dart';
-import '../design/lakbay_type.dart';
+import '../design/design.dart';
+
 class MemoriesScreen extends StatefulWidget {
   final TravelRepository repo;
 
@@ -136,7 +135,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                           height: 4,
                           margin: const EdgeInsets.only(bottom: 14),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
+                            color: LkColors.strokeStrong,
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -319,98 +318,99 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
   @override
   Widget build(BuildContext context) {
     final allMemories = widget.repo.memories;
+    String groupOf(TripMemoryItem m) {
+      final tag = (m.locationTag ?? '').trim();
+      if (tag.isNotEmpty) return tag;
+      final dest = (m.destinationName ?? '').trim();
+      return dest.isNotEmpty ? dest : 'Other moments';
+    }
+
     final filtered = _selectedTripFilter == null
         ? allMemories
-        : allMemories
-              .where(
-                (m) =>
-                    m.locationTag == _selectedTripFilter ||
-                    m.destinationName == _selectedTripFilter,
-              )
-              .toList();
+        : allMemories.where((m) => groupOf(m) == _selectedTripFilter).toList();
 
-    final filterLabels = {
-      for (final m in allMemories)
-        if ((m.locationTag ?? '').trim().isNotEmpty) m.locationTag!.trim(),
-    }.toList();
+    final filterLabels = {for (final m in allMemories) groupOf(m)}.toList();
+    // Grouped by place, in the order they first appear.
+    final groups = <String, List<TripMemoryItem>>{};
+    for (final m in filtered) {
+      groups.putIfAbsent(groupOf(m), () => []).add(m);
+    }
+    final bottomClear = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F8),
+      backgroundColor: LkColors.bg,
       body: SafeArea(
+        bottom: false,
         child: RefreshIndicator(
           onRefresh: _refresh,
           child: CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                  padding: const EdgeInsets.fromLTRB(
+                    LkSpace.gutter,
+                    LkSpace.l,
+                    LkSpace.gutter,
+                    LkSpace.m,
+                  ),
                   child: Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Memories',
-                              style: TextStyle(
-                                fontFamily: LkType.displayFamily,
-                                fontSize: 28,
-                                fontWeight: FontWeight.w800,
-                                color: LkColors.text,
-                              ),
+                            Semantics(
+                              header: true,
+                              child: Text('Memories', style: LkType.h1),
                             ),
-                            SizedBox(height: 2),
+                            const SizedBox(height: LkSpace.xxs),
                             Text(
-                              'Photos & moments from your Davao Region trips',
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                color: Color(0xFF5D6B73),
-                              ),
+                              'Photos from your Davao Region trips',
+                              style: LkType.caption,
                             ),
                           ],
                         ),
                       ),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: LkColors.mango,
-                          foregroundColor: LkColors.mangoInk,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
+                      LkButton(
+                        label: 'Add photo',
+                        icon: Icons.add_a_photo_outlined,
                         onPressed: _openAddMemorySheet,
-                        icon: const Icon(Icons.add_a_photo_outlined, size: 18),
-                        label: const Text('Add Photo'),
                       ),
                     ],
                   ),
                 ),
               ),
-              if (filterLabels.isNotEmpty)
+              if (filterLabels.length > 1)
                 SliverToBoxAdapter(
                   child: SizedBox(
-                    height: 44,
+                    height: kLkMinTarget,
                     child: ListView(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: LkSpace.gutter,
+                      ),
                       children: [
                         Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: const Text('All'),
-                            selected: _selectedTripFilter == null,
-                            onSelected: (_) =>
-                                setState(() => _selectedTripFilter = null),
+                          padding: const EdgeInsets.only(right: LkSpace.s),
+                          child: Center(
+                            child: ChoiceChip(
+                              label: const Text('All'),
+                              selected: _selectedTripFilter == null,
+                              onSelected: (_) =>
+                                  setState(() => _selectedTripFilter = null),
+                            ),
                           ),
                         ),
                         for (final label in filterLabels)
                           Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(label),
-                              selected: _selectedTripFilter == label,
-                              onSelected: (_) =>
-                                  setState(() => _selectedTripFilter = label),
+                            padding: const EdgeInsets.only(right: LkSpace.s),
+                            child: Center(
+                              child: ChoiceChip(
+                                label: Text(label),
+                                selected: _selectedTripFilter == label,
+                                onSelected: (_) =>
+                                    setState(() => _selectedTripFilter = label),
+                              ),
                             ),
                           ),
                       ],
@@ -422,84 +422,54 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                   hasScrollBody: false,
                   child: Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(28),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              color: LkColors.s3.withValues(
-                                alpha: 0.12,
-                              ),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.photo_album_outlined,
-                              size: 36,
-                              color: LkColors.lagoon,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'No trip memories yet',
-                            style: TextStyle(
-                              fontFamily: LkType.displayFamily,
-                              fontSize: 19,
-                              fontWeight: FontWeight.w700,
-                              color: LkColors.text,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Capture and store photos from your Samal, Mati, Buda, or Davao City journeys.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              color: Color(0xFF5D6B73),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: LkColors.s3,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            onPressed: _openAddMemorySheet,
-                            icon: const Icon(
-                              Icons.add_photo_alternate_outlined,
-                            ),
-                            label: const Text('Upload First Memory'),
-                          ),
-                        ],
+                      padding: const EdgeInsets.all(LkSpace.gutter),
+                      child: LkEmptyState(
+                        icon: Icons.photo_album_outlined,
+                        title: 'No trip memories yet',
+                        message:
+                            'Add photos from your Samal, Mati, Buda or '
+                            'Davao City trips.',
+                        actionLabel: 'Add your first photo',
+                        onAction: _openAddMemorySheet,
                       ),
                     ),
                   ),
                 )
               else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 110),
-                  sliver: SliverList.separated(
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 14),
-                    itemBuilder: (context, index) {
-                      final memory = filtered[index];
-                      return _MemoryCard(
-                        memory: memory,
-                        onLike: () => widget.repo.likeMemory(memory),
-                        onDelete: () => _confirmDelete(memory),
-                      );
-                    },
+                for (final entry in groups.entries) ...[
+                  SliverToBoxAdapter(
+                    child: LkSectionHeader(
+                      title: entry.key,
+                      padding: const EdgeInsets.fromLTRB(
+                        LkSpace.gutter,
+                        LkSpace.l,
+                        LkSpace.gutter,
+                        LkSpace.s,
+                      ),
+                    ),
                   ),
-                ),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: LkSpace.gutter,
+                    ),
+                    sliver: SliverList.separated(
+                      itemCount: entry.value.length,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: LkSpace.m),
+                      itemBuilder: (context, index) {
+                        final memory = entry.value[index];
+                        return _MemoryCard(
+                          memory: memory,
+                          onLike: () => widget.repo.likeMemory(memory),
+                          onDelete: () => _confirmDelete(memory),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              SliverToBoxAdapter(
+                child: SizedBox(height: bottomClear + LkSpace.xl),
+              ),
             ],
           ),
         ),
@@ -536,13 +506,7 @@ class _MemoryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: LkColors.s1,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: LkColors.stroke),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -609,29 +573,37 @@ class _MemoryCard extends StatelessWidget {
                       memory.uploadedByFullName,
                       style: const TextStyle(
                         fontSize: 12.5,
-                        color: Color(0xFF6B7780),
+                        color: LkColors.muted,
                       ),
                     ),
                     const Spacer(),
-                    InkWell(
-                      onTap: onLike,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.favorite_outline,
-                              size: 18,
-                              color: LkColors.lagoon,
+                    Semantics(
+                      button: true,
+                      label: 'Like, ${memory.likeCount} likes',
+                      excludeSemantics: true,
+                      child: InkWell(
+                        onTap: onLike,
+                        borderRadius: BorderRadius.circular(12),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            minHeight: kLkMinTarget,
+                            minWidth: kLkMinTarget,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.favorite_outline,
+                                  size: 18,
+                                  color: LkColors.lagoon,
+                                ),
+                                const SizedBox(width: 4),
+                                Text('${memory.likeCount}'),
+                              ],
                             ),
-                            const SizedBox(width: 4),
-                            Text('${memory.likeCount}'),
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -639,7 +611,7 @@ class _MemoryCard extends StatelessWidget {
                       icon: const Icon(
                         Icons.delete_outline,
                         size: 19,
-                        color: Color(0xFF7D8A91),
+                        color: LkColors.muted,
                       ),
                       onPressed: onDelete,
                       tooltip: 'Delete memory',
@@ -655,9 +627,9 @@ class _MemoryCard extends StatelessWidget {
   }
 
   Widget _fallbackTile() => Container(
-    color: const Color(0xFFE9EEF0),
+    color: LkColors.s2,
     child: const Center(
-      child: Icon(Icons.photo_outlined, size: 42, color: LkColors.text),
+      child: Icon(Icons.photo_outlined, size: 42, color: LkColors.faint),
     ),
   );
 }

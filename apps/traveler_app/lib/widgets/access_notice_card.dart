@@ -19,9 +19,9 @@ class AccessNoticeCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.deepOrange.shade50,
+            color: LkColors.mangoSoft,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.deepOrange.shade200),
+            border: Border.all(color: LkColors.mango),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,7 +87,7 @@ class AccessNoticePill extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w700,
-                color: Colors.deepOrange.shade800,
+                color: LkColors.mango,
               ),
             ),
           ),

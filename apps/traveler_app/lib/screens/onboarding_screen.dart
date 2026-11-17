@@ -554,7 +554,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             child: Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: const Color(0xFFE9F2EE),
+                color: LkColors.s2,
                 borderRadius: BorderRadius.circular(26),
                 border: Border.all(color: LkColors.stroke),
               ),
@@ -575,7 +575,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.94),
+                        color: LkColors.s1,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(

@@ -141,7 +141,7 @@ void showNotificationsSheet(BuildContext context, TravelRepository repo) {
                             ? 'No notifications yet. Group updates and 80% budget alerts appear here.'
                             : 'Sign in to receive group invites, task updates, and 80% budget alerts.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey.shade600),
+                        style: TextStyle(color: LkColors.muted),
                       ),
                     ),
                   )
@@ -151,14 +151,14 @@ void showNotificationsSheet(BuildContext context, TravelRepository repo) {
                       contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(
                         backgroundColor: n.isRead
-                            ? Colors.grey.shade200
+                            ? LkColors.s2
                             : LkColors.s3.withValues(alpha: 0.16),
                         child: Icon(
                           n.eventType == 'trip_updated'
                               ? Icons.warning_amber_rounded
                               : Icons.notifications_active_outlined,
                           color: n.isRead
-                              ? Colors.grey.shade600
+                              ? LkColors.muted
                               : LkColors.lagoon,
                           size: 20,
                         ),

@@ -347,7 +347,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     children: [
                       const Expanded(
                         child: Text(
-                          'Single Region XI places, Mapbox pins & local guides',
+                          'Real places across Region XI',
                           style: TextStyle(
                             fontSize: 12.5,
                             color: LkColors.muted,
@@ -379,7 +379,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     onChanged: (v) => setState(() => _searchQuery = v.trim()),
                     decoration: InputDecoration(
                       hintText:
-                          'Search Samal, Mati, Buda, Tagum, Mt. Apo, or falls...',
+                          'Where to in Davao?',
                       prefixIcon: const Icon(Icons.search_rounded,
                           color: LkColors.lagoon),
                       filled: true,
@@ -825,7 +825,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.96),
+                    color: LkColors.s1,
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
@@ -2466,12 +2466,12 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: overloadedDays.isNotEmpty
-                      ? Colors.amber.shade50
+                      ? LkColors.mangoSoft
                       : LkColors.s2.withValues(alpha: 0.45),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: overloadedDays.isNotEmpty
-                        ? Colors.amber.shade300
+                        ? LkColors.mango
                         : LkColors.stroke,
                   ),
                 ),

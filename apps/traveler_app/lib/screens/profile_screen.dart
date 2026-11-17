@@ -69,15 +69,20 @@ class ProfileScreen extends StatelessWidget {
                         top: 12,
                         right: 12,
                         child: Material(
-                          color: Colors.white.withValues(alpha: 0.94),
-                          borderRadius: BorderRadius.circular(24),
+                          color: LkColors.glassDark,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            side: const BorderSide(
+                              color: LkColors.glassDarkBorder,
+                            ),
+                          ),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(24),
                             onTap: () => _showEditProfileSheet(context),
                             child: const Padding(
                               padding: EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 7,
+                                horizontal: 16,
+                                vertical: 14,
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -163,7 +168,13 @@ class ProfileScreen extends StatelessWidget {
                         Text(
                           profile.headline.isNotEmpty
                               ? profile.headline
-                              : '${profile.location.trim().isNotEmpty ? profile.location.trim() : "Detecting location…"} • ${repo.travelCompanion} Traveler',
+                              : [
+                                  profile.location.trim().isNotEmpty
+                                      ? profile.location.trim()
+                                      : 'Detecting location…',
+                                  if (repo.travelCompanion.isNotEmpty)
+                                    '${repo.travelCompanion} traveler',
+                                ].join(' • '),
                           style: const TextStyle(
                             fontSize: 13,
                             color: LkColors.muted,
@@ -183,7 +194,7 @@ class ProfileScreen extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Your Davao travel advisor',
+                                      'Lakbay AI',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 14,
@@ -192,7 +203,7 @@ class ProfileScreen extends StatelessWidget {
                                     ),
                                     SizedBox(height: 2),
                                     Text(
-                                      'Plans with you, maps routes & stays on call.',
+                                      'Plans trips, maps routes and finds stays from the Region XI catalog.',
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: LkColors.muted,
@@ -474,7 +485,7 @@ class ProfileScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 11.5,
                           color: usernameError != null
-                              ? Colors.red.shade700
+                              ? LkColors.danger
                               : LkColors.muted,
                         ),
                       ),
@@ -791,6 +802,7 @@ class _ProfileTripTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(12),
@@ -842,12 +854,12 @@ class _ProfileTripTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: LkColors.s3.withValues(alpha: 0.14),
+                color: LkColors.lagoonSoft,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Text(
-                '✓ Upcoming',
-                style: TextStyle(
+              child: Text(
+                trip.whenLabel(DateTime.now()) ?? 'No dates',
+                style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: LkColors.lagoon,
