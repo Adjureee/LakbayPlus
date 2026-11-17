@@ -4529,8 +4529,11 @@ class TravelRepository extends ChangeNotifier {
           attachedTrip: aiOptions.length <= 1 ? attachedTrip : null,
           aiOptions: aiOptions,
           recommendedPlaces: recommendedPlaces,
-          // Only what the AI suggested for this conversation.
-          suggestedReplies: modelReplies,
+          // Only what the AI suggested for this conversation, and none while the
+          // app asks with its own buttons (a second set would be typed as text,
+          // which the AI cannot save).
+          suggestedReplies:
+              _firstMissingDetail(planning) != null ? const [] : modelReplies,
           askNext: _firstMissingDetail(planning),
           offerPriorities: !_prioritySkipped &&
               _optionalDetails(planning).contains('priority_order'),
