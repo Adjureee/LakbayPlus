@@ -1503,3 +1503,62 @@ def test_show_places_never_lists_a_place_already_picked(client, monkeypatch) -> 
     ids = {c["destination_id"] for c in body["planning"]["recommendations"]}
     assert created["Beach A"]["destination_id"] not in ids
     assert ids == {created["Beach B"]["destination_id"], created["Beach C"]["destination_id"]}
+
+
+def test_a_refused_model_id_does_not_contradict_the_name_based_add(
+    client, monkeypatch,
+) -> None:
+    """Live case: the model named the museum with an id outside the context, the
+    server refused that id, then added the museum by name. The reply must not say
+    it could not match, and earlier "beaches" talk must not bring beach cards back."""
+    configure_ai(monkeypatch)
+    monkeypatch.setattr(ai_router_module, "get_osrm_client", lambda: CandidateOSRM())
+    admin = admin_headers(client)
+    picked = create_destination(
+        client, headers=admin, name="Beach A", category="beach", **verified_arrival(0),
+    )
+    for i in range(1, 4):
+        create_destination(
+            client, headers=admin, name=f"Shore {i}", category="beach", **verified_arrival(i),
+        )
+    museum = create_destination(
+        client, headers=admin, name="National Museum of the Philippines - Davao",
+        **MUSEUM, **verified_arrival(9),
+    )
+    reply = json.dumps({
+        "chat_response": "Added the National Museum: that makes two stops.",
+        "state_updates": {"destination_ids": [picked["destination_id"], 999999]},
+        "intent": "modify_trip",
+    })
+    client.app.dependency_overrides[get_groq_client] = lambda: FakeGroqClient([reply])
+
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=user_headers(client),
+        json={
+            "message": "add the National Museum",
+            "use_rag": True,
+            "history": [
+                {"role": "user", "content": "show me beach resorts"},
+                {"role": "assistant", "content": "Here are some beach resorts."},
+            ],
+            "planning_state": {
+                "origin": {"label": "Davao City", "lat": 7.0731, "lng": 125.6128},
+                "destination_ids": [picked["destination_id"]],
+                "interests": ["beach"],
+                "selected_transport_option_ids": ["mode:personal_vehicle"],
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    planning = body["planning"]
+    assert planning["state_updates"]["destination_ids"] == [
+        picked["destination_id"], museum["destination_id"],
+    ]
+    assert "couldn't match" not in body["chat_response"]
+    assert body["chat_response"].endswith(
+        "I added National Museum of the Philippines - Davao to your plan.",
+    )
+    assert planning["recommendations"] == []
