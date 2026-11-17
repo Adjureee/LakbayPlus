@@ -46,7 +46,12 @@ _CLOCK = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s?(am|pm)\b", re.IGNORECASE)
 _CLOCK24 = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b(?!\s?(?i:am|pm))")
 _ANY_NUMBER = re.compile(NUM)
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
-_FROM_DAVAO = re.compile(r"\bfrom\s+davao\s+city\b", re.IGNORECASE)
+# "from Davao City", and also "from nearby Davao City" or "from the center of Davao City".
+_FROM_DAVAO = re.compile(
+    r"\bfrom\s+(?:(?:nearby|near|around|the|center|centre|downtown|of|central|proper)\s+){0,3}"
+    r"davao\s+city\b",
+    re.IGNORECASE,
+)
 _COUNT_CLAIM = re.compile(
     r"\b(?:we have|there are|here are|i found|lakbay (?:has|lists))\s+"
     r"(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b",
