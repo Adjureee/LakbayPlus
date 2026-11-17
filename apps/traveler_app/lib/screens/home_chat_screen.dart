@@ -1274,7 +1274,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
             children: [
               const Padding(
                 padding: EdgeInsets.only(top: 4),
-                child: LakbayAvatar(size: 22),
+                child: LakbayAvatar(size: 34),
               ),
               const SizedBox(width: 8),
               Expanded(

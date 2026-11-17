@@ -1,12 +1,15 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
-/// Lakbay+'s original mark: an eight-point compass rose standing for
-/// wayfinding across the Davao Region. It is wholly original vector artwork —
-/// drawn here with [CustomPainter] math, not copied from any logo, icon pack
-/// or font — and is used both in the wordmark and as the AI planner's avatar
-/// glyph (see [LakbayAiAvatar]).
+/// Lakbay+'s logo: the teal jeepney-style bus with the traveler inside.
+///
+/// This widget used to draw an eight-point compass star; its name is kept so
+/// every place that showed the star (the chat avatar, the Chat tab button and
+/// the wordmark) now shows the logo without further changes.
+///
+/// [size] is the height of the box; the logo is wider than it is tall, so the
+/// box is [size] * [aspect] wide. The logo keeps its own colours. On a dark
+/// background (a light [primaryColor], as the old white star used) it sits on
+/// a white rounded badge so the teal bus stays readable.
 class LakbayCompassMark extends StatelessWidget {
   const LakbayCompassMark({
     super.key,
@@ -15,73 +18,46 @@ class LakbayCompassMark extends StatelessWidget {
     this.secondaryColor,
   });
 
+  /// Height of the box, in logical pixels.
   final double size;
 
-  /// Fill for the four cardinal (N/E/S/W) points. Defaults to the current
-  /// theme's primary color.
+  /// Kept for existing callers. Only its brightness is used: a light color
+  /// means the mark sits on a dark background.
   final Color? primaryColor;
 
-  /// Fill for the four diagonal points. Defaults to a lighter tint of
-  /// [primaryColor].
+  /// Unused; kept so existing callers still compile.
   final Color? secondaryColor;
+
+  /// Width over height of the logo artwork.
+  static const double aspect = 640 / 332;
+
+  static const String asset = 'assets/brand/lakbay_logo.png';
 
   @override
   Widget build(BuildContext context) {
-    final primary = primaryColor ?? Theme.of(context).colorScheme.primary;
-    return CustomPaint(
-      size: Size.square(size),
-      painter: _CompassMarkPainter(
-        primary: primary,
-        secondary: secondaryColor ?? primary.withValues(alpha: 0.45),
+    final onDark = (primaryColor?.computeLuminance() ?? 0) > 0.8;
+    final logo = Image.asset(
+      asset,
+      key: const ValueKey('lakbay-logo'),
+      width: size * aspect,
+      height: size,
+      fit: BoxFit.contain,
+      semanticLabel: 'Lakbay+',
+      filterQuality: FilterQuality.medium,
+    );
+    if (!onDark) return logo;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(size * 0.28),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: size * 0.14,
+          vertical: size * 0.08,
+        ),
+        child: logo,
       ),
     );
   }
-}
-
-class _CompassMarkPainter extends CustomPainter {
-  _CompassMarkPainter({required this.primary, required this.secondary});
-
-  final Color primary;
-  final Color secondary;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final outer = size.shortestSide / 2;
-    final flankRadius = outer * 0.30;
-    const flankAngle = math.pi / 10; // half-width of each point, in radians
-
-    final majorPaint = Paint()..color = primary;
-    final minorPaint = Paint()..color = secondary;
-
-    for (var i = 0; i < 8; i++) {
-      final isMajor = i.isEven;
-      final angle = i * math.pi / 4 - math.pi / 2; // 0 points straight up
-      final tipRadius = isMajor ? outer : outer * 0.62;
-
-      Offset vertex(double a, double r) =>
-          center + Offset(math.cos(a), math.sin(a)) * r;
-
-      final path = Path()
-        ..moveTo(center.dx, center.dy)
-        ..lineTo(
-          vertex(angle - flankAngle, flankRadius).dx,
-          vertex(angle - flankAngle, flankRadius).dy,
-        )
-        ..lineTo(vertex(angle, tipRadius).dx, vertex(angle, tipRadius).dy)
-        ..lineTo(
-          vertex(angle + flankAngle, flankRadius).dx,
-          vertex(angle + flankAngle, flankRadius).dy,
-        )
-        ..close();
-
-      canvas.drawPath(path, isMajor ? majorPaint : minorPaint);
-    }
-
-    canvas.drawCircle(center, outer * 0.16, majorPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _CompassMarkPainter oldDelegate) =>
-      oldDelegate.primary != primary || oldDelegate.secondary != secondary;
 }
