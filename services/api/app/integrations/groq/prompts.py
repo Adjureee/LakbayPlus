@@ -12,7 +12,7 @@ from app.features.recommendations.schemas import RecommendationItem
 
 PROMPT_VERSION = "phase5_itinerary_picks_only_v4"
 PLANNING_PROMPT_VERSION = "phase15e_picks_compact_v7"
-CHAT_PROMPT_VERSION = "phase5_chat_v13_card_rules"
+CHAT_PROMPT_VERSION = "phase5_chat_v14_english_stays_english"
 ONBOARDING_CHAT_PROMPT_VERSION = "onboarding_v1"
 
 _LANGUAGE_LABELS: dict[str, str] = {
@@ -37,7 +37,9 @@ def language_rule(language: AILanguage = "auto", *, from_message: bool = True) -
         )
         lead = (
             f'The request has `language` "auto". Write for the traveler in {source} '
-            "(English, Filipino or Bisaya/Cebuano) and keep using it."
+            "(English, Filipino or Bisaya/Cebuano) and keep using it. If that message "
+            "is in English, answer in English only, even if the catalog or earlier "
+            "replies contain other languages."
         )
     else:
         label = _LANGUAGE_LABELS.get(language, "English")
@@ -296,9 +298,10 @@ def build_chat_messages(
         "details for islands). End with at most one short follow-up question, and "
         "only when you truly need a detail. Vary how you open; never start with "
         "'Great question', never repeat the request back, never list every rule. "
-        "Reply in the traveler's language: English, Filipino, or Bisaya/Cebuano; a "
-        "light Bisaya touch (e.g. 'Maayong buntag!', 'Salamat!') is welcome when it "
-        "fits. Use short paragraphs or up to 5 bullets; keep it under about 180 "
+        "Reply in the traveler's language: English, Filipino, or Bisaya/Cebuano. A "
+        "message written in English gets an English reply with no Bisaya or Filipino "
+        "greetings or words; a short local word such as 'Salamat!' is welcome only "
+        "when the traveler writes in that language. Use short paragraphs or up to 5 bullets; keep it under about 180 "
         "words unless the traveler asks for detail. Small talk and thanks get a "
         "short friendly reply. "
         # What Lakbay AI helps with.

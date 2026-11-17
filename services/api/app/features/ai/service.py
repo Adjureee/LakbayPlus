@@ -1079,6 +1079,11 @@ def _build_chat_input_summary(data: AIChatRequest) -> dict:
 # With stops already picked, "more" requests show a short list, not a full row.
 MORE_WITH_PICKS = 3
 
+# Questions the app answers with its own buttons (they send a structured answer).
+# While one of these is the next question, the model's own quick replies would be
+# a second, broken set of buttons, so none are offered.
+STRUCTURED_QUESTIONS = frozenset({"activity_level", "travel_start_date", "prefers_quiet"})
+
 # Appended when the model names a destination that is not in the catalog context.
 UNMATCHED_DESTINATION_NOTE = (
     "\n\nI couldn't match that destination to an active "
@@ -1183,23 +1188,30 @@ async def _build_planning_chat_result(
         "preview is shown below; try restating the change or use the preview controls."
     )
     output, rejected_fields = _parse_planning_chat_output(content)
+    # Details the model guessed (never said by the traveler) are dropped, not blamed.
+    unconfirmed_fields: list[str] = []
     if output is not None:
         output, unconfirmed_fields = _reject_unconfirmed_trip_details(output, data)
-        rejected_fields.extend(unconfirmed_fields)
 
-    update_status = "invalid_output"
+    # When the model ignored the JSON format but still wrote a usable answer, the
+    # traveler gets that answer; nothing in the plan is changed from it.
+    salvaged = _salvage_reply(content) if output is None else None
+    if output is None:
+        # So an unusable reply can be understood later (the traveler never sees this).
+        _timing_log.warning(
+            "planning chat reply not usable (salvaged=%s): %s",
+            bool(salvaged), (content or "")[:500].replace("\n", " "),
+        )
+    update_status = "no_changes" if salvaged else "invalid_output"
     validation_status = "invalid"
-    chat_response = fallback_response
+    chat_response = salvaged or fallback_response
     changes_json: dict = {}
     next_state = current_state
     if output is not None:
         # The recovered output is validated before use; the run table's
         # validation-status constraint does not define a separate partial value.
         validation_status = "valid"
-        chat_response = (
-            _partial_planning_reply(rejected_fields)
-            if rejected_fields else _restore_line_breaks(output.chat_response.strip())
-        )
+        chat_response = _restore_line_breaks(output.chat_response.strip())
         changes = output.state_updates.model_dump(exclude_unset=True, mode="python")
         changes_json = output.state_updates.model_dump(exclude_unset=True, mode="json")
         update_status = "no_changes"
@@ -1273,6 +1285,16 @@ async def _build_planning_chat_result(
             validation_status = "invalid"
             chat_response = fallback_response
 
+    if output is not None and (rejected_fields or unconfirmed_fields):
+        # The model's own reply may claim something that was not saved, so it is
+        # replaced by a plain note and the next real question.
+        chat_response = _refusal_reply(
+            rejected_fields,
+            unconfirmed_fields,
+            origin_label=(next_state.origin.label if next_state.origin else None),
+            next_question=compute_stage(next_state).next_question,
+        )
+
     # If the traveler clearly named one catalog destination and the model did not select
     # it (cautious models often just ask questions), add it here so the plan moves on.
     resolver_matches = (
@@ -1280,9 +1302,14 @@ async def _build_planning_chat_result(
         if catalog and not next_state.destination_ids
         else []
     )
+    # A question about a place ("What time does Museo Panabo open?") is not a request
+    # to add it.
+    asking = _looks_like_question(data.message) or (
+        output is not None and output.intent in {"question", "logistics", "smalltalk"}
+    )
     auto_added = (
         pick_single_destination(data.message, catalog)
-        if resolver_matches and not current_state.destination_ids
+        if resolver_matches and not current_state.destination_ids and not asking
         else None
     )
     if auto_added is not None:
@@ -1537,7 +1564,11 @@ async def _build_planning_chat_result(
             input_revision=data.input_revision,
             intent=output_intent,
             place_query=output_place_query,
-            suggested_replies=output.suggested_replies if output is not None else [],
+            suggested_replies=(
+                []
+                if output is None or _next_question_is_structured(next_state)
+                else output.suggested_replies
+            ),
             state_updates=changes_json,
             update_status=update_status,
             preview=preview,
@@ -1582,6 +1613,75 @@ def _parse_trip_draft(content: str) -> dict | None:
                 activity["lat"] = None
                 activity["lng"] = None
     return draft
+
+
+_QUESTION_START = re.compile(
+    r"^\s*(what|when|where|which|who|whom|whose|why|how|is|are|was|were|does|do|did|"
+    r"can|could|will|would|should|may|might|unsa|asa|kanus-a|kanusa|pila|ngano|ano|"
+    r"saan|kailan|magkano|paano|sino|bakit)\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_question(message: str) -> bool:
+    text = message.strip()
+    return text.endswith("?") or _QUESTION_START.match(text) is not None
+
+
+_CHAT_RESPONSE_FIELD = re.compile(
+    r'"chat_*response"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL,
+)
+
+
+_CLAIMS_A_CHANGE = re.compile(
+    r"\b(i(?:'ve|\s+have)?\s+(?:added|set|updated|saved|changed|chose|selected|booked|removed)"
+    r"|(?:added|updated|saved|booked|removed)\s+(?:the|your|it|that|them|those)\b"
+    r"|(?:has|have)\s+been\s+(?:added|updated|saved|booked|removed))",
+    re.IGNORECASE,
+)
+
+
+def _salvage_reply(content: str) -> str | None:
+    """The traveler-facing text from a model reply that is not valid planning JSON.
+
+    Broken or cut-off JSON still holds a "chat_response" string; a plain-text reply
+    is the answer itself. Anything else (empty, a bare JSON object, code) gives None
+    and the caller keeps the generic fallback.
+    """
+    text = (content or "").strip()
+    if not text:
+        return None
+    candidate: str | None = None
+    try:
+        loaded = json.loads(_strip_json_fence(text))
+    except (TypeError, ValueError):
+        loaded = None
+    if isinstance(loaded, dict):
+        if "chat_response" in loaded:
+            # Valid JSON that was still refused (for example a field the model may
+            # not set): its text may claim changes that were never made.
+            return None
+        # A misspelt key such as "chat__response": the text is still the answer.
+        key = next((k for k in loaded if re.fullmatch(r"chat_*response", str(k))), None)
+        value = loaded.get(key) if key else None
+        candidate = value.strip() if isinstance(value, str) else None
+    elif loaded is not None:
+        return None
+    else:
+        field = _CHAT_RESPONSE_FIELD.search(text)
+        if field is not None:
+            try:
+                candidate = json.loads(f'"{field.group(1)}"').strip()
+            except ValueError:
+                return None
+        elif text[0] not in "{[`" and '"state_updates"' not in text and len(text) <= 1500:
+            candidate = text
+    if not candidate:
+        return None
+    # Nothing was saved, so never show text that says something was.
+    if _CLAIMS_A_CHANGE.search(candidate):
+        return None
+    return _restore_line_breaks(candidate)
 
 
 def _restore_line_breaks(text: str) -> str:
@@ -1767,7 +1867,24 @@ def _reject_unconfirmed_trip_details(
     }), rejected
 
 
-def _partial_planning_reply(rejected_fields: list[str]) -> str:
+def _next_question_is_structured(state: PlanningState) -> bool:
+    missing = compute_stage(state).missing_details
+    return bool(missing) and missing[0] in STRUCTURED_QUESTIONS
+
+
+def _refusal_reply(
+    shape_fields: list[str],
+    unconfirmed_fields: list[str],
+    *,
+    origin_label: str | None,
+    next_question: str | None,
+) -> str:
+    """What to say when some proposed details were not saved.
+
+    A detail the model guessed is simply not assumed. A detail the traveler gave
+    that could not be saved is named, with a way to set it. Either way the
+    conversation moves on to the next question the plan really needs.
+    """
     labels = {
         "origin": "starting place",
         "destination_ids": "destination",
@@ -1775,15 +1892,26 @@ def _partial_planning_reply(rejected_fields: list[str]) -> str:
         "budget_scope": "budget scope",
         "traveler_count": "traveler count",
         "day_count": "day count",
-        "night_count": "overnight stay",
-        "return_to_origin": "return trip",
         "interests": "travel interests",
     }
-    names = ", ".join(labels[field] for field in rejected_fields)
-    return (
-        f"I could not use the {names}; please confirm that detail in the plan review. "
-        "Any other valid changes are shown in your plan below."
-    )
+    parts: list[str] = []
+    if unconfirmed_fields:
+        assumed = []
+        if "night_count" in unconfirmed_fields:
+            assumed.append("an overnight stay")
+        if "return_to_origin" in unconfirmed_fields:
+            assumed.append(f"whether you'll return to {origin_label or 'your starting place'}")
+        parts.append(
+            f"I haven't assumed {' or '.join(assumed)}; you can set that in the plan review."
+        )
+    if shape_fields:
+        names = ", ".join(labels.get(field, field.replace("_", " ")) for field in shape_fields)
+        parts.append(
+            f"I couldn't save your {names}. Please try again or set it in the plan review."
+        )
+    if next_question:
+        parts.append(next_question)
+    return " ".join(parts)
 
 
 def _build_run_result(
