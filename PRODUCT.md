@@ -45,6 +45,7 @@ The planning is grounded in a curated, admin-verified Davao Region catalog: dest
 ## Brand Commitments
 
 - The name **Lakbay+** is kept and shown as a wordmark only.
+- The Android launcher icon stays the hand-drawn "LAKBAY+" bus artwork (`android/app/src/main/res/mipmap-*/ic_launcher.png`). This is the owner's decision (2026-11-17); the "L+" icon proposal was declined.
 - The compass/star mark (`widgets/brand/lakbay_compass_mark.dart`, `assets/brand/lakbay_mark.svg`, `assets/images/lakbay_logo.png`) is retired: the user rejected it because it reads as the generic AI sparkle.
 - Sparkle or star icons (Material `auto_awesome` and similar) are never used for AI features. Chat uses a chat-bubble icon.
 - **Visual direction** (user's choice, binding): **the dark teal and mango look.** The reference mockup is `.impeccable/mocks/v4/v8.html` (four screens: Welcome, Trips home, Chat, Trip live day). It refines v5, which the user brought back after trying other styles.

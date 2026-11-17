@@ -63,7 +63,7 @@ The traveler app currently has **two theme files** (`lib/theme/lakbay_theme.dart
 
 **Done when** (now checked at the end of Phase 4): the app builds on the new theme, no screen imports the old theme files, and `grep "Color(0x" lib/screens` returns nothing.
 
-## Phase 2: Brand cleanup (small) ✅ done (except the app icon)
+## Phase 2: Brand cleanup (small) ✅ done
 
 > Done 2026-11-17.
 > - **Compass mark removed everywhere.** That covers the widget, the SVGs and the PNG in both apps. Its users now show:
@@ -81,7 +81,7 @@ The traveler app currently has **two theme files** (`lib/theme/lakbay_theme.dart
 > - **Trip tips:** shown as plain "Travel notes" from the catalog, not as a quote with an avatar. The `assets/experts/` photos and the model's default expert photo are deleted.
 > - **Splash:** the Android splash (including Android 12+), the Flutter loading screen and the web manifest now use deep teal `#04191C`.
 > - **Fonts bundled now, not in Phase 7:** Manrope 400–800 and Bricolage 800 are in `assets/google_fonts/`, hash-checked against Google Fonts, with their OFL licenses on the app's licenses page. `test/flutter_test_config.dart` preloads them for tests.
-> - **Still open: the launcher icon.** The current icon is the hand-drawn "LAKBAY+" bus artwork, not the compass. A proposed "L+" icon is in `.impeccable/mocks/icon/icon-options.png`, waiting for the owner's decision.
+> - **Launcher icon:** the hand-drawn "LAKBAY+" bus artwork stays; this is the owner's decision. The "L+" proposal is kept for reference in `.impeccable/mocks/icon/`.
 
 1. **Retire the compass/star mark.** Delete `widgets/brand/lakbay_compass_mark.dart`, `assets/brand/lakbay_mark.svg` and `assets/images/lakbay_logo.png`, then fix their users:
    - traveler `main.dart`, `theme/lakbay_theme.dart`, `lakbay_wordmark.dart`, `lakbay_ai_avatar.dart`
@@ -90,7 +90,7 @@ The traveler app currently has **two theme files** (`lib/theme/lakbay_theme.dart
 3. **AI avatar:** a small rounded square with "L+" in mango on `s3`, as in the v8 chat.
 4. **No sparkles:** replace all **11** `Icons.auto_awesome` uses with chat or forum icons, or use no icon.
 5. **No fake expert.** `ItineraryTrip` has `expertName`, `expertAvatarAsset` and `expertTip`, used in **13** places on screens. Show the tip as "Lakbay tip" with no person, name or avatar. The model fields can stay for API compatibility, renamed later.
-6. Update the app icon and splash screen to the wordmark on `bg #04191C`.
+6. Splash screen in `bg #04191C`. The launcher icon keeps the bus artwork (owner's decision).
 
 ## Phase 3: UX and honesty fixes (medium)
 
