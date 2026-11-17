@@ -13,7 +13,10 @@ from app.core.exceptions import LakbayAPIError
 from app.core.provider_usage import ProviderLimiter
 from app.features.accommodations.models import Accommodation
 from app.features.ai.models import AIGenerationRun
+from app.features.ai.grounding import card_figures_text, facts_text, ground_figures
 from app.features.ai.destination_resolver import (
+    _distinctive,
+    _tokens,
     match_destinations,
     pick_single_destination,
 )
@@ -383,6 +386,7 @@ class AIItineraryService:
             _log_timing("retrieval", chat_started, matches=len(rag_matches))
 
         retrieved_context = [match.to_prompt_dict() for match in rag_matches]
+        support_text = _support_text(data, retrieved_context)
         picked_places: list[dict] = []
         if data.planning_state is not None and data.planning_state.destination_ids:
             picked = await self.ai.list_active_destinations_by_ids(
@@ -467,6 +471,7 @@ class AIItineraryService:
                         "I could not generate a helpful answer just now. "
                         "Please try asking in another way."
                     )
+                    chat_response, _ = ground_figures(chat_response, support_text)
                 else:
                     planning_started = perf_counter()
                     # Recognize a place the traveler named even if the model does not.
@@ -499,6 +504,7 @@ class AIItineraryService:
                         ),
                         retrieval_interest=retrieval_coverage.get("interest"),
                         catalog=catalog,
+                        support_text=support_text,
                     )
                     _log_timing("planning_total", planning_started)
                 updated_run = await self.ai.update_generation_run(
@@ -1180,6 +1186,7 @@ async def _build_planning_chat_result(
     requested_locations: list[str] | None = None,
     retrieval_interest: str | None = None,
     catalog: list[tuple[int, str]] | None = None,
+    support_text: str | None = None,
 ) -> tuple[str, AIPlanningChatResult, str]:
     assert data.planning_state is not None
     current_state = data.planning_state
@@ -1360,6 +1367,29 @@ async def _build_planning_chat_result(
                 match.destination_id for match in named_matches[:MORE_WITH_PICKS]
             ]
 
+    # "Is there a place to go in Panabo?" asks for places. Whatever the model labelled
+    # it, the traveler gets that town's places as cards (never when something was just
+    # added or a specific place was named).
+    town_card_ids: list[int] = []
+    town_place = ""
+    if (
+        not named_add_done
+        and not named_card_ids
+        and requested_locations
+        and output_intent_early != "show_places"
+        and _looks_like_browse(data.message)
+        # A whole place name typed ("Museo Panabo") is about that place, not the town.
+        and not any(m.full for m in match_destinations(data.message, catalog or []))
+    ):
+        repo = AIItineraryRepository(session)
+        for place in requested_locations:
+            town_card_ids = await repo.list_active_destination_ids_in_place(
+                place, limit=MAX_SUGGESTIONS,
+            )
+            if town_card_ids:
+                town_place = place
+                break
+
     preview_started = perf_counter()
     preview = await PlanningService(session, route_service).preview(
         PlanningPreviewRequest(
@@ -1471,6 +1501,14 @@ async def _build_planning_chat_result(
                 # With no cards there is nothing to introduce, so say why. With
                 # some cards the model's reply stays and the reason is a note.
                 chat_response = recommendation_shortfall_reason
+    elif town_card_ids:
+        recommendations = await _named_place_cards(
+            session,
+            town_card_ids,
+            travel_mode=travel_mode,
+            reason=f"In {town_place.title()}.",
+        )
+        recommendation_total_candidates = len(recommendations)
     elif output_intent in {"question", "logistics", "smalltalk"}:
         # Q&A, logistics, and small talk stay concise text replies without card dumps.
         # So does a named place that was just added: the traveler got what they asked
@@ -1558,6 +1596,19 @@ async def _build_planning_chat_result(
                 # Only when there are no cards: the catalog and route checks are
                 # authoritative over model prose. With cards, the reason stays a note.
                 chat_response = recommendation_shortfall_reason
+    chat_response = _align_text_with_cards(
+        chat_response,
+        card_ids={item.destination_id for item in recommendations},
+        allowed_ids=set(next_state.destination_ids)
+        | {match.destination_id for match in (match_destinations(data.message, catalog or []))},
+        catalog=catalog or [],
+        origin_label=(next_state.origin.label if next_state.origin else None),
+    )
+    if support_text is not None:
+        # No price, distance, travel time or opening hour the facts do not hold.
+        chat_response, _ = ground_figures(
+            chat_response, f"{support_text} {card_figures_text(recommendations)}",
+        )
     return (
         chat_response,
         AIPlanningChatResult(
@@ -1631,6 +1682,113 @@ def _looks_like_question(message: str) -> bool:
 _CHAT_RESPONSE_FIELD = re.compile(
     r'"chat_*response"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL,
 )
+
+
+def _support_text(data: AIChatRequest, retrieved_context: list[dict]) -> str:
+    """The facts a reply may quote figures from: the catalog records it was given, the
+    traveler's own words and the numbers in their plan."""
+    parts = [facts_text(retrieved_context), data.message]
+    parts.extend(item.content for item in data.history if item.role == "user")
+    state = data.planning_state
+    if state is not None:
+        parts.extend(
+            str(value) for value in (
+                state.total_budget, state.reserve_amount, state.traveler_count,
+                state.day_count, state.night_count,
+            ) if value is not None
+        )
+    return " ".join(parts)
+
+
+_BROWSE_PATTERNS = (
+    re.compile(
+        r"\b(places?|spots?|attractions?|things?|something)\b.{0,25}"
+        r"\b(to go|to visit|to see|to do|worth)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bwhat('?s| is| are)?\b.{0,30}\b(to do|to see|to visit)\b", re.IGNORECASE),
+    re.compile(r"\bwhere (can|should|to)\b.{0,12}\bgo\b", re.IGNORECASE),
+    re.compile(r"\bwhat\b.{0,12}\b(can|should|could)\b.{0,8}\b(do|see|visit)\b", re.IGNORECASE),
+    re.compile(r"\b(any|got|have)\b.{0,20}\b(places?|spots?|attractions?)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(unsa|asa|saan)\b.{0,20}\b(nindot|maganda|pasyalan|bisitahon)\b",
+        re.IGNORECASE,
+    ),
+)
+
+
+def _looks_like_browse(message: str) -> bool:
+    """A request to be shown places (not a question about one named place)."""
+    return any(pattern.search(message) for pattern in _BROWSE_PATTERNS)
+
+
+_FROM_DAVAO = re.compile(r"\bfrom\s+davao\s+city\b", re.IGNORECASE)
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+
+def _align_text_with_cards(
+    reply: str,
+    *,
+    card_ids: set[int],
+    allowed_ids: set[int],
+    catalog: list[tuple[int, str]],
+    origin_label: str | None,
+) -> str:
+    """Keeps the text in step with the cards and with the traveler's start place.
+
+    With cards on screen, a sentence that names a catalog place that is not a card
+    (and not picked or asked about) is dropped, so the text never points at places
+    the traveler cannot see. A sentence that gives a route "from Davao City" is
+    dropped when the traveler starts somewhere else.
+    """
+    if not reply.strip():
+        return reply
+    not_davao = bool(origin_label) and "davao city" not in (origin_label or "").lower()
+    if not card_ids and not not_davao:
+        return reply
+    visible = card_ids | allowed_ids
+
+    def stray_names(sentence: str) -> bool:
+        words = set(_tokens(sentence))
+        matched: dict[int, frozenset] = {}
+        for local_id, name in catalog:
+            distinctive = _distinctive(name)
+            if distinctive and all(word in words for word in distinctive):
+                matched[local_id] = frozenset(distinctive)
+        # "Dahican Beach" is part of "Dahican Surf Resort": only the longer name counts.
+        named = [
+            i for i, d in matched.items()
+            if not any(d < other for j, other in matched.items() if j != i)
+        ]
+        # Places that share the same name words cannot be told apart: the sentence
+        # is fine when any of them is visible.
+        groups: dict[frozenset, list[int]] = {}
+        for i in named:
+            groups.setdefault(matched[i], []).append(i)
+        return any(all(i not in visible for i in members) for members in groups.values())
+
+    kept_lines: list[str] = []
+    changed = False
+    for line in reply.split("\n"):
+        kept: list[str] = []
+        for sentence in _SENTENCE_END.split(line):
+            drop = (bool(card_ids) and stray_names(sentence)) or (
+                not_davao and bool(_FROM_DAVAO.search(sentence))
+            )
+            if drop:
+                changed = True
+            else:
+                kept.append(sentence)
+        kept_lines.append(" ".join(kept))
+    if not changed:
+        return reply
+    text = "\n".join(kept_lines).strip()
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    if text:
+        return text
+    if card_ids:
+        return "Here are some places that match what you asked for."
+    return f"I don't have travel times from {origin_label} for that yet."
 
 
 _CLAIMS_A_CHANGE = re.compile(
@@ -1723,8 +1881,15 @@ def _parse_planning_chat_output(
         return None, []
     required = {"chat_response"}
     optional = {"state_updates", "intent", "suggested_replies", "place_query"}
-    if not isinstance(raw, dict) or not required <= set(raw) <= required | optional:
+    if not isinstance(raw, dict) or not required <= set(raw):
         return None, []
+    if set(raw) - (required | optional):
+        # A stray top-level key (for example "tag") changes nothing, so it is ignored.
+        raw = {key: value for key, value in raw.items() if key in required | optional}
+        try:
+            return AIPlanningChatOutput.model_validate(raw), []
+        except ValidationError:
+            pass
     updates = raw.get("state_updates", {})
     if updates is None:
         updates = {}
