@@ -37,6 +37,7 @@ class NotificationBellButton extends StatelessWidget {
             children: [
               IconButton(
                 tooltip: 'Notifications',
+                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                 onPressed: () => showNotificationsSheet(context, repo),
                 icon: Icon(
                   Icons.notifications_none_rounded,
