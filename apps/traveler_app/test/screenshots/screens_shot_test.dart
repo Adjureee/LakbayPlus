@@ -25,7 +25,13 @@ import 'package:lakbay_travel/widgets/lakbay_intro.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final _outDir = Platform.environment['SHOTS_DIR'];
-const _size = Size(412, 900);
+// SHOTS_SIZE=360x800 matches a 1080x2400 @ 480dpi phone (e.g. Realme).
+final _size = () {
+  final raw = Platform.environment['SHOTS_SIZE'];
+  final parts = raw?.split('x');
+  if (parts == null || parts.length != 2) return const Size(412, 900);
+  return Size(double.parse(parts[0]), double.parse(parts[1]));
+}();
 const _ratio = 1.5;
 
 Future<void> _loadIconFont() async {
@@ -235,7 +241,7 @@ void main() {
       ),
     );
     var elapsed = 0;
-    for (final ms in const [250, 600, 900, 1250, 1600, 2100]) {
+    for (final ms in const [300, 800, 1250, 1550, 1800, 2200, 2600]) {
       await tester.pump(Duration(milliseconds: ms - elapsed));
       elapsed = ms;
       final boundary =

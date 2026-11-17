@@ -204,16 +204,24 @@ class _AppHome extends StatelessWidget {
   Widget build(BuildContext context) {
     final motion = LkMotion.of(context);
     return AnimatedSwitcher(
-      duration: motion.duration(const Duration(milliseconds: 520)),
-      switchInCurve: LkMotion.standard,
-      switchOutCurve: Curves.easeIn,
-      transitionBuilder: (widget, animation) => FadeTransition(
-        opacity: animation,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 1.03, end: 1).animate(animation),
-          child: widget,
-        ),
-      ),
+      duration: motion.duration(const Duration(milliseconds: 650)),
+      switchInCurve: LkMotion.emphasized,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (widget, animation) {
+        final isIntro = widget.key == const ValueKey('intro');
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            // Leaving, the intro grows past the viewer; the app arrives from
+            // slightly smaller, so it feels like moving forward.
+            scale: Tween<double>(
+              begin: isIntro ? 1.12 : 0.96,
+              end: 1,
+            ).animate(animation),
+            child: widget,
+          ),
+        );
+      },
       child: showIntro
           ? KeyedSubtree(key: const ValueKey('intro'), child: intro)
           : KeyedSubtree(key: const ValueKey('app'), child: child),

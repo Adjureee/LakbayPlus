@@ -87,6 +87,9 @@ class LakbayMapboxMap extends StatefulWidget {
   /// for route notices when [showControls] is false.
   final double overlayTopInset;
 
+  /// Space kept clear on the right for the host screen's own buttons.
+  final double overlayRightInset;
+
   const LakbayMapboxMap({
     super.key,
     required this.repo,
@@ -111,6 +114,7 @@ class LakbayMapboxMap extends StatefulWidget {
     this.borderRadius = 20,
     this.controlsBottomOffset = 36,
     this.overlayTopInset = 0,
+    this.overlayRightInset = 0,
   });
 
   @override
@@ -688,7 +692,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                   if (widget.interactive)
                     Positioned(
                       left: 12,
-                      right: widget.showControls ? 68 : 12,
+                      right: widget.showControls ? 68 : 12 + widget.overlayRightInset,
                       bottom: widget.showControls
                           ? widget.controlsBottomOffset + 4
                           : null,
@@ -760,7 +764,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                   if (_trail.estimatedLegs.isNotEmpty && widget.interactive)
                     Positioned(
                       left: 12,
-                      right: widget.showControls ? 68 : 12,
+                      right: widget.showControls ? 68 : 12 + widget.overlayRightInset,
                       bottom: widget.showControls
                           ? widget.controlsBottomOffset +
                               (showTrailControls ? 46 : 4)

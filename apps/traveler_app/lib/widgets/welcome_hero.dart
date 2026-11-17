@@ -98,8 +98,17 @@ class _WelcomeHeroState extends State<WelcomeHero>
             ),
           ),
           // Route and pins sit in the photo area, above the copy.
-          Positioned.fill(
-            bottom: MediaQuery.sizeOf(context).height * 0.42,
+          Positioned(
+            left: 0,
+            right: 0,
+            top: MediaQuery.paddingOf(context).top + 64,
+            // The copy block needs about 520dp at the bottom.
+            height:
+                (MediaQuery.sizeOf(context).height -
+                        MediaQuery.paddingOf(context).top -
+                        64 -
+                        540)
+                    .clamp(0.0, double.infinity),
             child: ExcludeSemantics(
               child: LayoutBuilder(
                 builder: (context, box) =>
@@ -155,12 +164,16 @@ class _WelcomeHeroState extends State<WelcomeHero>
                                     text: 'whole',
                                     style: LkType.hero.copyWith(
                                       color: LkColors.mango,
+                                      fontSize: _heroSize(context),
                                     ),
                                   ),
                                   const TextSpan(text: '\ntrip.'),
                                 ],
                               ),
-                              style: LkType.hero.copyWith(color: Colors.white),
+                              style: LkType.hero.copyWith(
+                                color: Colors.white,
+                                fontSize: _heroSize(context),
+                              ),
                             ),
                           ),
                           const SizedBox(height: LkSpace.l),
@@ -221,6 +234,13 @@ class _WelcomeHeroState extends State<WelcomeHero>
   }
 }
 
+/// 50dp on regular phones; smaller on narrow ones (360dp) so each line of
+/// the headline stays whole.
+double _heroSize(BuildContext context) {
+  final w = MediaQuery.sizeOf(context).width;
+  return w < 380 ? 42 : 50;
+}
+
 class _RouteLayer extends StatelessWidget {
   const _RouteLayer({required this.progress, required this.size});
 
@@ -229,8 +249,10 @@ class _RouteLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final from = Offset(size.width * 0.12, size.height * 0.86);
-    final to = Offset(size.width * 0.8, size.height * 0.42);
+    final from = Offset(size.width * 0.12, size.height * 0.78);
+    final to = Offset(size.width * 0.8, size.height * 0.3);
+    // Too little room for labels: draw the route only.
+    final showPins = size.height >= 200;
     return AnimatedBuilder(
       animation: progress,
       builder: (context, _) {
@@ -241,26 +263,28 @@ class _RouteLayer extends StatelessWidget {
             Positioned.fill(
               child: CustomPaint(painter: _RoutePainter(from, to, t)),
             ),
-            Positioned(
-              left: from.dx - 6,
-              top: from.dy + 16,
-              child: Opacity(
-                opacity: pinsIn,
-                child: const _Pin(title: 'Davao City', detail: 'Sasa Wharf'),
-              ),
-            ),
-            Positioned(
-              right: size.width * 0.05,
-              top: to.dy - 62,
-              child: Opacity(
-                opacity: pinsIn,
-                child: const _Pin(
-                  title: 'Samal Island',
-                  detail: 'by ferry',
-                  icon: Icons.directions_boat_filled_rounded,
+            if (showPins)
+              Positioned(
+                left: from.dx - 6,
+                top: from.dy + 16,
+                child: Opacity(
+                  opacity: pinsIn,
+                  child: const _Pin(title: 'Davao City', detail: 'Sasa Wharf'),
                 ),
               ),
-            ),
+            if (showPins)
+              Positioned(
+                right: size.width * 0.05,
+                top: (to.dy - 62).clamp(0.0, double.infinity),
+                child: Opacity(
+                  opacity: pinsIn,
+                  child: const _Pin(
+                    title: 'Samal Island',
+                    detail: 'by ferry',
+                    icon: Icons.directions_boat_filled_rounded,
+                  ),
+                ),
+              ),
           ],
         );
       },

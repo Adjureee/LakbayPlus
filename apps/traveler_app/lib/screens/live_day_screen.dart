@@ -282,7 +282,8 @@ class _LiveDayScreenState extends State<LiveDayScreen>
               selectedMarkerId: nextIndex == null ? null : 'live_$nextIndex',
               borderRadius: 0,
               showControls: false,
-              overlayTopInset: MediaQuery.paddingOf(context).top + 112,
+              overlayTopInset: MediaQuery.paddingOf(context).top + 64,
+              overlayRightInset: 60,
             ),
           ),
           // Pinned to the top; the map's own controls are off so nothing
