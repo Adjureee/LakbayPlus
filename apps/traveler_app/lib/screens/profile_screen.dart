@@ -1,10 +1,13 @@
 import '../core/day_labels.dart';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_image.dart';
+import '../widgets/user_avatar.dart';
 import 'auth_screen.dart';
 import 'settings_screen.dart';
 import 'trip_detail_screen.dart';
@@ -107,39 +110,11 @@ class ProfileScreen extends StatelessWidget {
                       Positioned(
                         left: 18,
                         bottom: -26,
-                        child: Container(
-                          width: 62,
-                          height: 62,
-                          decoration: BoxDecoration(
-                            color: LakbayColors.primaryLight,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
-                          ),
-                          alignment: Alignment.center,
-                          clipBehavior: Clip.antiAlias,
-                          child: profile.avatarUrl.isNotEmpty
-                              ? Image.network(
-                                  profile.avatarUrl,
-                                  width: 62,
-                                  height: 62,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Text(
-                                    profile.initials,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w800,
-                                      color: LakbayColors.primaryDark,
-                                    ),
-                                  ),
-                                )
-                              : Text(
-                                  profile.initials,
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: LakbayColors.primaryDark,
-                                  ),
-                                ),
+                        child: UserAvatar(
+                          imageUrl: profile.avatarUrl,
+                          initials: profile.initials,
+                          size: 66,
+                          ringWidth: 3,
                         ),
                       ),
                     ],
@@ -255,12 +230,15 @@ class ProfileScreen extends StatelessWidget {
             // Your trips section
             Row(
               children: [
-                Text(
-                  'Your trips • ${trips.length}',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: LakbayColors.tealDeep,
+                Flexible(
+                  child: Text(
+                    'Your trips • ${trips.length}',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: LakbayColors.tealDeep,
+                    ),
                   ),
                 ),
                 const Spacer(),
@@ -287,40 +265,21 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
 
-            const SizedBox(height: 18),
-            const Text(
-              'ACCOUNT',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.0,
-                color: LakbayColors.textSecondary,
+            // Signed-in travelers log out from Settings. Guests keep one way in.
+            if (!repo.isSignedIn) ...[
+              const SizedBox(height: 18),
+              _SettingsRowCard(
+                icon: Icons.person_add_alt_1_outlined,
+                title: 'Create account / Sign in',
+                trailingText: 'Sync & save',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<bool>(
+                    builder: (_) =>
+                        AuthScreen(repo: repo, initialRegisterMode: true),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            _SettingsRowCard(
-              icon: repo.isSignedIn
-                  ? Icons.verified_user_outlined
-                  : Icons.person_add_alt_1_outlined,
-              title: repo.isSignedIn
-                  ? 'Account (${repo.authSession!.email})'
-                  : 'Create account / Sign in',
-              trailingText: repo.isSignedIn ? 'Sign out' : 'Sync & save',
-              onTap: () {
-                if (repo.isSignedIn) {
-                  repo.signOutBackend();
-                } else {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<bool>(
-                      builder: (_) => AuthScreen(
-                        repo: repo,
-                        initialRegisterMode: true,
-                      ),
-                    ),
-                  );
-                }
-              },
-            ),
+            ],
 
             const SizedBox(height: 18),
             const Text(
@@ -350,11 +309,8 @@ class ProfileScreen extends StatelessWidget {
             _SettingsRowCard(
               icon: Icons.settings_outlined,
               title: 'Settings',
-              trailingText: repo.currency,
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => SettingsScreen(repo: repo),
-                ),
+                MaterialPageRoute(builder: (_) => SettingsScreen(repo: repo)),
               ),
             ),
           ],
@@ -428,22 +384,10 @@ class ProfileScreen extends StatelessWidget {
                   Center(
                     child: Stack(
                       children: [
-                        CircleAvatar(
-                          radius: 42,
-                          backgroundColor: LakbayColors.primaryLight,
-                          backgroundImage: repo.profile.avatarUrl.isNotEmpty
-                              ? NetworkImage(repo.profile.avatarUrl)
-                              : null,
-                          child: repo.profile.avatarUrl.isNotEmpty
-                              ? null
-                              : Text(
-                                  p.initials,
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w800,
-                                    color: LakbayColors.primaryDark,
-                                  ),
-                                ),
+                        UserAvatar(
+                          imageUrl: repo.profile.avatarUrl,
+                          initials: p.initials,
+                          size: 84,
                         ),
                         Positioned(
                           right: 0,
@@ -455,25 +399,29 @@ class ProfileScreen extends StatelessWidget {
                                 ? null
                                 : () async {
                                     if (!repo.isSignedIn) {
-                                      setSheetState(() => photoError =
-                                          'Sign in to add a profile photo.');
+                                      setSheetState(
+                                        () => photoError =
+                                            'Sign in to add a profile photo.',
+                                      );
                                       return;
                                     }
-                                    final picked = await ImagePicker().pickImage(
-                                      source: ImageSource.gallery,
-                                      maxWidth: 1280,
-                                      maxHeight: 1280,
-                                      imageQuality: 85,
-                                    );
+                                    final picked = await ImagePicker()
+                                        .pickImage(
+                                          source: ImageSource.gallery,
+                                          maxWidth: 1280,
+                                          maxHeight: 1280,
+                                          imageQuality: 85,
+                                        );
                                     if (picked == null || !ctx.mounted) return;
                                     setSheetState(() {
                                       isUploadingPhoto = true;
                                       photoError = null;
                                     });
-                                    final problem = await repo.uploadProfilePhoto(
-                                      bytes: await picked.readAsBytes(),
-                                      filename: picked.name,
-                                    );
+                                    final problem = await repo
+                                        .uploadProfilePhoto(
+                                          bytes: await picked.readAsBytes(),
+                                          filename: picked.name,
+                                        );
                                     if (!ctx.mounted) return;
                                     setSheetState(() {
                                       isUploadingPhoto = false;
@@ -537,8 +485,7 @@ class ProfileScreen extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
                       child: Text(
-                        usernameError ??
-                            'Friends use this to find and invite you. 3 to 30 letters, numbers, dots or underscores.',
+                        usernameError ?? 'Friends use this to find and invite you. 3 to 30 letters, numbers, dots or underscores.',
                         style: TextStyle(
                           fontSize: 11.5,
                           color: usernameError != null
@@ -570,8 +517,8 @@ class ProfileScreen extends StatelessWidget {
                                 isLocating = true;
                                 gpsNotice = null;
                               });
-                              final result =
-                                  await repo.requestAndSaveCurrentLocation();
+                              final result = await repo
+                                  .requestAndSaveCurrentLocation();
                               if (!ctx.mounted) return;
                               setSheetState(() {
                                 isLocating = false;
@@ -647,22 +594,22 @@ class ProfileScreen extends StatelessWidget {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
+                          borderRadius: BorderRadius.circular(28),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Save',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
         );
       },
     );
