@@ -801,25 +801,15 @@ class _RateEditorState extends State<_RateEditor> {
     if (_saving || _closing) return;
     _closing = true;
     if (_dirty) {
-      final discard = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Discard changes?'),
-          content: const Text('Your unsaved rate changes will be lost.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Keep editing'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Discard changes'),
-            ),
-          ],
-        ),
+      final discard = await showAdminConfirm(
+        context,
+        title: 'Discard changes?',
+        message: 'Your unsaved rate changes will be lost.',
+        confirmLabel: 'Discard changes',
+        cancelLabel: 'Keep editing',
       );
       if (!mounted) return;
-      if (discard != true) {
+      if (!discard) {
         _closing = false;
         return;
       }
@@ -896,26 +886,14 @@ class _RateEditorState extends State<_RateEditor> {
   }
 
   Future<bool> _confirmUnavailable() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Save as unavailable?'),
-        content: const Text(
+    return showAdminConfirm(
+      context,
+      title: 'Save as unavailable?',
+      message:
           'This option will be hidden from available lists. Unavailable records cannot be browsed or restored from this workspace.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep editing'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save unavailable'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Save unavailable',
+      cancelLabel: 'Keep editing',
     );
-    return confirmed == true;
   }
 
   Future<void> _save() async {

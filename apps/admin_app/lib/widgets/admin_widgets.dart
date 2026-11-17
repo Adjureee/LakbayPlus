@@ -5,6 +5,46 @@ final ValueNotifier<bool> adminHasUnsavedChanges = ValueNotifier(false);
 final ValueNotifier<bool> adminIsSaving = ValueNotifier(false);
 
 /// Shared guard for navigation outside the current destination editor.
+/// The one confirmation dialog for the workspace. Destructive actions
+/// (discard, deactivate, hide) get the error color, so they never look like
+/// the mango "go ahead" button. Resolves to true only on confirm.
+Future<bool> showAdminConfirm(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+  String cancelLabel = 'Cancel',
+  bool destructive = true,
+}) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) {
+      final scheme = Theme.of(dialogContext).colorScheme;
+      return AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(cancelLabel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: destructive
+                ? FilledButton.styleFrom(
+                    backgroundColor: scheme.error,
+                    foregroundColor: scheme.onError,
+                  )
+                : null,
+            child: Text(confirmLabel),
+          ),
+        ],
+      );
+    },
+  );
+  return result == true;
+}
+
 Future<bool> confirmAdminNavigation(BuildContext context) async {
   if (adminIsSaving.value) {
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -15,27 +55,16 @@ Future<bool> confirmAdminNavigation(BuildContext context) async {
     return false;
   }
   if (!adminHasUnsavedChanges.value) return true;
-  final discard = await showDialog<bool>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('Discard changes?'),
-      content: const Text(
+  final discard = await showAdminConfirm(
+    context,
+    title: 'Discard changes?',
+    message:
         'This record has unsaved changes. Leave this page and discard them?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext, false),
-          child: const Text('Keep editing'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(dialogContext, true),
-          child: const Text('Discard changes'),
-        ),
-      ],
-    ),
+    confirmLabel: 'Discard changes',
+    cancelLabel: 'Keep editing',
   );
-  if (discard == true) adminHasUnsavedChanges.value = false;
-  return discard == true;
+  if (discard) adminHasUnsavedChanges.value = false;
+  return discard;
 }
 
 class AdminPage extends StatelessWidget {

@@ -730,30 +730,14 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
 
   Future<void> _deactivate() async {
     final record = _selected!;
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Deactivate destination?'),
-        content: Text(
+    final accepted = await showAdminConfirm(
+      context,
+      title: 'Deactivate destination?',
+      message:
           '${_value(record, 'name')} will be hidden from traveler lists. The record is retained, and its related rate lists will no longer be available through this destination. Inactive records cannot currently be browsed from this workspace.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            child: const Text('Deactivate'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Deactivate',
     );
-    if (accepted != true || !mounted) return;
+    if (!accepted || !mounted) return;
     adminIsSaving.value = true;
     setState(() {
       _deactivating = true;

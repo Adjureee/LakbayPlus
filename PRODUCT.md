@@ -38,7 +38,7 @@ The planning is grounded in a curated, admin-verified Davao Region catalog: dest
 ## Capabilities and Constraints
 
 - Flutter and Material 3 in both apps. The traveler app bundles Manrope and Bricolage Grotesque (OFL) and works offline for type.
-- The admin app has light, dark and system themes. The traveler app uses the v8 dark theme (`LakbayDesignTheme.dark`).
+- The traveler app uses the v8 dark theme (`LakbayDesignTheme.dark`). The admin app defaults to the matching dark theme and keeps light and system themes for long data sessions; mango is the action color in both.
 - Coverage is limited to Region XI (Davao).
 - Trip status (upcoming, ongoing, past, no dates) is derived from the trip's real start and end dates, stored in the API's `trips.start_date`/`end_date`.
 

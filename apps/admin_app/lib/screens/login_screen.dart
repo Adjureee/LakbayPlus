@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/session_manager.dart';
-import '../widgets/lakbay_monogram.dart';
+import '../core/theme/app_theme.dart';
+import '../widgets/lakbay_wordmark.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -58,13 +59,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Always the dark v8 look, like the traveler app's Welcome, whatever the
+    // workspace theme is.
+    return Theme(
+      data: AppTheme.darkTheme,
+      child: Builder(builder: _buildPage),
+    );
+  }
+
+  Widget _buildPage(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
           final wide = constraints.maxWidth >= 1000;
           final form = ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
+            constraints: const BoxConstraints(maxWidth: 420),
             child: Form(
               key: _form,
               child: AutofillGroup(
@@ -72,10 +82,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (!wide) ...[_brand(theme), const SizedBox(height: 40)],
-                    Text('Welcome back', style: theme.textTheme.headlineMedium),
+                    if (!wide) ...[
+                      const LakbayWordmark(fontSize: 30),
+                      const SizedBox(height: 32),
+                    ],
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        'Welcome back',
+                        style: theme.textTheme.headlineMedium,
+                      ),
+                    ),
                     const SizedBox(height: 8),
-                    const Text('Sign in to your Lakbay admin workspace.'),
+                    Text(
+                      'Sign in to the Lakbay+ admin workspace.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 32),
                     TextFormField(
                       controller: _email,
@@ -127,15 +151,27 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 20),
                       Semantics(
                         liveRegion: true,
-                        child: Text(
-                          _error!,
-                          style: TextStyle(color: theme.colorScheme.error),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.error.withValues(
+                              alpha: 0.12,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.colorScheme.error.withValues(
+                                alpha: 0.45,
+                              ),
+                            ),
+                          ),
+                          child: Text(_error!),
                         ),
                       ),
                     ],
                     const SizedBox(height: 28),
                     SizedBox(
                       width: double.infinity,
+                      height: 52,
                       child: FilledButton(
                         onPressed: _busy ? null : _signIn,
                         child: _busy
@@ -144,6 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
+                                  color: AppTheme.mangoInk,
                                 ),
                               )
                             : const Text('Sign in'),
@@ -159,68 +196,103 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           );
+
+          final panel = Container(
+            color: theme.cardColor,
+            child: Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(wide ? 56 : 24),
+                child: form,
+              ),
+            ),
+          );
+
+          if (!wide) {
+            return Column(
+              children: [
+                const SizedBox(height: 180, child: _PhotoPanel(compact: true)),
+                Expanded(child: panel),
+              ],
+            );
+          }
           return Row(
             children: [
-              if (wide)
-                Expanded(
-                  child: Container(
-                    height: constraints.maxHeight,
-                    color: theme.cardColor,
-                    padding: const EdgeInsets.all(64),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _brand(theme),
-                        const SizedBox(height: 56),
-                        Text(
-                          'One workspace.\nBetter travel information.',
-                          style: theme.textTheme.headlineLarge,
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Maintain destinations and market rates. Understand the people and trips behind every journey.',
-                        ),
-                        const SizedBox(height: 36),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: const [
-                            Chip(label: Text('Destinations')),
-                            Chip(label: Text('Market rates')),
-                            Chip(label: Text('Travel insights')),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              Expanded(
-                child: Center(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.all(wide ? 48 : 24),
-                    child: form,
-                  ),
-                ),
-              ),
+              const Expanded(flex: 6, child: _PhotoPanel()),
+              Expanded(flex: 5, child: panel),
             ],
           );
         },
       ),
     );
   }
+}
 
-  Widget _brand(ThemeData theme) => Row(
-    children: [
-      const LakbayMonogram(size: 48),
-      const SizedBox(width: 14),
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Lakbay+', style: theme.textTheme.titleLarge),
-          Text('Admin workspace', style: theme.textTheme.bodySmall),
-        ],
-      ),
-    ],
-  );
+/// A Region XI photo with the brand and a plain description of the
+/// workspace, as on the traveler app's Welcome.
+class _PhotoPanel extends StatelessWidget {
+  const _PhotoPanel({this.compact = false});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          'assets/destinations/jacks_ridge.jpg',
+          fit: BoxFit.cover,
+          excludeFromSemantics: true,
+          errorBuilder: (_, _, _) =>
+              const ColoredBox(color: AppTheme.darkSurface),
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xD9021114), Color(0x40021114), Color(0xF2021114)],
+              stops: [0, 0.4, 1],
+            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.all(compact ? 24 : 56),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LakbayWordmark(fontSize: compact ? 26 : 30, color: Colors.white),
+              if (!compact) ...[
+                const Spacer(),
+                Text(
+                  'Region XI travel data,\nkept current.',
+                  style: AppTheme.display(size: 44, color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Destinations, sea links and market rates that Lakbay AI '
+                  'plans from, plus the people, trips and reviews behind '
+                  'them.',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.86),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    Chip(label: Text('Destinations')),
+                    Chip(label: Text('Sea links')),
+                    Chip(label: Text('Market rates')),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }

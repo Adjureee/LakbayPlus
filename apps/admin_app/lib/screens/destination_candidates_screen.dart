@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../core/theme/app_theme.dart';
 
 import '../services/api_service.dart';
 import '../widgets/admin_map_pin_picker.dart';
@@ -342,14 +343,14 @@ class _DestinationCandidatesScreenState
               if (candidate['osm_url'] != null)
                 SelectableText(candidate['osm_url'].toString()),
               if (candidate['region_status'] == 'outside')
-                const Text(
+                Text(
                   'Outside the Davao Region (Region XI): this cannot be published.',
-                  style: TextStyle(color: Colors.redAccent),
+                  style: TextStyle(color: AppTheme.negative(context)),
                 )
               else if (candidate['region_status'] == 'near_boundary')
-                const Text(
+                Text(
                   'Near the Region XI boundary: confirm the place is in the Davao Region.',
-                  style: TextStyle(color: Colors.orangeAccent),
+                  style: TextStyle(color: AppTheme.caution(context)),
                 ),
               if (candidate['access_verified_at'] != null)
                 Text(

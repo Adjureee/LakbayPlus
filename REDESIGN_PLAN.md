@@ -262,7 +262,18 @@ Rebuild one screen at a time, in this order, so each step stays demoable. The bi
 - **Haptics:** light feedback on Save trip, completing a stop, and delete-with-undo.
 - **Chrome build:** check keyboard focus outlines and hover states, since the traveler app also runs in a browser.
 
-## Phase 6: Admin app (medium)
+## Phase 6: Admin app (medium) ✅ done
+
+> **What was built (2026-11-17)**
+> - **Theme** (`core/theme/app_theme.dart`): dark mode uses the v8 surfaces (bg #04191C, cards #0A2A2F); mango with mango ink is the primary button and active selection in both modes; links are lagoon on dark and AA teal on white. Page titles and stat numbers use Bricolage Grotesque, everything else Manrope, both bundled in `assets/google_fonts/` with OFL licenses registered. Dark is the default for new sessions; light and system stay in Settings and the top bar.
+> - **Shell:** the sidebar shows the wordmark ("Lakbay+ Admin"; the L+ monogram only when collapsed) and a mango pill on the active section.
+> - **Login:** a Region XI photo with "Region XI travel data, kept current." beside a dark sign-in panel, always in the dark look.
+> - **Overview:** four stat cards with big Bricolage numbers from real API totals (active destinations, `total_users`, `total_trips`, `total_reviews`); a failed count shows a dash. A "Waiting for review" list shows staged places. The out-of-date "Access pending" badges on Users, Reviews and Trips are gone.
+> - **Data screens:** keep their dense tables and pick up the tokens from the theme. A shared `showAdminConfirm` puts destructive actions (discard changes, deactivate) in the error color so they never look like the mango "go ahead"; the `confirmAdminNavigation` unsaved-changes guard uses it. Status badges and region warnings use theme-aware colors that pass AA on both themes.
+> - **Screenshots:** `SHOTS_DIR=<dir> flutter test test/screenshots` in `apps/admin_app` renders login and the overview (dark and light) with mock data.
+>
+> **Not changed:** map styling (route lines, pins, region boundaries) on the admin's light map tiles.
+
 
 The admin app already has light, dark and system themes and good AA tokens. It needs to look like the same product, not a rebuild.
 

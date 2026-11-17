@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../widgets/admin_widgets.dart';
 
@@ -359,12 +360,14 @@ class _AccountRow extends StatelessWidget {
                   AdminBadge(label: role),
                   AdminBadge(
                     label: isActive ? 'Active' : 'Inactive',
-                    color: isActive ? Colors.teal : Colors.redAccent,
+                    color: isActive
+                        ? AppTheme.positive(context)
+                        : AppTheme.negative(context),
                   ),
                   if (hasSession)
-                    const AdminBadge(
+                    AdminBadge(
                       label: 'Signed in',
-                      color: Colors.green,
+                      color: AppTheme.positive(context),
                     ),
                 ],
               ),

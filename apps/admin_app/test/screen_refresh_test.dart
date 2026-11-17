@@ -40,8 +40,9 @@ void main() {
     (tester) async {
       var reads = 0;
       final api = ApiService(
-        client: MockClient((_) async {
-          reads++;
+        client: MockClient((request) async {
+          // The overview also loads counts; only catalog reads count here.
+          if (request.url.path.endsWith('/destinations')) reads++;
           return http.Response(jsonEncode([destination]), 200);
         }),
       );

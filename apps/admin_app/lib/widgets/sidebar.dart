@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/theme/app_theme.dart';
 import '../services/api_service.dart';
 import 'admin_widgets.dart';
 import 'lakbay_monogram.dart';
+import 'lakbay_wordmark.dart';
 
 class Sidebar extends StatelessWidget {
   final bool isCollapsed;
@@ -113,26 +115,24 @@ class Sidebar extends StatelessWidget {
                 isCollapsed ? 16 : 20,
                 24,
               ),
-              child: Row(
-                children: [
-                  const LakbayMonogram(size: 40),
-                  if (!isCollapsed) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Lakbay+', style: theme.textTheme.titleLarge),
-                          Text(
-                            'Admin workspace',
-                            style: theme.textTheme.bodySmall,
+              child: isCollapsed
+                  ? const Center(child: LakbayMonogram(size: 40))
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const LakbayWordmark(fontSize: 26),
+                        const SizedBox(width: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 3),
+                          child: Text(
+                            'Admin',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ],
-              ),
             ),
             if (!isCollapsed)
               Padding(
@@ -211,8 +211,9 @@ class _NavigationItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // The active section is a mango pill, as the traveler app's active tab.
     final color = isSelected
-        ? theme.colorScheme.primary
+        ? AppTheme.mangoInk
         : theme.colorScheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -223,16 +224,9 @@ class _NavigationItem extends StatelessWidget {
           button: true,
           label: isCollapsed ? label : null,
           child: Material(
-            color: isSelected
-                ? theme.colorScheme.primary.withValues(alpha: 0.09)
-                : Colors.transparent,
+            color: isSelected ? AppTheme.mango : Colors.transparent,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-              side: isSelected
-                  ? BorderSide(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                    )
-                  : BorderSide.none,
+              borderRadius: BorderRadius.circular(12),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(10),

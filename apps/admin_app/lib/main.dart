@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/theme/app_theme.dart';
 import 'widgets/app_shell.dart';
@@ -15,7 +17,9 @@ import 'screens/trips_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 
-final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
+// Dark by default to match the traveler app (v8); Settings keeps light and
+// system for long data sessions.
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 
 Future<void> setAdminTheme(ThemeMode mode) async {
   themeNotifier.value = mode;
@@ -25,13 +29,27 @@ Future<void> setAdminTheme(ThemeMode mode) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _registerFontLicenses();
   final preferences = await SharedPreferences.getInstance();
   final savedTheme = preferences.getString('admin_theme');
   themeNotifier.value = ThemeMode.values.firstWhere(
     (mode) => mode.name == savedTheme,
-    orElse: () => ThemeMode.light,
+    orElse: () => ThemeMode.dark,
   );
   runApp(const LakbayAdminApp());
+}
+
+/// Bundled fonts are SIL Open Font License; list them on the licenses page.
+void _registerFontLicenses() {
+  LicenseRegistry.addLicense(() async* {
+    for (final (family, file) in const [
+      ('Manrope', 'OFL-Manrope.txt'),
+      ('Bricolage Grotesque', 'OFL-BricolageGrotesque.txt'),
+    ]) {
+      final text = await rootBundle.loadString('assets/google_fonts/$file');
+      yield LicenseEntryWithLineBreaks([family], text);
+    }
+  });
 }
 
 class LakbayAdminApp extends StatelessWidget {
