@@ -58,6 +58,11 @@ def test_opening_hours_match_whatever_format_the_record_uses():
         ("That is 150 pesos.", "price 150.00", 0),
         ("That is 5 km away.", "5", 0),
         ("That is 6.5 km away.", "5", 1),
+        # Live case: hyphenated forms slipped through at first.
+        ("Take a quick 15-to-20-minute tricycle ride.", "", 1),
+        ("Take a quick 15-to-20-minute tricycle ride.", "duration 15 20", 0),
+        ("It is a 6-km ride.", "", 1),
+        ("It takes 2-3 hours.", "", 1),
     ],
 )
 def test_units_and_conversions(reply, support, dropped):
