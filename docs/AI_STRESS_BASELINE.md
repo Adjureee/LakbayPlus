@@ -53,3 +53,18 @@ Card limits, ruled-out places, category matching, explicit adds, saved values, n
 ## Next run
 
 After the quota resets: run again with the same scenarios (same script, 3 repeats) to compare with this baseline, and see whether Groq behaves differently from the fallback model.
+
+## After the second batch of fixes (same day)
+
+A targeted re-run of the scenarios that failed, with the same script and the same fallback model: 7 scenarios x 2 repeats = 32 answers, then a 3-scenario, 8-answer check of the two stubborn cases. Small samples, so read them as direction, not as a new baseline.
+
+| Check | Baseline (those scenarios) | After |
+|---|---|---|
+| English chat answered in English | 5 wrong-language answers | 32 / 32 correct |
+| Error wording shown to the traveler | 14% of all answers | 2 of 32, then 0 of 8 after the last fix |
+| A question about a place adds it | "I added Museo Panabo to your plan." | Never; the answer was given and nothing was added |
+| Reply invented text or amounts | none found | none found (8 / 8 amounts, 3 / 3 hours) |
+
+What changed: the model's plain text is shown when its JSON is unusable (never if it claims something was saved, and never from valid JSON that broke a rule); a misspelt key such as `chat__response` (the fallback model did this twice) no longer throws the answer away; a question never adds a place; and the prompt now says an English message gets an English reply with no Bisaya greetings.
+
+Still open from the baseline: the text names places the cards do not show (4 of 10 clean in the re-run, so still failing), "where to go in Panabo" showing no cards, "from Davao City" times for a Panabo start, and slow answers while Groq is rate limited. One of the 32 answers came from `openai/gpt-oss-120b` (Groq), so part of the quota is back; the full Groq comparison is still to do.
