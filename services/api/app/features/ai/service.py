@@ -1196,6 +1196,12 @@ async def _build_planning_chat_result(
     # When the model ignored the JSON format but still wrote a usable answer, the
     # traveler gets that answer; nothing in the plan is changed from it.
     salvaged = _salvage_reply(content) if output is None else None
+    if output is None:
+        # So an unusable reply can be understood later (the traveler never sees this).
+        _timing_log.warning(
+            "planning chat reply not usable (salvaged=%s): %s",
+            bool(salvaged), (content or "")[:500].replace("\n", " "),
+        )
     update_status = "no_changes" if salvaged else "invalid_output"
     validation_status = "invalid"
     chat_response = salvaged or fallback_response
@@ -1623,7 +1629,7 @@ def _looks_like_question(message: str) -> bool:
 
 
 _CHAT_RESPONSE_FIELD = re.compile(
-    r'"chat_response"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL,
+    r'"chat_*response"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL,
 )
 
 
@@ -1646,21 +1652,30 @@ def _salvage_reply(content: str) -> str | None:
     if not text:
         return None
     candidate: str | None = None
-    field = _CHAT_RESPONSE_FIELD.search(text)
-    if field is not None:
-        try:
-            json.loads(_strip_json_fence(text))
+    try:
+        loaded = json.loads(_strip_json_fence(text))
+    except (TypeError, ValueError):
+        loaded = None
+    if isinstance(loaded, dict):
+        if "chat_response" in loaded:
             # Valid JSON that was still refused (for example a field the model may
             # not set): its text may claim changes that were never made.
             return None
-        except (TypeError, ValueError):
-            pass
-        try:
-            candidate = json.loads(f'"{field.group(1)}"').strip()
-        except ValueError:
-            return None
-    elif text[0] not in "{[`" and '"state_updates"' not in text and len(text) <= 1500:
-        candidate = text
+        # A misspelt key such as "chat__response": the text is still the answer.
+        key = next((k for k in loaded if re.fullmatch(r"chat_*response", str(k))), None)
+        value = loaded.get(key) if key else None
+        candidate = value.strip() if isinstance(value, str) else None
+    elif loaded is not None:
+        return None
+    else:
+        field = _CHAT_RESPONSE_FIELD.search(text)
+        if field is not None:
+            try:
+                candidate = json.loads(f'"{field.group(1)}"').strip()
+            except ValueError:
+                return None
+        elif text[0] not in "{[`" and '"state_updates"' not in text and len(text) <= 1500:
+            candidate = text
     if not candidate:
         return None
     # Nothing was saved, so never show text that says something was.
