@@ -143,7 +143,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   IconButton(
                     tooltip: 'Back',
                     onPressed: _prevStep,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.chevron_left_rounded,
                       size: 28,
                       color: LkColors.text,
@@ -158,7 +158,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         minHeight: 6,
                         backgroundColor:
                             LkColors.s2.withValues(alpha: 0.45),
-                        valueColor: const AlwaysStoppedAnimation<Color>(
+                        valueColor: AlwaysStoppedAnimation<Color>(
                           LkColors.lagoon,
                         ),
                       ),
@@ -167,7 +167,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   const SizedBox(width: 10),
                   TextButton(
                     onPressed: () => _finishOnboarding(shareLocation: false),
-                    child: const Text(
+                    child: Text(
                       'Skip',
                       style: TextStyle(
                         color: LkColors.text,
@@ -212,7 +212,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       padding: const EdgeInsets.fromLTRB(22, 18, 22, 24),
       child: Column(
         children: [
-          const Text(
+          Text(
             'Do you have a trip\ncoming up?',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -224,7 +224,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             "Tell me where you're at and I'll skip the\nquestions you don't need.",
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -290,7 +290,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
           children: [
-            const Text(
+            Text(
               'Plans built from real places.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -301,7 +301,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Lakbay AI plans from a catalog of Davao Region places that our team keeps up to date.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -368,7 +368,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       padding: const EdgeInsets.fromLTRB(22, 12, 22, 22),
       child: Column(
         children: [
-          const Text(
+          Text(
             'Good. Tell me the brief.',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -379,7 +379,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             "Say it like you'd say it to a friend: who, where, when, what matters. I draft the first plan for you to review.",
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -420,7 +420,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ),
                   ),
                   const SizedBox(height: 10),
-                  const Row(
+                  Row(
                     children: [
                       Icon(
                         Icons.home_outlined,
@@ -443,7 +443,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   ),
                   const Divider(height: 16),
                   const Spacer(),
-                  const Text(
+                  Text(
                     "Hey there, Lakbay+ here! Excited to help you create your next Davao Region trip. Just tell me what you're thinking and let's do this together.",
                     style: TextStyle(
                       fontSize: 12,
@@ -460,7 +460,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         color: LkColors.bg,
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Plan a family trip to Samal Island and Mati Dahican for 4 people starting next weekend for 4 days, assume and ask no more questions.',
                         style: TextStyle(
                           fontSize: 11.5,
@@ -473,7 +473,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Text(
+                      Text(
                         'Generating your trip... 78%',
                         style: TextStyle(
                           fontSize: 11,
@@ -529,7 +529,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       padding: const EdgeInsets.fromLTRB(22, 12, 22, 18),
       child: Column(
         children: [
-          const Text(
+          Text(
             'First, share your location',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -540,7 +540,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Share your current GPS location—or search or pin where you are starting from—for tailored Region XI routes.',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -604,7 +604,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                       : 'Starting place not set'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
                                 color: LkColors.text,
@@ -631,7 +631,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             decoration: BoxDecoration(
                               color: LkColors.s3,
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
+                              border: Border.all(color: LkColors.text, width: 3),
                               boxShadow: [
                                 BoxShadow(
                                   color: LkColors.lagoon
@@ -659,7 +659,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             Text(
               _locationFeedback!,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 color: LkColors.muted,
                 fontWeight: FontWeight.w600,
@@ -682,7 +682,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 ),
               ),
               child: _requestingLocation
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
@@ -725,7 +725,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           const SizedBox(height: 4),
           TextButton(
             onPressed: () => _finishOnboarding(shareLocation: false),
-            child: const Text(
+            child: Text(
               'Maybe later',
               style: TextStyle(
                 color: LkColors.muted,
@@ -804,7 +804,7 @@ class _DecisionOptionCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: LkType.displayFamily,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
@@ -814,7 +814,7 @@ class _DecisionOptionCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13.5,
                       color: LkColors.muted,
                     ),
@@ -877,7 +877,7 @@ class _ProductPoint extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
                     color: LkColors.text,
@@ -886,7 +886,7 @@ class _ProductPoint extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   body,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13.5,
                     height: 1.4,
                     color: LkColors.muted,

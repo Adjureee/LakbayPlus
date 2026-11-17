@@ -56,7 +56,7 @@ class LkButton extends StatelessWidget {
       LkButtonVariant.secondary => (
         LkColors.s2,
         LkColors.text,
-        const BorderSide(color: LkColors.stroke),
+        BorderSide(color: LkColors.stroke),
       ),
       LkButtonVariant.ghost => (Colors.transparent, LkColors.text, null),
     };

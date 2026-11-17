@@ -51,6 +51,7 @@ class LkFloatingNavBar extends StatelessWidget {
           boxShadow: LkShadow.floating,
         ),
         child: LkGlass(
+          surface: true,
           borderRadius: BorderRadius.circular(26),
           child: SizedBox(
             height: height,
@@ -138,7 +139,7 @@ class LkStickyActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,

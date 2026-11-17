@@ -140,7 +140,7 @@ class _LakbayIntroState extends State<LakbayIntro>
           _finish();
         },
         child: Material(
-          color: LkColors.bg,
+          color: LkPalette.dark.bg,
           child: LayoutBuilder(
             builder: (context, box) {
               final size = box.biggest;
@@ -237,7 +237,7 @@ class _LakbayIntroState extends State<LakbayIntro>
           ),
         Transform.scale(
           scale: plus,
-          child: Text('+', style: _wordStyle.copyWith(color: LkColors.mango)),
+          child: Text('+', style: _wordStyle.copyWith(color: LkPalette.dark.mango)),
         ),
       ],
     );
@@ -274,7 +274,7 @@ class _LakbayIntroState extends State<LakbayIntro>
               child: Text(
                 'Davao Region AI travel planner',
                 style: LkType.label.copyWith(
-                  color: LkColors.muted,
+                  color: LkPalette.dark.muted,
                   letterSpacing: 0.6,
                 ),
               ),
@@ -337,7 +337,7 @@ class _ContoursPainter extends CustomPainter {
         }
       }
       path.close();
-      paint.color = LkColors.lagoon.withValues(
+      paint.color = LkPalette.dark.lagoon.withValues(
         alpha: (0.10 - ring * 0.01) * reveal,
       );
       canvas.drawPath(path, paint);
@@ -375,12 +375,12 @@ class _RoutePainter extends CustomPainter {
       canvas.drawCircle(
         start,
         16 * pin,
-        Paint()..color = LkColors.mango.withValues(alpha: 0.16 * fade),
+        Paint()..color = LkPalette.dark.mango.withValues(alpha: 0.16 * fade),
       );
       canvas.drawCircle(
         start,
         6 * pin,
-        Paint()..color = LkColors.mango.withValues(alpha: fade),
+        Paint()..color = LkPalette.dark.mango.withValues(alpha: fade),
       );
     }
     if (draw <= 0) return;
@@ -396,7 +396,7 @@ class _RoutePainter extends CustomPainter {
         end.dy,
       );
     final dash = Paint()
-      ..color = LkColors.mango.withValues(alpha: 0.9 * fade)
+      ..color = LkPalette.dark.mango.withValues(alpha: 0.9 * fade)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round;
@@ -412,7 +412,7 @@ class _RoutePainter extends CustomPainter {
           canvas.drawCircle(
             head,
             r,
-            Paint()..color = LkColors.mango.withValues(alpha: a * tip),
+            Paint()..color = LkPalette.dark.mango.withValues(alpha: a * tip),
           );
         }
       }
@@ -426,7 +426,7 @@ class _RoutePainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5 * (1 - burst) + 0.5
-          ..color = LkColors.mango.withValues(alpha: 0.7 * (1 - burst)),
+          ..color = LkPalette.dark.mango.withValues(alpha: 0.7 * (1 - burst)),
       );
     }
   }
@@ -448,7 +448,7 @@ class _LoaderPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final track = Paint()
-      ..color = LkColors.s3
+      ..color = LkPalette.dark.s3
       ..strokeWidth = size.height
       ..strokeCap = StrokeCap.round;
     final y = size.height / 2;
@@ -458,7 +458,7 @@ class _LoaderPainter extends CustomPainter {
     canvas.drawLine(
       Offset(x.clamp(0, size.width), y),
       Offset((x + seg).clamp(0, size.width), y),
-      track..color = LkColors.lagoon,
+      track..color = LkPalette.dark.lagoon,
     );
   }
 

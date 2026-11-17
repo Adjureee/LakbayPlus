@@ -518,7 +518,7 @@ class _Header extends StatelessWidget {
                   dimension: kLkMinTarget,
                   child: Center(
                     child: initials.isEmpty
-                        ? const Icon(
+                        ? Icon(
                             Icons.person_rounded,
                             color: LkColors.mangoInk,
                           )
@@ -650,7 +650,7 @@ class _PlanNextCard extends StatelessWidget {
             children: [
               TextSpan(
                 text: 'next?',
-                style: LkType.h1.copyWith(color: LkColors.mango),
+                style: LkType.h1.copyWith(color: LkColors.mangoText),
               ),
             ],
           ),
@@ -743,7 +743,7 @@ class _NextTripCard extends StatelessWidget {
                   decoration: BoxDecoration(gradient: LkColors.photoScrim),
                 ),
                 Positioned(top: LkSpace.m, left: LkSpace.m, child: LkTag(tag)),
-                const Positioned(
+                Positioned(
                   top: LkSpace.s,
                   right: LkSpace.s,
                   child: LkGlass(
@@ -1000,7 +1000,7 @@ class _TripListTile extends StatelessWidget {
       color: LkColors.s1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(LkRadius.md),
-        side: const BorderSide(color: LkColors.stroke),
+        side: BorderSide(color: LkColors.stroke),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

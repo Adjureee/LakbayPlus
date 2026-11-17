@@ -25,29 +25,40 @@ Widget _host(Widget child, {bool disableAnimations = false}) => MaterialApp(
     );
 
 void main() {
-  group('v8 color tokens meet WCAG AA for text', () {
-    final pairs = <String, (Color, Color)>{
-      'text on bg': (LkColors.text, LkColors.bg),
-      'text on s3': (LkColors.text, LkColors.s3),
-      'muted on bg': (LkColors.muted, LkColors.bg),
-      'muted on s1': (LkColors.muted, LkColors.s1),
-      'muted on s2': (LkColors.muted, LkColors.s2),
-      'muted on s3': (LkColors.muted, LkColors.s3),
-      'mangoInk on mango': (LkColors.mangoInk, LkColors.mango),
-      'mango on s1': (LkColors.mango, LkColors.s1),
-      'lagoon on bg': (LkColors.lagoon, LkColors.bg),
-      'lagoon on s1': (LkColors.lagoon, LkColors.s1),
-      'danger on s1': (LkColors.danger, LkColors.s1),
-    };
-    for (final MapEntry(key: name, value: (fg, bg)) in pairs.entries) {
-      test(name, () => expect(contrast(fg, bg), greaterThanOrEqualTo(4.5)));
-    }
-  });
+  for (final MapEntry(key: mode, value: c) in {
+    'dark': LkPalette.dark,
+    'light': LkPalette.light,
+  }.entries) {
+    group('$mode palette meets WCAG AA for text', () {
+      final pairs = <String, (Color, Color)>{
+        'text on bg': (c.text, c.bg),
+        'text on s1': (c.text, c.s1),
+        'text on s3': (c.text, c.s3),
+        'muted on bg': (c.muted, c.bg),
+        'muted on s1': (c.muted, c.s1),
+        'muted on s2': (c.muted, c.s2),
+        'muted on s3': (c.muted, c.s3),
+        'mangoInk on mango': (c.mangoInk, c.mango),
+        'mangoText on bg': (c.mangoText, c.bg),
+        'mangoText on s1': (c.mangoText, c.s1),
+        'lagoon on bg': (c.lagoon, c.bg),
+        'lagoon on s1': (c.lagoon, c.s1),
+        'lagoon on s2': (c.lagoon, c.s2),
+        'mangoText on s2': (c.mangoText, c.s2),
+        'danger on s1': (c.danger, c.s1),
+      };
+      for (final MapEntry(key: name, value: (fg, bg)) in pairs.entries) {
+        test(name, () => expect(contrast(fg, bg), greaterThanOrEqualTo(4.5)));
+      }
+    });
+  }
 
   testWidgets('theme uses mango as the action color on deep teal', (tester) async {
     final theme = LakbayDesignTheme.dark;
     expect(theme.brightness, Brightness.dark);
     expect(theme.colorScheme.primary, LkColors.mango);
+    expect(LakbayDesignTheme.light.brightness, Brightness.light);
+    expect(LakbayDesignTheme.light.scaffoldBackgroundColor, LkPalette.light.bg);
     expect(theme.colorScheme.onPrimary, LkColors.mangoInk);
     expect(theme.scaffoldBackgroundColor, LkColors.bg);
   });

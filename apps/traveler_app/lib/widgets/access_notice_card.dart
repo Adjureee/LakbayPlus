@@ -38,7 +38,7 @@ class AccessNoticeCard extends StatelessWidget {
                   children: [
                     Text(
                       notice.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: LkType.displayFamily,
                         fontWeight: FontWeight.w700,
                         fontSize: 14.5,
@@ -48,7 +48,7 @@ class AccessNoticeCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       notice.body,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.5,
                         height: 1.4,
                         color: LkColors.text,
@@ -87,7 +87,7 @@ class AccessNoticePill extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w700,
-                color: LkColors.mango,
+                color: LkColors.mangoText,
               ),
             ),
           ),

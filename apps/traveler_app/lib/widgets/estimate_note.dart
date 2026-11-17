@@ -7,12 +7,13 @@ import '../design/lakbay_tokens.dart';
 const String kFareEstimateNote = "Fares are estimates from Lakbay's local rates.";
 
 class EstimateNote extends StatelessWidget {
-  const EstimateNote({super.key, this.color = LkColors.muted});
+  const EstimateNote({super.key, this.color});
 
-  final Color color;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
+    final color = this.color ?? LkColors.muted;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

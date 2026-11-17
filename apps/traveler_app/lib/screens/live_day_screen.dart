@@ -191,7 +191,7 @@ class _LiveDayScreenState extends State<LiveDayScreen>
                 title: Text(style.title),
                 subtitle: Text(style.subtitle),
                 trailing: _repo.activeMapStyle == style
-                    ? const Icon(Icons.check_rounded, color: LkColors.lagoon)
+                    ? Icon(Icons.check_rounded, color: LkColors.lagoon)
                     : null,
                 onTap: () {
                   _repo.setMapboxStyle(style);
@@ -369,7 +369,7 @@ class _LiveDayScreenState extends State<LiveDayScreen>
             maxChildSize: 0.9,
             snap: true,
             builder: (context, scroll) => DecoratedBox(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: LkColors.bg,
                 borderRadius: LkRadius.sheetTop,
                 border: Border(top: BorderSide(color: LkColors.stroke)),
@@ -454,7 +454,7 @@ class _LiveDayScreenState extends State<LiveDayScreen>
         ],
       ),
       bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: LkColors.bg,
           border: Border(top: BorderSide(color: LkColors.stroke)),
         ),
@@ -529,17 +529,17 @@ class _DayPill extends StatelessWidget {
                 child: Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: LkColors.live,
                     shape: BoxShape.circle,
                   ),
                 ),
               )
             else
-              const Icon(
+              Icon(
                 Icons.visibility_outlined,
                 size: 14,
-                color: LkColors.muted,
+                color: LkColors.onPhotoMuted,
               ),
             const SizedBox(width: LkSpace.s),
             Flexible(
@@ -616,7 +616,7 @@ class _NextStopCard extends StatelessWidget {
                   children: [
                     Text(
                       'Next stop · planned $planned',
-                      style: LkType.micro.copyWith(color: LkColors.mango),
+                      style: LkType.micro.copyWith(color: LkColors.mangoText),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -691,7 +691,7 @@ class _DayDoneCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.task_alt_rounded, color: LkColors.lagoon, size: 32),
+          Icon(Icons.task_alt_rounded, color: LkColors.lagoon, size: 32),
           const SizedBox(width: LkSpace.m),
           Expanded(
             child: Column(
@@ -805,7 +805,7 @@ class _StopRow extends StatelessWidget {
                     borderRadius: BorderRadius.circular(9),
                   ),
                   child: done
-                      ? const Icon(
+                      ? Icon(
                           Icons.check_rounded,
                           size: 18,
                           color: LkColors.lagoon,

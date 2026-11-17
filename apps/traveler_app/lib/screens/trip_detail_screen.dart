@@ -347,7 +347,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             expandedHeight: 280,
             pinned: true,
             backgroundColor: LkColors.s3,
-            foregroundColor: Colors.white,
+            foregroundColor: LkColors.text,
             leading: Padding(
               padding: const EdgeInsets.only(left: LkSpace.s),
               child: Center(
@@ -435,8 +435,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                                 '${trip.daysCount} DAYS • ${trip.vibeTag.toUpperCase()}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: LkColors.text,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -530,7 +530,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Est. Total',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -543,7 +543,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       '${widget.repo.formatPrice(trip.totalEstimatedCostUsd)} • ${trip.adults + trip.children} pax',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: LkType.displayFamily,
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
@@ -679,15 +679,15 @@ class _TripDetailScreenState extends State<TripDetailScreen>
       color: LkColors.s1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: LkColors.stroke),
+        side: BorderSide(color: LkColors.stroke),
       ),
       clipBehavior: Clip.antiAlias,
       child: ListTile(
         minTileHeight: 56,
-        leading: const Icon(Icons.event_outlined, color: LkColors.text),
+        leading: Icon(Icons.event_outlined, color: LkColors.text),
         title: Text(
           range ?? 'Add trip dates',
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w700,
             color: LkColors.text,
           ),
@@ -696,11 +696,11 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           range == null
               ? 'Pick the first day so the trip shows as upcoming or past.'
               : (when ?? ''),
-          style: const TextStyle(color: LkColors.muted),
+          style: TextStyle(color: LkColors.muted),
         ),
         trailing: Text(
           range == null ? 'Add' : 'Change',
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w700,
             color: LkColors.lagoon,
           ),
@@ -797,7 +797,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   'assets/png/weather/${trip.wmoWeatherCode}.png',
                   width: 22,
                   height: 22,
-                  errorBuilder: (_, _, _) => const Icon(
+                  errorBuilder: (_, _, _) => Icon(
                     Icons.wb_sunny_rounded,
                     color: LkColors.lagoon,
                     size: 20,
@@ -811,7 +811,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             ],
             if (trip.bestMonths.trim().isNotEmpty) ...[
               _buildInfoChip(
-                iconWidget: const Icon(
+                iconWidget: Icon(
                   Icons.calendar_month_rounded,
                   color: LkColors.lagoon,
                   size: 20,
@@ -822,7 +822,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               const SizedBox(width: 10),
             ],
             _buildInfoChip(
-              iconWidget: const Icon(
+              iconWidget: Icon(
                 Icons.route_rounded,
                 color: LkColors.lagoon,
                 size: 20,
@@ -843,7 +843,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.auto_graph_rounded,
                   color: LkColors.text,
                   size: 20,
@@ -855,7 +855,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     children: [
                       Text(
                         optSummary.savingsHeadline,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 13,
                           color: LkColors.text,
@@ -865,7 +865,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       Text(
                         '${optSummary.methodLabel} · ${optSummary.sourceLabel}'
                         '${optSummary.minutesSaved >= 1 ? ' · Saves ${optSummary.minutesSaved.round()} min' : ''}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11.5,
                           color: LkColors.muted,
                         ),
@@ -914,7 +914,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             ),
             child: Text(
               combinedWarnings.join('\n'),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 color: LkColors.text,
               ),
@@ -1105,7 +1105,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
         if (trip.overviewText.isNotEmpty) ...[
           Text(
             trip.overviewText,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13.5,
               height: 1.45,
               color: LkColors.muted,
@@ -1128,7 +1128,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
                     Icon(
                       Icons.health_and_safety_rounded,
@@ -1153,7 +1153,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       '• $adv',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.5,
                         color: LkColors.text,
                       ),
@@ -1246,7 +1246,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
         const SizedBox(height: 8),
         Text(
           trip.overviewText,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
             height: 1.5,
             color: LkColors.muted,
@@ -1268,7 +1268,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
+                Icon(
                   Icons.tips_and_updates_outlined,
                   color: LkColors.lagoon,
                   size: 24,
@@ -1278,7 +1278,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Travel notes',
                         style: TextStyle(
                           fontFamily: LkType.displayFamily,
@@ -1290,7 +1290,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       const SizedBox(height: 4),
                       Text(
                         trip.expertTip.trim(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13.5,
                           height: 1.4,
                           color: LkColors.text,
@@ -1334,8 +1334,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   ),
                   child: Text(
                     'D${day.dayNumber}',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: LkColors.text,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
@@ -1357,7 +1357,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       const SizedBox(height: 2),
                       Text(
                         day.summary,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12.5,
                           color: LkColors.muted,
                         ),
@@ -1375,7 +1375,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                 IconButton(
                   tooltip: 'View on Mapbox',
                   onPressed: _openFullRouteMap,
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.location_on_outlined,
                     color: LkColors.lagoon,
                     size: 20,
@@ -1419,7 +1419,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             padding: const EdgeInsets.only(bottom: 14),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Customize Daily Stops',
                     style: TextStyle(
@@ -1470,7 +1470,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       _transitSprite(day.transportFromPrevious!),
                       width: 18,
                       height: 18,
-                      errorBuilder: (_, _, _) => const Icon(
+                      errorBuilder: (_, _, _) => Icon(
                         Icons.directions_car_rounded,
                         size: 16,
                         color: LkColors.text,
@@ -1480,7 +1480,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     const SizedBox(width: 8),
                     Text(
                       day.transportDuration ?? 'Transit leg included',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: LkColors.text,
@@ -1582,7 +1582,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         const SizedBox(width: 4),
                         Text(
                           '${day.tempCelsius}°C',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: LkType.displayFamily,
                             fontWeight: FontWeight.w700,
                             fontSize: 12.5,
@@ -1593,7 +1593,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       IconButton(
                         tooltip: 'Inspect Day on Mapbox',
                         onPressed: _openFullRouteMap,
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.map_outlined,
                           color: LkColors.lagoon,
                           size: 20,
@@ -1612,7 +1612,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         color: LkColors.s2,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Leisure / Continuation Day — no road transit required',
                         style: TextStyle(
                           fontSize: 11.5,
@@ -1663,7 +1663,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   const SizedBox(height: 4),
                   Text(
                     day.summary,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       color: LkColors.muted,
                     ),
@@ -1729,7 +1729,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       color: LkColors.s2,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.flight_takeoff_rounded,
                       color: LkColors.lagoon,
                     ),
@@ -1749,7 +1749,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         ),
                         Text(
                           '${f.airline} (${f.isDirect ? "Direct" : "1 Stop"})',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12.5,
                             color: LkColors.muted,
                           ),
@@ -1762,14 +1762,14 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     children: [
                       Text(
                         widget.repo.formatPrice(f.priceRoundtripUsd),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: LkType.displayFamily,
                           fontWeight: FontWeight.w700,
                           fontSize: 17,
                           color: LkColors.text,
                         ),
                       ),
-                      const Text(
+                      Text(
                         'per traveler',
                         style: TextStyle(
                           fontSize: 11,
@@ -1792,7 +1792,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: LkColors.stroke),
             ),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(
                   Icons.directions_bus_rounded,
@@ -1887,8 +1887,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         ),
                         child: Text(
                           '${h.rating} ★',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: LkColors.text,
                             fontWeight: FontWeight.w700,
                             fontSize: 12,
                           ),
@@ -1902,7 +1902,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     if (h.stars != null) '★' * h.stars!,
                     h.partnerName,
                   ].join(' • '),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     color: LkColors.lagoon,
                     fontWeight: FontWeight.w600,
@@ -1925,7 +1925,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                           ),
                           child: Text(
                             fac,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11.5,
                               color: LkColors.muted,
                             ),
@@ -1940,7 +1940,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   children: [
                     Text(
                       '${widget.repo.formatPrice(h.pricePerNightUsd)} / night',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: LkType.displayFamily,
                         fontWeight: FontWeight.w700,
                         fontSize: 17,
@@ -1982,7 +1982,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   ),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.directions_bus_rounded,
                         color: LkColors.text,
                       ),
@@ -2001,7 +2001,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                             ),
                             Text(
                               '${tr.routeFrom} → ${tr.routeTo}${tr.durationText != null ? ' • ${tr.durationText}' : ''}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 color: LkColors.muted,
                               ),
@@ -2011,7 +2011,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       ),
                       Text(
                         '₱${tr.pricePhp.toStringAsFixed(0)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: LkType.displayFamily,
                           fontWeight: FontWeight.w700,
                           fontSize: 15.5,
@@ -2045,7 +2045,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             const SizedBox(height: 4),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 color: LkColors.muted,
               ),
@@ -2141,7 +2141,7 @@ class _StopTimelineRow extends StatelessWidget {
                           horizontal: LkSpace.s,
                           vertical: 5,
                         ),
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: LkColors.lagoonSoft,
                           borderRadius: LkRadius.chipAll,
                         ),

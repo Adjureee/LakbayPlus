@@ -2,6 +2,7 @@
 library;
 
 export 'lakbay_design_theme.dart';
+export 'lakbay_theme_controller.dart';
 export 'lakbay_tokens.dart';
 export 'lakbay_type.dart';
 export 'widgets/lk_buttons.dart';

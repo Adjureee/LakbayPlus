@@ -158,7 +158,7 @@ class _AuthScreenState extends State<AuthScreen> {
       builder: (ctx) => AlertDialog(
         title: Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: LkType.displayFamily,
             fontWeight: FontWeight.w800,
             color: LkColors.text,
@@ -166,7 +166,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ),
         content: Text(
           body,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13.5,
             height: 1.5,
             color: LkColors.muted,
@@ -206,7 +206,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   photo,
                   fit: BoxFit.cover,
                   excludeFromSemantics: true,
-                  errorBuilder: (_, _, _) => const DecoratedBox(
+                  errorBuilder: (_, _, _) => DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LkColors.surfaceGradient,
                     ),
@@ -251,7 +251,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                 : () => Navigator.of(context).maybePop(false),
                           ),
                         const Spacer(),
-                        const LakbayWordmark(fontSize: 24),
+                        const LakbayWordmark(fontSize: 24, color: Colors.white),
                         const Spacer(),
                         if (canPop) const SizedBox(width: kLkMinTarget),
                       ],
@@ -265,7 +265,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 SliverToBoxAdapter(
                   child: Container(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: LkColors.s1,
                       borderRadius: LkRadius.sheetTop,
                       border: Border(top: BorderSide(color: LkColors.stroke)),
@@ -319,7 +319,7 @@ class _AuthScreenState extends State<AuthScreen> {
             style: OutlinedButton.styleFrom(
               backgroundColor: LkColors.s2,
               foregroundColor: LkColors.text,
-              side: const BorderSide(color: LkColors.strokeStrong),
+              side: BorderSide(color: LkColors.strokeStrong),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(LkRadius.sm),
               ),
@@ -346,12 +346,12 @@ class _AuthScreenState extends State<AuthScreen> {
         const SizedBox(height: LkSpace.xl),
         Row(
           children: [
-            const Expanded(child: Divider(color: LkColors.stroke)),
+            Expanded(child: Divider(color: LkColors.stroke)),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: LkSpace.m),
               child: Text('or with email', style: LkType.caption),
             ),
-            const Expanded(child: Divider(color: LkColors.stroke)),
+            Expanded(child: Divider(color: LkColors.stroke)),
           ],
         ),
         const SizedBox(height: LkSpace.xl),
@@ -431,7 +431,7 @@ class _AuthScreenState extends State<AuthScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(top: 1),
                     child: Icon(
                       Icons.error_outline_rounded,
@@ -477,7 +477,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 children: [
                   TextSpan(
                     text: _isRegister ? 'Sign in' : 'Create account',
-                    style: LkType.bodyStrong.copyWith(color: LkColors.mango),
+                    style: LkType.bodyStrong.copyWith(color: LkColors.mangoText),
                   ),
                 ],
               ),
@@ -492,7 +492,7 @@ class _AuthScreenState extends State<AuthScreen> {
               const TextSpan(text: 'By continuing you agree to the '),
               TextSpan(
                 text: 'Terms',
-                style: const TextStyle(
+                style: TextStyle(
                   decoration: TextDecoration.underline,
                   color: LkColors.text,
                 ),
@@ -506,7 +506,7 @@ class _AuthScreenState extends State<AuthScreen> {
               const TextSpan(text: ' and '),
               TextSpan(
                 text: 'Privacy Policy.',
-                style: const TextStyle(
+                style: TextStyle(
                   decoration: TextDecoration.underline,
                   color: LkColors.text,
                 ),

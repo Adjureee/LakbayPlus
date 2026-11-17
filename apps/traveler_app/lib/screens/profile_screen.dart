@@ -29,7 +29,7 @@ class ProfileScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 110),
           children: [
-            const Text(
+            Text(
               'Profile',
               style: TextStyle(
                 fontSize: 30,
@@ -61,7 +61,7 @@ class ProfileScreen extends StatelessWidget {
                           coverAsset,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => Container(
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               gradient: LkColors.surfaceGradient,
                             ),
                           ),
@@ -82,7 +82,7 @@ class ProfileScreen extends StatelessWidget {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(24),
                             onTap: () => _showEditProfileSheet(context),
-                            child: const Padding(
+                            child: Padding(
                               padding: EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
@@ -93,7 +93,7 @@ class ProfileScreen extends StatelessWidget {
                                   Icon(
                                     Icons.edit_outlined,
                                     size: 16,
-                                    color: LkColors.text,
+                                    color: LkColors.onPhoto,
                                   ),
                                   SizedBox(width: 6),
                                   Text(
@@ -101,7 +101,7 @@ class ProfileScreen extends StatelessWidget {
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 13,
-                                      color: LkColors.text,
+                                      color: LkColors.onPhoto,
                                     ),
                                   ),
                                 ],
@@ -119,12 +119,12 @@ class ProfileScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: LkColors.s2,
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
+                            border: Border.all(color: LkColors.text, width: 3),
                           ),
                           alignment: Alignment.center,
                           child: Text(
                             profile.initials,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
                               color: LkColors.lagoon,
@@ -166,7 +166,7 @@ class ProfileScreen extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             '@${profile.username}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: LkColors.lagoon,
@@ -184,7 +184,7 @@ class ProfileScreen extends StatelessWidget {
                                   if (repo.travelCompanion.isNotEmpty)
                                     '${repo.travelCompanion} traveler',
                                 ].join(' • '),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             color: LkColors.muted,
                           ),
@@ -198,7 +198,7 @@ class ProfileScreen extends StatelessWidget {
                           ),
                           child: Row(
                             children: [
-                              const Expanded(
+                              Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -262,7 +262,7 @@ class ProfileScreen extends StatelessWidget {
               children: [
                 Text(
                   'Your trips • ${trips.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                     color: LkColors.text,
@@ -271,7 +271,7 @@ class ProfileScreen extends StatelessWidget {
                 const Spacer(),
                 TextButton(
                   onPressed: () => repo.setActiveNavIndex(0),
-                  child: const Text(
+                  child: Text(
                     'See all',
                     style: TextStyle(
                       color: LkColors.lagoon,
@@ -293,7 +293,7 @@ class ProfileScreen extends StatelessWidget {
               ),
 
             const SizedBox(height: 18),
-            const Text(
+            Text(
               'ACCOUNT',
               style: TextStyle(
                 fontSize: 12,
@@ -339,7 +339,7 @@ class ProfileScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 18),
-            const Text(
+            Text(
               'APP',
               style: TextStyle(
                 fontSize: 12,
@@ -428,7 +428,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'Edit profile',
                     style: TextStyle(
                       fontSize: 22,
@@ -445,7 +445,7 @@ class ProfileScreen extends StatelessWidget {
                           backgroundColor: LkColors.s2,
                           child: Text(
                             p.initials,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.w800,
                               color: LkColors.lagoon,
@@ -462,7 +462,7 @@ class ProfileScreen extends StatelessWidget {
                               shape: BoxShape.circle,
                               border: Border.all(color: LkColors.stroke),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.camera_alt_outlined,
                               size: 16,
                               color: LkColors.text,
@@ -551,7 +551,7 @@ class ProfileScreen extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
                         gpsNotice!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           color: LkColors.muted,
                         ),
@@ -593,7 +593,7 @@ class ProfileScreen extends StatelessWidget {
                             },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: LkColors.s3,
-                        foregroundColor: Colors.white,
+                        foregroundColor: LkColors.text,
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(28),
@@ -630,7 +630,7 @@ class ProfileScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Connected Services & Cloud Sync',
               style: TextStyle(
                 fontSize: 18,
@@ -764,7 +764,7 @@ class _ProfileField extends StatelessWidget {
             width: 88,
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: LkColors.muted,
@@ -780,7 +780,7 @@ class _ProfileField extends StatelessWidget {
                 prefixText: prefix,
                 isDense: true,
               ),
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: LkColors.text,
               ),
@@ -831,7 +831,7 @@ class _ProfileTripTile extends StatelessWidget {
                     trip.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
                       color: LkColors.text,
@@ -842,7 +842,7 @@ class _ProfileTripTile extends StatelessWidget {
                     '${trip.daysCount} Days • ${trip.destination}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: LkColors.muted),
+                    style: TextStyle(fontSize: 12, color: LkColors.muted),
                   ),
                 ],
               ),
@@ -856,7 +856,7 @@ class _ProfileTripTile extends StatelessWidget {
               ),
               child: Text(
                 trip.whenLabel(DateTime.now()) ?? 'No dates',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: LkColors.lagoon,
@@ -907,7 +907,7 @@ class _SettingsRowCard extends StatelessWidget {
                   title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
                     color: LkColors.text,
@@ -924,14 +924,14 @@ class _SettingsRowCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.end,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         color: LkColors.muted,
                       ),
                     ),
                   ),
                 ),
-              const Icon(Icons.chevron_right_rounded, color: LkColors.muted),
+              Icon(Icons.chevron_right_rounded, color: LkColors.muted),
             ],
           ),
         ),

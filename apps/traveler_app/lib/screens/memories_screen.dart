@@ -67,7 +67,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     final trips = widget.repo.savedTrips;
     if (trips.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
             'Save a Davao Region trip first before adding memories.',
           ),
@@ -140,7 +140,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                           ),
                         ),
                       ),
-                      const Text(
+                      Text(
                         'Add Trip Memory',
                         style: TextStyle(
                           fontFamily: LkType.displayFamily,
@@ -544,7 +544,7 @@ class _MemoryCard extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.location_on_outlined,
                           size: 14,
                           color: LkColors.lagoon,
@@ -553,7 +553,7 @@ class _MemoryCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             memory.locationTag!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
                               color: LkColors.lagoon,
@@ -567,7 +567,7 @@ class _MemoryCard extends StatelessWidget {
                 if ((memory.caption ?? '').isNotEmpty)
                   Text(
                     memory.caption!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: LkColors.text,
@@ -578,7 +578,7 @@ class _MemoryCard extends StatelessWidget {
                   children: [
                     Text(
                       memory.uploadedByFullName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.5,
                         color: LkColors.muted,
                       ),
@@ -601,7 +601,7 @@ class _MemoryCard extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.favorite_outline,
                                   size: 18,
                                   color: LkColors.lagoon,
@@ -615,7 +615,7 @@ class _MemoryCard extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.delete_outline,
                         size: 19,
                         color: LkColors.muted,
@@ -635,7 +635,7 @@ class _MemoryCard extends StatelessWidget {
 
   Widget _fallbackTile() => Container(
     color: LkColors.s2,
-    child: const Center(
+    child: Center(
       child: Icon(Icons.photo_outlined, size: 42, color: LkColors.faint),
     ),
   );

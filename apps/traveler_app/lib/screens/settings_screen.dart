@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 
+import '../design/lakbay_theme_controller.dart';
 import '../design/lakbay_tokens.dart';
 import '../design/lakbay_type.dart';
 class SettingsScreen extends StatelessWidget {
@@ -37,14 +38,14 @@ class SettingsScreen extends StatelessWidget {
                         child: IconButton(
                           tooltip: 'Back',
                           onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.chevron_left_rounded,
                             size: 28,
                             color: LkColors.text,
                           ),
                         ),
                       ),
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Settings',
                           textAlign: TextAlign.center,
@@ -110,6 +111,7 @@ class SettingsScreen extends StatelessWidget {
                             : 'Fahrenheit (°F)',
                         onTap: () => _showTemperatureSheet(context),
                       ),
+                      const _AppearanceCard(),
                       _SettingsToggleCard(
                         icon: Icons.notifications_none_rounded,
                         title: 'Notifications',
@@ -179,7 +181,7 @@ class SettingsScreen extends StatelessWidget {
                       // Branded Footer + Copyable ID
                       const Center(child: LakbayBrandWordmark(fontSize: 22)),
                       const SizedBox(height: 6),
-                      const Center(
+                      Center(
                         child: Text(
                           'Version: 1.0.0+1',
                           style: TextStyle(
@@ -211,7 +213,7 @@ class SettingsScreen extends StatelessWidget {
                             ),
                             child: Text(
                               'ID $shortId • Tap to copy',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12.5,
                                 color: LkColors.muted,
                                 fontWeight: FontWeight.w500,
@@ -250,7 +252,7 @@ class SettingsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Default Payment Method',
               style: TextStyle(
                 fontFamily: LkType.displayFamily,
@@ -264,7 +266,7 @@ class SettingsScreen extends StatelessWidget {
               ListTile(
                 title: Text(opt),
                 trailing: repo.preferredPaymentMethod == opt
-                    ? const Icon(
+                    ? Icon(
                         Icons.check_circle,
                         color: LkColors.lagoon,
                       )
@@ -293,7 +295,7 @@ class SettingsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Connected Apps & APIs',
               style: TextStyle(
                 fontFamily: LkType.displayFamily,
@@ -328,7 +330,7 @@ class SettingsScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Travel Preferences',
                 style: TextStyle(
                   fontFamily: LkType.displayFamily,
@@ -344,7 +346,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               if (repo.preferenceGroups.isEmpty)
-                const Text(
+                Text(
                   'Preferences load from Lakbay when you are online.',
                   style: TextStyle(
                     fontSize: 12.5,
@@ -461,7 +463,7 @@ class SettingsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Language',
               style: TextStyle(
                 fontFamily: LkType.displayFamily,
@@ -475,7 +477,7 @@ class SettingsScreen extends StatelessWidget {
               ListTile(
                 title: Text(label),
                 trailing: repo.locale == code
-                    ? const Icon(
+                    ? Icon(
                         Icons.check_circle,
                         color: LkColors.lagoon,
                       )
@@ -512,7 +514,7 @@ class SettingsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Currency',
               style: TextStyle(
                 fontFamily: LkType.displayFamily,
@@ -526,7 +528,7 @@ class SettingsScreen extends StatelessWidget {
               ListTile(
                 title: Text(label),
                 trailing: repo.currency == code
-                    ? const Icon(
+                    ? Icon(
                         Icons.check_circle,
                         color: LkColors.lagoon,
                       )
@@ -555,7 +557,7 @@ class SettingsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Temperature Unit',
               style: TextStyle(
                 fontFamily: LkType.displayFamily,
@@ -568,7 +570,7 @@ class SettingsScreen extends StatelessWidget {
             ListTile(
               title: const Text('Celsius (°C)'),
               trailing: repo.temperatureUnit == 'C'
-                  ? const Icon(
+                  ? Icon(
                       Icons.check_circle,
                       color: LkColors.lagoon,
                     )
@@ -581,7 +583,7 @@ class SettingsScreen extends StatelessWidget {
             ListTile(
               title: const Text('Fahrenheit (°F)'),
               trailing: repo.temperatureUnit == 'F'
-                  ? const Icon(
+                  ? Icon(
                       Icons.check_circle,
                       color: LkColors.lagoon,
                     )
@@ -675,7 +677,7 @@ class SettingsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Photo Credits',
               style: TextStyle(
                 fontFamily: LkType.displayFamily,
@@ -798,7 +800,7 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.0,
@@ -864,7 +866,7 @@ class _SettingsItemCard extends StatelessWidget {
                           textAlign: TextAlign.end,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13.5,
                             color: LkColors.muted,
                           ),
@@ -873,7 +875,7 @@ class _SettingsItemCard extends StatelessWidget {
                 ),
                 if (showChevron) ...[
                   const SizedBox(width: 6),
-                  const Icon(
+                  Icon(
                     Icons.chevron_right_rounded,
                     color: LkColors.muted,
                   ),
@@ -881,6 +883,80 @@ class _SettingsItemCard extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Light, dark, or follow the phone.
+class _AppearanceCard extends StatelessWidget {
+  const _AppearanceCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = LkThemeController.instance;
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        decoration: BoxDecoration(
+          color: LkColors.s1,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: LkColors.stroke),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.brightness_6_outlined, color: LkColors.text, size: 22),
+                const SizedBox(width: 14),
+                Text(
+                  'Appearance',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: LkColors.text,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<ThemeMode>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                    value: ThemeMode.system,
+                    label: Text('Auto'),
+                    icon: Icon(Icons.phone_android_rounded, size: 18),
+                  ),
+                  ButtonSegment(
+                    value: ThemeMode.light,
+                    label: Text('Light'),
+                    icon: Icon(Icons.light_mode_outlined, size: 18),
+                  ),
+                  ButtonSegment(
+                    value: ThemeMode.dark,
+                    label: Text('Dark'),
+                    icon: Icon(Icons.dark_mode_outlined, size: 18),
+                  ),
+                ],
+                selected: {controller.mode},
+                onSelectionChanged: (s) => controller.setMode(s.first),
+                style: SegmentedButton.styleFrom(
+                  backgroundColor: LkColors.s2,
+                  foregroundColor: LkColors.text,
+                  selectedBackgroundColor: LkColors.mango,
+                  selectedForegroundColor: LkColors.mangoInk,
+                  side: BorderSide(color: LkColors.stroke),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -917,7 +993,7 @@ class _SettingsToggleCard extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 15,
                 color: LkColors.text,

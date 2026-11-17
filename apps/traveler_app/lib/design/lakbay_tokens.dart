@@ -1,64 +1,173 @@
 import 'package:flutter/widgets.dart';
 
-/// Lakbay+ v8 color tokens: deep teal surfaces, mango actions, lagoon routes.
+/// One complete set of Lakbay+ colors. There is a dark and a light palette;
+/// [LkColors] always reads the active one.
+class LkPalette {
+  const LkPalette({
+    required this.brightness,
+    required this.bg,
+    required this.s1,
+    required this.s2,
+    required this.s3,
+    required this.stroke,
+    required this.strokeStrong,
+    required this.text,
+    required this.muted,
+    required this.faint,
+    required this.mango,
+    required this.mangoInk,
+    required this.mangoText,
+    required this.mangoSoft,
+    required this.lagoon,
+    required this.lagoonSoft,
+    required this.danger,
+    required this.live,
+    required this.budgetRides,
+    required this.budgetEntrance,
+    required this.shadow,
+  });
+
+  final Brightness brightness;
+  final Color bg, s1, s2, s3, stroke, strokeStrong;
+  final Color text, muted, faint;
+  final Color mango, mangoInk, mangoText, mangoSoft;
+  final Color lagoon, lagoonSoft;
+  final Color danger, live;
+  final Color budgetRides, budgetEntrance;
+
+  /// Card shadow color (heavy on dark, soft on light).
+  final Color shadow;
+
+  bool get isDark => brightness == Brightness.dark;
+
+  /// Deep teal surfaces, mango actions, lagoon routes.
+  static const LkPalette dark = LkPalette(
+    brightness: Brightness.dark,
+    bg: Color(0xFF04191C),
+    s1: Color(0xFF0A2A2F),
+    s2: Color(0xFF0F353B),
+    s3: Color(0xFF15434A),
+    stroke: Color(0x17FFFFFF),
+    strokeStrong: Color(0x29FFFFFF),
+    text: Color(0xFFEAF4F3),
+    muted: Color(0xFF8FB0AD),
+    faint: Color(0xFF5F8783),
+    mango: Color(0xFFFFB547),
+    mangoInk: Color(0xFF2A1900),
+    mangoText: Color(0xFFFFB547),
+    mangoSoft: Color(0x2EFFB547),
+    lagoon: Color(0xFF2CC5BC),
+    lagoonSoft: Color(0x262CC5BC),
+    danger: Color(0xFFFF6B61),
+    live: Color(0xFFFF5A4F),
+    budgetRides: Color(0xFF7FA8F0),
+    budgetEntrance: Color(0xFFE58FB8),
+    shadow: Color(0x80000000),
+  );
+
+  /// Soft sea-glass surfaces, deep teal text, the same mango action.
+  static const LkPalette light = LkPalette(
+    brightness: Brightness.light,
+    bg: Color(0xFFF3F8F7),
+    s1: Color(0xFFFFFFFF),
+    s2: Color(0xFFE8F1F0),
+    s3: Color(0xFFD7E6E4),
+    stroke: Color(0x1F04191C),
+    strokeStrong: Color(0x66042A2F),
+    text: Color(0xFF0A2A2F),
+    muted: Color(0xFF486B68),
+    faint: Color(0xFF8AA3A0),
+    mango: Color(0xFFFFB547),
+    mangoInk: Color(0xFF2A1900),
+    mangoText: Color(0xFF8A5200),
+    mangoSoft: Color(0x33FFB547),
+    lagoon: Color(0xFF0A726D),
+    lagoonSoft: Color(0x1F0A726D),
+    danger: Color(0xFFC62F25),
+    live: Color(0xFFD6342A),
+    budgetRides: Color(0xFF3B6AC9),
+    budgetEntrance: Color(0xFFB83E78),
+    shadow: Color(0x2204191C),
+  );
+}
+
+/// Lakbay+ v8 color tokens. Reads the active [LkPalette], so the same code
+/// paints both the dark and the light app. Switch with [LkColors.use]; the
+/// theme controller (see `lakbay_theme_controller.dart`) does this and
+/// rebuilds the tree.
 ///
 /// Reference: `.impeccable/mocks/v4/v8.html`. Every pair used for text is
-/// WCAG AA (>= 4.5:1); see `test/design_system_test.dart`.
+/// WCAG AA (>= 4.5:1) in both palettes; see `test/design_system_test.dart`.
 abstract final class LkColors {
-  // Surfaces, darkest to lightest.
-  static const Color bg = Color(0xFF04191C);
-  static const Color s1 = Color(0xFF0A2A2F);
-  static const Color s2 = Color(0xFF0F353B);
-  static const Color s3 = Color(0xFF15434A);
+  static LkPalette _p = LkPalette.dark;
 
-  /// Hairlines and card borders (white at 9%).
-  static const Color stroke = Color(0x17FFFFFF);
+  static LkPalette get palette => _p;
+  static bool get isDark => _p.isDark;
 
-  /// Stronger outline for inputs and focused edges (white at 16%).
-  static const Color strokeStrong = Color(0x29FFFFFF);
+  /// Make [p] the active palette.
+  static void use(LkPalette p) => _p = p;
+
+  // Surfaces, deepest to lightest in dark; page to raised in light.
+  static Color get bg => _p.bg;
+  static Color get s1 => _p.s1;
+  static Color get s2 => _p.s2;
+  static Color get s3 => _p.s3;
+
+  /// Hairlines and card borders.
+  static Color get stroke => _p.stroke;
+
+  /// Stronger outline for inputs and focused edges.
+  static Color get strokeStrong => _p.strokeStrong;
 
   // Text.
-  static const Color text = Color(0xFFEAF4F3);
-  static const Color muted = Color(0xFF8FB0AD);
+  static Color get text => _p.text;
+  static Color get muted => _p.muted;
 
   /// Decorative only (map labels, disabled). Not for readable body text.
-  static const Color faint = Color(0xFF5F8783);
+  static Color get faint => _p.faint;
+
+  /// Text that sits on a photo or the dark glass over one. Light in both modes.
+  static const Color onPhoto = Color(0xFFEAF4F3);
+  static const Color onPhotoMuted = Color(0xFFC3D9D6);
 
   // Brand.
   /// The single action color: primary buttons, active tab, user bubbles.
-  static const Color mango = Color(0xFFFFB547);
+  static Color get mango => _p.mango;
 
   /// Text and icons on mango.
-  static const Color mangoInk = Color(0xFF2A1900);
+  static Color get mangoInk => _p.mangoInk;
+
+  /// Mango as text or an icon on a page surface (darker amber in light mode).
+  static Color get mangoText => _p.mangoText;
 
   /// Mango tint for warning rows and soft highlights.
-  static const Color mangoSoft = Color(0x2EFFB547);
+  static Color get mangoSoft => _p.mangoSoft;
 
   /// Routes, progress, links.
-  static const Color lagoon = Color(0xFF2CC5BC);
-  static const Color lagoonSoft = Color(0x262CC5BC);
+  static Color get lagoon => _p.lagoon;
+  static Color get lagoonSoft => _p.lagoonSoft;
 
   // Status.
-  static const Color danger = Color(0xFFFF6B61);
-  static const Color live = Color(0xFFFF5A4F);
+  static Color get danger => _p.danger;
+  static Color get live => _p.live;
 
   // Budget categories (chat plan card, trip budget).
-  static const Color budgetStay = lagoon;
-  static const Color budgetFood = mango;
-  static const Color budgetRides = Color(0xFF7FA8F0);
-  static const Color budgetEntrance = Color(0xFFE58FB8);
+  static Color get budgetStay => _p.lagoon;
+  static Color get budgetFood => _p.mango;
+  static Color get budgetRides => _p.budgetRides;
+  static Color get budgetEntrance => _p.budgetEntrance;
 
-  // Glass over photos.
+  // Glass over photos (the same in both modes: photos are always photos).
   static const Color glassLight = Color(0x1AFFFFFF);
   static const Color glassLightBorder = Color(0x29FFFFFF);
   static const Color glassDark = Color(0x9E04191C);
   static const Color glassDarkBorder = Color(0x1FFFFFFF);
 
-  /// Raised dark panel (profile header, image placeholders).
-  static const LinearGradient surfaceGradient = LinearGradient(
+  /// Raised panel (profile header, image placeholders).
+  static LinearGradient get surfaceGradient => LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [s2, s1],
+    colors: [_p.s2, _p.s1],
   );
 
   /// Bottom scrim that keeps white text readable on any photo.
@@ -118,14 +227,24 @@ abstract final class LkRadius {
 }
 
 abstract final class LkShadow {
-  static const List<BoxShadow> card = [
-    BoxShadow(color: Color(0x80000000), blurRadius: 50, offset: Offset(0, 26)),
+  static List<BoxShadow> get card => [
+    BoxShadow(
+      color: LkColors.palette.shadow,
+      blurRadius: 50,
+      offset: const Offset(0, 26),
+    ),
   ];
-  static const List<BoxShadow> floating = [
-    BoxShadow(color: Color(0x73000000), blurRadius: 40, offset: Offset(0, 18)),
+  static List<BoxShadow> get floating => [
+    BoxShadow(
+      color: LkColors.palette.shadow.withValues(
+        alpha: LkColors.isDark ? 0.45 : 0.14,
+      ),
+      blurRadius: 40,
+      offset: const Offset(0, 18),
+    ),
   ];
 
-  static List<BoxShadow> mangoGlow = [
+  static List<BoxShadow> get mangoGlow => [
     BoxShadow(
       color: LkColors.mango.withValues(alpha: 0.3),
       blurRadius: 34,

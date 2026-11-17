@@ -16,8 +16,8 @@ class LakbayWordmark extends StatelessWidget {
 
   final double fontSize;
 
-  /// Color of "Lakbay". Defaults to white: every Lakbay+ surface is dark
-  /// (v8). Pass a dark color to place it on a light surface.
+  /// Color of "Lakbay". Defaults to the page text color. Pass white to place
+  /// it on a photo.
   final Color? color;
 
   /// Color of "+". Defaults to mango, or a darker amber on light backgrounds
@@ -29,7 +29,7 @@ class LakbayWordmark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = color ?? Colors.white;
+    final textColor = color ?? LkColors.text;
     final onDark = textColor.computeLuminance() > 0.5;
     return Semantics(
       label: 'Lakbay+',

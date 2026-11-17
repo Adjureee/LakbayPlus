@@ -283,7 +283,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
             MediaQuery.of(context).viewInsets.bottom + 24,
           ),
           children: [
-            const Text(
+            Text(
               'Collaborate & Shared Tasks',
               style: TextStyle(
                 fontFamily: LkType.displayFamily,
@@ -307,7 +307,7 @@ class _TripCollaborationSheetState extends State<_TripCollaborationSheet> {
                 ),
                 child: Text(
                   _statusMessage!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     color: LkColors.text,
                   ),
@@ -711,7 +711,7 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Budget, Expenses & Split',
                     style: TextStyle(
@@ -881,7 +881,7 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
                       const Text('Adult Share', style: TextStyle(fontSize: 12)),
                       Text(
                         '₱${(_summary != null && _ageWeightedSplit ? _summary!.adultShare : adultShare).toStringAsFixed(2)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 16,
                           color: LkColors.text,
@@ -894,7 +894,7 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
                       const Text('Child Share', style: TextStyle(fontSize: 12)),
                       Text(
                         '₱${(_summary != null && _ageWeightedSplit ? _summary!.childShare : childShare).toStringAsFixed(2)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 16,
                           color: LkColors.lagoon,
@@ -1136,7 +1136,7 @@ class _TripReviewAndAssessmentSheetState
     if (!widget.repo.isSignedIn || tripId == null) {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Review & ISO 25010 feedback saved locally!'),
           backgroundColor: LkColors.s3,
         ),
@@ -1171,7 +1171,7 @@ class _TripReviewAndAssessmentSheetState
       if (!mounted) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Thank you! Review & ISO/IEC 25010 survey submitted.'),
           backgroundColor: LkColors.s3,
         ),
@@ -1201,7 +1201,7 @@ class _TripReviewAndAssessmentSheetState
             MediaQuery.of(context).viewInsets.bottom + 24,
           ),
           children: [
-            const Text(
+            Text(
               'Post-Trip Review & App Quality',
               style: TextStyle(
                 fontFamily: LkType.displayFamily,

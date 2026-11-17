@@ -333,7 +333,7 @@ class _DesignPreviewScreenState extends State<DesignPreviewScreen> {
 class _Swatches extends StatelessWidget {
   const _Swatches();
 
-  static const _swatches = [
+  static final _swatches = [
     ('bg', LkColors.bg),
     ('s1', LkColors.s1),
     ('s2', LkColors.s2),

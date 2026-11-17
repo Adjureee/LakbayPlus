@@ -110,7 +110,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     color: LkColors.s2,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(Icons.place_rounded,
+                  child: Icon(Icons.place_rounded,
                       color: LkColors.lagoon, size: 22),
                 ),
                 const SizedBox(width: 12),
@@ -128,7 +128,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
                       Text(
                         cityObj.country,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           color: LkColors.lagoon,
                           fontWeight: FontWeight.w600,
@@ -141,9 +141,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   'assets/png/weather/${cityObj.wmoWeatherCode}.png',
                   width: 32,
                   height: 32,
-                  errorBuilder: (_, _, _) => const Icon(
+                  errorBuilder: (_, _, _) => Icon(
                     Icons.wb_sunny_rounded,
-                    color: LkColors.mango,
+                    color: LkColors.mangoText,
                   ),
                   excludeFromSemantics: true,
                 ),
@@ -158,7 +158,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             const Divider(height: 24),
             Text(
               cityObj.longDescription ?? cityObj.description,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14.5,
                 height: 1.55,
                 color: LkColors.text,
@@ -222,7 +222,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 children: [
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Discover',
                           maxLines: 1,
@@ -350,7 +350,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Real places across Region XI',
                           style: TextStyle(
@@ -361,7 +361,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
                       const SizedBox(width: 8),
                       ActionChip(
-                        avatar: const Icon(
+                        avatar: Icon(
                           Icons.auto_graph_rounded,
                           size: 15,
                           color: LkColors.lagoon,
@@ -384,7 +384,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     decoration: InputDecoration(
                       hintText:
                           'Where to in Davao?',
-                      prefixIcon: const Icon(Icons.search_rounded,
+                      prefixIcon: Icon(Icons.search_rounded,
                           color: LkColors.lagoon),
                       filled: true,
                       fillColor: LkColors.s1,
@@ -393,12 +393,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide:
-                            const BorderSide(color: LkColors.stroke),
+                            BorderSide(color: LkColors.stroke),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide:
-                            const BorderSide(color: LkColors.stroke),
+                            BorderSide(color: LkColors.stroke),
                       ),
                     ),
                   ),
@@ -419,7 +419,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           backgroundColor: LkColors.s1,
                           labelStyle: TextStyle(
                             color: selected
-                                ? Colors.white
+                                ? LkColors.text
                                 : LkColors.text,
                             fontWeight: FontWeight.w600,
                             fontSize: 12.5,
@@ -539,7 +539,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                   maxLines: 1,
                                                   overflow:
                                                       TextOverflow.ellipsis,
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     fontSize: 10.5,
                                                     fontWeight: FontWeight.w800,
                                                     color: LkColors.lagoon,
@@ -655,7 +655,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text(
+                                  Text(
                                     'Davao Region Encyclopedia',
                                     style: TextStyle(
                                       fontFamily: LkType.displayFamily,
@@ -711,8 +711,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
                       child: Text(
                         '${widget.repo.tripBuilderStops.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: LkColors.text,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -875,7 +875,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               '${activeTrip.municipalityLabel} • ${activeTrip.tag ?? "Place"} • ${activeTrip.stayDurationLabel}',
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 color: LkColors.muted,
                               ),
@@ -918,7 +918,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -996,7 +996,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               ),
                               child: Text(
                                 '${route.destinationIds.length} places • ~${route.suggestedDays}d',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
                                   color: LkColors.lagoon,
@@ -1004,7 +1004,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               ),
                             ),
                             const Spacer(),
-                            const Icon(
+                            Icon(
                               Icons.route_rounded,
                               size: 16,
                               color: LkColors.lagoon,
@@ -1016,7 +1016,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           route.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: LkType.displayFamily,
                             fontWeight: FontWeight.w700,
                             fontSize: 13.5,
@@ -1031,7 +1031,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               : 'Tap to load stops →',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
                             color: LkColors.lagoon,
@@ -1093,8 +1093,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
                 child: Text(
                   (trip.tag ?? 'Davao Region').toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: LkColors.text,
                     fontWeight: FontWeight.w700,
                     fontSize: 11,
                     letterSpacing: 0.6,
@@ -1210,7 +1210,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               children: [
                 Text(
                   section.title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: LkType.displayFamily,
                     fontWeight: FontWeight.w700,
                     fontSize: 21,
@@ -1220,7 +1220,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 const SizedBox(height: 2),
                 Text(
                   section.subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     color: LkColors.muted,
                   ),
@@ -1361,7 +1361,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                       trip.municipalityLabel,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 11.5,
                                         color: LkColors.muted,
                                       ),
@@ -1464,7 +1464,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               tileColor: LkColors.s1,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: LkColors.stroke),
+                side: BorderSide(color: LkColors.stroke),
               ),
               contentPadding: const EdgeInsets.all(10),
               leading: ClipRRect(
@@ -1505,9 +1505,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
               tileColor: LkColors.s1,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: LkColors.stroke),
+                side: BorderSide(color: LkColors.stroke),
               ),
-              leading: const CircleAvatar(
+              leading: CircleAvatar(
                 backgroundColor: LkColors.s2,
                 child: Icon(Icons.place_rounded,
                     color: LkColors.lagoon),
@@ -1520,7 +1520,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
               ),
               subtitle: Text(city.country),
-              trailing: const Text(
+              trailing: Text(
                 'Guide →',
                 style: TextStyle(
                   color: LkColors.lagoon,
@@ -1568,7 +1568,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           color: LkColors.s2,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.place_rounded,
+                        child: Icon(Icons.place_rounded,
                             color: LkColors.lagoon, size: 18),
                       ),
                       const SizedBox(width: 10),
@@ -1586,7 +1586,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             ),
                             Text(
                               cityObj.country,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 color: LkColors.lagoon,
                                 fontWeight: FontWeight.w600,
@@ -1624,7 +1624,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     cityObj.description,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       height: 1.45,
                       color: LkColors.muted,
@@ -1634,7 +1634,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Tap for full Davao guide',
                         style: TextStyle(
                           fontSize: 11.5,
@@ -1719,7 +1719,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
                 ),
                 children: [
-                  const Text(
+                  Text(
                     'Personalized Top 5',
                     style: TextStyle(
                       fontFamily: LkType.displayFamily,
@@ -1729,13 +1729,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     'The places that best fit what you like, your budget and where you start.',
                     style: TextStyle(fontSize: 13, color: LkColors.muted),
                   ),
                   const SizedBox(height: 10),
                   if (repo.preferenceGroups.isEmpty)
-                    const Text(
+                    Text(
                       'Preferences load from Lakbay when you are online.',
                       style: TextStyle(
                         fontSize: 12.5,
@@ -1829,7 +1829,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
                           message!,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                             color: LkColors.muted,
@@ -1838,7 +1838,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
                     if (result != null) ...[
                       if (result!.items.isEmpty)
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.symmetric(vertical: 12),
                           child: Text(
                             'No places match yet. Try another preference.',
@@ -1851,7 +1851,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           child: ListTile(
                             leading: CircleAvatar(
                               backgroundColor: LkColors.s3,
-                              foregroundColor: Colors.white,
+                              foregroundColor: LkColors.text,
                               child: Text('#${item.rank}'),
                             ),
                             title: Text(item.name),
@@ -2012,13 +2012,13 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.route_rounded, color: LkColors.lagoon),
+                  Icon(Icons.route_rounded, color: LkColors.lagoon),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Plan Your Route',
                           style: TextStyle(
                             fontFamily: LkType.displayFamily,
@@ -2029,7 +2029,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                         ),
                         Text(
                           '${stops.length} ${stops.length == 1 ? 'place' : 'places'} · You choose the days & pace',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: LkColors.muted,
                           ),
@@ -2103,7 +2103,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                                 cleanName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 13.5,
                                   color: LkColors.text,
@@ -2113,7 +2113,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                                 '${stop.regionName} · ${stop.stayDurationLabel}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 11.5,
                                   color: LkColors.muted,
                                 ),
@@ -2187,7 +2187,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                             }
                             _scheduleRecalc(snapDaysToSuggested: true);
                           },
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.close_rounded,
                             size: 18,
                             color: LkColors.muted,
@@ -2201,7 +2201,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
               const SizedBox(height: 8),
 
               // Start from / End roundtrip selector.
-              const Text(
+              Text(
                 'Start from',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
@@ -2247,7 +2247,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                 ],
               ),
               if (startMode == 'gps' && widget.repo.originLat == null)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(top: 4),
                   child: Text(
                     'GPS location not locked yet — ordering will begin at your first stop.',
@@ -2325,7 +2325,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                       children: [
                         Text(
                           'Days: $_days',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 15,
                             color: LkColors.text,
@@ -2350,7 +2350,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                             ),
                             child: Text(
                               'Suggested: $suggestedDays ${suggestedDays == 1 ? 'day' : 'days'}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
                                 color: LkColors.text,
@@ -2388,7 +2388,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
               const SizedBox(height: 8),
 
               // Pace segmented selector.
-              const Text(
+              Text(
                 'Pace',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
@@ -2476,7 +2476,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                   children: [
                     Text(
                       '${_preview.totalDistanceKm.toStringAsFixed(0)} km · ${_formatHours(totalBudgetHrs)} active · Suggested: $suggestedDays ${suggestedDays == 1 ? 'day' : 'days'}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 13,
                         color: LkColors.text,
@@ -2487,7 +2487,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                       savedKm >= 0.5 && savedPct >= 1.0
                           ? 'Visit order optimized: ${_preview.savingsVsInput.baselineDistanceKm.toStringAsFixed(0)} km → ${_preview.savingsVsInput.optimizedDistanceKm.toStringAsFixed(0)} km (−${savedPct.toStringAsFixed(0)}%) · ${_preview.orderMethod == 'exact_held_karp' ? 'Exact Held-Karp' : 'NN + 2-opt'}'
                           : 'Order method: ${_preview.orderMethod == 'exact_held_karp' ? 'Exact Held-Karp' : 'Adaptive NN + 2-opt'}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11.5,
                         color: LkColors.muted,
                       ),

@@ -148,7 +148,7 @@ class _LkSkeletonState extends State<LkSkeleton>
               gradient: LinearGradient(
                 begin: Alignment(-1 + t * 2, 0),
                 end: Alignment(t * 2, 0),
-                colors: const [LkColors.s1, LkColors.s2, LkColors.s1],
+                colors: [LkColors.s1, LkColors.s2, LkColors.s1],
               ),
             ),
           );

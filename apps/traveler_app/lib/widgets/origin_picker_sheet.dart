@@ -156,7 +156,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Set your starting place',
                     style: TextStyle(
@@ -178,7 +178,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
               currentLabel != null
                   ? 'Current start: $currentLabel'
                   : 'Allow GPS, search any city or landmark, or pin your starting spot on the map.',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 color: LkColors.muted,
                 fontWeight: FontWeight.w500,
@@ -276,7 +276,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
               const SizedBox(height: 10),
               Text(
                 _statusNote!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12.5,
                   color: LkColors.muted,
                   fontWeight: FontWeight.w600,
@@ -289,7 +289,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
                 ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.place_rounded,
                     color: LkColors.lagoon,
                   ),
@@ -308,7 +308,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
             ],
             if (_showPinMap) ...[
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Tap anywhere on the map to pin your starting place:',
                 style: TextStyle(
                   fontSize: 12.5,
@@ -355,7 +355,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
                   onPressed: _resolvingPin ? null : _confirmPinned,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: LkColors.s3,
-                    foregroundColor: Colors.white,
+                    foregroundColor: LkColors.text,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -397,7 +397,7 @@ class _RegionNoteBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.info_outline_rounded,
             size: 16,
             color: LkColors.text,
@@ -406,7 +406,7 @@ class _RegionNoteBanner extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: LkColors.text,

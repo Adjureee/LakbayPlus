@@ -40,7 +40,7 @@ class LakbayNetworkOrAssetImage extends StatelessWidget {
         errorBuilder: (_, _, _) => Container(
           width: width,
           height: height,
-          decoration: const BoxDecoration(gradient: LkColors.surfaceGradient),
+          decoration: BoxDecoration(gradient: LkColors.surfaceGradient),
         ),
         excludeFromSemantics: true,
       ),

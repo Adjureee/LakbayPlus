@@ -25,12 +25,12 @@ abstract final class LkType {
     double size,
     FontWeight weight, {
     double height = 1.35,
-    Color color = LkColors.text,
+    Color? color,
   }) => GoogleFonts.manrope(
     fontSize: size,
     height: height,
     fontWeight: weight,
-    color: color,
+    color: color ?? LkColors.text,
   );
 
   /// Countdown number on Trips home ("5").
@@ -38,7 +38,7 @@ abstract final class LkType {
     128,
     0.8,
     -6,
-  ).copyWith(color: LkColors.mango, fontFeatures: _tabular);
+  ).copyWith(color: LkColors.mangoText, fontFeatures: _tabular);
 
   /// Welcome headline.
   static TextStyle get hero => _display(50, 0.98, -1.4);

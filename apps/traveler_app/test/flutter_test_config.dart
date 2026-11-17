@@ -1,4 +1,9 @@
 import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lakbay_travel/design/lakbay_theme_controller.dart';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +19,14 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   // Screens render in their final state; motion tests switch this back on.
   LkMotion.globallyEnabled = false;
   LakbayIntro.enabled = false;
+  // Dark unless a run asks for light (LK_THEME=light): tests need a fixed look,
+  // whatever the machine's own setting is.
+  SharedPreferences.setMockInitialValues({
+    'lakbay_theme_mode': Platform.environment['LK_THEME'] == 'light'
+        ? ThemeMode.light.name
+        : ThemeMode.dark.name,
+  });
+  await LkThemeController.instance.load();
   for (final weight in const [
     FontWeight.w400,
     FontWeight.w500,

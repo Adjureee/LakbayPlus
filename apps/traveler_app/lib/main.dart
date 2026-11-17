@@ -20,6 +20,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _registerFontLicenses();
   await EnvConfig.load();
+  await LkThemeController.instance.load();
   runApp(const LakbayTravelApp());
 }
 
@@ -99,14 +100,18 @@ class _LakbayTravelAppState extends State<LakbayTravelApp>
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: _repo,
+      listenable: Listenable.merge([_repo, LkThemeController.instance]),
       builder: (context, _) {
+        final theme = LkThemeController.instance;
         return MaterialApp(
+          themeAnimationDuration: Duration.zero,
           title: 'Lakbay+ — AI Travel Planner',
           debugShowCheckedModeBanner: false,
-          theme: LakbayDesignTheme.dark,
+          theme: LakbayDesignTheme.light,
           darkTheme: LakbayDesignTheme.dark,
-          themeMode: ThemeMode.dark,
+          themeMode: theme.brightness == Brightness.dark
+              ? ThemeMode.dark
+              : ThemeMode.light,
           // Debug-only gallery of the v8 design system (open /#/design-preview).
           onGenerateRoute: (settings) =>
               kDebugMode && settings.name == '/design-preview'
@@ -234,7 +239,7 @@ class _SplashLoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: LkColors.bg,
       body: Center(
         child: Column(

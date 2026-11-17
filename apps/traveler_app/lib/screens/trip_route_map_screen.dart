@@ -345,7 +345,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
               const SizedBox(height: 12),
               Text(
                 place.title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: LkType.displayFamily,
                   fontWeight: FontWeight.w700,
                   fontSize: 18,
@@ -356,7 +356,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
               Text(
                 '${place.municipalityLabel} · '
                 '${item.distanceKm.toStringAsFixed(1)} km from ${item.nearestStopName}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12.5,
                   color: LkColors.muted,
                 ),
@@ -601,14 +601,14 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LkColors.surfaceGradient,
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.picture_as_pdf_rounded,
-                    color: Colors.white,
+                    color: LkColors.text,
                     size: 22,
                   ),
                   const SizedBox(width: 10),
@@ -680,7 +680,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                   const SizedBox(height: 4),
                   Text(
                     '${widget.trip.daysCount} Days • ${totalKm.toStringAsFixed(0)} km Region XI Route • ${widget.trip.hotels.first.name}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       color: LkColors.muted,
                     ),
@@ -696,7 +696,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                       staticUrl != null
                           ? 'Mapbox Static Images API active (${widget.repo.activeMapStyle.id})'
                           : 'Tip: Tap "Mapbox Key" on the map to set MAPBOX_ACCESS_TOKEN for high-DPI Static Images export.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11.5,
                         color: LkColors.text,
                       ),
@@ -771,7 +771,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
               crossings.length == 1
                   ? 'Boat Crossing Details'
                   : 'Boat Crossings (${crossings.length})',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: LkType.displayFamily,
                 fontWeight: FontWeight.w700,
                 fontSize: 18,
@@ -797,7 +797,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: LkColors.s3,
-        foregroundColor: Colors.white,
+        foregroundColor: LkColors.text,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -927,7 +927,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.alt_route_rounded,
                               color: LkColors.text,
                               size: 15,
@@ -937,7 +937,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                               _loadingRoadRoute
                                   ? 'Routing...'
                                   : 'Optimize Order',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: LkColors.text,
                                 fontFamily: LkType.displayFamily,
                                 fontWeight: FontWeight.w700,
@@ -960,7 +960,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                     ),
                     label: Text(
                       'Nearby (${nearby.length})',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: LkType.displayFamily,
                         fontWeight: FontWeight.w700,
                         fontSize: 11.5,
@@ -1107,8 +1107,8 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                             ),
                             child: Text(
                               'DAY ${day.dayNumber}',
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: LkColors.text,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 11,
                               ),
@@ -1134,17 +1134,17 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                             'assets/png/weather/${day.wmoWeatherCode}.png',
                             width: 22,
                             height: 22,
-                            errorBuilder: (_, _, _) => const Icon(
+                            errorBuilder: (_, _, _) => Icon(
                               Icons.wb_sunny_rounded,
                               size: 18,
-                              color: LkColors.mango,
+                              color: LkColors.mangoText,
                             ),
                             excludeFromSemantics: true,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             '${day.tempCelsius}°C',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: LkType.displayFamily,
                               fontWeight: FontWeight.w700,
                               fontSize: 12,
@@ -1158,7 +1158,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                         day.summary,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12.5,
                           color: LkColors.muted,
                         ),
@@ -1170,7 +1170,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                       else
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.place_rounded,
                             size: 15,
                             color: LkColors.lagoon,
@@ -1181,7 +1181,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                               day.stops.map((s) => s.title).join(' → '),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w600,
                                 color: LkColors.text,

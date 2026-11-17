@@ -11,6 +11,7 @@ class LkGlass extends StatelessWidget {
     super.key,
     required this.child,
     this.dark = true,
+    this.surface = false,
     this.borderRadius = LkRadius.chipAll,
     this.padding,
   });
@@ -19,6 +20,10 @@ class LkGlass extends StatelessWidget {
 
   /// Dark glass (more legible) or light glass (subtler, for big photos).
   final bool dark;
+
+  /// Glass that sits on the page, not on a photo (the tab bar): it follows
+  /// the theme, so it is pale in light mode.
+  final bool surface;
   final BorderRadius borderRadius;
   final EdgeInsetsGeometry? padding;
 
@@ -31,12 +36,18 @@ class LkGlass extends StatelessWidget {
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
-            color: dark ? LkColors.glassDark : LkColors.glassLight,
+            color: surface
+                ? (LkColors.isDark
+                      ? LkColors.glassDark
+                      : LkColors.s1.withValues(alpha: 0.92))
+                : (dark ? LkColors.glassDark : LkColors.glassLight),
             borderRadius: borderRadius,
             border: Border.all(
-              color: dark
-                  ? LkColors.glassDarkBorder
-                  : LkColors.glassLightBorder,
+              color: surface
+                  ? (LkColors.isDark ? LkColors.glassDarkBorder : LkColors.stroke)
+                  : (dark
+                        ? LkColors.glassDarkBorder
+                        : LkColors.glassLightBorder),
             ),
           ),
           child: child,
@@ -91,7 +102,7 @@ class LkTag extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: LkColors.mango,
         borderRadius: LkRadius.chipAll,
       ),
@@ -108,7 +119,7 @@ class _PhotoPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ColoredBox(
+    return ColoredBox(
       color: LkColors.s2,
       child: Icon(Icons.landscape_outlined, color: LkColors.faint, size: 32),
     );
@@ -307,9 +318,9 @@ class LkWarningRow extends StatelessWidget {
         child: Row(
           children: [
             leading ??
-                const Icon(
+                Icon(
                   Icons.schedule_rounded,
-                  color: LkColors.mango,
+                  color: LkColors.mangoText,
                   size: 22,
                 ),
             const SizedBox(width: LkSpace.m),
@@ -321,7 +332,7 @@ class LkWarningRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     message,
-                    style: LkType.caption.copyWith(color: LkColors.mango),
+                    style: LkType.caption.copyWith(color: LkColors.mangoText),
                   ),
                 ],
               ),

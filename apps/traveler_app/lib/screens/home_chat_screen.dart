@@ -110,7 +110,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
         LkSpace.l,
         LkSpace.m,
       ),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: LkColors.stroke)),
       ),
       child: Row(
@@ -135,7 +135,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                     Container(
                       width: 7,
                       height: 7,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: LkColors.lagoon,
                         shape: BoxShape.circle,
                       ),
@@ -274,7 +274,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(LkRadius.sm),
                   onTap: _handleSend,
-                  child: const SizedBox.square(
+                  child: SizedBox.square(
                     dimension: kLkMinTarget,
                     child: Icon(
                       Icons.arrow_upward_rounded,
@@ -362,7 +362,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               'Tell Lakbay+ your Davao plans',
               style: TextStyle(
                 fontFamily: LkType.displayFamily,
@@ -372,7 +372,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Voice dictation is unavailable in this browser session. Type or pick a quick Davao prompt below:',
               style: TextStyle(fontSize: 13, color: LkColors.muted),
             ),
@@ -456,7 +456,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           ),
           Text(
             'wake up next?',
-            style: LkType.h1.copyWith(color: LkColors.mango),
+            style: LkType.h1.copyWith(color: LkColors.mangoText),
           ),
           const SizedBox(height: LkSpace.s),
           Text(
@@ -587,7 +587,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 child: TextField(
                   controller: _drawerSearchController,
                   onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     icon: Icon(Icons.search_rounded, color: LkColors.muted),
                     hintText: 'Search chats',
                     border: InputBorder.none,
@@ -601,7 +601,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 children: [
                   if (today.isNotEmpty) ...[
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.fromLTRB(10, 6, 10, 6),
                       child: Text(
                         'Today',
@@ -616,7 +616,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                   ],
                   if (yesterday.isNotEmpty) ...[
                     const SizedBox(height: 12),
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.fromLTRB(10, 6, 10, 6),
                       child: Text(
                         'Yesterday',
@@ -649,7 +649,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                       backgroundColor: LkColors.s2,
                       child: Text(
                         widget.repo.profile.initials,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 13,
                           color: LkColors.lagoon,
@@ -665,7 +665,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: LkColors.s3,
-                      foregroundColor: Colors.white,
+                      foregroundColor: LkColors.text,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 13,
@@ -724,7 +724,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
         child: Container(
           margin: const EdgeInsets.only(bottom: LkSpace.l, left: 48),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: LkColors.mango,
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(20),
@@ -850,7 +850,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           Expanded(
             child: Text(
               '$count of ${TravelRepository.maxChatPicks} places picked',
-              style: const TextStyle(
+              style: TextStyle(
                 color: LkColors.text,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
@@ -941,8 +941,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
           side: BorderSide.none,
           label: Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: LkColors.text,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -977,7 +977,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Tap up to 3, most important first.',
                 style: TextStyle(color: LkColors.muted),
               ),
@@ -1039,7 +1039,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Recommended Destinations',
           style: TextStyle(
             fontFamily: LkType.displayFamily,
@@ -1123,8 +1123,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                     place.category!,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: LkColors.text,
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -1145,7 +1145,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                               place.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: LkType.displayFamily,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13.5,

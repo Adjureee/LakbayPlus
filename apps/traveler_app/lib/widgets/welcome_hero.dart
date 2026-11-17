@@ -73,7 +73,7 @@ class _WelcomeHeroState extends State<WelcomeHero>
               widget.photoAsset,
               fit: BoxFit.cover,
               excludeFromSemantics: true,
-              errorBuilder: (_, _, _) => const DecoratedBox(
+              errorBuilder: (_, _, _) => DecoratedBox(
                 decoration: BoxDecoration(gradient: LkColors.surfaceGradient),
               ),
             ),
@@ -133,7 +133,7 @@ class _WelcomeHeroState extends State<WelcomeHero>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const LakbayWordmark(fontSize: 28),
+                          const LakbayWordmark(fontSize: 28, color: Colors.white),
                           const Spacer(),
                           Row(
                             children: [
@@ -360,7 +360,7 @@ class _Pin extends StatelessWidget {
           ],
           Text(title, style: LkType.label.copyWith(color: Colors.white)),
           const SizedBox(width: 6),
-          Text(detail, style: LkType.micro.copyWith(color: LkColors.muted)),
+          Text(detail, style: LkType.micro.copyWith(color: LkColors.onPhotoMuted)),
         ],
       ),
     );

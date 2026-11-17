@@ -575,7 +575,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                         widget.onBackToDecision();
                       }
                     },
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.chevron_left_rounded,
                       size: 28,
                       color: LkColors.text,
@@ -590,7 +590,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                         minHeight: 6,
                         backgroundColor:
                             LkColors.s2.withValues(alpha: 0.45),
-                        valueColor: const AlwaysStoppedAnimation<Color>(
+                        valueColor: AlwaysStoppedAnimation<Color>(
                           LkColors.lagoon,
                         ),
                       ),
@@ -606,7 +606,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                           _enterStageThreeAndGenerate();
                         }
                       },
-                      child: const Text(
+                      child: Text(
                         'Skip',
                         style: TextStyle(
                           color: LkColors.text,
@@ -643,7 +643,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             itemBuilder: (context, idx) {
               if (idx == 0) {
                 if (_turns.length == 1) {
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.only(top: 20, bottom: 18),
                     child: Text(
                       "Where to? I'll plan it.",
@@ -669,22 +669,22 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                       Container(
                         width: 30,
                         height: 30,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: LkColors.s3,
                           shape: BoxShape.circle,
                         ),
                         alignment: Alignment.center,
-                        child: const Text(
+                        child: Text(
                           'L+',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: LkColors.text,
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
                       const SizedBox(width: 10),
-                      const Text(
+                      Text(
                         'Lakbay+ is thinking...',
                         style: TextStyle(
                           color: LkColors.muted,
@@ -728,7 +728,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                   controller: _inputController,
                   onSubmitted: (val) =>
                       _handleUserSelectionOrInput(val, isFreeText: true),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: "Tell me where you'd like to travel",
                     hintStyle: TextStyle(
                       color: LkColors.muted,
@@ -748,7 +748,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                     _inputController.text,
                     isFreeText: true,
                   ),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_upward_rounded,
                     color: LkColors.lagoon,
                     size: 20,
@@ -783,7 +783,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           ),
           child: Text(
             turn.body,
-            style: const TextStyle(
+            style: TextStyle(
               color: LkColors.text,
               fontSize: 14.5,
               fontWeight: FontWeight.w600,
@@ -832,7 +832,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                             spot.imageAsset,
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => Container(
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 gradient: LkColors.surfaceGradient,
                               ),
                             ),
@@ -910,12 +910,12 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                 width: 28,
                 height: 28,
                 margin: const EdgeInsets.only(top: 4),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: LkColors.s2,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
-                child: const Text(
+                child: Text(
                   'L+',
                   style: TextStyle(
                     fontSize: 11,
@@ -939,7 +939,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                       if (turn.title != null) ...[
                         Text(
                           turn.title!,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: LkType.displayFamily,
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
@@ -950,7 +950,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                       ],
                       Text(
                         turn.body,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14.5,
                           color: LkColors.text,
                           height: 1.45,
@@ -983,7 +983,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                                     Expanded(
                                       child: Text(
                                         opt,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
                                           color: LkColors.text,
@@ -1028,7 +1028,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           child: IntrinsicHeight(
             child: Column(
               children: [
-          const Text(
+          Text(
             'While I set up your trip',
             style: TextStyle(
               fontSize: 14,
@@ -1037,7 +1037,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Good so far?',
             style: TextStyle(
               fontFamily: LkType.displayFamily,
@@ -1047,7 +1047,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'A rating helps more people find Lakbay+.',
             style: TextStyle(
               fontSize: 14,
@@ -1062,7 +1062,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: LkColors.stroke),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -1132,7 +1132,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           child: IntrinsicHeight(
             child: Column(
               children: [
-          const Text(
+          Text(
             'First plan, done.',
             style: TextStyle(
               fontFamily: LkType.displayFamily,
@@ -1142,7 +1142,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Review it, then save it to your trips.',
             style: TextStyle(
               fontSize: 14.5,
@@ -1172,12 +1172,12 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                     Container(
                       width: 44,
                       height: 44,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: LkColors.s2,
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
-                      child: const Text(
+                      child: Text(
                         'L+',
                         style: TextStyle(
                           fontFamily: LkType.displayFamily,
@@ -1198,7 +1198,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                                 : _planFailed
                                     ? "Couldn't plan your trip"
                                     : 'Lakbay+ is planning...',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 15.5,
                               color: LkColors.text,
@@ -1211,7 +1211,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                                 : 'Davao Region Route',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12.5,
                               color: LkColors.muted,
                             ),
@@ -1252,13 +1252,13 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.bolt_rounded,
                       size: 16,
                       color: LkColors.muted,
                     ),
                     const SizedBox(width: 4),
-                    const Text(
+                    Text(
                       'Planning progress',
                       style: TextStyle(
                         fontSize: 13,
@@ -1269,7 +1269,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                     const Spacer(),
                     Text(
                       '$_planningPercent%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w800,
                         color: LkColors.lagoon,
@@ -1284,7 +1284,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                     value: _planningPercent / 100,
                     minHeight: 7,
                     backgroundColor: LkColors.bg,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
+                    valueColor: AlwaysStoppedAnimation<Color>(
                       LkColors.lagoon,
                     ),
                   ),
@@ -1295,7 +1295,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
           const SizedBox(height: 16),
           const Spacer(),
           if (_planFailed) ...[
-            const Text(
+            Text(
               "I couldn't reach Lakbay AI to draft your trip. Check your connection and try again.",
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13.5, color: LkColors.muted),
@@ -1436,7 +1436,7 @@ class _TimelineRow extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
                     color: LkColors.text,
@@ -1444,7 +1444,7 @@ class _TimelineRow extends StatelessWidget {
                 ),
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     color: LkColors.muted,
                   ),

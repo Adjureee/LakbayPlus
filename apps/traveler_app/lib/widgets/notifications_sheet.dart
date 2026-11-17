@@ -113,7 +113,7 @@ void showNotificationsSheet(BuildContext context, TravelRepository repo) {
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Notifications',
                         style: TextStyle(
@@ -174,7 +174,7 @@ void showNotificationsSheet(BuildContext context, TravelRepository repo) {
                       subtitle: _buildNotificationBody(ctx, repo, n),
                       trailing: n.isRead
                           ? null
-                          : const Icon(
+                          : Icon(
                               Icons.circle,
                               size: 9,
                               color: LkColors.lagoon,
