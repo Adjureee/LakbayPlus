@@ -47,7 +47,8 @@ class TravelRepository extends ChangeNotifier {
   bool _isAiTyping = false;
   bool get isAiTyping => _isAiTyping;
 
-  MapboxStylePreset _activeMapStyle = MapboxStylePreset.outdoors;
+  // Dark by default to match the v8 surfaces; travelers can switch.
+  MapboxStylePreset _activeMapStyle = MapboxStylePreset.navigationNight;
   MapboxStylePreset get activeMapStyle => _activeMapStyle;
 
   void setMapboxStyle(MapboxStylePreset style) {

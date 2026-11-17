@@ -155,6 +155,10 @@ void main() {
       ),
     );
     await _shot(tester, key, '06_trip_detail');
+    await tester.tap(find.text('Day-by-Day'));
+    await _shot(tester, key, '06b_trip_days');
+    await tester.tap(find.text('Stays & Transit'));
+    await _shot(tester, key, '06c_trip_stays');
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));

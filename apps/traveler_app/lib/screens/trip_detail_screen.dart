@@ -11,8 +11,7 @@ import '../services/access_notices.dart';
 import '../widgets/access_notice_card.dart';
 import '../widgets/estimate_note.dart';
 
-import '../design/lakbay_tokens.dart';
-import '../design/lakbay_type.dart';
+import '../design/design.dart';
 class TripDetailScreen extends StatefulWidget {
   final ItineraryTrip trip;
   final TravelRepository repo;
@@ -338,43 +337,57 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             pinned: true,
             backgroundColor: LkColors.s3,
             foregroundColor: Colors.white,
-            actions: [
-              IconButton(
-                tooltip: 'Play Animated Mapbox Route',
-                onPressed: _openFullRouteMap,
-                icon: const Icon(Icons.map_rounded, color: Colors.white),
+            leading: Padding(
+              padding: const EdgeInsets.only(left: LkSpace.s),
+              child: Center(
+                child: LkIconButton(
+                  icon: Icons.arrow_back_rounded,
+                  tooltip: 'Back',
+                  style: LkIconButtonStyle.glass,
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
               ),
-              IconButton(
-                tooltip: 'Save to Bucket List',
+            ),
+            leadingWidth: kLkMinTarget + LkSpace.l,
+            actions: [
+              LkIconButton(
+                icon: Icons.map_outlined,
+                tooltip: 'Play Animated Mapbox Route',
+                style: LkIconButtonStyle.glass,
+                onPressed: _openFullRouteMap,
+              ),
+              const SizedBox(width: LkSpace.xs),
+              LkIconButton(
+                icon: isBucketed
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                tooltip: isBucketed
+                    ? 'Remove from Bucket List'
+                    : 'Save to Bucket List',
+                style: LkIconButtonStyle.glass,
+                color: isBucketed ? LkColors.mango : null,
                 onPressed: () {
                   widget.repo.toggleBucketListTrip(trip.id);
                   setState(() {});
                 },
-                icon: Icon(
-                  isBucketed
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                  color: isBucketed ? LkColors.lagoon : Colors.white,
-                ),
               ),
-              IconButton(
-                tooltip: 'Save to My Trips',
+              const SizedBox(width: LkSpace.xs),
+              LkIconButton(
+                icon: isSaved
+                    ? Icons.bookmark_added_rounded
+                    : Icons.bookmark_add_outlined,
+                tooltip: isSaved ? 'Saved to your trips' : 'Save to My Trips',
+                style: LkIconButtonStyle.glass,
+                color: isSaved ? LkColors.mango : null,
                 onPressed: () {
                   widget.repo.saveTripToMyTrips(trip);
                   setState(() {});
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Saved "${trip.title}" to My Trips!'),
-                      backgroundColor: LkColors.s3,
-                    ),
+                    SnackBar(content: Text('Saved "${trip.title}" to your trips')),
                   );
                 },
-                icon: Icon(
-                  isSaved
-                      ? Icons.bookmark_added_rounded
-                      : Icons.bookmark_add_outlined,
-                ),
               ),
+              const SizedBox(width: LkSpace.s),
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
@@ -459,8 +472,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             ),
             bottom: TabBar(
               controller: _tabController,
-              indicatorColor: LkColors.lagoon,
+              indicatorColor: LkColors.mango,
               indicatorWeight: 3,
+              indicatorSize: TabBarIndicatorSize.label,
+              dividerColor: LkColors.stroke,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
               labelPadding: const EdgeInsets.symmetric(horizontal: 6),
@@ -1479,22 +1494,30 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         ),
                         const SizedBox(width: 6),
                       ],
-                      Image.asset(
-                        'assets/png/weather/${day.wmoWeatherCode}.png',
-                        width: 22,
-                        height: 22,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${day.tempCelsius}°C',
-                        style: const TextStyle(
-                          fontFamily: LkType.displayFamily,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12.5,
-                          color: LkColors.text,
+                      // Only live weather (loaded for day 1, as current
+                      // conditions); planned days have no forecast.
+                      if (day.dayNumber == 1 &&
+                          trip.avgTemp.trim().isNotEmpty) ...[
+                        Tooltip(
+                          message: 'Weather now',
+                          child: Image.asset(
+                            'assets/png/weather/${day.wmoWeatherCode}.png',
+                            width: 22,
+                            height: 22,
+                            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${day.tempCelsius}°C',
+                          style: const TextStyle(
+                            fontFamily: LkType.displayFamily,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                            color: LkColors.text,
+                          ),
+                        ),
+                      ],
                       IconButton(
                         tooltip: 'Inspect Day on Mapbox',
                         onPressed: _openFullRouteMap,
@@ -1574,125 +1597,18 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     ),
                   ),
                   const Divider(height: 22),
-                  for (int sIdx = 0; sIdx < day.stops.length; sIdx++) ...[
-                    if (sIdx > 0 &&
-                        day.stops[sIdx].travelFromPrevMinutes != null &&
-                        day.stops[sIdx].travelFromPrevMinutes! > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8, left: 68),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              day.stops[sIdx].isSeaCrossingFromPrev ||
-                                      day.stops[sIdx].travelFromPrevMode ==
-                                          TransportMode.ferry
-                                  ? Icons.directions_boat_rounded
-                                  : Icons.directions_car_outlined,
-                              size: 14,
-                              color: LkColors.lagoon,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${day.stops[sIdx].isSeaCrossingFromPrev ? 'Boat + drive' : 'Drive'}: ~${day.stops[sIdx].travelFromPrevMinutes} min'
-                              '${day.stops[sIdx].travelFromPrevKm != null ? ' (${day.stops[sIdx].travelFromPrevKm!.toStringAsFixed(1)} km)' : ''}',
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: LkColors.lagoon,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: 68,
-                            child: Text(
-                              day.stops[sIdx].time,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                                color: LkColors.lagoon,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Wrap(
-                                  spacing: 6,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    Text(
-                                      day.stops[sIdx].title,
-                                      style: const TextStyle(
-                                        fontFamily: LkType.displayFamily,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14.5,
-                                      ),
-                                    ),
-                                    if (_stayLengthLabel(
-                                          day.stops[sIdx].stayDurationType,
-                                        ) !=
-                                        null)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: LkColors.bg,
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          _stayLengthLabel(
-                                            day.stops[sIdx].stayDurationType,
-                                          )!,
-                                          style: const TextStyle(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w600,
-                                            color: LkColors.muted,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  day.stops[sIdx].description,
-                                  style: const TextStyle(
-                                    fontSize: 12.5,
-                                    color: LkColors.muted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (day.stops.length > 1)
-                            IconButton(
-                              tooltip: 'Remove stop',
-                              visualDensity: VisualDensity.compact,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () => _removeStop(index, sIdx),
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                size: 17,
-                                color: LkColors.muted,
-                              ),
-                            ),
-                        ],
-                      ),
+                  for (int sIdx = 0; sIdx < day.stops.length; sIdx++)
+                    _StopTimelineRow(
+                      number: sIdx + 1,
+                      stop: day.stops[sIdx],
+                      isFirst: sIdx == 0,
+                      isLast: sIdx == day.stops.length - 1,
+                      stayLabel:
+                          _stayLengthLabel(day.stops[sIdx].stayDurationType),
+                      onRemove: day.stops.length > 1
+                          ? () => _removeStop(index, sIdx)
+                          : null,
                     ),
-                  ],
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
@@ -2077,4 +1993,189 @@ class _TripDetailScreenState extends State<TripDetailScreen>
       ),
     );
   }
+}
+
+/// One stop in the Day-by-Day plan: a numbered dot on a dotted line, the
+/// time and place, and how you get there from the stop before.
+class _StopTimelineRow extends StatelessWidget {
+  const _StopTimelineRow({
+    required this.number,
+    required this.stop,
+    required this.isFirst,
+    required this.isLast,
+    required this.stayLabel,
+    required this.onRemove,
+  });
+
+  final int number;
+  final ItineraryStop stop;
+  final bool isFirst;
+  final bool isLast;
+  final String? stayLabel;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final minutes = stop.travelFromPrevMinutes;
+    final hasLeg = !isFirst && minutes != null && minutes > 0;
+    final byBoat = stop.isSeaCrossingFromPrev ||
+        stop.travelFromPrevMode == TransportMode.ferry;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 32,
+            child: Column(
+              children: [
+                SizedBox(
+                  height: hasLeg ? 40 : 4,
+                  child: isFirst ? null : const _DottedLine(),
+                ),
+                Container(
+                  width: 26,
+                  height: 26,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isFirst ? LkColors.mango : LkColors.s3,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: LkColors.stroke),
+                  ),
+                  child: Text(
+                    '$number',
+                    style: LkType.micro.copyWith(
+                      color: isFirst ? LkColors.mangoInk : LkColors.text,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: isLast ? const SizedBox() : const _DottedLine(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: LkSpace.m),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: LkSpace.l),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (hasLeg)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: LkSpace.s),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: LkSpace.s,
+                          vertical: 5,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: LkColors.lagoonSoft,
+                          borderRadius: LkRadius.chipAll,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              byBoat
+                                  ? Icons.directions_boat_filled_rounded
+                                  : Icons.directions_car_rounded,
+                              size: 14,
+                              color: LkColors.lagoon,
+                            ),
+                            const SizedBox(width: LkSpace.xs),
+                            Text(
+                              [
+                                byBoat ? 'Ferry + ride' : 'Ride',
+                                '~$minutes min',
+                                if (stop.travelFromPrevKm != null)
+                                  '${stop.travelFromPrevKm!.toStringAsFixed(1)} km',
+                              ].join(' · '),
+                              style: LkType.micro.copyWith(
+                                color: LkColors.lagoon,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              stop.time,
+                              style: LkType.micro.copyWith(
+                                color: LkColors.lagoon,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(stop.title, style: LkType.itemTitle),
+                            if (stayLabel != null) ...[
+                              const SizedBox(height: LkSpace.xxs),
+                              Text(
+                                stayLabel!,
+                                style: LkType.micro.copyWith(
+                                  color: LkColors.muted,
+                                ),
+                              ),
+                            ],
+                            if (stop.description.trim().isNotEmpty) ...[
+                              const SizedBox(height: LkSpace.xxs),
+                              Text(stop.description, style: LkType.caption),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (onRemove != null)
+                        LkIconButton(
+                          icon: Icons.close_rounded,
+                          tooltip: 'Remove stop',
+                          style: LkIconButtonStyle.plain,
+                          onPressed: onRemove,
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DottedLine extends StatelessWidget {
+  const _DottedLine();
+
+  @override
+  Widget build(BuildContext context) {
+    return const CustomPaint(
+      painter: _DottedLinePainter(),
+      child: SizedBox(width: 2, height: double.infinity),
+    );
+  }
+}
+
+class _DottedLinePainter extends CustomPainter {
+  const _DottedLinePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = LkColors.lagoon.withValues(alpha: 0.6)
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    final x = size.width / 2;
+    for (var y = 3.0; y < size.height - 2; y += 7) {
+      canvas.drawLine(Offset(x, y), Offset(x, y + 2), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
