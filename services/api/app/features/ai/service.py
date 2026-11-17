@@ -13,7 +13,14 @@ from app.core.exceptions import LakbayAPIError
 from app.core.provider_usage import ProviderLimiter
 from app.features.accommodations.models import Accommodation
 from app.features.ai.models import AIGenerationRun
-from app.features.ai.grounding import card_figures_text, facts_text, ground_figures
+from app.features.ai.grounding import (
+    align_text_with_cards,
+    card_figures,
+    card_figures_text,
+    facts_by_destination,
+    facts_text,
+    ground_figures,
+)
 from app.features.ai.destination_resolver import (
     _distinctive,
     _tokens,
@@ -505,6 +512,8 @@ class AIItineraryService:
                         retrieval_interest=retrieval_coverage.get("interest"),
                         catalog=catalog,
                         support_text=support_text,
+                        general_text=_general_text(data),
+                        support_by_place=facts_by_destination(retrieved_context),
                     )
                     _log_timing("planning_total", planning_started)
                 updated_run = await self.ai.update_generation_run(
@@ -1187,6 +1196,8 @@ async def _build_planning_chat_result(
     retrieval_interest: str | None = None,
     catalog: list[tuple[int, str]] | None = None,
     support_text: str | None = None,
+    general_text: str | None = None,
+    support_by_place: dict[int, str] | None = None,
 ) -> tuple[str, AIPlanningChatResult, str]:
     assert data.planning_state is not None
     current_state = data.planning_state
@@ -1596,18 +1607,28 @@ async def _build_planning_chat_result(
                 # Only when there are no cards: the catalog and route checks are
                 # authoritative over model prose. With cards, the reason stays a note.
                 chat_response = recommendation_shortfall_reason
-    chat_response = _align_text_with_cards(
+    chat_response = align_text_with_cards(
         chat_response,
-        card_ids={item.destination_id for item in recommendations},
+        cards=[(item.destination_id, item.name) for item in recommendations],
         allowed_ids=set(next_state.destination_ids)
         | {match.destination_id for match in (match_destinations(data.message, catalog or []))},
         catalog=catalog or [],
         origin_label=(next_state.origin.label if next_state.origin else None),
     )
     if support_text is not None:
-        # No price, distance, travel time or opening hour the facts do not hold.
+        # No price, distance, travel time or opening hour the facts do not hold, and a
+        # sentence about one place only uses that place's own records.
+        by_place = dict(support_by_place or {})
+        for item in recommendations:
+            by_place[item.destination_id] = (
+                f"{by_place.get(item.destination_id, '')} {card_figures(item)}"
+            )
         chat_response, _ = ground_figures(
-            chat_response, f"{support_text} {card_figures_text(recommendations)}",
+            chat_response,
+            f"{support_text} {card_figures_text(recommendations)}",
+            general_text=general_text or "",
+            by_place=by_place,
+            names=catalog or [],
         )
     return (
         chat_response,
@@ -1685,9 +1706,14 @@ _CHAT_RESPONSE_FIELD = re.compile(
 
 
 def _support_text(data: AIChatRequest, retrieved_context: list[dict]) -> str:
-    """The facts a reply may quote figures from: the catalog records it was given, the
+    """Everything a reply may quote figures from: the catalog records it was given, the
     traveler's own words and the numbers in their plan."""
-    parts = [facts_text(retrieved_context), data.message]
+    return f"{facts_text(retrieved_context)} {_general_text(data)}"
+
+
+def _general_text(data: AIChatRequest) -> str:
+    """The traveler's own words and plan numbers: allowed beside any place."""
+    parts = [data.message]
     parts.extend(item.content for item in data.history if item.role == "user")
     state = data.planning_state
     if state is not None:
@@ -1720,75 +1746,6 @@ _BROWSE_PATTERNS = (
 def _looks_like_browse(message: str) -> bool:
     """A request to be shown places (not a question about one named place)."""
     return any(pattern.search(message) for pattern in _BROWSE_PATTERNS)
-
-
-_FROM_DAVAO = re.compile(r"\bfrom\s+davao\s+city\b", re.IGNORECASE)
-_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
-
-
-def _align_text_with_cards(
-    reply: str,
-    *,
-    card_ids: set[int],
-    allowed_ids: set[int],
-    catalog: list[tuple[int, str]],
-    origin_label: str | None,
-) -> str:
-    """Keeps the text in step with the cards and with the traveler's start place.
-
-    With cards on screen, a sentence that names a catalog place that is not a card
-    (and not picked or asked about) is dropped, so the text never points at places
-    the traveler cannot see. A sentence that gives a route "from Davao City" is
-    dropped when the traveler starts somewhere else.
-    """
-    if not reply.strip():
-        return reply
-    not_davao = bool(origin_label) and "davao city" not in (origin_label or "").lower()
-    if not card_ids and not not_davao:
-        return reply
-    visible = card_ids | allowed_ids
-
-    def stray_names(sentence: str) -> bool:
-        words = set(_tokens(sentence))
-        matched: dict[int, frozenset] = {}
-        for local_id, name in catalog:
-            distinctive = _distinctive(name)
-            if distinctive and all(word in words for word in distinctive):
-                matched[local_id] = frozenset(distinctive)
-        # "Dahican Beach" is part of "Dahican Surf Resort": only the longer name counts.
-        named = [
-            i for i, d in matched.items()
-            if not any(d < other for j, other in matched.items() if j != i)
-        ]
-        # Places that share the same name words cannot be told apart: the sentence
-        # is fine when any of them is visible.
-        groups: dict[frozenset, list[int]] = {}
-        for i in named:
-            groups.setdefault(matched[i], []).append(i)
-        return any(all(i not in visible for i in members) for members in groups.values())
-
-    kept_lines: list[str] = []
-    changed = False
-    for line in reply.split("\n"):
-        kept: list[str] = []
-        for sentence in _SENTENCE_END.split(line):
-            drop = (bool(card_ids) and stray_names(sentence)) or (
-                not_davao and bool(_FROM_DAVAO.search(sentence))
-            )
-            if drop:
-                changed = True
-            else:
-                kept.append(sentence)
-        kept_lines.append(" ".join(kept))
-    if not changed:
-        return reply
-    text = "\n".join(kept_lines).strip()
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    if text:
-        return text
-    if card_ids:
-        return "Here are some places that match what you asked for."
-    return f"I don't have travel times from {origin_label} for that yet."
 
 
 _CLAIMS_A_CHANGE = re.compile(
