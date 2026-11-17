@@ -1391,3 +1391,115 @@ def test_show_places_general_browse_and_plain_question_card_behavior(
     assert question.status_code == 200
     assert question.json()["planning"]["intent"] == "question"
     assert question.json()["planning"]["recommendations"] == []
+
+
+# --- Cards after stops are picked: a named place wins, picks never come back ---
+
+
+def _picked_chat(client, message, *, picked, others, reply=CAUTIOUS_REPLY):
+    """A chat where `picked` are already in the plan and `others` are in the catalog."""
+    admin = admin_headers(client)
+    index = 0
+    created = {}
+    for name, extra in [*picked, *others]:
+        created[name] = create_destination(
+            client, headers=admin, name=name, **extra, **verified_arrival(index),
+        )
+        index += 1
+    client.app.dependency_overrides[get_groq_client] = lambda: FakeGroqClient([reply])
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=user_headers(client),
+        json={
+            "message": message,
+            "use_rag": True,
+            "planning_state": {
+                "origin": {"label": "Davao City", "lat": 7.0731, "lng": 125.6128},
+                "destination_ids": [created[name]["destination_id"] for name, _ in picked],
+                "selected_transport_option_ids": ["mode:personal_vehicle"],
+            },
+        },
+    )
+    assert response.status_code == 200, response.text
+    return created, response.json()
+
+
+MUSEUM = {"category": "museum", "vibes": "culture", "activities": "museum visit"}
+BEACH = {"category": "beach"}
+
+
+def test_an_explicit_add_puts_the_named_museum_in_the_plan(client, monkeypatch) -> None:
+    configure_ai(monkeypatch)
+    monkeypatch.setattr(ai_router_module, "get_osrm_client", lambda: CandidateOSRM())
+    created, body = _picked_chat(
+        client, "Please add the National Museum",
+        picked=[("Beach A", BEACH), ("Beach B", BEACH), ("Beach C", BEACH)],
+        others=[("National Museum of the Philippines - Davao", MUSEUM),
+                ("Museo Dabawenyo", MUSEUM), ("Subangan Museum", MUSEUM)],
+    )
+
+    planning = body["planning"]
+    museum_id = created["National Museum of the Philippines - Davao"]["destination_id"]
+    picked_ids = [created[n]["destination_id"] for n in ("Beach A", "Beach B", "Beach C")]
+    assert planning["update_status"] == "applied"
+    assert planning["state_updates"]["destination_ids"] == [*picked_ids, museum_id]
+    assert planning["recommendations"] == []  # nothing left to choose
+    assert body["chat_response"].endswith(
+        "I added National Museum of the Philippines - Davao to your plan.",
+    )
+
+
+def test_naming_a_place_without_asking_to_add_offers_just_that_card(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    monkeypatch.setattr(ai_router_module, "get_osrm_client", lambda: CandidateOSRM())
+    created, body = _picked_chat(
+        client, "What about the National Museum?",
+        picked=[("Beach A", BEACH), ("Beach B", BEACH), ("Beach C", BEACH)],
+        others=[("National Museum of the Philippines - Davao", MUSEUM),
+                ("Museo Dabawenyo", MUSEUM), ("Subangan Museum", MUSEUM)],
+    )
+
+    planning = body["planning"]
+    assert planning["state_updates"] == {}
+    # One card, the place named; not five museum cards.
+    assert [c["destination_id"] for c in planning["recommendations"]] == [
+        created["National Museum of the Philippines - Davao"]["destination_id"],
+    ]
+
+
+def test_more_of_a_kind_after_picks_shows_a_short_list_without_the_picks(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    monkeypatch.setattr(ai_router_module, "get_osrm_client", lambda: CandidateOSRM())
+    created, body = _picked_chat(
+        client, "Show me more beaches",
+        picked=[("Beach A", BEACH), ("Beach B", BEACH), ("Beach C", BEACH)],
+        others=[(f"Shore {i}", BEACH) for i in range(6)],
+        reply=json.dumps({"chat_response": "More beaches for you.", "state_updates": {}}),
+    )
+
+    ids = [c["destination_id"] for c in body["planning"]["recommendations"]]
+    picked_ids = {created[n]["destination_id"] for n in ("Beach A", "Beach B", "Beach C")}
+    assert 1 <= len(ids) <= 3
+    assert not set(ids) & picked_ids
+
+
+def test_show_places_never_lists_a_place_already_picked(client, monkeypatch) -> None:
+    configure_ai(monkeypatch)
+    monkeypatch.setattr(ai_router_module, "get_osrm_client", lambda: CandidateOSRM())
+    created, body = _picked_chat(
+        client, "Show me beaches",
+        picked=[("Beach A", BEACH)],
+        others=[("Beach B", BEACH), ("Beach C", BEACH)],
+        reply=json.dumps({
+            "chat_response": "Here are beaches.", "state_updates": {},
+            "intent": "show_places", "place_query": {"categories": ["beach"], "limit": 5},
+        }),
+    )
+
+    ids = {c["destination_id"] for c in body["planning"]["recommendations"]}
+    assert created["Beach A"]["destination_id"] not in ids
+    assert ids == {created["Beach B"]["destination_id"], created["Beach C"]["destination_id"]}

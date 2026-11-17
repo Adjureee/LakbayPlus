@@ -25,7 +25,7 @@ def test_plain_chat_keeps_its_original_scope():
 
 
 def test_the_prompt_version_changed_with_the_rules():
-    assert CHAT_PROMPT_VERSION == "phase5_chat_v12_live_categories"
+    assert CHAT_PROMPT_VERSION == "phase5_chat_v13_card_rules"
 
 
 def test_prompt_answers_first_in_a_local_voice():
@@ -43,3 +43,20 @@ def test_planning_prompt_asks_for_intent_and_suggested_replies():
     assert "show_places" in prompt and "`place_query`" in prompt
     assert "`suggested_replies`" in prompt
     assert "do not turn every reply into a planning checklist" in prompt
+
+
+def test_planning_prompt_has_card_rules_for_picked_places():
+    prompt = _system_prompt(planning_state={"origin": {"label": "Davao City"}})
+
+    assert "CARD RULES" in prompt
+    # A named place is added or answered, never turned into a list of five.
+    assert 'never use intent "show_places" for it' in prompt
+    # With picks the model expects a short list, and never re-offers a pick.
+    assert "at most 3 cards" in prompt
+    assert "already in `picked_places`" in prompt
+    # No leftover contradiction with the card rules.
+    assert "Show at most 5 places" not in prompt
+
+
+def test_plain_chat_has_no_card_rules():
+    assert "CARD RULES" not in _system_prompt()

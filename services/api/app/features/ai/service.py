@@ -470,11 +470,9 @@ class AIItineraryService:
                 else:
                     planning_started = perf_counter()
                     # Recognize a place the traveler named even if the model does not.
-                    catalog = (
-                        []
-                        if data.planning_state.destination_ids
-                        else await self.ai.list_active_destination_names()
-                    )
+                    # Also needed after stops are picked, so a place the traveler names
+                    # later can still be recognized by name.
+                    catalog = await self.ai.list_active_destination_names()
                     (
                         chat_response,
                         planning_result,
@@ -1078,6 +1076,69 @@ def _build_chat_input_summary(data: AIChatRequest) -> dict:
     }
 
 
+# With stops already picked, "more" requests show a short list, not a full row.
+MORE_WITH_PICKS = 3
+
+_ADD_WORDS = re.compile(
+    r"\b(add|include|put|insert|idagdag|dugang|dagdag)\b", re.IGNORECASE,
+)
+
+
+def _asks_to_add(message: str) -> bool:
+    return _ADD_WORDS.search(message) is not None
+
+
+def _state_with_destinations(state: PlanningState, ids: list[int]) -> PlanningState:
+    """The state with these stops; choices tied to the old stops are cleared."""
+    values = state.model_dump()
+    if state.route_preferences is not None and state.route_preferences.road_access_confirmed:
+        values["route_preferences"] = None
+    values.update(
+        selected_transport_option_ids=[],
+        selected_activity_option_ids=[],
+        selected_accommodation_ids=[],
+        cost_allowances=[],
+        transport_pricing=[],
+        accommodation_pricing=[],
+        age_pricing_rules=[],
+        destination_ids=ids,
+    )
+    return PlanningState.model_validate(values)
+
+
+async def _named_place_cards(
+    session: AsyncSession,
+    destination_ids: list[int],
+    *,
+    travel_mode: str,
+    reason: str,
+    matched_fields: list[str] | None = None,
+) -> list[PlanningRecommendationItem]:
+    """Selectable cards for places the traveler named, in the order given."""
+    named = await AIItineraryRepository(session).list_active_destinations_by_ids(
+        list(dict.fromkeys(destination_ids)),
+    )
+    by_id = {item.destination_id: item for item in named}
+    return [
+        PlanningRecommendationItem(
+            destination_id=by_id[i].destination_id,
+            name=by_id[i].name,
+            district=by_id[i].district,
+            category=by_id[i].category,
+            image_url=by_id[i].image_url,
+            lat=by_id[i].lat,
+            lng=by_id[i].lng,
+            estimated_cost=by_id[i].estimated_cost,
+            score=0.0,
+            matched_fields=matched_fields or ["location"],
+            reasons=[reason],
+            travel_mode=travel_mode,
+        )
+        for i in dict.fromkeys(destination_ids)
+        if i in by_id
+    ]
+
+
 async def _build_planning_chat_result(
     *,
     content: str,
@@ -1217,6 +1278,37 @@ async def _build_planning_chat_result(
         except ValidationError:
             auto_added = None
 
+    # Stops are already picked and the traveler names another catalog place. An explicit
+    # "add" puts it in the plan; anything else offers that one place as a card. Either
+    # way the place they named is never swapped for a ranking of the whole category.
+    named_card_ids: list[int] = []
+    output_intent_early = output.intent if output is not None else None
+    if (
+        catalog
+        and current_state.destination_ids
+        and output_intent_early not in {"question", "logistics", "smalltalk"}
+    ):
+        already_picked = set(next_state.destination_ids)
+        unpicked = [(i, n) for i, n in catalog if i not in already_picked]
+        named_matches = match_destinations(data.message, unpicked)
+        single = pick_single_destination(data.message, unpicked)
+        if single is not None and _asks_to_add(data.message):
+            try:
+                next_state = _state_with_destinations(
+                    next_state, [*next_state.destination_ids, single.destination_id],
+                )
+                changes_json["destination_ids"] = list(next_state.destination_ids)
+                update_status = "applied"
+                chat_response = (
+                    f"{chat_response}\n\nI added {single.name} to your plan."
+                )
+            except ValidationError:
+                named_card_ids = [single.destination_id]
+        elif named_matches:
+            named_card_ids = [
+                match.destination_id for match in named_matches[:MORE_WITH_PICKS]
+            ]
+
     preview_started = perf_counter()
     preview = await PlanningService(session, route_service).preview(
         PlanningPreviewRequest(
@@ -1311,10 +1403,12 @@ async def _build_planning_chat_result(
                 osrm_client=route_service.osrm_client if route_service is not None else None,
             )
             _log_timing("recommendation_ranking", ranking_started)
+            picked_now = set(next_state.destination_ids)
             recommendations = [
                 planning_recommendation_from_top_place(item)
                 for item in place_result.items
-            ]
+                if item.destination_id not in picked_now
+            ][: (MORE_WITH_PICKS if picked_now else MAX_SUGGESTIONS)]
             recommendation_total_candidates = place_result.total_candidates
             recommendation_shortfall_reason = place_result.shortfall_reason
             if recommendation_shortfall_reason is not None and not recommendations:
@@ -1324,6 +1418,14 @@ async def _build_planning_chat_result(
     elif output_intent in {"question", "logistics", "smalltalk"}:
         # Q&A, logistics, and small talk stay concise text replies without card dumps.
         pass
+    elif named_card_ids:
+        recommendations = await _named_place_cards(
+            session,
+            named_card_ids,
+            travel_mode=travel_mode,
+            reason="Matches the place you named.",
+        )
+        recommendation_total_candidates = len(recommendations)
     else:
         # If the model did not record an interest the traveler stated, use the one the
         # catalog retrieval detected in the message so the Top 5 cards still appear.
@@ -1338,32 +1440,17 @@ async def _build_planning_chat_result(
                 list(named_destination_ids or []) if requested_locations else []
             )
             if card_ids:
-                named = await AIItineraryRepository(session).list_active_destinations_by_ids(
+                recommendations = await _named_place_cards(
+                    session,
                     list(dict.fromkeys(card_ids))[:MAX_SUGGESTIONS],
+                    travel_mode=travel_mode,
+                    reason=(
+                        f"Matches the place you named: {', '.join(requested_locations)}"
+                        if requested_locations
+                        else "Matches the place you named."
+                    ),
+                    matched_fields=["location"],
                 )
-                by_id = {item.destination_id: item for item in named}
-                recommendations = [
-                    PlanningRecommendationItem(
-                        destination_id=by_id[destination_id].destination_id,
-                        name=by_id[destination_id].name,
-                        district=by_id[destination_id].district,
-                        category=by_id[destination_id].category,
-                        image_url=by_id[destination_id].image_url,
-                        lat=by_id[destination_id].lat,
-                        lng=by_id[destination_id].lng,
-                        estimated_cost=by_id[destination_id].estimated_cost,
-                        score=0.0,
-                        matched_fields=["location"],
-                        reasons=[
-                            f"Matches the place you named: {', '.join(requested_locations)}"
-                            if requested_locations
-                            else "Matches the place you named."
-                        ],
-                        travel_mode=travel_mode,
-                    )
-                    for destination_id in dict.fromkeys(card_ids)
-                    if destination_id in by_id
-                ]
                 recommendation_total_candidates = len(recommendations)
             if not recommendations:
                 recommendation_shortfall_reason = (
@@ -1402,7 +1489,7 @@ async def _build_planning_chat_result(
                 planning_recommendation_from_top_place(item)
                 for item in top_places.items
                 if item.destination_id not in already_selected
-            ][:MAX_SUGGESTIONS]
+            ][: (MORE_WITH_PICKS if already_selected else MAX_SUGGESTIONS)]
             recommendation_total_candidates = top_places.total_candidates
             recommendation_shortfall_reason = top_places.shortfall_reason
             if already_selected:
