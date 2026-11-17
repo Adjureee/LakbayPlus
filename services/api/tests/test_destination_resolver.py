@@ -87,3 +87,11 @@ def test_generic_only_names_never_match():
 def test_double_escaped_line_breaks_become_real_ones():
     assert _restore_line_breaks("Hi!\n- one\n- two") == "Hi!\n- one\n- two"
     assert _restore_line_breaks("already\nfine") == "already\nfine"
+
+
+def test_a_name_made_only_of_generic_words_matches_when_its_words_are_typed_together():
+    catalog = [(1, "National Museum of the Philippines - Davao"), (2, "Subangan Museum")]
+
+    assert [m.destination_id for m in match_destinations("add the national museum", catalog)] == [1]
+    # One generic word is not enough: "museum" alone names no single place.
+    assert match_destinations("any museum nearby?", catalog) == []

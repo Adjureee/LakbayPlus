@@ -66,14 +66,30 @@ def _tokens(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", text)
 
 
+# Region words never identify a place, even in a name made only of generic words.
+_REGION_WORDS = frozenset(
+    "davao philippines philippine region province del sur norte oriental occidental oro city".split()
+)
+
+
 def _distinctive(name: str) -> list[str]:
-    return [
+    words = [
         token
         for token in _tokens(name)
         if len(token) >= 3
         and token not in _GENERIC_NAME_WORDS
         and token not in _COMMON_WORDS
     ]
+    if words:
+        return words
+    # A name made only of generic words ("National Museum of the Philippines - Davao")
+    # is identified by its remaining words together: at least two, all of them.
+    core = [
+        token
+        for token in _tokens(name)
+        if len(token) >= 3 and token not in _COMMON_WORDS and token not in _REGION_WORDS
+    ]
+    return core if len(core) >= 2 else []
 
 
 def _within_one_edit(a: str, b: str) -> bool:
@@ -117,7 +133,25 @@ def match_destinations(
         found = [
             token for token in distinctive if any(_close(token, word) for word in words)
         ]
-        if found:
+        # A name identified only by its combined generic words needs all of them.
+        needs_all = not any(
+            t not in _GENERIC_NAME_WORDS and t not in _COMMON_WORDS and len(t) >= 3
+            for t in _tokens(name)
+        )
+        if needs_all and found:
+            # The words must be typed together, in order ("national museum"), not
+            # scattered through a sentence ("a park by the beach").
+            message_tokens = _tokens(message)
+            width = len(distinctive)
+            found = (
+                found
+                if any(
+                    all(_close(d, w) for d, w in zip(distinctive, message_tokens[i : i + width]))
+                    for i in range(len(message_tokens) - width + 1)
+                )
+                else []
+            )
+        if found and (not needs_all or len(found) == len(distinctive)):
             name_words = [t for t in _tokens(name) if t not in _COMMON_WORDS]
             overlap = sum(1 for t in name_words if any(_close(t, w) for w in words))
             matches.append(
