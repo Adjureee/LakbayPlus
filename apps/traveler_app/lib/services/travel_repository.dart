@@ -984,6 +984,49 @@ class TravelRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Removes one chat from this phone. Returns the removed chat and where it
+  /// was, so the caller can offer Undo through [restoreChatSession].
+  ({ChatSession session, int index})? deleteChatSession(String id) {
+    final idx = _chatSessions.indexWhere((s) => s.id == id);
+    if (idx < 0) return null;
+    final removed = _chatSessions.removeAt(idx);
+    if (id == _activeChatId) _openFreshChatAfterDelete();
+    notifyListeners();
+    return (session: removed, index: idx);
+  }
+
+  /// Puts a chat deleted by [deleteChatSession] back where it was.
+  void restoreChatSession(ChatSession session, int index) {
+    if (_chatSessions.any((s) => s.id == session.id)) return;
+    _chatSessions.insert(index.clamp(0, _chatSessions.length), session);
+    notifyListeners();
+  }
+
+  /// Removes every chat from this phone and starts a blank one.
+  void clearChatHistory() {
+    _chatSessions.clear();
+    _openFreshChatAfterDelete();
+    notifyListeners();
+  }
+
+  void _openFreshChatAfterDelete() {
+    final newId = 'chat_${DateTime.now().millisecondsSinceEpoch}';
+    _chatSessions.insert(
+      0,
+      ChatSession(
+        id: newId,
+        title: 'New Trip',
+        groupLabel: 'Today',
+        isTrip: false,
+        createdAt: DateTime.now(),
+        messages: const [],
+      ),
+    );
+    _activeChatId = newId;
+    _chatMessages.clear();
+    resetPlanningState();
+  }
+
   Future<void> initialize() async {
     if (_isInitialized) return;
 
