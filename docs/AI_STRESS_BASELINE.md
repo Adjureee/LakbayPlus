@@ -121,3 +121,16 @@ Run through the public guest chat, single runs, Gemini 3.5 Flash Lite. (An earli
 ### New weak spot
 
 The Panabo sentence slipped past the start-place rule because it says "from **nearby** Davao City", and the rule only matches "from Davao City". The figures themselves are the place's own recorded ones (₱150, 45 to 60 minutes) and the sentence says they are from Davao City, so it is not wrong, but it is about the wrong starting place for a traveler in Panabo. Proposed: let the rule match up to two words between "from" and "Davao City".
+
+## Live check of the "from nearby Davao City" fix (17 Nov 2026, commit `867c82d`)
+
+"is there a place to go in panabo?" with a Panabo start, run three times on the deployed guest chat (one run hit a Groq rate-limit error and was discarded).
+
+| Run | Result |
+|---|---|
+| 1 | Five Panabo cards. The text has no Davao City travel time or fare. It says the plaza is "a quick 1-2 hour stroll", which matches the plaza's record ("Short stay (1-2 hours)") |
+| 3 | Five Panabo cards. The text says "Best visited in the late afternoon from 4:00 PM to 8:00 PM", which matches the record ("4:00 PM - 8:00 PM") |
+
+In both runs the "45 to 60 minutes ... from nearby Davao City" sentence is gone. The plaza's record still holds that travel time (it is written for travelers from Davao City), so it is now correctly kept out of answers for a traveler who starts in Panabo.
+
+Seen again: in run 3 the first sentence was removed and the text began with "Best visited ...", which reads a little abruptly. Not wrong, only terse.
