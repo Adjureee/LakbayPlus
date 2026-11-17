@@ -1621,3 +1621,75 @@ def test_a_wrong_place_proposed_by_the_model_is_not_added(client, monkeypatch) -
     assert [d["destination_id"] for d in planning["preview"]["destinations"]] == [
         picked["destination_id"], museum["destination_id"],
     ]
+
+
+def _add_museum_chat(client, monkeypatch, model_reply):
+    configure_ai(monkeypatch)
+    monkeypatch.setattr(ai_router_module, "get_osrm_client", lambda: CandidateOSRM())
+    admin = admin_headers(client)
+    picked = create_destination(
+        client, headers=admin, name="Lanikai Hijo Estate Resort", category="beach",
+        **verified_arrival(0),
+    )
+    museum = create_destination(
+        client, headers=admin, name="National Museum of the Philippines - Davao",
+        **MUSEUM, **verified_arrival(1),
+    )
+    client.app.dependency_overrides[get_groq_client] = lambda: FakeGroqClient([model_reply])
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=user_headers(client),
+        json={
+            "message": "add the National Museum",
+            "use_rag": True,
+            "planning_state": {
+                "origin": {"label": "Davao City", "lat": 7.0731, "lng": 125.6128},
+                "destination_ids": [picked["destination_id"]],
+                "selected_transport_option_ids": ["mode:personal_vehicle"],
+            },
+        },
+    )
+    assert response.status_code == 200, response.text
+    return picked, museum, response.json()
+
+
+def test_an_explicit_add_works_even_when_the_model_calls_it_a_question(
+    client, monkeypatch,
+) -> None:
+    """Live case: the model answered "add the National Museum" as a question and said
+    the museum was outside the region. The traveler's words win over that label."""
+    reply = json.dumps({
+        "chat_response": "National Museum is located outside the Davao Region.",
+        "state_updates": {},
+        "intent": "question",
+    })
+    picked, museum, body = _add_museum_chat(client, monkeypatch, reply)
+
+    planning = body["planning"]
+    assert planning["state_updates"]["destination_ids"] == [
+        picked["destination_id"], museum["destination_id"],
+    ]
+    assert planning["update_status"] == "applied"
+    assert "outside" not in body["chat_response"]
+    assert body["chat_response"].startswith(
+        "Added National Museum of the Philippines - Davao: that makes 2 stops",
+    )
+    assert planning["recommendations"] == []
+
+
+def test_an_explicit_add_works_when_the_model_labels_it_show_places(
+    client, monkeypatch,
+) -> None:
+    reply = json.dumps({
+        "chat_response": "Here are some museums.",
+        "state_updates": {},
+        "intent": "show_places",
+        "place_query": {"categories": ["museum"], "limit": 5},
+    })
+    picked, museum, body = _add_museum_chat(client, monkeypatch, reply)
+
+    planning = body["planning"]
+    assert planning["state_updates"]["destination_ids"] == [
+        picked["destination_id"], museum["destination_id"],
+    ]
+    assert planning["recommendations"] == []
