@@ -96,7 +96,22 @@ def card_figures_text(cards: list[Any]) -> str:
     return " ".join(parts)
 
 
+_DASHES = re.compile(DASH)
+_HYPHEN_TO = re.compile(r"-to-", re.IGNORECASE)
+_HYPHEN_UNIT = re.compile(
+    r"(\d)-(minutes?|mins?|hours?|hrs?|km|kms|kilomet(?:er|re)s?)\b", re.IGNORECASE,
+)
+
+
+def _normalise(sentence: str) -> str:
+    """'15-to-20-minute' and '6-km' read the same as '15 to 20 minutes' and '6 km'."""
+    text = _DASHES.sub("-", sentence)
+    text = _HYPHEN_TO.sub(" to ", text)
+    return _HYPHEN_UNIT.sub(r"\1 \2", text)
+
+
 def _unsupported(sentence: str, numbers: set[float], times: set[str]) -> bool:
+    sentence = _normalise(sentence)
     for match in _MONEY.finditer(sentence):
         for group in (match.group(1), match.group(2), match.group(3), match.group(4)):
             if group and _num(group) not in numbers:
