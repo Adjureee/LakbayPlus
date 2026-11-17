@@ -4,6 +4,7 @@ import pytest
 
 from app.features.ai.grounding import (
     FIGURE_NOTE,
+    NO_DATA_ANSWER,
     card_figures_text,
     clock_times,
     facts_text,
@@ -74,9 +75,17 @@ def test_counts_and_unitless_numbers_are_left_alone():
     assert ground_figures(reply, "")[0] == reply
 
 
-def test_a_reply_that_is_all_unsupported_becomes_just_the_note():
+def test_a_reply_that_is_all_unsupported_says_what_is_unknown():
     text, dropped = ground_figures("It costs ₱999.", "")
-    assert dropped == 1 and text == FIGURE_NOTE
+    assert dropped == 1 and text == NO_DATA_ANSWER
+
+
+def test_only_a_follow_up_question_left_gets_the_plain_answer_first():
+    text, dropped = ground_figures(
+        "It takes 15 minutes. What kind of places do you enjoy?", "",
+    )
+    assert dropped == 1
+    assert text == f"{NO_DATA_ANSWER}\n\nWhat kind of places do you enjoy?"
 
 
 def test_the_note_is_added_once_and_paragraphs_survive():
