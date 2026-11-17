@@ -627,6 +627,27 @@ class TravelRepository extends ChangeNotifier {
   final List<ChatMessage> _chatMessages = [];
   List<ChatMessage> get chatMessages => List.unmodifiable(_chatMessages);
 
+  /// Pesos per US dollar from the live rate table (57 until loaded).
+  double get phpPerUsd => _currencyRates['PHP'] ?? 57.0;
+
+  /// Whole-trip cost by category ("accommodation", "food",
+  /// "transportation", "destination", "activity", "other") from the latest
+  /// planning preview. Empty until the server has priced a plan.
+  Map<String, double> _chatBudgetSplit = const {};
+  Map<String, double> get chatBudgetSplit => _chatBudgetSplit;
+
+  static Map<String, double> _parseCategoryTotals(Object? budget) {
+    if (budget is! Map) return const {};
+    final totals = budget['category_totals'];
+    if (totals is! Map) return const {};
+    final out = <String, double>{};
+    totals.forEach((key, value) {
+      final amount = double.tryParse(value.toString());
+      if (amount != null && amount > 0) out[key.toString()] = amount;
+    });
+    return out;
+  }
+
   // Local persistence & optional cloud sync state
   SharedPreferences? _prefs;
   static const String _storageKey = 'lakbay_traveler_state_v1';
@@ -3456,6 +3477,9 @@ class TravelRepository extends ChangeNotifier {
           _planningState = Map<String, dynamic>.from(
             preview['state'] as Map<String, dynamic>,
           );
+        }
+        if (preview is Map<String, dynamic>) {
+          _chatBudgetSplit = _parseCategoryTotals(preview['budget']);
         }
       }
 

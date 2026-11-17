@@ -56,10 +56,17 @@ Future<void> _shot(WidgetTester tester, GlobalKey key, String name) async {
   });
 }
 
-Future<TravelRepository> _repo({required bool signedIn}) async {
+Future<TravelRepository> _repo({
+  required bool signedIn,
+  ChatSession? chat,
+}) async {
   SharedPreferences.setMockInitialValues({
     'lakbay_traveler_state_v1': jsonEncode({
       'hasCompletedOnboarding': signedIn,
+      if (chat != null) ...{
+        'chatSessions': [chat.toJson()],
+        'activeChatId': chat.id,
+      },
       if (signedIn)
         'authSession': {
           'accessToken': 'shot-token',
@@ -117,6 +124,7 @@ void main() {
       ),
     );
     final first = repo.savedTrips.last;
+    final samalPlan = repo.savedTrips.first;
 
     await tester.pumpWidget(
       RepaintBoundary(key: key, child: LakbayTravelApp(repository: repo)),
@@ -137,6 +145,43 @@ void main() {
     );
     await _shot(tester, key, '06_trip_detail');
 
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+
+    // A chat thread with a plan.
+    final now = DateTime.now();
+    final chatRepo = await _repo(
+      signedIn: true,
+      chat: ChatSession(
+        id: 'c1',
+        title: 'Samal weekend',
+        groupLabel: 'Today',
+        isTrip: true,
+        createdAt: now,
+        messages: [
+          ChatMessage(
+            id: 'u1',
+            isUser: true,
+            text: 'Weekend sa Samal for 4 friends, beach and waterfalls, '
+                'around ₱2,000 each.',
+            timestamp: now,
+          ),
+          ChatMessage(
+            id: 'a1',
+            isUser: false,
+            text: 'Here is a 3-day plan with ferries included.',
+            timestamp: now,
+            attachedTrip: samalPlan,
+          ),
+        ],
+      ),
+    );
+    await tester.runAsync(chatRepo.initialize);
+    chatRepo.setActiveNavIndex(2);
+    await tester.pumpWidget(
+      RepaintBoundary(key: key, child: LakbayTravelApp(repository: chatRepo)),
+    );
+    await _shot(tester, key, '07_chat_thread');
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
   });

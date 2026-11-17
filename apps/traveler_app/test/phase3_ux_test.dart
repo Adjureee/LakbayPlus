@@ -183,6 +183,11 @@ void main() {
       WidgetTester tester,
       List<ItineraryTrip> trips,
     ) async {
+      // A tall phone, so the whole trip list is built.
+      tester.view
+        ..physicalSize = const Size(412, 2400)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       final repo = TravelRepository();
       for (final t in trips.reversed) {
         repo.saveTripToMyTrips(t);
@@ -215,15 +220,23 @@ void main() {
         trip(id: 'n', title: 'Someday Apo'),
       ]);
 
-      // The featured card is the upcoming trip, with a real countdown.
-      expect(find.text('In 5 days'), findsWidgets);
+      // The countdown and the list both use the real date.
+      expect(find.text('5'), findsOneWidget);
+      expect(
+        find.textContaining('In 5 days', findRichText: true),
+        findsOneWidget,
+      );
       expect(find.text('Starts tomorrow'), findsNothing);
 
+      await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'Past'));
+      await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ChoiceChip, 'Past'));
       await tester.pump();
       expect(find.text('Past Davao'), findsOneWidget);
       expect(find.text('Someday Apo'), findsNothing);
 
+      await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'No dates'));
+      await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ChoiceChip, 'No dates'));
       await tester.pump();
       expect(find.text('Someday Apo'), findsOneWidget);

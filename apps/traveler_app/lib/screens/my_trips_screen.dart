@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../design/widgets/lk_feedback.dart';
+import '../design/design.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
+import '../widgets/brand/lakbay_wordmark.dart';
 import '../widgets/lakbay_image.dart';
+import '../widgets/notifications_sheet.dart';
 import 'trip_detail_screen.dart';
 
-import '../design/lakbay_tokens.dart';
-import '../design/lakbay_type.dart';
+/// Trips home (v8): countdown to the next trip, the next-trip card, a rail
+/// of Region XI places, and the traveler's trips with date filters.
 class MyTripsScreen extends StatefulWidget {
   final TravelRepository repo;
 
@@ -30,6 +32,17 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
     'Food & city',
     'Culture & heritage',
   ];
+
+  /// Only offer search once there are enough trips to need it.
+  static const _searchThreshold = 5;
+
+  TravelRepository get _repo => widget.repo;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   bool _matchesFilter(ItineraryTrip trip, DateTime now) {
     final timing = trip.timingOn(now);
@@ -58,6 +71,14 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
     return trips.first;
   }
 
+  void _openTrip(ItineraryTrip trip) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TripDetailScreen(repo: _repo, trip: trip),
+      ),
+    );
+  }
+
   Future<void> _confirmDelete(ItineraryTrip trip) async {
     final ok = await showLkConfirm(
       context,
@@ -68,7 +89,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
       confirmLabel: 'Delete trip',
     );
     if (!ok || !mounted) return;
-    final repo = widget.repo;
+    final repo = _repo;
     final index = repo.takeSavedTrip(trip.id);
     if (index < 0) return;
     var undone = false;
@@ -84,95 +105,82 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
     });
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _showCreateTripDialog() {
+  void _showCreateTripSheet() {
     final destController = TextEditingController();
-    int days = 3;
-    String vibe = _vibes.first;
+    var days = 3;
+    var vibe = _vibes.first;
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: LkColors.s1,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      useSafeArea: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
           return Padding(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            padding: EdgeInsets.fromLTRB(
+              LkSpace.gutter,
+              LkSpace.xl,
+              LkSpace.gutter,
+              MediaQuery.viewInsetsOf(ctx).bottom + LkSpace.xl,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Create Davao Region Trip',
-                  style: TextStyle(
-                    fontFamily: LkType.displayFamily,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: LkColors.text,
-                  ),
+                Semantics(
+                  header: true,
+                  child: Text('Plan a new trip', style: LkType.h3),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: LkSpace.xs),
+                Text(
+                  'Lakbay AI drafts it in Chat. You save it when you like it.',
+                  style: LkType.caption,
+                ),
+                const SizedBox(height: LkSpace.l),
                 TextField(
                   controller: destController,
-                  decoration: InputDecoration(
-                    labelText: 'Destination in Region XI',
-                    hintText: 'e.g. Samal Island, Mati, or Mt. Apo',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                  textInputAction: TextInputAction.done,
+                  decoration: const InputDecoration(
+                    labelText: 'Where in Region XI?',
+                    hintText: 'Samal Island, Mati, Mt. Apo…',
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: LkSpace.l),
                 Row(
                   children: [
-                    const Text(
-                      'Duration:',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: days > 2
+                    Expanded(child: Text('Days', style: LkType.label)),
+                    LkIconButton(
+                      icon: Icons.remove_rounded,
+                      tooltip: 'Fewer days',
+                      style: LkIconButtonStyle.plain,
+                      onPressed: days > 1
                           ? () => setSheetState(() => days--)
                           : null,
-                      icon: const Icon(Icons.remove_circle_outline),
                     ),
-                    Text(
-                      '$days days',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
+                    SizedBox(
+                      width: 72,
+                      child: Text(
+                        '$days ${days == 1 ? 'day' : 'days'}',
+                        textAlign: TextAlign.center,
+                        style: LkType.bodyStrong,
                       ),
                     ),
-                    IconButton(
+                    LkIconButton(
+                      icon: Icons.add_rounded,
+                      tooltip: 'More days',
+                      style: LkIconButtonStyle.plain,
                       onPressed: days < 14
                           ? () => setSheetState(() => days++)
                           : null,
-                      icon: const Icon(Icons.add_circle_outline),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Vibe',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
+                const SizedBox(height: LkSpace.s),
+                Text('Vibe', style: LkType.label),
+                const SizedBox(height: LkSpace.s),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: LkSpace.s,
+                  runSpacing: LkSpace.s,
                   children: [
                     for (final v in _vibes)
                       ChoiceChip(
@@ -182,47 +190,42 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                       ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                ElevatedButton(
+                const SizedBox(height: LkSpace.xxl),
+                LkButton(
+                  label: 'Plan with Lakbay AI',
+                  icon: Icons.forum_rounded,
+                  expand: true,
+                  size: LkButtonSize.large,
                   onPressed: () {
-                    // The AI drafts it from what the traveler typed; the trip
-                    // is saved from the chat once they like it.
                     final where = destController.text.trim();
                     final vibeWords = vibe == 'Any'
                         ? ''
                         : ' ${vibe.toLowerCase()}';
                     Navigator.of(ctx).pop();
-                    widget.repo.planInChat(
+                    _repo.planInChat(
                       'Plan a $days-day$vibeWords trip'
                       '${where.isEmpty ? '' : ' to $where'}.',
                     );
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: LkColors.mango,
-                    foregroundColor: LkColors.mangoInk,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                  ),
-                  child: const Text(
-                    'Plan with Lakbay AI',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
                 ),
               ],
             ),
           );
         },
       ),
-    );
+    ).whenComplete(destController.dispose);
   }
 
   @override
   Widget build(BuildContext context) {
-    final query = _searchController.text.trim().toLowerCase();
-    final allTrips = widget.repo.savedTrips;
     final now = DateTime.now();
+    final query = _searchController.text.trim().toLowerCase();
+    final allTrips = _repo.savedTrips;
+    final hero = _heroTrip(allTrips, now);
+    final heroTiming = hero?.timingOn(now);
+    final counting =
+        heroTiming == TripTiming.upcoming || heroTiming == TripTiming.ongoing;
+    final greeting = _greeting(now, _repo.profile.firstName);
 
     final filtered = allTrips.where((t) {
       if (query.isNotEmpty &&
@@ -232,364 +235,797 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
       }
       return _matchesFilter(t, now);
     }).toList();
-
     if (_sortAlphabetical) {
       filtered.sort((a, b) => a.title.compareTo(b.title));
     }
 
-    final heroTrip = _heroTrip(allTrips, now);
-    final heroWhen = heroTrip?.whenLabel(now);
+    final bottomClear = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
       backgroundColor: LkColors.bg,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
-          children: [
-            // Search Trips... + Add button
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: LkColors.s1,
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: LkColors.stroke),
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        icon: Icon(
-                          Icons.search_rounded,
-                          color: LkColors.muted,
-                        ),
-                        hintText: 'Search Trips...',
-                        border: InputBorder.none,
+        bottom: false,
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(child: _Header(repo: _repo)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  LkSpace.gutter,
+                  LkSpace.xl,
+                  LkSpace.gutter,
+                  0,
+                ),
+                child: counting
+                    ? _Countdown(trip: hero!, now: now, greeting: greeting)
+                    : _PlanNextCard(
+                        greeting: greeting,
+                        onPlan: () => _repo.setActiveNavIndex(2),
+                        onCreate: _showCreateTripSheet,
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Material(
-                  color: LkColors.s3,
-                  shape: const CircleBorder(),
-                  child: IconButton(
-                    tooltip: 'Create Trip',
-                    onPressed: _showCreateTripDialog,
-                    icon: const Icon(Icons.add_rounded, color: Colors.white),
-                  ),
-                ),
-              ],
+              ),
             ),
-
-            const SizedBox(height: 16),
-
-            // Featured trip: the one happening now or coming up next.
-            if (heroTrip != null && query.isEmpty) ...[
-              GestureDetector(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        TripDetailScreen(repo: widget.repo, trip: heroTrip),
+            if (hero != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    LkSpace.gutter,
+                    LkSpace.xxl,
+                    LkSpace.gutter,
+                    0,
                   ),
-                ),
-                child: Container(
-                  height: 210,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.14),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      LakbayNetworkOrAssetImage(
-                        networkUrl: heroTrip.remoteImageUrl,
-                        assetPath: heroTrip.heroAsset,
-                      ),
-                      Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0x11000000), Color(0xBB071E26)],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ),
-                        ),
-                      ),
-                      if (heroWhen != null)
-                        Positioned(
-                          top: 14,
-                          left: 14,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: LkColors.s2,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              heroWhen,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: LkColors.lagoon,
-                              ),
-                            ),
-                          ),
-                        ),
-                      Positioned(
-                        left: 16,
-                        right: 16,
-                        bottom: 16,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              heroTrip.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontFamily: LkType.displayFamily,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                height: 1.15,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              [
-                                ?heroTrip.dateRangeLabel,
-                                '${heroTrip.daysCount} days',
-                                '${heroTrip.adults + heroTrip.children} travellers',
-                                heroTrip.destination,
-                              ].join(' • '),
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: Colors.white.withValues(alpha: 0.9),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  child: _NextTripCard(
+                    trip: hero,
+                    now: now,
+                    stacked: (allTrips.length - 1).clamp(0, 2),
+                    priceLabel: _perPersonLabel(hero),
+                    onOpen: () => _openTrip(hero),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-            ],
-
-            // Filter Chips + Sort Icon (Image 7)
-            Row(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final f in _filters)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(f),
-                              selected: _selectedFilter == f,
-                              onSelected: (_) =>
-                                  setState(() => _selectedFilter = f),
-                              selectedColor: LkColors.s3,
-                              backgroundColor: LkColors.s1,
-                              labelStyle: TextStyle(
-                                color: _selectedFilter == f
-                                    ? Colors.white
-                                    : LkColors.text,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(22),
-                                side: const BorderSide(
-                                  color: LkColors.stroke,
+            SliverToBoxAdapter(child: _ExploreRail(repo: _repo)),
+            SliverToBoxAdapter(
+              child: LkSectionHeader(
+                title: 'Your trips',
+                actionLabel: 'New trip',
+                onAction: _showCreateTripSheet,
+                padding: const EdgeInsets.fromLTRB(
+                  LkSpace.gutter,
+                  LkSpace.xxl,
+                  LkSpace.gutter,
+                  LkSpace.s,
+                ),
+              ),
+            ),
+            if (allTrips.length >= _searchThreshold)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    LkSpace.gutter,
+                    0,
+                    LkSpace.gutter,
+                    LkSpace.m,
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search_rounded),
+                      hintText: 'Search your trips',
+                    ),
+                  ),
+                ),
+              ),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: kLkMinTarget,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.only(left: LkSpace.gutter),
+                        child: Row(
+                          children: [
+                            for (final f in _filters)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  right: LkSpace.s,
+                                ),
+                                child: Center(
+                                  child: ChoiceChip(
+                                    label: Text(f),
+                                    selected: _selectedFilter == f,
+                                    onSelected: (_) =>
+                                        setState(() => _selectedFilter = f),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                Material(
-                  color: LkColors.s1,
-                  shape: const CircleBorder(),
-                  child: IconButton(
-                    tooltip: _sortAlphabetical ? 'Sort: Default' : 'Sort: A-Z',
-                    onPressed: () =>
-                        setState(() => _sortAlphabetical = !_sortAlphabetical),
-                    icon: Icon(
-                      Icons.swap_vert_rounded,
-                      color: _sortAlphabetical
-                          ? LkColors.lagoon
-                          : LkColors.text,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 14),
-
-            if (filtered.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(28),
-                decoration: BoxDecoration(
-                  color: LkColors.s1,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: LkColors.stroke),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.map_outlined,
-                      size: 40,
-                      color: LkColors.muted,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      switch (_selectedFilter) {
-                        'Upcoming' => 'No upcoming trips',
-                        'No dates' => 'Every trip has dates',
-                        'Past' => 'No past trips yet',
-                        _ => 'No trips yet',
-                      },
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        color: LkColors.text,
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Ask Lakbay+ in Chat to generate a Davao Region itinerary.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: LkColors.muted,
+                    LkIconButton(
+                      icon: Icons.sort_by_alpha_rounded,
+                      tooltip: _sortAlphabetical
+                          ? 'Sort: newest first'
+                          : 'Sort: A to Z',
+                      style: LkIconButtonStyle.plain,
+                      color: _sortAlphabetical ? LkColors.mango : null,
+                      onPressed: () => setState(
+                        () => _sortAlphabetical = !_sortAlphabetical,
                       ),
                     ),
+                    const SizedBox(width: LkSpace.s),
                   ],
+                ),
+              ),
+            ),
+            if (filtered.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    LkSpace.gutter,
+                    LkSpace.l,
+                    LkSpace.gutter,
+                    0,
+                  ),
+                  child: LkEmptyState(
+                    icon: Icons.luggage_outlined,
+                    title: switch (_selectedFilter) {
+                      'Upcoming' => 'No upcoming trips',
+                      'No dates' => 'Every trip has dates',
+                      'Past' => 'No past trips yet',
+                      _ => 'No trips yet',
+                    },
+                    message:
+                        'Tell Lakbay AI the vibe in Chat and save the '
+                        'plan you like.',
+                    actionLabel: 'Open Chat',
+                    onAction: () => _repo.setActiveNavIndex(2),
+                  ),
                 ),
               )
             else
-              for (final trip in filtered)
-                _TripListTile(
-                  trip: trip,
-                  now: now,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          TripDetailScreen(repo: widget.repo, trip: trip),
-                    ),
-                  ),
-                  onDelete: () => _confirmDelete(trip),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  LkSpace.gutter,
+                  LkSpace.s,
+                  LkSpace.gutter,
+                  0,
                 ),
+                sliver: SliverList.separated(
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: LkSpace.s),
+                  itemBuilder: (_, i) => _TripListTile(
+                    trip: filtered[i],
+                    now: now,
+                    onTap: () => _openTrip(filtered[i]),
+                    onDelete: () => _confirmDelete(filtered[i]),
+                  ),
+                ),
+              ),
+            SliverToBoxAdapter(
+              child: SizedBox(height: bottomClear + LkSpace.xxl),
+            ),
           ],
         ),
       ),
     );
   }
+
+  String? _perPersonLabel(ItineraryTrip trip) {
+    final people = (trip.adults + trip.children).clamp(1, 100);
+    final php = trip.backendEstimatedCostPhp;
+    if (php != null && php > 0) {
+      return '₱${_thousands((php / people).round())} each';
+    }
+    final usd = trip.totalEstimatedCostUsd;
+    if (usd <= 0) return null;
+    return '${_repo.formatPrice(usd / people)} each';
+  }
 }
 
-class _TripListTile extends StatelessWidget {
-  final ItineraryTrip trip;
-  final DateTime now;
-  final VoidCallback onTap;
-  final VoidCallback? onDelete;
+String _thousands(int n) => n.toString().replaceAllMapped(
+  RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+  (m) => '${m[1]},',
+);
 
-  const _TripListTile({
-    required this.trip,
-    required this.now,
-    required this.onTap,
-    this.onDelete,
-  });
+/// Bisaya greeting by time of day ("Maayong buntag, Ana").
+String _greeting(DateTime now, String firstName) {
+  final h = now.hour;
+  final part = h < 12
+      ? 'Maayong buntag'
+      : (h < 18 ? 'Maayong hapon' : 'Maayong gabii');
+  final name = firstName.trim();
+  return name.isEmpty ? part : '$part, $name';
+}
+
+String _placeName(ItineraryTrip trip) {
+  final d = trip.destination.split(',').first.trim();
+  return d.isEmpty ? trip.title : d;
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.repo});
+
+  final TravelRepository repo;
 
   @override
   Widget build(BuildContext context) {
-    final when = trip.whenLabel(now) ?? 'No dates yet';
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: LkColors.s1,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: LkColors.stroke),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: LakbayNetworkOrAssetImage(
-                networkUrl: trip.remoteImageUrl,
-                assetPath: trip.heroAsset,
-                width: 58,
-                height: 58,
+    final initials = repo.profile.initials;
+    final unread = repo.unreadNotificationCount;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        LkSpace.gutter,
+        LkSpace.m,
+        LkSpace.gutter,
+        0,
+      ),
+      child: Row(
+        children: [
+          const LakbayWordmark(fontSize: 26),
+          const Spacer(),
+          LkIconButton(
+            icon: Icons.notifications_none_rounded,
+            tooltip: unread > 0
+                ? 'Notifications, $unread unread'
+                : 'Notifications',
+            showBadge: unread > 0,
+            onPressed: () => showNotificationsSheet(context, repo),
+          ),
+          const SizedBox(width: LkSpace.s),
+          Semantics(
+            button: true,
+            label: 'Profile',
+            excludeSemantics: true,
+            child: Material(
+              color: LkColors.mango,
+              borderRadius: BorderRadius.circular(LkRadius.sm),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(LkRadius.sm),
+                onTap: () => repo.setActiveNavIndex(4),
+                child: SizedBox.square(
+                  dimension: kLkMinTarget,
+                  child: Center(
+                    child: initials.isEmpty
+                        ? const Icon(
+                            Icons.person_rounded,
+                            color: LkColors.mangoInk,
+                          )
+                        : Text(
+                            initials.length > 2
+                                ? initials.substring(0, 2)
+                                : initials,
+                            style: LkType.label.copyWith(
+                              color: LkColors.mangoInk,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 14),
-            Expanded(
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "5 days to Samal Island", or "Day 2 of 3" while the trip is on.
+class _Countdown extends StatelessWidget {
+  const _Countdown({
+    required this.trip,
+    required this.now,
+    required this.greeting,
+  });
+
+  final ItineraryTrip trip;
+  final DateTime now;
+  final String greeting;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime(now.year, now.month, now.day);
+    final start = trip.startDate!;
+    final place = _placeName(trip);
+    final ongoing = trip.timingOn(now) == TripTiming.ongoing;
+
+    final String big;
+    final String lead;
+    final String spoken;
+    if (ongoing) {
+      final total = trip.lastDay!.difference(start).inDays + 1;
+      final dayNo = today.difference(start).inDays + 1;
+      big = '$dayNo';
+      lead = total == 1 ? 'Today in' : 'Day $dayNo of $total in';
+      spoken = total == 1
+          ? 'Your trip to $place is today'
+          : 'Day $dayNo of $total of your trip to $place';
+    } else {
+      final daysLeft = start.difference(today).inDays;
+      big = '$daysLeft';
+      lead = daysLeft == 1 ? 'day to' : 'days to';
+      spoken = '$daysLeft ${daysLeft == 1 ? 'day' : 'days'} to $place';
+    }
+
+    return Semantics(
+      label: spoken,
+      excludeSemantics: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(big, style: LkType.countdown),
+          const SizedBox(width: LkSpace.m),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: LkSpace.l),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    trip.title,
+                    greeting,
+                    style: LkType.caption,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: LkType.displayFamily,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15.5,
-                      color: LkColors.text,
-                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: LkSpace.xxs),
                   Text(
-                    '$when • ${trip.daysCount} days • ${trip.destination}',
-                    maxLines: 1,
+                    '$lead\n$place',
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      color: LkColors.muted,
-                    ),
+                    style: LkType.h2,
                   ),
+                  // Weather only when real data has been loaded for the trip.
+                  if (trip.avgTemp.trim().isNotEmpty) ...[
+                    const SizedBox(height: LkSpace.s),
+                    LkGlassChip(
+                      icon: Icons.wb_sunny_outlined,
+                      label: trip.avgTemp,
+                      dark: true,
+                    ),
+                  ],
                 ],
               ),
             ),
-            if (onDelete != null)
-              IconButton(
-                tooltip: 'Delete trip',
-                onPressed: onDelete,
-                icon: const Icon(
-                  Icons.delete_outline_rounded,
-                  color: LkColors.muted,
-                  size: 20,
-                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown when no trip is coming up: a nudge to plan in Chat.
+class _PlanNextCard extends StatelessWidget {
+  const _PlanNextCard({
+    required this.greeting,
+    required this.onPlan,
+    required this.onCreate,
+  });
+
+  final String greeting;
+  final VoidCallback onPlan;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(greeting, style: LkType.caption),
+        const SizedBox(height: LkSpace.xs),
+        Text.rich(
+          TextSpan(
+            text: 'Where to ',
+            children: [
+              TextSpan(
+                text: 'next?',
+                style: LkType.h1.copyWith(color: LkColors.mango),
               ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: LkColors.muted,
+            ],
+          ),
+          style: LkType.h1,
+        ),
+        const SizedBox(height: LkSpace.s),
+        Text(
+          'Tell Lakbay AI the vibe, your budget and who’s coming. You get a '
+          'day-by-day plan with real Region XI places.',
+          style: LkType.body.copyWith(color: LkColors.muted),
+        ),
+        const SizedBox(height: LkSpace.l),
+        Row(
+          children: [
+            Expanded(
+              child: LkButton(
+                label: 'Plan in Chat',
+                icon: Icons.forum_rounded,
+                onPressed: onPlan,
+              ),
+            ),
+            const SizedBox(width: LkSpace.s),
+            LkButton(
+              label: 'Quick start',
+              variant: LkButtonVariant.secondary,
+              onPressed: onCreate,
             ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+class _NextTripCard extends StatelessWidget {
+  const _NextTripCard({
+    required this.trip,
+    required this.now,
+    required this.stacked,
+    required this.priceLabel,
+    required this.onOpen,
+  });
+
+  final ItineraryTrip trip;
+  final DateTime now;
+
+  /// How many darker cards peek out above it (other saved trips), 0–2.
+  final int stacked;
+  final String? priceLabel;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final tag = switch (trip.timingOn(now)) {
+      TripTiming.ongoing => 'Happening now',
+      TripTiming.upcoming => 'Next trip',
+      TripTiming.past => 'Last trip',
+      TripTiming.undated => 'Draft',
+    };
+    final people = trip.adults + trip.children;
+    final hasFerry =
+        trip.seaCrossings.isNotEmpty ||
+        trip.days.any((d) => d.transportFromPrevious == TransportMode.ferry);
+
+    final card = Semantics(
+      button: true,
+      label: '$tag: ${trip.title}. Open trip',
+      excludeSemantics: true,
+      child: Material(
+        color: LkColors.s1,
+        borderRadius: BorderRadius.circular(LkRadius.lg),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onOpen,
+          child: SizedBox(
+            height: 240,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                LakbayNetworkOrAssetImage(
+                  networkUrl: trip.remoteImageUrl,
+                  assetPath: trip.heroAsset,
+                ),
+                const DecoratedBox(
+                  decoration: BoxDecoration(gradient: LkColors.photoScrim),
+                ),
+                Positioned(top: LkSpace.m, left: LkSpace.m, child: LkTag(tag)),
+                const Positioned(
+                  top: LkSpace.s,
+                  right: LkSpace.s,
+                  child: LkGlass(
+                    borderRadius: BorderRadius.all(Radius.circular(14)),
+                    child: SizedBox.square(
+                      dimension: 40,
+                      child: Icon(
+                        Icons.north_east_rounded,
+                        color: LkColors.lagoon,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: LkSpace.l,
+                  right: LkSpace.l,
+                  bottom: LkSpace.l,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        trip.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: LkType.h3.copyWith(color: Colors.white),
+                      ),
+                      const SizedBox(height: LkSpace.s),
+                      _RouteLine(
+                        from: 'Davao City',
+                        to: _placeName(trip),
+                        ferry: hasFerry,
+                      ),
+                      const SizedBox(height: LkSpace.m),
+                      Wrap(
+                        spacing: LkSpace.xs,
+                        runSpacing: LkSpace.xs,
+                        children: [
+                          if (trip.dateRangeLabel != null)
+                            LkGlassChip(
+                              label: trip.dateRangeLabel!,
+                              dark: true,
+                            ),
+                          LkGlassChip(
+                            label:
+                                '${trip.daysCount} '
+                                '${trip.daysCount == 1 ? 'day' : 'days'}',
+                            dark: true,
+                          ),
+                          LkGlassChip(
+                            label:
+                                '$people '
+                                '${people == 1 ? 'person' : 'people'}',
+                            dark: true,
+                          ),
+                          if (priceLabel != null)
+                            LkGlassChip(label: priceLabel!, dark: true),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (stacked == 0) return card;
+    // Darker cards peek out above it, as in v8, when there are more trips.
+    const peek = 9.0;
+    return Padding(
+      padding: EdgeInsets.only(top: stacked * peek),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          for (var i = stacked; i >= 1; i--)
+            Positioned(
+              left: 14.0 * i,
+              right: 14.0 * i,
+              top: -peek * i,
+              height: 40,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: i == 1 ? LkColors.s3 : LkColors.s2,
+                  borderRadius: BorderRadius.circular(LkRadius.lg),
+                  border: Border.all(color: LkColors.stroke),
+                ),
+              ),
+            ),
+          card,
+        ],
+      ),
+    );
+  }
+}
+
+/// "Davao City - - - ⛴ - - - Samal": the trip's start and end, with the main
+/// way of getting there.
+class _RouteLine extends StatelessWidget {
+  const _RouteLine({required this.from, required this.to, required this.ferry});
+
+  final String from;
+  final String to;
+  final bool ferry;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = LkType.label.copyWith(color: Colors.white);
+    return Row(
+      children: [
+        Text(from, style: style),
+        const SizedBox(width: LkSpace.s),
+        const Expanded(child: _Dashes()),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: LkSpace.xs),
+          child: Icon(
+            ferry
+                ? Icons.directions_boat_filled_rounded
+                : Icons.directions_car_rounded,
+            size: 18,
+            color: LkColors.lagoon,
+          ),
+        ),
+        const Expanded(child: _Dashes()),
+        const SizedBox(width: LkSpace.s),
+        Flexible(
+          flex: 2,
+          child: Text(
+            to,
+            style: style,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Dashes extends StatelessWidget {
+  const _Dashes();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 2,
+      child: CustomPaint(painter: _DashPainter()),
+    );
+  }
+}
+
+class _DashPainter extends CustomPainter {
+  const _DashPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = LkColors.lagoon
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    for (var x = 0.0; x < size.width; x += 7) {
+      canvas.drawLine(
+        Offset(x, size.height / 2),
+        Offset((x + 3).clamp(0, size.width), size.height / 2),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Photo rail of catalog places; tapping one opens Discover.
+class _ExploreRail extends StatelessWidget {
+  const _ExploreRail({required this.repo});
+
+  final TravelRepository repo;
+
+  @override
+  Widget build(BuildContext context) {
+    final places = repo.allTrips.take(10).toList();
+    if (places.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LkSectionHeader(
+          title: 'Explore Region XI',
+          actionLabel: 'See all',
+          onAction: () => repo.setActiveNavIndex(1),
+          padding: const EdgeInsets.fromLTRB(
+            LkSpace.gutter,
+            LkSpace.xxl,
+            LkSpace.gutter,
+            LkSpace.m,
+          ),
+        ),
+        SizedBox(
+          height: 150,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: LkSpace.gutter),
+            itemCount: places.length,
+            separatorBuilder: (_, _) => const SizedBox(width: LkSpace.s),
+            itemBuilder: (_, i) {
+              final p = places[i];
+              final ImageProvider image = p.hasRemoteThumbnail
+                  ? NetworkImage(p.thumbnailUrl)
+                  : AssetImage(p.localAssetPath);
+              final kind = (p.tag ?? '').trim();
+              final area = p.municipalityLabel.trim();
+              return LkPhotoCard(
+                image: image,
+                fallbackImage: AssetImage(p.localAssetPath),
+                width: 128,
+                height: 150,
+                title: p.title.split('—').first.split(' - ').first.trim(),
+                subtitle: [
+                  if (kind.isNotEmpty) kind,
+                  if (area.isNotEmpty) area,
+                ].join(', '),
+                onTap: () => repo.setActiveNavIndex(1),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TripListTile extends StatelessWidget {
+  const _TripListTile({
+    required this.trip,
+    required this.now,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final ItineraryTrip trip;
+  final DateTime now;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final when = trip.whenLabel(now) ?? 'No dates yet';
+    final live = trip.timingOn(now) == TripTiming.ongoing;
+    return Material(
+      color: LkColors.s1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(LkRadius.md),
+        side: const BorderSide(color: LkColors.stroke),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(LkSpace.s),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(LkRadius.sm),
+                child: LakbayNetworkOrAssetImage(
+                  networkUrl: trip.remoteImageUrl,
+                  assetPath: trip.heroAsset,
+                  width: 60,
+                  height: 60,
+                ),
+              ),
+              const SizedBox(width: LkSpace.m),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      trip.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: LkType.itemTitle,
+                    ),
+                    const SizedBox(height: LkSpace.xxs),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: when,
+                            style: TextStyle(
+                              color: live ? LkColors.mango : LkColors.lagoon,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          TextSpan(
+                            text:
+                                ' · ${trip.daysCount} days · '
+                                '${_placeName(trip)}',
+                          ),
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: LkType.caption,
+                    ),
+                  ],
+                ),
+              ),
+              LkIconButton(
+                icon: Icons.delete_outline_rounded,
+                tooltip: 'Delete trip',
+                style: LkIconButtonStyle.plain,
+                onPressed: onDelete,
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -103,11 +103,24 @@ class LkTag extends StatelessWidget {
   }
 }
 
+class _PhotoPlaceholder extends StatelessWidget {
+  const _PhotoPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: LkColors.s2,
+      child: Icon(Icons.landscape_outlined, color: LkColors.faint, size: 32),
+    );
+  }
+}
+
 /// Full-bleed photo card with a bottom scrim and white text.
 class LkPhotoCard extends StatelessWidget {
   const LkPhotoCard({
     super.key,
     required this.image,
+    this.fallbackImage,
     required this.title,
     this.subtitle,
     this.width,
@@ -121,6 +134,9 @@ class LkPhotoCard extends StatelessWidget {
   });
 
   final ImageProvider image;
+
+  /// Shown when [image] fails to load (offline, missing remote photo).
+  final ImageProvider? fallbackImage;
   final String title;
   final String? subtitle;
   final double? width;
@@ -156,14 +172,15 @@ class LkPhotoCard extends StatelessWidget {
                     image: image,
                     fit: BoxFit.cover,
                     excludeFromSemantics: true,
-                    errorBuilder: (_, _, _) => const ColoredBox(
-                      color: LkColors.s2,
-                      child: Icon(
-                        Icons.landscape_outlined,
-                        color: LkColors.faint,
-                        size: 32,
-                      ),
-                    ),
+                    errorBuilder: (_, _, _) => fallbackImage == null
+                        ? const _PhotoPlaceholder()
+                        : Image(
+                            image: fallbackImage!,
+                            fit: BoxFit.cover,
+                            excludeFromSemantics: true,
+                            errorBuilder: (_, _, _) =>
+                                const _PhotoPlaceholder(),
+                          ),
                   ),
                   const DecoratedBox(
                     decoration: BoxDecoration(gradient: LkColors.photoScrim),
