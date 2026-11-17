@@ -110,6 +110,42 @@ def test_a_count_that_differs_from_the_cards_is_removed():
     assert kept == "We have 2 nature parks."
 
 
+def test_a_route_from_nearby_davao_city_is_also_removed_for_a_traveler_elsewhere():
+    """Live case: "if traveling from nearby Davao City" slipped past the rule."""
+    cards = [(1, "Eden Nature Park")]
+    for phrase in (
+        "from Davao City", "from nearby Davao City", "from the center of Davao City",
+    ):
+        text = align_text_with_cards(
+            f"It is a long ride {phrase}. Bring a hat.",
+            cards=cards, allowed_ids=set(), catalog=CATALOG,
+            origin_label="New Visayas, Panabo",
+        )
+        assert "Davao City" not in text, phrase
+        assert "Bring a hat." in text
+
+
+def test_other_uses_of_from_are_left_alone():
+    cards = [(1, "Eden Nature Park")]
+    for sentence in (
+        "It is far from Davao del Norte.",
+        "Tourists come from all over Davao City each year.",
+    ):
+        text = align_text_with_cards(
+            sentence, cards=cards, allowed_ids=set(), catalog=CATALOG,
+            origin_label="New Visayas, Panabo",
+        )
+        assert text == sentence, sentence
+
+
+def test_a_traveler_starting_in_davao_city_keeps_such_sentences():
+    text = align_text_with_cards(
+        "It is a short ride from nearby Davao City.", cards=[(1, "Eden Nature Park")],
+        allowed_ids=set(), catalog=CATALOG, origin_label="Davao City",
+    )
+    assert "from nearby Davao City" in text
+
+
 def test_when_nothing_is_left_the_caption_names_the_cards():
     cards = [(1, "Eden Nature Park"), (2, "Panabo Mangrove Forest Park")]
     text = align_text_with_cards(
