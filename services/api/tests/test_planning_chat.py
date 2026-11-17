@@ -1444,8 +1444,8 @@ def test_an_explicit_add_puts_the_named_museum_in_the_plan(client, monkeypatch) 
     assert planning["update_status"] == "applied"
     assert planning["state_updates"]["destination_ids"] == [*picked_ids, museum_id]
     assert planning["recommendations"] == []  # nothing left to choose
-    assert body["chat_response"].endswith(
-        "I added National Museum of the Philippines - Davao to your plan.",
+    assert body["chat_response"].startswith(
+        "Added National Museum of the Philippines - Davao: that makes 4 stops",
     )
 
 
@@ -1558,7 +1558,66 @@ def test_a_refused_model_id_does_not_contradict_the_name_based_add(
         picked["destination_id"], museum["destination_id"],
     ]
     assert "couldn't match" not in body["chat_response"]
-    assert body["chat_response"].endswith(
-        "I added National Museum of the Philippines - Davao to your plan.",
+    assert body["chat_response"].startswith(
+        "Added National Museum of the Philippines - Davao: that makes 2 stops",
     )
     assert planning["recommendations"] == []
+
+
+def test_a_wrong_place_proposed_by_the_model_is_not_added(client, monkeypatch) -> None:
+    """Live case: the traveler said "add the National Museum"; the model wrote
+    "Added Dahican Surf Resort" and put Dahican's id in the plan. Only the place the
+    traveler named is added, and the reply names it."""
+    configure_ai(monkeypatch)
+    monkeypatch.setattr(ai_router_module, "get_osrm_client", lambda: CandidateOSRM())
+    admin = admin_headers(client)
+    picked = create_destination(
+        client, headers=admin, name="Lanikai Hijo Estate Resort", category="beach",
+        **verified_arrival(0),
+    )
+    wrong = create_destination(
+        client, headers=admin, name="Dahican Surf Resort", category="beach",
+        **verified_arrival(1),
+    )
+    museum = create_destination(
+        client, headers=admin, name="National Museum of the Philippines - Davao",
+        **MUSEUM, **verified_arrival(2),
+    )
+    reply = json.dumps({
+        "chat_response": "Added Dahican Surf Resort: that makes two stops now.",
+        "state_updates": {
+            "destination_ids": [picked["destination_id"], wrong["destination_id"]],
+        },
+        "intent": "modify_trip",
+    })
+    client.app.dependency_overrides[get_groq_client] = lambda: FakeGroqClient([reply])
+
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=user_headers(client),
+        json={
+            "message": "add the National Museum",
+            "use_rag": True,
+            "planning_state": {
+                "origin": {"label": "Davao City", "lat": 7.0731, "lng": 125.6128},
+                "destination_ids": [picked["destination_id"]],
+                "selected_transport_option_ids": ["mode:personal_vehicle"],
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    planning = body["planning"]
+    assert planning["state_updates"]["destination_ids"] == [
+        picked["destination_id"], museum["destination_id"],
+    ]
+    assert "Dahican" not in body["chat_response"]
+    assert body["chat_response"] == (
+        "Added National Museum of the Philippines - Davao: that makes 2 stops in your "
+        "plan (Lanikai Hijo Estate Resort, National Museum of the Philippines - Davao). "
+        "Want to add more or start planning?"
+    )
+    assert [d["destination_id"] for d in planning["preview"]["destinations"]] == [
+        picked["destination_id"], museum["destination_id"],
+    ]

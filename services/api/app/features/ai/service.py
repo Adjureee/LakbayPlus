@@ -1146,6 +1146,24 @@ async def _named_place_cards(
     ]
 
 
+async def _add_confirmation(session: AsyncSession, destination_ids: list[int]) -> str:
+    """Server-written reply after a place the traveler named was added."""
+    found = await AIItineraryRepository(session).list_active_destinations_by_ids(
+        list(destination_ids),
+    )
+    names_by_id = {item.destination_id: item.name for item in found}
+    names = [names_by_id[i] for i in destination_ids if i in names_by_id]
+    if not names:
+        return "Added to your plan. Want to add more or start planning?"
+    added = names[-1]
+    count = len(names)
+    stops = "stop" if count == 1 else "stops"
+    return (
+        f"Added {added}: that makes {count} {stops} in your plan ({', '.join(names)}). "
+        "Want to add more or start planning?"
+    )
+
+
 async def _build_planning_chat_result(
     *,
     content: str,
@@ -1292,24 +1310,22 @@ async def _build_planning_chat_result(
         and current_state.destination_ids
         and output_intent_early not in {"question", "logistics", "smalltalk"}
     ):
-        already_picked = set(next_state.destination_ids)
+        # What the traveler had before this message: the model's own proposals (which
+        # can name the wrong place) do not count as picks.
+        already_picked = set(current_state.destination_ids)
         unpicked = [(i, n) for i, n in catalog if i not in already_picked]
         named_matches = match_destinations(data.message, unpicked)
         single = pick_single_destination(data.message, unpicked)
         if single is not None and _asks_to_add(data.message):
+            new_ids = [*current_state.destination_ids, single.destination_id]
             try:
-                next_state = _state_with_destinations(
-                    next_state, [*next_state.destination_ids, single.destination_id],
-                )
-                changes_json["destination_ids"] = list(next_state.destination_ids)
+                next_state = _state_with_destinations(next_state, new_ids)
+                changes_json["destination_ids"] = list(new_ids)
                 update_status = "applied"
                 named_add_done = True
-                # The model's own id was refused above, but the place is now added by
-                # name, so the "couldn't match" note would contradict the reply.
-                chat_response = chat_response.replace(UNMATCHED_DESTINATION_NOTE, "")
-                chat_response = (
-                    f"{chat_response}\n\nI added {single.name} to your plan."
-                )
+                # The traveler named one place: add exactly that and write the
+                # confirmation here, so the text can never disagree with the plan.
+                chat_response = await _add_confirmation(session, new_ids)
             except ValidationError:
                 named_card_ids = [single.destination_id]
         elif named_matches:
