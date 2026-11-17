@@ -12,6 +12,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: str
     avatar_url: str | None
+    cover_url: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

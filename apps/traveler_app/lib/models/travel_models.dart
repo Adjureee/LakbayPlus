@@ -1671,8 +1671,13 @@ class UserProfile {
   /// The traveler's profile photo (an https address), or empty for initials.
   final String avatarUrl;
 
+  /// The banner photo the traveler chose for their profile (an https
+  /// address), or empty for the app's default banner.
+  final String coverUrl;
+
   const UserProfile({
     this.avatarUrl = '',
+    this.coverUrl = '',
     this.firstName = '',
     this.lastName = '',
     this.headline = '',
@@ -1701,9 +1706,11 @@ class UserProfile {
     String? email,
     String? username,
     String? avatarUrl,
+    String? coverUrl,
   }) {
     return UserProfile(
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      coverUrl: coverUrl ?? this.coverUrl,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
       headline: headline ?? this.headline,
@@ -1721,6 +1728,7 @@ class UserProfile {
         'email': email,
         'username': username,
         'avatarUrl': avatarUrl,
+        'coverUrl': coverUrl,
       };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
@@ -1731,6 +1739,7 @@ class UserProfile {
         email: json['email'] as String? ?? '',
         username: json['username'] as String? ?? '',
         avatarUrl: json['avatarUrl'] as String? ?? '',
+        coverUrl: json['coverUrl'] as String? ?? '',
       );
 }
 

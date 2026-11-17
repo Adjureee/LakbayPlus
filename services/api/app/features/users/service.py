@@ -156,6 +156,30 @@ class UserService:
 
         return UserResponse.model_validate(updated_user)
 
+    async def upload_cover(self, *, user: User, file: UploadFile) -> UserResponse:
+        file_bytes = await read_validated_image(file, self.settings)
+        reserve_cloudinary_upload(user_id=user.user_id, settings=self.settings)
+
+        storage = self.storage_client or CloudinaryStorageClient(self.settings)
+        result = await storage.upload_image(
+            file_bytes=file_bytes,
+            filename=file.filename,
+            content_type=(file.content_type or "").lower(),
+            folder_suffix=f"users/{user.user_id}/cover",
+        )
+
+        updated_user = await self.users.set_cover_url(user=user, cover_url=result.image_url)
+        await self.session.commit()
+        await self.session.refresh(updated_user)
+        return UserResponse.model_validate(updated_user)
+
+    async def remove_cover(self, *, user: User) -> UserResponse:
+        """Back to the app's default banner."""
+        updated_user = await self.users.set_cover_url(user=user, cover_url=None)
+        await self.session.commit()
+        await self.session.refresh(updated_user)
+        return UserResponse.model_validate(updated_user)
+
     async def upload_avatar(self, *, user: User, file: UploadFile) -> UserResponse:
         file_bytes = await read_validated_image(file, self.settings)
         reserve_cloudinary_upload(user_id=user.user_id, settings=self.settings)
