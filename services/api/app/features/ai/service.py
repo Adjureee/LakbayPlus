@@ -1305,11 +1305,7 @@ async def _build_planning_chat_result(
     named_card_ids: list[int] = []
     named_add_done = False
     output_intent_early = output.intent if output is not None else None
-    if (
-        catalog
-        and current_state.destination_ids
-        and output_intent_early not in {"question", "logistics", "smalltalk"}
-    ):
+    if catalog and current_state.destination_ids:
         # What the traveler had before this message: the model's own proposals (which
         # can name the wrong place) do not count as picks.
         already_picked = set(current_state.destination_ids)
@@ -1328,7 +1324,11 @@ async def _build_planning_chat_result(
                 chat_response = await _add_confirmation(session, new_ids)
             except ValidationError:
                 named_card_ids = [single.destination_id]
-        elif named_matches:
+        elif named_matches and output_intent_early not in {
+            "question", "logistics", "smalltalk",
+        }:
+            # Offering a card is the model's call (a question stays a text answer);
+            # an explicit "add" above does not depend on how the model labelled it.
             named_card_ids = [
                 match.destination_id for match in named_matches[:MORE_WITH_PICKS]
             ]
@@ -1363,7 +1363,12 @@ async def _build_planning_chat_result(
         ("mode:walking",): "walking",
     }.get(selected_modes, "public_transport" if selected_modes else "driving")
 
-    if output_intent == "show_places":
+    if named_add_done:
+        # The traveler asked to add a named place and it was added: no cards, whatever
+        # the model labelled the message, and earlier talk of other kinds must not
+        # bring a ranking back.
+        pass
+    elif output_intent == "show_places":
         place_query = output_place_query or AIPlaceQuery()
         categories = list(place_query.categories) or (
             [retrieval_interest] if retrieval_interest else []
@@ -1439,7 +1444,7 @@ async def _build_planning_chat_result(
                 # With no cards there is nothing to introduce, so say why. With
                 # some cards the model's reply stays and the reason is a note.
                 chat_response = recommendation_shortfall_reason
-    elif output_intent in {"question", "logistics", "smalltalk"} or named_add_done:
+    elif output_intent in {"question", "logistics", "smalltalk"}:
         # Q&A, logistics, and small talk stay concise text replies without card dumps.
         # So does a named place that was just added: the traveler got what they asked
         # for, and an earlier interest in the chat must not bring other cards back.
