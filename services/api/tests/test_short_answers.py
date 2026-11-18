@@ -13,7 +13,13 @@ from app.features.ai.short_answers import describe, interpret_short_answer, pars
 from app.features.planning.schemas import PlanningState
 from app.integrations.groq.client import get_groq_client
 from tests.test_ai_phase1b_cards_origin import _ask
-from tests.test_phase5_ai_itineraries import FakeGroqClient, configure_ai, user_headers
+from tests.test_phase5_ai_itineraries import (
+    FakeGroqClient,
+    admin_headers,
+    configure_ai,
+    create_destination,
+    user_headers,
+)
 from tests.test_planning_chat import CandidateOSRM
 
 TODAY = date(2026, 11, 18)  # a Wednesday
@@ -182,10 +188,12 @@ def test_what_the_words_say_wins_over_a_wrong_model_guess(client, monkeypatch) -
 def test_an_ambiguous_answer_changes_nothing(client, monkeypatch) -> None:
     configure_ai(monkeypatch)
     monkeypatch.setattr(ai_router_module, "get_osrm_client", lambda: CandidateOSRM())
+    place = create_destination(client, headers=admin_headers(client))
     reply = json.dumps({
         "chat_response": "Which date exactly?", "state_updates": {}, "intent": "plan_trip",
     })
     state = {
+        "destination_ids": [place["destination_id"]],
         "interests": ["nature_attractions"], "traveler_count": 1, "day_count": 1,
         "night_count": 0, "total_budget": "600", "activity_level": "easy",
     }
@@ -194,6 +202,24 @@ def test_an_ambiguous_answer_changes_nothing(client, monkeypatch) -> None:
 
     assert body["planning"]["preview"]["state"].get("travel_start_date") is None
     assert body["planning"]["state_updates"] == {}
+    # The model's "Which date exactly?" is replaced by the server's own request, so a
+    # reply that treats "this month" as settled can never reach the traveler.
+    assert "exact day" in body["chat_response"]
+
+
+def test_only_a_vague_answer_to_the_date_question_asks_again():
+    from app.features.ai.short_answers import is_vague_date_answer
+
+    state = _state(
+        interests=["nature_attractions"], traveler_count=1, day_count=1, night_count=0,
+        total_budget="600", activity_level="easy",
+    )
+    for text in ("This month", "next friday", "sometime next week", "soon"):
+        assert is_vague_date_answer(text, state, TODAY), text
+    for text in ("Tomorrow", "Dec 5", "How about this month?", "Show me beaches"):
+        assert not is_vague_date_answer(text, state, TODAY), text
+    # Not the date question: no effect.
+    assert not is_vague_date_answer("This month", _state(), TODAY)
 
 
 def test_a_budget_correction_updates_only_the_budget(client, monkeypatch) -> None:
