@@ -7,6 +7,8 @@ Step 1 of docs/AI_CLAIMS_CHECK_PLAN.md. It changes no product behaviour. It
    and saves each reply with the public record of the place it is about;
 2. `judge`: asks a model to label every sentence of each reply as supported,
    unsupported or generic against that record, one judge call per reply;
+4. `replay`: runs the runtime claims check (app/features/ai/claims.py) over the judged
+   replies and compares it with the judge: caught, missed and wrongly flagged.
 3. `report`: prints how many replies hold an unsupported claim, by category, and writes a
    labeled sample for a human spot-check.
 
@@ -261,6 +263,51 @@ def report(args) -> None:
           f"{args.sample_out}")
 
 
+def replay(args) -> None:
+    """The runtime check against the judge's labels (no model calls, no network)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from app.features.ai.claims import find_unsupported_claims
+    from app.features.ai.grounding import _fact_values
+
+    labeled = json.loads(Path(args.labels).read_text(encoding="utf-8"))
+    records = {
+        (r["destination_id"], r["question"]): r
+        for r in json.loads(Path(args.replies).read_text(encoding="utf-8"))
+    }
+    names = sorted({(r["destination_id"], r["name"]) for r in labeled})
+    caught = missed = wrong = right = 0
+    lines = []
+    for row in labeled:
+        record = records[(row["destination_id"], row["question"])]["record"]
+        support = {row["destination_id"]: " ".join(
+            [_fact_values(record), json.dumps(_rates(row["destination_id"]))])}
+        findings = find_unsupported_claims(
+            row["reply"], message=row["question"], support_by_place=support, names=names,
+        )
+        flagged = {f.sentence: f for f in findings}
+        for item in row["sentences"]:
+            sentence, label = item["sentence"], item["label"]
+            hit = sentence in flagged
+            if label == "unsupported" and hit:
+                caught += 1
+            elif label == "unsupported":
+                missed += 1
+                lines.append(("MISSED ", row["name"], sentence, item["claim"]))
+            elif hit:
+                wrong += 1
+                lines.append(("FALSE  ", row["name"], sentence, flagged[sentence].rule))
+            else:
+                right += 1
+    total_unsupported = caught + missed
+    others = wrong + right
+    print(f"judge-unsupported sentences: {total_unsupported}; caught {caught}, missed {missed}")
+    print(f"other sentences: {others}; wrongly flagged {wrong}")
+    print(f"recall {100 * caught / max(1, total_unsupported):.0f}%  "
+          f"false-flag rate {100 * wrong / max(1, others):.1f}%")
+    for kind, name, sentence, note in lines:
+        print(f"  {kind} {name[:18]:18} | {sentence[:130]}  [{note}]")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -280,7 +327,13 @@ def main() -> None:
     r.add_argument("--sample", type=int, default=50)
     r.add_argument("--sample-out", default="claims_sample.json")
     r.add_argument("--seed", type=int, default=7)
+    p = sub.add_parser("replay")
+    p.add_argument("--labels", default="claims_labels.json")
+    p.add_argument("--replies", default="claims_replies.json")
     args = parser.parse_args()
+    if args.command == "replay":
+        replay(args)
+        return
     if args.command == "collect":
         collect(args)
     elif args.command == "judge":
