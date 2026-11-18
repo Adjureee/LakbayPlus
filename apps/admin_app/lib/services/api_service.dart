@@ -408,6 +408,21 @@ class ApiService {
       data: data,
     ),
   );
+  /// Structured prices (entrance, parking and so on, by audience). Saving
+  /// replaces everything in one request.
+  Future<Map<String, dynamic>> getDestinationPrices(String id) async => _object(
+    await _request('GET', '/destinations/${Uri.encodeComponent(id)}/prices'),
+  );
+  Future<Map<String, dynamic>> saveDestinationPrices(
+    String id,
+    Map<String, dynamic> data,
+  ) async => _object(
+    await _request(
+      'PUT',
+      '/destinations/${Uri.encodeComponent(id)}/prices',
+      data: data,
+    ),
+  );
   Future<bool> deleteDestination(String id) async {
     await _request('DELETE', '/destinations/${Uri.encodeComponent(id)}');
     return true;

@@ -1,5 +1,6 @@
 from datetime import date, datetime, time
 from decimal import Decimal
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -320,6 +321,71 @@ class DestinationHoursResponse(BaseModel):
     hours_verified_at: datetime | None = None
     weekly: list[HoursWindowIn] = Field(default_factory=list)
     exceptions: list[HoursExceptionIn] = Field(default_factory=list)
+    summary: str | None = None
+    # supported (structured and checked within a year), estimated, or unknown.
+    data_quality: str = "unknown"
+
+
+PriceItem = Literal["entrance", "overnight", "parking", "cottage", "other"]
+PriceAudience = Literal[
+    "adult", "child", "senior", "pwd", "student", "resident", "non_resident", "everyone",
+]
+PriceUnit = Literal["per_person", "per_group", "per_vehicle", "per_night"]
+
+
+class PriceIn(BaseModel):
+    """One price. amount 0 means the source says it is free; unknown prices have no row."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    item: PriceItem
+    audience: PriceAudience
+    amount: Decimal = Field(ge=0, max_digits=10, decimal_places=2)
+    unit: PriceUnit
+    age_min: int | None = Field(default=None, ge=0, le=120)
+    age_max: int | None = Field(default=None, ge=0, le=120)
+    note: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def check_ages(self) -> "PriceIn":
+        if self.age_min is not None and self.age_max is not None and self.age_min > self.age_max:
+            raise ValueError("age_min must not be above age_max.")
+        return self
+
+
+class DestinationPricesUpdate(BaseModel):
+    """Replaces everything about a place's structured prices in one save."""
+
+    fees_source_url: str | None = Field(default=None, max_length=2048)
+    fees_verified_at: datetime | None = None
+    prices: list[PriceIn] = Field(default_factory=list, max_length=40)
+
+    @field_validator("fees_source_url")
+    @classmethod
+    def validate_source_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("fees_source_url must be an HTTP or HTTPS URL")
+        return value
+
+    @model_validator(mode="after")
+    def no_duplicates(self) -> "DestinationPricesUpdate":
+        seen: set[tuple] = set()
+        for row in self.prices:
+            key = (row.item, row.audience, row.unit, row.age_min, row.age_max)
+            if key in seen:
+                raise ValueError("The same price is listed twice.")
+            seen.add(key)
+        return self
+
+
+class DestinationPricesResponse(BaseModel):
+    destination_id: int
+    fees_source_url: str | None = None
+    fees_verified_at: datetime | None = None
+    prices: list[PriceIn] = Field(default_factory=list)
     summary: str | None = None
     # supported (structured and checked within a year), estimated, or unknown.
     data_quality: str = "unknown"

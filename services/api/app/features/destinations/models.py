@@ -87,6 +87,9 @@ class Destination(Base):
     open_24_hours: Mapped[bool | None] = mapped_column(Boolean)
     hours_source_url: Mapped[str | None] = mapped_column(String(2048))
     hours_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Same for the structured prices in destination_prices.
+    fees_source_url: Mapped[str | None] = mapped_column(String(2048))
+    fees_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     best_time_to_visit: Mapped[str | None] = mapped_column(Text)
     how_to_get_there: Mapped[str | None] = mapped_column(Text)
     estimated_travel_time: Mapped[str | None] = mapped_column(Text)
@@ -245,3 +248,46 @@ class DestinationHourException(Base):
     opens_at: Mapped[time | None] = mapped_column(Time)
     closes_at: Mapped[time | None] = mapped_column(Time)
     reason: Mapped[str | None] = mapped_column(String(255))
+
+
+class DestinationPrice(Base):
+    """One price a place charges: an item, who pays it, and per what.
+
+    No row for an item means the price is unknown. A row with amount 0 means the source
+    says it is free.
+    """
+
+    __tablename__ = "destination_prices"
+    __table_args__ = (
+        CheckConstraint(
+            "item IN ('entrance', 'overnight', 'parking', 'cottage', 'other')",
+            name="ck_destination_prices_item",
+        ),
+        CheckConstraint(
+            "audience IN ('adult', 'child', 'senior', 'pwd', 'student', 'resident', "
+            "'non_resident', 'everyone')",
+            name="ck_destination_prices_audience",
+        ),
+        CheckConstraint(
+            "unit IN ('per_person', 'per_group', 'per_vehicle', 'per_night')",
+            name="ck_destination_prices_unit",
+        ),
+        CheckConstraint("amount >= 0", name="ck_destination_prices_amount"),
+        CheckConstraint(
+            "(age_min IS NULL OR age_min >= 0) AND (age_max IS NULL OR age_max >= 0) AND "
+            "(age_min IS NULL OR age_max IS NULL OR age_min <= age_max)",
+            name="ck_destination_prices_ages",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    destination_id: Mapped[int] = mapped_column(
+        ForeignKey("destinations.destination_id", ondelete="CASCADE"), index=True,
+    )
+    item: Mapped[str] = mapped_column(String(20))
+    audience: Mapped[str] = mapped_column(String(20))
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    unit: Mapped[str] = mapped_column(String(20))
+    age_min: Mapped[int | None] = mapped_column(SmallInteger)
+    age_max: Mapped[int | None] = mapped_column(SmallInteger)
+    note: Mapped[str | None] = mapped_column(Text)

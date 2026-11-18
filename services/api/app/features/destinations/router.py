@@ -9,6 +9,8 @@ from app.features.destinations.schemas import (
     DestinationFacetsResponse,
     DestinationHoursResponse,
     DestinationHoursUpdate,
+    DestinationPricesResponse,
+    DestinationPricesUpdate,
     DestinationCreate,
     DestinationListQuery,
     DestinationResponse,
@@ -191,6 +193,39 @@ async def replace_destination_hours(
     admin: Annotated[User, Depends(require_admin)],
 ) -> DestinationHoursResponse:
     return await DestinationService(session).replace_hours(destination_id, data)
+
+
+@router.get(
+    "/{destination_id}/prices",
+    response_model=DestinationPricesResponse,
+    summary="Get a destination's prices",
+    description=(
+        "Structured prices (entrance, overnight, parking and so on, by audience), "
+        "a one-line summary and how far to trust them (supported, estimated or unknown)."
+    ),
+)
+async def get_destination_prices(
+    destination_id: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DestinationPricesResponse:
+    return await DestinationService(session).get_prices(destination_id)
+
+
+@router.put(
+    "/{destination_id}/prices",
+    response_model=DestinationPricesResponse,
+    summary="Replace a destination's prices",
+    description=(
+        "Admin-only. Replaces every price and the source and verified date in one save."
+    ),
+)
+async def replace_destination_prices(
+    destination_id: int,
+    data: DestinationPricesUpdate,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    admin: Annotated[User, Depends(require_admin)],
+) -> DestinationPricesResponse:
+    return await DestinationService(session).replace_prices(destination_id, data)
 
 
 @router.patch(
