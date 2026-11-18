@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -146,6 +146,18 @@ class PlanningState(PlanningInput):
     travel_start_date: date | None = None
     prefers_quiet: bool | None = None
     priority_order: list[Text] = Field(default_factory=list, max_length=3)
+    # Trip details the traveler states in their own words. None always means "not
+    # said", never a default; nothing here is inferred.
+    destination_area: Text | None = None
+    nearby_areas_allowed: bool | None = None
+    return_label: Text | None = None
+    departure_time: time | None = None
+    return_deadline: time | None = None
+    pace: Literal["relaxed", "balanced", "packed"] | None = None
+    special_needs: list[Text] = Field(default_factory=list, max_length=10)
+    budget_includes: list[
+        Literal["transport", "food", "accommodation", "activities", "fees"]
+    ] = Field(default_factory=list, max_length=5)
     reserve_amount: Money = Decimal("0.00")
     selected_transport_option_ids: list[OptionId] = Field(default_factory=list, max_length=50)
     selected_activity_option_ids: list[OptionId] = Field(default_factory=list, max_length=50)
