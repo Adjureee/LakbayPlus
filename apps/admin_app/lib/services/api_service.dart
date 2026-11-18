@@ -423,6 +423,25 @@ class ApiService {
       data: data,
     ),
   );
+  /// Structured activities (what to do, with availability, fee, duration and
+  /// limits). Saving replaces the whole list in one request.
+  Future<Map<String, dynamic>> getDestinationActivities(String id) async =>
+      _object(
+        await _request(
+          'GET',
+          '/destinations/${Uri.encodeComponent(id)}/activities',
+        ),
+      );
+  Future<Map<String, dynamic>> saveDestinationActivities(
+    String id,
+    Map<String, dynamic> data,
+  ) async => _object(
+    await _request(
+      'PUT',
+      '/destinations/${Uri.encodeComponent(id)}/activities',
+      data: data,
+    ),
+  );
   Future<bool> deleteDestination(String id) async {
     await _request('DELETE', '/destinations/${Uri.encodeComponent(id)}');
     return true;

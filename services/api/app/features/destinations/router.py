@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import require_admin
 from app.db.session import get_db_session
 from app.features.destinations.schemas import (
+    DestinationActivitiesResponse,
+    DestinationActivitiesUpdate,
     DestinationFacetsResponse,
     DestinationHoursResponse,
     DestinationHoursUpdate,
@@ -226,6 +228,37 @@ async def replace_destination_prices(
     admin: Annotated[User, Depends(require_admin)],
 ) -> DestinationPricesResponse:
     return await DestinationService(session).replace_prices(destination_id, data)
+
+
+@router.get(
+    "/{destination_id}/activities",
+    response_model=DestinationActivitiesResponse,
+    summary="Get a destination's activities",
+    description=(
+        "What to do at the place, each with its availability, duration, extra fee, "
+        "effort and restrictions, a one-line summary and how far to trust it."
+    ),
+)
+async def get_destination_activities(
+    destination_id: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DestinationActivitiesResponse:
+    return await DestinationService(session).get_activities(destination_id)
+
+
+@router.put(
+    "/{destination_id}/activities",
+    response_model=DestinationActivitiesResponse,
+    summary="Replace a destination's activities",
+    description="Admin-only. Replaces every activity of the place in one save.",
+)
+async def replace_destination_activities(
+    destination_id: int,
+    data: DestinationActivitiesUpdate,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    admin: Annotated[User, Depends(require_admin)],
+) -> DestinationActivitiesResponse:
+    return await DestinationService(session).replace_activities(destination_id, data)
 
 
 @router.patch(
