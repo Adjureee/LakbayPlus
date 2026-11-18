@@ -4244,7 +4244,12 @@ class TravelRepository extends ChangeNotifier {
     final token = _authSession?.accessToken;
     if (state == null || token == null) return;
     _timelineBackendTripId = cloudTripId;
-    await apiCatalog.saveTripTimeline(token, cloudTripId, planningState: state);
+    await apiCatalog.saveTripTimeline(
+      token,
+      cloudTripId,
+      planningState: state,
+      pins: [for (final p in _lastTimeline?.pins ?? const <TimelinePin>[]) p.toJson()],
+    );
     notifyListeners();
   }
 
@@ -4349,6 +4354,13 @@ class TravelRepository extends ChangeNotifier {
       ];
     }
     _planningRevision++;
+    // The pins after this change: the ones in effect, or the new set. A pin on a place the
+    // traveler just removed goes with it; the server also ignores a pin on a non-pick.
+    final kept = revision.destinationIds?.toSet();
+    final pins = [
+      for (final p in revision.pins ?? previous?.pins ?? const <TimelinePin>[])
+        if (kept == null || kept.contains(p.destinationId)) p.toJson(),
+    ];
     _isAiTyping = true;
     _aiTypingStatus = 'Updating your itinerary...';
     notifyListeners();
@@ -4357,6 +4369,7 @@ class TravelRepository extends ChangeNotifier {
       planningState: Map<String, dynamic>.from(state),
       inputRevision: _planningRevision,
       previous: previous?.toJson(),
+      pins: pins,
     );
     if (result == null) {
       _aiTypingStatus = null;
@@ -4386,6 +4399,7 @@ class TravelRepository extends ChangeNotifier {
         token,
         savedTripId,
         planningState: Map<String, dynamic>.from(state),
+        pins: pins,
       );
     }
     _addTimelineMessage(

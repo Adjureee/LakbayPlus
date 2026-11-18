@@ -256,6 +256,39 @@ class TimelineBudget {
   );
 }
 
+/// A stop the traveler locked to a day and/or a start time.
+class TimelinePin {
+  const TimelinePin({required this.destinationId, this.day, this.startsAt});
+
+  final int destinationId;
+
+  /// 1-based day, or null for "any day".
+  final int? day;
+
+  /// "HH:MM:SS", or null for "any time".
+  final String? startsAt;
+
+  Map<String, dynamic> toJson() => {
+    'destination_id': destinationId,
+    if (day != null) 'day': day,
+    if (startsAt != null) 'starts_at': startsAt,
+  };
+
+  factory TimelinePin.fromJson(Map<String, dynamic> json) => TimelinePin(
+    destinationId: (json['destination_id'] as num?)?.toInt() ?? 0,
+    day: (json['day'] as num?)?.toInt(),
+    startsAt: json['starts_at']?.toString(),
+  );
+
+  /// "Day 2 at 10:00 AM", "Day 2", "Any day at 10:00 AM", or "Not pinned".
+  String get summary {
+    final time = clockLabel(startsAt);
+    if (day == null && time == null) return 'Not pinned';
+    if (time == null) return 'Day $day';
+    return '${day == null ? 'Any day' : 'Day $day'} at $time';
+  }
+}
+
 class TimelineData {
   TimelineData._({
     required this.raw,
@@ -266,6 +299,7 @@ class TimelineData {
     required this.feasible,
     required this.unverified,
     required this.assumptions,
+    required this.pins,
   });
 
   /// The server's JSON, sent back unchanged as `previous` when revising.
@@ -280,6 +314,9 @@ class TimelineData {
   final List<String> unverified;
   final List<String> assumptions;
 
+  /// The pins that were in effect when this timeline was built.
+  final List<TimelinePin> pins;
+
   factory TimelineData.fromJson(Map<String, dynamic> json) => TimelineData._(
     raw: json,
     days: _maps(json['days']).map(TimelineDay.fromJson).toList(),
@@ -291,9 +328,13 @@ class TimelineData {
     feasible: json['feasible'] == true,
     unverified: (json['unverified'] as List<dynamic>? ?? const []).map((e) => e.toString()).toList(),
     assumptions: (json['assumptions'] as List<dynamic>? ?? const []).map((e) => e.toString()).toList(),
+    pins: _maps(json['pins']).map(TimelinePin.fromJson).toList(),
   );
 
   Map<String, dynamic> toJson() => raw;
+
+  TimelinePin? pinFor(int destinationId) =>
+      pins.where((p) => p.destinationId == destinationId).firstOrNull;
 
   int count(String status) => checks.where((c) => c.status == status).length;
 
@@ -387,6 +428,7 @@ class TimelineRevision {
     this.dayCount,
     this.pace,
     this.destinationIds,
+    this.pins,
   });
 
   /// "HH:MM:SS".
@@ -397,4 +439,7 @@ class TimelineRevision {
 
   /// The places kept, in order; removing one is the traveler's own choice.
   final List<int>? destinationIds;
+
+  /// The full set of pins after the change; null leaves them as they are.
+  final List<TimelinePin>? pins;
 }

@@ -278,3 +278,15 @@ def test_preview_missing_costs_become_named_unknowns_or_prompts_not_instructions
     assert all(c.amount is None and c.status == "unknown" for c in costs)
     assert prompts == ["Provide night_count before completing the estimate."]
     assert covered is None
+
+
+def test_the_response_carries_the_pins_that_were_in_effect(client) -> None:
+    _, eden, museo = _places(client)
+    body = client.post(URL, json={
+        "state": {"destination_ids": [eden, museo], "day_count": 2,
+                  "departure_time": "08:00:00",
+                  "origin": {"label": "Davao City", "lat": 7.07, "lng": 125.6}},
+        "pins": [{"destination_id": museo, "day": 2, "starts_at": "10:00:00"}],
+    }).json()
+    assert body["timeline"]["pins"] == [
+        {"destination_id": museo, "day": 2, "starts_at": "10:00:00"}]
