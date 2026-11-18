@@ -7,6 +7,7 @@ from app.core.exceptions import LakbayAPIError
 from app.features.expenses.service import ExpenseService
 from app.features.reports.pdf import build_trip_report_pdf
 from app.features.reports.repository import ReportRepository
+from app.features.planning.timeline_schemas import Timeline
 from app.features.reports.schemas import (
     TripReportActivity,
     TripReportDestination,
@@ -15,6 +16,7 @@ from app.features.reports.schemas import (
     TripReportMember,
     TripReportSummaryResponse,
     TripReportTask,
+    TripReportTimeline,
 )
 from app.features.trips.models import Trip, TripItineraryDay, TripMember
 from app.features.trips.schemas import TripRouteResponse
@@ -29,6 +31,7 @@ class ReportService:
     async def get_summary(self, *, user: User, trip_id: int) -> TripReportSummaryResponse:
         trip = await self._require_accessible_trip(user=user, trip_id=trip_id)
         expenses = await ExpenseService(self.session).get_summary(user=user, trip_id=trip_id)
+        revision = await self.reports.latest_timeline_revision(trip_id)
 
         return TripReportSummaryResponse(
             generated_at=datetime.now(UTC),
@@ -63,6 +66,16 @@ class ReportService:
                 )
                 for task in sorted(trip.tasks, key=lambda task: task.trip_task_id)
             ],
+            timeline=(
+                TripReportTimeline(
+                    revision=revision.revision,
+                    saved_at=revision.created_at,
+                    changes=list(revision.changes or []),
+                    timeline=Timeline.model_validate(revision.timeline),
+                )
+                if revision is not None
+                else None
+            ),
         )
 
     async def build_pdf(self, *, user: User, trip_id: int) -> bytes:
