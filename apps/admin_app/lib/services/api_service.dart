@@ -393,6 +393,21 @@ class ApiService {
       file: photo,
     ),
   );
+  /// Structured opening hours (weekly windows, date exceptions, source and
+  /// verified date). Saving replaces everything in one request.
+  Future<Map<String, dynamic>> getDestinationHours(String id) async => _object(
+    await _request('GET', '/destinations/${Uri.encodeComponent(id)}/hours'),
+  );
+  Future<Map<String, dynamic>> saveDestinationHours(
+    String id,
+    Map<String, dynamic> data,
+  ) async => _object(
+    await _request(
+      'PUT',
+      '/destinations/${Uri.encodeComponent(id)}/hours',
+      data: data,
+    ),
+  );
   Future<bool> deleteDestination(String id) async {
     await _request('DELETE', '/destinations/${Uri.encodeComponent(id)}');
     return true;

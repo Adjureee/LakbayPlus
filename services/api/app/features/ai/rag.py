@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.accommodations.models import Accommodation
 from app.features.ai.retrieval_intent import DISTRICTS, resolve_retrieval_intent
-from app.features.destinations.models import Destination
+from app.features.destinations.hours import data_quality as hours_data_quality
+from app.features.destinations.hours import hours_summary
+from app.features.destinations.models import Destination, DestinationHours
 from app.features.transportations.models import Transportation
 
 
@@ -388,8 +390,20 @@ class VectorRAGRetriever:
             if item.destination_id in destinations_by_id
         ]
 
+        hours_result = await self.session.execute(
+            select(DestinationHours).where(
+                DestinationHours.destination_id.in_(destinations_by_id),
+            ),
+        )
+        weekly_by_id: dict[int, list[DestinationHours]] = {}
+        for row in hours_result.scalars().all():
+            weekly_by_id.setdefault(row.destination_id, []).append(row)
+
         documents: list[RagDocument] = [
-            _destination_document(destination) for destination in destinations
+            _destination_document(
+                destination, weekly_hours=weekly_by_id.get(destination.destination_id, []),
+            )
+            for destination in destinations
         ]
         documents.extend(
             _accommodation_document(
@@ -409,7 +423,12 @@ class VectorRAGRetriever:
         return documents
 
 
-def _destination_document(destination: Destination) -> RagDocument:
+def _destination_document(
+    destination: Destination,
+    *,
+    weekly_hours: "list[DestinationHours] | None" = None,
+) -> RagDocument:
+    opening_hours = hours_summary(destination.open_24_hours, weekly_hours or [])
     payload = {
         "destination_id": destination.destination_id,
         "name": destination.name,
@@ -423,6 +442,16 @@ def _destination_document(destination: Destination) -> RagDocument:
         "entrance_fee": destination.entrance_fee,
         "overnight_fee": destination.overnight_fee,
         "operating_hours": destination.operating_hours,
+        # Structured hours (when entered) with how far to trust them.
+        "opening_hours": opening_hours,
+        "hours_verified_on": (
+            destination.hours_verified_at.date().isoformat()
+            if opening_hours and destination.hours_verified_at else None
+        ),
+        "hours_data_quality": hours_data_quality(
+            opening_hours is not None, bool(destination.operating_hours),
+            destination.hours_verified_at,
+        ),
         "best_time_to_visit": destination.best_time_to_visit,
         "how_to_get_there": destination.how_to_get_there,
         "estimated_travel_time": destination.estimated_travel_time,
@@ -449,6 +478,7 @@ def _destination_document(destination: Destination) -> RagDocument:
         destination.category,
         destination.vibes,
         destination.activities,
+        opening_hours,
         destination.best_time_to_visit,
         destination.how_to_get_there,
         destination.estimated_travel_time,

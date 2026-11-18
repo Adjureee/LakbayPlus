@@ -27,6 +27,8 @@ def destination(destination_id: int, name: str, district: str, **overrides):
         "entrance_fee": "Ask the operator for current fees",
         "overnight_fee": None,
         "operating_hours": None,
+        "open_24_hours": None,
+        "hours_verified_at": None,
         "best_time_to_visit": None,
         "how_to_get_there": None,
         "estimated_travel_time": None,
