@@ -291,3 +291,69 @@ class DestinationPrice(Base):
     age_min: Mapped[int | None] = mapped_column(SmallInteger)
     age_max: Mapped[int | None] = mapped_column(SmallInteger)
     note: Mapped[str | None] = mapped_column(Text)
+
+
+class DestinationActivity(Base):
+    """One thing to do at a place, with its own availability, cost and rules.
+
+    A place being open does not mean every activity is available; an unset field means
+    unknown, never "no" or "free".
+    """
+
+    __tablename__ = "destination_activities"
+    __table_args__ = (
+        CheckConstraint(
+            "availability IS NULL OR availability IN "
+            "('always', 'scheduled', 'seasonal', 'by_arrangement')",
+            name="ck_destination_activities_availability",
+        ),
+        CheckConstraint(
+            "effort_level IS NULL OR effort_level IN ('easy', 'moderate', 'challenging')",
+            name="ck_destination_activities_effort",
+        ),
+        CheckConstraint(
+            "weather_dependency IS NULL OR weather_dependency IN "
+            "('none', 'dry_weather', 'calm_seas', 'daylight')",
+            name="ck_destination_activities_weather",
+        ),
+        CheckConstraint(
+            "extra_fee IS NULL OR extra_fee >= 0", name="ck_destination_activities_fee",
+        ),
+        CheckConstraint(
+            "(duration_min_minutes IS NULL OR duration_min_minutes > 0) AND "
+            "(duration_max_minutes IS NULL OR duration_max_minutes > 0) AND "
+            "(duration_min_minutes IS NULL OR duration_max_minutes IS NULL OR "
+            "duration_min_minutes <= duration_max_minutes)",
+            name="ck_destination_activities_duration",
+        ),
+        CheckConstraint(
+            "(min_age IS NULL OR min_age >= 0) AND (max_age IS NULL OR max_age >= 0) AND "
+            "(min_age IS NULL OR max_age IS NULL OR min_age <= max_age)",
+            name="ck_destination_activities_ages",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    destination_id: Mapped[int] = mapped_column(
+        ForeignKey("destinations.destination_id", ondelete="CASCADE"), index=True,
+    )
+    sort_order: Mapped[int] = mapped_column(default=0, server_default="0")
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    availability: Mapped[str | None] = mapped_column(String(20))
+    schedule_note: Mapped[str | None] = mapped_column(Text)
+    last_admission_at: Mapped[time | None] = mapped_column(Time)
+    duration_min_minutes: Mapped[int | None] = mapped_column()
+    duration_max_minutes: Mapped[int | None] = mapped_column()
+    extra_fee: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    fee_included_in_admission: Mapped[bool | None] = mapped_column(Boolean)
+    effort_level: Mapped[str | None] = mapped_column(String(20))
+    accessibility_note: Mapped[str | None] = mapped_column(Text)
+    min_age: Mapped[int | None] = mapped_column(SmallInteger)
+    max_age: Mapped[int | None] = mapped_column(SmallInteger)
+    restriction_note: Mapped[str | None] = mapped_column(Text)
+    weather_dependency: Mapped[str | None] = mapped_column(String(20))
+    best_time_note: Mapped[str | None] = mapped_column(Text)
+    best_time_basis: Mapped[str | None] = mapped_column(Text)
+    source_url: Mapped[str | None] = mapped_column(String(2048))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -5,10 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.destinations.models import (
     Destination,
     DestinationHourException,
+    DestinationActivity,
     DestinationHours,
     DestinationPrice,
 )
 from app.features.destinations.schemas import (
+    DestinationActivitiesUpdate,
     DestinationCreate,
     DestinationHoursUpdate,
     DestinationListQuery,
@@ -114,6 +116,32 @@ class DestinationRepository:
         self.session.add_all(
             DestinationPrice(destination_id=destination.destination_id, **row.model_dump())
             for row in data.prices
+        )
+        await self.session.flush()
+
+    async def get_activities(self, destination_id: int) -> "list[DestinationActivity]":
+        result = await self.session.execute(
+            select(DestinationActivity)
+            .where(DestinationActivity.destination_id == destination_id)
+            .order_by(DestinationActivity.sort_order, DestinationActivity.id),
+        )
+        return list(result.scalars().all())
+
+    async def replace_activities(
+        self, destination: Destination, data: DestinationActivitiesUpdate,
+    ) -> None:
+        """Swap a place's whole activity list for the one given (one transaction)."""
+        await self.session.execute(
+            delete(DestinationActivity).where(
+                DestinationActivity.destination_id == destination.destination_id,
+            ),
+        )
+        self.session.add_all(
+            DestinationActivity(
+                destination_id=destination.destination_id, sort_order=index,
+                **row.model_dump(),
+            )
+            for index, row in enumerate(data.activities)
         )
         await self.session.flush()
 

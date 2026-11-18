@@ -389,3 +389,85 @@ class DestinationPricesResponse(BaseModel):
     summary: str | None = None
     # supported (structured and checked within a year), estimated, or unknown.
     data_quality: str = "unknown"
+
+
+ActivityAvailability = Literal["always", "scheduled", "seasonal", "by_arrangement"]
+ActivityEffort = Literal["easy", "moderate", "challenging"]
+ActivityWeather = Literal["none", "dry_weather", "calm_seas", "daylight"]
+
+
+class ActivityIn(BaseModel):
+    """One activity. Fields left empty are unknown, not "no" or "free"."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    name: str = Field(min_length=2, max_length=255)
+    description: str | None = Field(default=None, max_length=2000)
+    availability: ActivityAvailability | None = None
+    schedule_note: str | None = Field(default=None, max_length=500)
+    last_admission_at: time | None = None
+    duration_min_minutes: int | None = Field(default=None, gt=0, le=1440)
+    duration_max_minutes: int | None = Field(default=None, gt=0, le=1440)
+    extra_fee: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
+    fee_included_in_admission: bool | None = None
+    effort_level: ActivityEffort | None = None
+    accessibility_note: str | None = Field(default=None, max_length=500)
+    min_age: int | None = Field(default=None, ge=0, le=120)
+    max_age: int | None = Field(default=None, ge=0, le=120)
+    restriction_note: str | None = Field(default=None, max_length=500)
+    weather_dependency: ActivityWeather | None = None
+    best_time_note: str | None = Field(default=None, max_length=500)
+    best_time_basis: str | None = Field(default=None, max_length=500)
+    source_url: str | None = Field(default=None, max_length=2048)
+    verified_at: datetime | None = None
+
+    @field_validator("name")
+    @classmethod
+    def trim_name(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("source_url")
+    @classmethod
+    def validate_source_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("source_url must be an HTTP or HTTPS URL")
+        return value
+
+    @model_validator(mode="after")
+    def check_ranges(self) -> "ActivityIn":
+        low, high = self.duration_min_minutes, self.duration_max_minutes
+        if low is not None and high is not None and low > high:
+            raise ValueError("duration_min_minutes must not be above duration_max_minutes.")
+        if (
+            self.min_age is not None and self.max_age is not None
+            and self.min_age > self.max_age
+        ):
+            raise ValueError("min_age must not be above max_age.")
+        return self
+
+
+class DestinationActivitiesUpdate(BaseModel):
+    """Replaces every activity of a place in one save, in the order given."""
+
+    activities: list[ActivityIn] = Field(default_factory=list, max_length=30)
+
+    @model_validator(mode="after")
+    def no_duplicate_names(self) -> "DestinationActivitiesUpdate":
+        names = [a.name.casefold() for a in self.activities]
+        if len(names) != len(set(names)):
+            raise ValueError("Two activities have the same name.")
+        return self
+
+
+class ActivityOut(ActivityIn):
+    summary: str
+    # supported (verified within a year), estimated (entered but not verified), unknown.
+    data_quality: str = "estimated"
+
+
+class DestinationActivitiesResponse(BaseModel):
+    destination_id: int
+    activities: list[ActivityOut] = Field(default_factory=list)
