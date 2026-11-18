@@ -14,11 +14,15 @@ from app.features.destinations.region import island_group_for
 from app.core.exceptions import LakbayAPIError
 from app.features.destinations.data_quality import data_quality as hours_data_quality
 from app.features.destinations.hours import hours_summary
+from app.features.destinations.activities import activity_summary
 from app.features.destinations.prices import prices_summary
 from app.features.destinations.repository import DestinationRepository
 from app.features.recommendations.preference_groups import load_groups
 from app.features.destinations.schemas import (
     DestinationFacetsResponse,
+    ActivityOut,
+    DestinationActivitiesResponse,
+    DestinationActivitiesUpdate,
     DestinationCreate,
     DestinationHoursResponse,
     DestinationHoursUpdate,
@@ -187,6 +191,38 @@ class DestinationService:
                 bool(destination.entrance_fee or destination.overnight_fee),
                 destination.fees_verified_at,
             ),
+        )
+
+    async def get_activities(self, destination_id: int) -> DestinationActivitiesResponse:
+        await self._active_destination(destination_id)
+        rows = await self.destinations.get_activities(destination_id)
+        return self._activities_response(destination_id, rows)
+
+    async def replace_activities(
+        self, destination_id: int, data: DestinationActivitiesUpdate,
+    ) -> DestinationActivitiesResponse:
+        destination = await self._active_destination(destination_id)
+        await self.destinations.replace_activities(destination, data)
+        await self.session.commit()
+        rows = await self.destinations.get_activities(destination_id)
+        return self._activities_response(destination_id, rows)
+
+    @staticmethod
+    def _activities_response(destination_id, rows) -> DestinationActivitiesResponse:
+        return DestinationActivitiesResponse(
+            destination_id=destination_id,
+            activities=[
+                ActivityOut(
+                    **{
+                        k: getattr(r, k)
+                        for k in ActivityOut.model_fields
+                        if k not in {"summary", "data_quality"}
+                    },
+                    summary=activity_summary(r),
+                    data_quality=hours_data_quality(True, False, r.verified_at),
+                )
+                for r in rows
+            ],
         )
 
     async def _active_destination(self, destination_id: int):

@@ -464,6 +464,13 @@ ApiService _api(Future<http.Response> Function(http.Request) handler) =>
             200,
           );
         }
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/activities')) {
+          return http.Response(
+            jsonEncode({'destination_id': 12, 'activities': []}),
+            200,
+          );
+        }
         if (request.method == 'GET' && request.url.path.endsWith('/prices')) {
           return http.Response(
             jsonEncode({'destination_id': 12, 'prices': []}),

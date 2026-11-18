@@ -9,6 +9,7 @@ import '../widgets/admin_trail_editor_dialog.dart';
 import '../widgets/admin_widgets.dart';
 import '../widgets/category_picker_field.dart';
 import '../widgets/commute_section.dart';
+import '../widgets/activities_section.dart';
 import '../widgets/hours_section.dart';
 import '../widgets/prices_section.dart';
 import '../widgets/destination_photo_upload.dart';
@@ -672,6 +673,18 @@ class _DestinationEditorState extends State<DestinationEditor> {
                             padding: const EdgeInsets.only(bottom: 24),
                             child: AdminPanel(
                               child: PricesSection(
+                                api: widget.api,
+                                destinationId: widget
+                                    .destination!['destination_id']
+                                    .toString(),
+                              ),
+                            ),
+                          ),
+                        if (!creating)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 24),
+                            child: AdminPanel(
+                              child: ActivitiesSection(
                                 api: widget.api,
                                 destinationId: widget
                                     .destination!['destination_id']
