@@ -54,6 +54,23 @@ class Destination(Base):
             "estimated_cost >= 0",
             name="ck_destinations_estimated_cost_non_negative",
         ),
+        CheckConstraint(
+            "operating_status IS NULL OR operating_status IN "
+            "('open', 'temporarily_closed', 'permanently_closed')",
+            name="ck_destinations_operating_status",
+        ),
+        CheckConstraint(
+            "booking_requirement IS NULL OR booking_requirement IN "
+            "('required', 'recommended', 'not_required')",
+            name="ck_destinations_booking_requirement",
+        ),
+        CheckConstraint(
+            "(typical_visit_min_minutes IS NULL OR typical_visit_min_minutes > 0) AND "
+            "(typical_visit_max_minutes IS NULL OR typical_visit_max_minutes > 0) AND "
+            "(typical_visit_min_minutes IS NULL OR typical_visit_max_minutes IS NULL OR "
+            "typical_visit_min_minutes <= typical_visit_max_minutes)",
+            name="ck_destinations_typical_visit",
+        ),
         Index("ix_destinations_geom", "geom", postgresql_using="gist"),
     )
 
@@ -90,18 +107,26 @@ class Destination(Base):
     # Same for the structured prices in destination_prices.
     fees_source_url: Mapped[str | None] = mapped_column(String(2048))
     fees_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Whether it is open at all, and how to book. NULL means unknown.
+    operating_status: Mapped[str | None] = mapped_column(String(20))
+    booking_requirement: Mapped[str | None] = mapped_column(String(20))
+    booking_note: Mapped[str | None] = mapped_column(Text)
+    parking_note: Mapped[str | None] = mapped_column(Text)
+    typical_visit_min_minutes: Mapped[int | None] = mapped_column()
+    typical_visit_max_minutes: Mapped[int | None] = mapped_column()
     best_time_to_visit: Mapped[str | None] = mapped_column(Text)
+    best_time_basis: Mapped[str | None] = mapped_column(Text)
     how_to_get_there: Mapped[str | None] = mapped_column(Text)
     estimated_travel_time: Mapped[str | None] = mapped_column(Text)
     travel_notes: Mapped[str | None] = mapped_column(Text)
     what_to_bring: Mapped[str | None] = mapped_column(Text)
-    is_kid_friendly: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_wheelchair_accessible: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_pet_friendly: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_elderly_friendly: Mapped[bool] = mapped_column(Boolean, default=False)
-    family_friendly: Mapped[bool] = mapped_column(Boolean, default=False)
-    couple_friendly: Mapped[bool] = mapped_column(Boolean, default=False)
-    group_friendly: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_kid_friendly: Mapped[bool | None] = mapped_column(Boolean)
+    is_wheelchair_accessible: Mapped[bool | None] = mapped_column(Boolean)
+    is_pet_friendly: Mapped[bool | None] = mapped_column(Boolean)
+    is_elderly_friendly: Mapped[bool | None] = mapped_column(Boolean)
+    family_friendly: Mapped[bool | None] = mapped_column(Boolean)
+    couple_friendly: Mapped[bool | None] = mapped_column(Boolean)
+    group_friendly: Mapped[bool | None] = mapped_column(Boolean)
     budget_class: Mapped[str | None] = mapped_column(String(50), index=True)
     crowd_level: Mapped[str | None] = mapped_column(String(50))
     difficulty_level: Mapped[str | None] = mapped_column(String(50), index=True)
