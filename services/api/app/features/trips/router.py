@@ -508,3 +508,26 @@ async def get_trip_timeline_revision(
     return await TripTimelineService(session).revision(
         user=current_user, trip_id=trip_id, revision=revision,
     )
+
+
+@router.post(
+    "/{trip_id}/timeline/revisions/{revision}/restore",
+    response_model=TripTimelineRevisionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Restore an older revision of the trip's timeline",
+    description=(
+        "Saves the chosen revision again as the newest one, exactly as it was stored. The "
+        "log is append-only: the older revision stays, and the new one starts its changes "
+        "with 'Restored revision N.'. Needs permission to manage the trip; an archived trip "
+        "is read-only, and restoring the latest revision is refused."
+    ),
+)
+async def restore_trip_timeline_revision(
+    trip_id: int,
+    revision: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> TripTimelineRevisionResponse:
+    return await TripTimelineService(session).restore(
+        user=current_user, trip_id=trip_id, revision=revision,
+    )

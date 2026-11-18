@@ -729,10 +729,21 @@ Future<void> showTimelineHistorySheet(BuildContext context, TravelRepository rep
             key: const ValueKey('timeline-history-list'),
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final r in revisions)
+              for (final (index, r) in revisions.indexed)
                 ListTile(
                   key: ValueKey('timeline-revision-${r.revision}'),
                   dense: true,
+                  // The newest is what you have now; every older one can be brought back.
+                  trailing: index == 0
+                      ? const Text('Current', style: TextStyle(fontSize: 12))
+                      : TextButton(
+                          key: ValueKey('timeline-restore-${r.revision}'),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            repo.restoreTimelineRevision(r.revision);
+                          },
+                          child: const Text('Restore'),
+                        ),
                   title: Text(
                     'Revision ${r.revision}'
                     '${r.createdAt == null ? '' : ' \u00b7 ${_date(r.createdAt!.toLocal())}'}',

@@ -410,9 +410,11 @@ void main() {
   group('saving', () {
     late List<({String method, String path, Map<String, dynamic> body})> calls;
     late TravelRepository repo;
+    var restoreDenied = false;
 
     Future<void> setUpSignedInRepo() async {
       calls = [];
+      restoreDenied = false;
       final client = MockClient((req) async {
         final path = req.url.path.replaceFirst('/api/v1', '');
         final body = req.body.isEmpty
@@ -445,6 +447,29 @@ void main() {
         if (path == '/trips/501/timeline' && req.method == 'POST') {
           final n = calls.where((c) => c.path == '/trips/501/timeline' && c.method == 'POST').length;
           return http.Response(jsonEncode({'revision': n}), 201);
+        }
+        if (path == '/trips/501/timeline/revisions/1/restore' && req.method == 'POST') {
+          return restoreDenied
+              ? http.Response(
+                  jsonEncode({'error': {'code': 'trip_permission_denied', 'message': 'no'}}),
+                  403,
+                )
+              : http.Response(jsonEncode({
+                  'revision': 3,
+                  'created_at': '2026-11-20T02:00:00Z',
+                  'created_by_user_id': 1,
+                  'changes': ['Restored revision 1.', 'Museo Davao now starts at 12:30 PM, not 1:00 PM.'],
+                  'state': {
+                    'destination_ids': [77, 88],
+                    'departure_time': '08:00:00',
+                    'day_count': 1,
+                    'traveler_count': 3,
+                    'pace': null,
+                    'special_needs': [],
+                    'origin': {'label': 'Davao City'},
+                  },
+                  'timeline': _timeline(),
+                }), 201);
         }
         if (path == '/trips/501/timeline' && req.method == 'GET') {
           return http.Response(jsonEncode({
@@ -535,6 +560,77 @@ void main() {
       expect(find.textContaining('Revision 2'), findsOneWidget);
       expect(find.textContaining('Museo Davao now starts at 1:00 PM'), findsOneWidget);
       expect(find.text('First saved version'), findsOneWidget);
+    });
+
+    test('restoring an older revision puts the plan back and starts from it', () async {
+      await setUpSignedInRepo();
+      repo.saveTripToMyTrips(repo.chatMessages.last.attachedTrip!);
+      await settle();
+      // The plan has moved on since revision 1.
+      await repo.reviseTimeline(const TimelineRevision(departureTime: '11:00:00', pace: 'relaxed'));
+      final before = repo.chatMessages.length;
+
+      expect(await repo.restoreTimelineRevision(1), isTrue);
+      expect(calls.where((c) => c.path.endsWith('/restore')), hasLength(1));
+      final message = repo.chatMessages.last;
+      expect(repo.chatMessages.length, before + 1);  // announced, nothing removed
+      expect(message.text, startsWith('Restored revision 1.'));
+      expect(message.timeline, isNotNull);
+      expect(repo.lastTimeline, same(message.timeline));
+      expect(repo.timelineBackendTripId, 501);
+
+      // The next revise starts from the restored plan, not the one that moved on.
+      await repo.reviseTimeline(const TimelineRevision(dayCount: 2));
+      final sent = calls.lastWhere((c) => c.path == '/planning/timeline').body['state'] as Map;
+      expect(sent['departure_time'], '08:00:00');  // not 11:00:00
+      expect(sent.containsKey('pace'), isFalse);  // dropped: it was null in revision 1
+      expect(sent['destination_ids'], [77, 88]);
+    });
+
+    test('a refused restore says so and changes nothing', () async {
+      await setUpSignedInRepo();
+      repo.saveTripToMyTrips(repo.chatMessages.last.attachedTrip!);
+      await settle();
+      restoreDenied = true;
+      final before = repo.lastTimeline;
+
+      expect(await repo.restoreTimelineRevision(1), isFalse);
+      final last = repo.chatMessages.last;
+      expect(last.isError, isTrue);
+      expect(last.text, contains('owner or an organizer'));
+      expect(last.text, contains('unchanged'));
+      expect(repo.lastTimeline, same(before));
+    });
+
+    test('there is nothing to restore for a timeline that was never saved', () async {
+      await setUpSignedInRepo();
+      expect(await repo.restoreTimelineRevision(1), isFalse);
+      expect(calls.where((c) => c.path.endsWith('/restore')), isEmpty);
+    });
+
+    testWidgets('History offers Restore on older revisions only', (tester) async {
+      await tester.runAsync(setUpSignedInRepo);
+      final message = repo.chatMessages.last;
+      await tester.runAsync(() async {
+        repo.saveTripToMyTrips(message.attachedTrip!);
+        await settle();
+      });
+      await _show(tester, TimelineCard(timeline: message.timeline!, repo: repo));
+      await tester.tap(find.byKey(const ValueKey('timeline-history')));
+      await tester.runAsync(settle);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Current'), findsOneWidget);  // revision 2, the newest
+      expect(find.byKey(const ValueKey('timeline-restore-2')), findsNothing);
+      expect(find.byKey(const ValueKey('timeline-restore-1')), findsOneWidget);
+
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(const ValueKey('timeline-restore-1')));
+        await settle();
+      });
+      await tester.pumpAndSettle();
+      expect(calls.where((c) => c.path.endsWith('/revisions/1/restore')), hasLength(1));
+      expect(repo.chatMessages.last.text, startsWith('Restored revision 1.'));
     });
   });
 }
