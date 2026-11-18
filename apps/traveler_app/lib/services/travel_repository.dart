@@ -2673,6 +2673,7 @@ class TravelRepository extends ChangeNotifier {
             _scheduleSaveState();
             notifyListeners();
           }
+          _saveLinkedTimeline(trip.id, cloudId);
         });
       } else if (trip.effectiveBackendDestinationIds.isNotEmpty) {
         final phpRate = _currencyRates['PHP'] ?? 57.0;
@@ -2699,6 +2700,7 @@ class TravelRepository extends ChangeNotifier {
             _scheduleSaveState();
             notifyListeners();
           }
+          _saveLinkedTimeline(trip.id, cloudId);
         });
       }
     }
@@ -4205,6 +4207,9 @@ class TravelRepository extends ChangeNotifier {
     }
     final summary = _timelineSummary(timeline, result.unavailableDestinationIds);
     _lastTimeline = timeline;
+    if (trip != null && _planningState != null) {
+      _timelineStateByTripId[trip.id] = Map<String, dynamic>.from(_planningState!);
+    }
     _chatMessages.add(
       ChatMessage(
         id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
@@ -4225,6 +4230,31 @@ class TravelRepository extends ChangeNotifier {
   /// The latest timeline in this chat, for revising.
   TimelineData? _lastTimeline;
   TimelineData? get lastTimeline => _lastTimeline;
+
+  /// The planning state each chat itinerary was built from, so saving the trip can also
+  /// save its timeline (the server rebuilds it from this state).
+  final Map<String, Map<String, dynamic>> _timelineStateByTripId = {};
+
+  /// The saved trip the chat's latest timeline belongs to, once the traveler saved it.
+  int? _timelineBackendTripId;
+  int? get timelineBackendTripId => _timelineBackendTripId;
+
+  Future<void> _saveLinkedTimeline(String localTripId, int cloudTripId) async {
+    final state = _timelineStateByTripId[localTripId];
+    final token = _authSession?.accessToken;
+    if (state == null || token == null) return;
+    _timelineBackendTripId = cloudTripId;
+    await apiCatalog.saveTripTimeline(token, cloudTripId, planningState: state);
+    notifyListeners();
+  }
+
+  /// The saved revisions of the trip this chat's timeline belongs to, newest first.
+  Future<List<TimelineRevisionSummary>?> loadTimelineHistory() async {
+    final id = _timelineBackendTripId;
+    final token = _authSession?.accessToken;
+    if (id == null || token == null) return null;
+    return apiCatalog.fetchTripTimelineHistory(token, id);
+  }
 
   /// Applies the traveler's changes from the Revise sheet to the plan and rebuilds the
   /// timeline, listing what moved. Removing a place is the traveler's own choice here;
@@ -4286,6 +4316,16 @@ class TravelRepository extends ChangeNotifier {
       for (final stop in _tripBuilderStops)
         if (stop.apiDestinationId != null) stop.apiDestinationId!,
     ];
+    final savedTripId = _timelineBackendTripId;
+    final token = _authSession?.accessToken;
+    if (savedTripId != null && token != null) {
+      // The trip is saved: the revision is stored too, so the history stays complete.
+      await apiCatalog.saveTripTimeline(
+        token,
+        savedTripId,
+        planningState: Map<String, dynamic>.from(state),
+      );
+    }
     _addTimelineMessage(
       result,
       destinationIds: ids,
@@ -4348,6 +4388,7 @@ class TravelRepository extends ChangeNotifier {
       inputRevision: _planningRevision,
     );
     if (timelineResult != null) {
+      _timelineBackendTripId = null;
       _addTimelineMessage(
         timelineResult,
         destinationIds: targetDestIds,

@@ -1359,6 +1359,64 @@ class LakbayApiCatalogService {
     }
   }
 
+  /// Saves the trip's itinerary timeline as the next revision. The server rebuilds the
+  /// timeline from the planning state; nothing built here is sent. Needs a signed-in
+  /// traveler who can manage the trip. Returns the revision number, or null.
+  Future<int?> saveTripTimeline(
+    String accessToken,
+    int tripId, {
+    required Map<String, dynamic> planningState,
+  }) async {
+    final base = _base;
+    if (base.isEmpty) return null;
+    try {
+      Future<http.Response> sendReq(String tok) => _client
+          .post(
+            Uri.parse('$base/trips/$tripId/timeline'),
+            headers: {
+              'Authorization': 'Bearer $tok',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'state': planningState}),
+          )
+          .timeout(const Duration(seconds: 30));
+      final res = await _sendAuthorized(accessToken, sendReq);
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      return (decoded['revision'] as num?)?.toInt();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The trip's saved timeline revisions, newest first; null when they cannot be read.
+  Future<List<TimelineRevisionSummary>?> fetchTripTimelineHistory(
+    String accessToken,
+    int tripId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty) return null;
+    try {
+      Future<http.Response> sendReq(String tok) => _client
+          .get(
+            Uri.parse('$base/trips/$tripId/timeline'),
+            headers: {'Authorization': 'Bearer $tok'},
+          )
+          .timeout(const Duration(seconds: 20));
+      final res = await _sendAuthorized(accessToken, sendReq);
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      return (decoded['revisions'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(TimelineRevisionSummary.fromJson)
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Calls `POST /planning/timeline`: a day-by-day timeline built in code from the
   /// traveler's picks (guests and signed-in). Returns null when it cannot be reached or
   /// the server refuses, so the caller can fall back; nothing is invented to cover it.
