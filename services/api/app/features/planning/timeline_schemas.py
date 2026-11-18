@@ -110,6 +110,14 @@ class BudgetSummary(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class PinIn(BaseModel):
+    """A stop the traveler locked to a day and/or a start time; the builder keeps it."""
+
+    destination_id: int
+    day: int | None = Field(default=None, ge=1, le=30)
+    starts_at: time | None = None
+
+
 class Timeline(BaseModel):
     days: list[TimelineDay]
     conflicts: list[Conflict] = Field(default_factory=list)
@@ -120,14 +128,9 @@ class Timeline(BaseModel):
     feasible: bool
     unverified: list[str] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
-
-
-class PinIn(BaseModel):
-    """A stop the traveler locked to a day and/or a start time; the builder keeps it."""
-
-    destination_id: int
-    day: int | None = Field(default=None, ge=1, le=30)
-    starts_at: time | None = None
+    # The pins that were in effect when this timeline was built, so a saved or restored
+    # revision keeps them and the next revision starts from them.
+    pins: list[PinIn] = Field(default_factory=list)
 
 
 class TimelineRequest(PlanningPreviewRequest):

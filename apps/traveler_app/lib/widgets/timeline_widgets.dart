@@ -193,7 +193,7 @@ class TimelineScreen extends StatelessWidget {
             _ConflictCard(timeline: timeline, repo: repo),
             const SizedBox(height: 16),
           ],
-          for (final day in timeline.days) _DaySection(day: day),
+          for (final day in timeline.days) _DaySection(day: day, timeline: timeline),
           const SizedBox(height: 8),
           _ChecksPanel(checks: timeline.checks),
           const SizedBox(height: 16),
@@ -273,9 +273,10 @@ class _ConflictCard extends StatelessWidget {
 }
 
 class _DaySection extends StatelessWidget {
-  const _DaySection({required this.day});
+  const _DaySection({required this.day, required this.timeline});
 
   final TimelineDay day;
+  final TimelineData timeline;
 
   @override
   Widget build(BuildContext context) {
@@ -294,7 +295,11 @@ class _DaySection extends StatelessWidget {
             ),
           ),
         ),
-        for (final item in day.items) _ItemTile(item: item),
+        for (final item in day.items)
+          _ItemTile(
+            item: item,
+            pin: item.destinationId == null ? null : timeline.pinFor(item.destinationId!),
+          ),
         const SizedBox(height: 8),
       ],
     );
@@ -302,9 +307,12 @@ class _DaySection extends StatelessWidget {
 }
 
 class _ItemTile extends StatelessWidget {
-  const _ItemTile({required this.item});
+  const _ItemTile({required this.item, this.pin});
 
   final TimelineItem item;
+
+  /// Set when the traveler pinned this place to a day or a time.
+  final TimelinePin? pin;
 
   @override
   Widget build(BuildContext context) {
@@ -324,6 +332,19 @@ class _ItemTile extends StatelessWidget {
             ),
           ),
         ),
+        if (pin != null && item.kind == 'visit')
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Tooltip(
+              message: 'Pinned: ${pin!.summary}',
+              child: Icon(
+                Icons.push_pin,
+                key: ValueKey('timeline-pinned-${item.destinationId}'),
+                size: 16,
+                color: LakbayColors.primary,
+              ),
+            ),
+          ),
         _BasisChip(basis: item.timeBasis),
       ],
     );
@@ -550,6 +571,10 @@ class _ReviseSheetState extends State<_ReviseSheet> {
   late int _days = widget.timeline.days.length;
   String? _pace;
   late final Set<int> _keep = {for (final p in widget.timeline.places) p.id};
+  late final Map<int, TimelinePin> _pins = {
+    for (final p in widget.timeline.pins) p.destinationId: p,
+  };
+  bool _pinsChanged = false;
 
   String _hms(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
@@ -573,9 +598,111 @@ class _ReviseSheetState extends State<_ReviseSheet> {
       dayCount: _days == widget.timeline.days.length ? null : _days,
       pace: _pace,
       destinationIds: kept.length == original.length ? null : kept,
+      pins: _pinsChanged
+          ? [for (final p in _pins.values) if (_keep.contains(p.destinationId)) p]
+          : null,
     );
     Navigator.of(context).pop();
     widget.repo.reviseTimeline(revision);
+  }
+
+  Future<void> _editPin(({int id, String name}) place) async {
+    final current = _pins[place.id];
+    var day = current?.day;
+    TimeOfDay? time;
+    final startsAt = current?.startsAt;
+    if (startsAt != null && startsAt.length >= 5) {
+      time = TimeOfDay(
+        hour: int.tryParse(startsAt.substring(0, 2)) ?? 8,
+        minute: int.tryParse(startsAt.substring(3, 5)) ?? 0,
+      );
+    }
+    final result = await showDialog<TimelinePin?>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          key: const ValueKey('pin-dialog'),
+          title: Text('Pin ${place.name}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('A pinned place keeps its day and start time when the rest of the plan changes.'),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int?>(
+                key: const ValueKey('pin-day'),
+                initialValue: day,
+                decoration: const InputDecoration(labelText: 'Day'),
+                items: [
+                  const DropdownMenuItem<int?>(value: null, child: Text('Any day')),
+                  for (var d = 1; d <= _days; d++)
+                    DropdownMenuItem<int?>(value: d, child: Text('Day $d')),
+                ],
+                onChanged: (v) => setDialog(() => day = v),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  OutlinedButton(
+                    key: const ValueKey('pin-time'),
+                    onPressed: () async {
+                      final picked = await showTimePicker(
+                        context: context,
+                        initialTime: time ?? const TimeOfDay(hour: 9, minute: 0),
+                      );
+                      if (picked != null) setDialog(() => time = picked);
+                    },
+                    child: Text(time == null ? 'Any time' : 'Start at ${time!.format(context)}'),
+                  ),
+                  if (time != null)
+                    TextButton(
+                      onPressed: () => setDialog(() => time = null),
+                      child: const Text('Clear time'),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            if (current != null)
+              TextButton(
+                key: const ValueKey('pin-remove'),
+                onPressed: () => Navigator.pop(
+                  dialogContext,
+                  TimelinePin(destinationId: place.id),
+                ),
+                child: const Text('Unpin'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              key: const ValueKey('pin-save'),
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                TimelinePin(
+                  destinationId: place.id,
+                  day: day,
+                  startsAt: time == null ? null : _hms(time!),
+                ),
+              ),
+              child: const Text('Pin'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null) return;
+    setState(() {
+      _pinsChanged = true;
+      if (result.day == null && result.startsAt == null) {
+        _pins.remove(place.id);
+      } else {
+        _pins[place.id] = result;
+      }
+    });
   }
 
   Widget _time(String key, String label, TimeOfDay? value, bool departure) =>
@@ -603,6 +730,37 @@ class _ReviseSheetState extends State<_ReviseSheet> {
               () => v == true ? _keep.add(place.id) : _keep.remove(place.id),
             ),
           ),
+      ],
+    );
+    final pins = Column(
+      key: const ValueKey('revise-pins'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Pins', style: TextStyle(fontWeight: FontWeight.w700)),
+        const Text(
+          'Lock a place to a day or a start time. Everything else moves around it.',
+          style: TextStyle(fontSize: 12.5, color: LakbayColors.textSecondary),
+        ),
+        for (final place in widget.timeline.places)
+          if (_keep.contains(place.id))
+            ListTile(
+              key: ValueKey('revise-pin-${place.id}'),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                _pins.containsKey(place.id) ? Icons.push_pin : Icons.push_pin_outlined,
+                color: _pins.containsKey(place.id)
+                    ? LakbayColors.primary
+                    : LakbayColors.textMuted,
+              ),
+              title: Text(place.name),
+              subtitle: Text(_pins[place.id]?.summary ?? 'Not pinned'),
+              trailing: TextButton(
+                key: ValueKey('revise-pin-edit-${place.id}'),
+                onPressed: () => _editPin(place),
+                child: Text(_pins.containsKey(place.id) ? 'Change' : 'Pin'),
+              ),
+            ),
       ],
     );
     final window = Column(
@@ -657,9 +815,9 @@ class _ReviseSheetState extends State<_ReviseSheet> {
       ],
     );
     final ordered = switch (widget.focus) {
-      'prioritise_places' => [places, window, pace],
-      'relax_another_constraint' => [pace, window, places],
-      _ => [window, places, pace],
+      'prioritise_places' => [places, window, pins, pace],
+      'relax_another_constraint' => [pace, window, places, pins],
+      _ => [window, places, pins, pace],
     };
     return SafeArea(
       child: Padding(

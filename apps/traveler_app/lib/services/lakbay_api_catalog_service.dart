@@ -1366,6 +1366,7 @@ class LakbayApiCatalogService {
     String accessToken,
     int tripId, {
     required Map<String, dynamic> planningState,
+    List<Map<String, dynamic>> pins = const [],
   }) async {
     final base = _base;
     if (base.isEmpty) return null;
@@ -1377,7 +1378,7 @@ class LakbayApiCatalogService {
               'Authorization': 'Bearer $tok',
               'Content-Type': 'application/json',
             },
-            body: jsonEncode({'state': planningState}),
+            body: jsonEncode({'state': planningState, 'pins': pins}),
           )
           .timeout(const Duration(seconds: 30));
       final res = await _sendAuthorized(accessToken, sendReq);
