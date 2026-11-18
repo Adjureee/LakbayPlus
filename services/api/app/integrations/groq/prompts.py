@@ -13,7 +13,7 @@ from app.features.recommendations.schemas import RecommendationItem
 
 PROMPT_VERSION = "phase5_itinerary_picks_only_v4"
 PLANNING_PROMPT_VERSION = "phase15e_picks_compact_v7"
-CHAT_PROMPT_VERSION = "phase5_chat_v19_unknown_access"
+CHAT_PROMPT_VERSION = "phase5_chat_v20_claims"
 ONBOARDING_CHAT_PROMPT_VERSION = "onboarding_v1"
 
 _LANGUAGE_LABELS: dict[str, str] = {
@@ -326,7 +326,10 @@ def build_chat_messages(
         "flag (wheelchair_accessible, kid_friendly, pet_friendly, elderly_friendly) "
         "that is missing from a record was never checked: say it is not recorded, "
         "never that the place is not accessible, and only a false value means no. "
-        "Name an activity only from a "
+        "Do not add detail about a place that its record does not state: ramps, "
+        "paths, stairs, terrain, parking, restrooms, card payments, seasons, rules or "
+        "named activities. When a record is silent say so and stop; never guess what "
+        "similar places usually have. Name an activity only from a "
         "destination's activity_details or its activities text, and when an "
         "activity says availability not confirmed, say so instead of promising it. "
         "Do not assume rate units, "

@@ -53,3 +53,18 @@ Two judge errors were found and fixed before this run: it did not see the rate r
 
 - Add the missing places once the guest limit resets (or against a signed-in chat), to reach about 200 sentences, then re-measure.
 - Plan step 2 (lexicon, log-only check, tests) after your answers to decisions 1, 2, 3 and 5 in the plan.
+
+## Step 2: the runtime check replayed on this sample (18 Nov 2026)
+
+`services/api/app/features/ai/claims.py` is the deterministic check from the plan, shipped in **log-only** mode (`CLAIMS_CHECK_MODE=log`, the default; `off` and `enforce` also exist). `python tests/claims_baseline.py replay` runs it over the judged replies with no model calls.
+
+| Measure | Result |
+|---|---|
+| Sentences the judge called unsupported | 19 |
+| Caught by the check | 12 |
+| Missed | 7 |
+| Other sentences wrongly flagged | **0 of 54** |
+
+The 7 misses are the ones the plan chose to leave alone or that are doubtful, not gaps in the lexicon: three plain crowd or weather tips ("go early to avoid crowds", "weather's cooler", "indoor space can get warm"), "arrive early, especially on Sundays", "call the resort to ask about ramps" (advice, not a claim), and the room rate and bus fare that may be in the rate records. Of the claims the plan puts in scope (terrain, parking and other facilities, rules, named activities, specific seasons, and a guess after "not recorded"), the check caught all 12 in this sample. The target of 80% caught and at most 3% wrongly flagged is met here, on 73 sentences, which is too few to be sure: it must be re-measured on the full sample after the guest chat limit resets.
+
+Two bugs found while replaying, now fixed and covered by tests: the "ask the operator" guard hid a guess in the same sentence ("... check with the parish, many churches have a small lot"), and non-breaking hyphens ("air-conditioned") slipped past the patterns.
