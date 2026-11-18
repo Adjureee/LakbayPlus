@@ -15,7 +15,11 @@ from app.core.exceptions import LakbayAPIError
 from app.core.provider_usage import ProviderLimiter
 from app.features.accommodations.models import Accommodation
 from app.features.ai.models import AIGenerationRun
-from app.features.ai.short_answers import describe, interpret_short_answer
+from app.features.ai.short_answers import (
+    describe,
+    interpret_short_answer,
+    is_vague_date_answer,
+)
 from app.features.ai.grounding import (
     align_text_with_cards,
     card_figures,
@@ -1331,6 +1335,10 @@ async def _build_planning_chat_result(
         except ValidationError:
             pass  # an answer the plan cannot hold (for example 500 travelers) is not saved
 
+    elif is_vague_date_answer(data.message, next_state, _local_today()):
+        # "This month" names no day; the model's reply may treat it as settled.
+        chat_response = DATE_NEEDED_REPLY
+
     if output is not None and (rejected_fields or unconfirmed_fields):
         # The model's own reply may claim something that was not saved, so it is
         # replaced by a plain note and the next real question.
@@ -1747,6 +1755,12 @@ def _looks_like_question(message: str) -> bool:
 
 _CHAT_RESPONSE_FIELD = re.compile(
     r'"chat_*response"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL,
+)
+
+
+DATE_NEEDED_REPLY = (
+    "I need an exact day to plan around. Which date will you leave? "
+    "For example, Dec 5, or this Friday."
 )
 
 
