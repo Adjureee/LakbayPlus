@@ -4,6 +4,7 @@ from decimal import Decimal
 from pydantic import BaseModel, EmailStr
 
 from app.features.expenses.schemas import TripExpenseSummaryResponse
+from app.features.planning.timeline_schemas import Timeline
 from app.features.trips.schemas import TripRouteResponse
 
 
@@ -57,6 +58,15 @@ class TripReportTask(BaseModel):
     due_date: date | None
 
 
+class TripReportTimeline(BaseModel):
+    """The newest saved revision of the trip's itinerary timeline."""
+
+    revision: int
+    saved_at: datetime
+    changes: list[str] = []
+    timeline: Timeline
+
+
 class TripReportSummaryResponse(BaseModel):
     generated_at: datetime
     trip: TripReportInfo
@@ -66,3 +76,5 @@ class TripReportSummaryResponse(BaseModel):
     expenses: TripExpenseSummaryResponse
     members: list[TripReportMember]
     tasks: list[TripReportTask]
+    # None when no timeline was saved for the trip.
+    timeline: TripReportTimeline | None = None
