@@ -11,6 +11,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.features.planning.schemas import PlanningPreviewRequest
+
 ItemKind = Literal["depart", "travel", "visit", "meal", "rest", "buffer", "return"]
 # confirmed: fixed by the traveler or by recorded opening hours, nothing uncertain before
 # it; estimated: calculated from recorded or estimated durations and travel times;
@@ -110,3 +112,29 @@ class Timeline(BaseModel):
     feasible: bool
     unverified: list[str] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
+
+
+class PinIn(BaseModel):
+    """A stop the traveler locked to a day and/or a start time; the builder keeps it."""
+
+    destination_id: int
+    day: int | None = Field(default=None, ge=1, le=30)
+    starts_at: time | None = None
+
+
+class TimelineRequest(PlanningPreviewRequest):
+    """The trip state plus what a revision needs: pins and the timeline being revised."""
+
+    pins: list[PinIn] = Field(default_factory=list, max_length=10)
+    previous: Timeline | None = None
+    include_meals: bool = True
+
+
+class TimelineResponse(BaseModel):
+    input_revision: int
+    timeline: Timeline
+    # Plain-language list of what moved since `previous`; empty without a previous one.
+    changes: list[str] = Field(default_factory=list)
+    route_status: str = "not_requested"
+    # Picks that are no longer active in the catalog: reported, never silently dropped.
+    unavailable_destination_ids: list[int] = Field(default_factory=list)

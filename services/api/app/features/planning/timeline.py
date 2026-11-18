@@ -121,6 +121,10 @@ class TimelineInput:
     meal_cost_per_person: Decimal | None = None
     include_meals: bool = True
     pins: list[Pin] = field(default_factory=list)
+    # Whole-trip costs (transport, accommodation, food, other): shown on the first item.
+    trip_costs: list[CostInfo] = field(default_factory=list)
+    # Set when the traveler's food allowance already covers the meals.
+    meal_included_in: str | None = None
 
 
 @dataclass
@@ -193,7 +197,10 @@ class _Builder:
         self.last_was_visit = False
         if number == 1:
             label = f"Leave {self.inp.origin_label}"
-            self._add("depart", label, start=self.clock, minutes=0, dur_basis="calculated")
+            costs = [ItemCost(label=c.label, amount=c.amount, status=c.status, scope=c.scope,
+                              included_in=c.included_in) for c in self.inp.trip_costs]
+            self._add("depart", label, start=self.clock, minutes=0, dur_basis="calculated",
+                      costs=costs)
 
     def _snapshot(self):
         return (self.day, len(self.days[self.day]), len(self.days), self.clock, self.basis,
@@ -245,12 +252,14 @@ class _Builder:
 
     def _meal(self, label, at=None) -> None:
         per_person = self.inp.meal_cost_per_person
+        covered = self.inp.meal_included_in
         cost = ItemCost(
             label="Meal", amount=per_person,
-            status="estimated" if per_person is not None else "unknown",
-            scope="per_person",
+            status="estimated" if per_person is not None or covered else "unknown",
+            scope="per_person", included_in=covered,
         )
         note = (
+            f"Covered by {covered}, so it is not counted again." if covered else
             "Meal cost is the traveler's own allowance, not a verified restaurant price."
             if per_person is not None else "No meal allowance set, so the cost is unknown."
         )
