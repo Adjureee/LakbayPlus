@@ -4248,6 +4248,68 @@ class TravelRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Restores an older saved revision: the server saves it again as the newest one, and
+  /// the plan and the picks go back to what that revision was built from, so the next
+  /// Revise starts from it. Nothing is lost: the log keeps every revision.
+  Future<bool> restoreTimelineRevision(int revision) async {
+    final tripId = _timelineBackendTripId;
+    final token = _authSession?.accessToken;
+    if (tripId == null || token == null) return false;
+    final result = await apiCatalog.restoreTripTimelineRevision(token, tripId, revision);
+    if (!result.ok) {
+      _chatMessages.add(
+        ChatMessage(
+          id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
+          isUser: false,
+          text: result.errorCode == 'trip_permission_denied'
+              ? 'Only the trip owner or an organizer can restore an earlier version. Your itinerary is unchanged.'
+              : "I couldn't restore that version just now, so your itinerary is unchanged. Try again in a moment.",
+          timestamp: DateTime.now(),
+          isError: true,
+        ),
+      );
+      notifyListeners();
+      return false;
+    }
+    // Back to the state that revision was built from (empty values dropped, as the
+    // planner treats a missing value as "not said").
+    final state = <String, dynamic>{
+      for (final e in result.state!.entries)
+        if (e.value != null &&
+            !(e.value is List && (e.value as List).isEmpty) &&
+            !(e.value is Map && (e.value as Map).isEmpty))
+          e.key: e.value,
+    };
+    _planningState = state;
+    _planningRevision++;
+    final ids = [
+      for (final id in (state['destination_ids'] as List<dynamic>? ?? const []))
+        if (id is num) id.toInt(),
+    ];
+    final keep = ids.toSet();
+    _tripBuilderStops.removeWhere(
+      (s) => s.apiDestinationId != null && !keep.contains(s.apiDestinationId),
+    );
+    var missing = 0;
+    for (final id in ids) {
+      if (_tripBuilderStops.any((s) => s.apiDestinationId == id)) continue;
+      final place = _allTrips.where((t) => t.apiDestinationId == id).firstOrNull;
+      if (place == null) {
+        missing++;
+      } else {
+        _tripBuilderStops.add(place);
+      }
+    }
+    _addTimelineMessage(
+      TimelineResult(timeline: result.timeline!, changes: result.changes),
+      destinationIds: ids,
+      travelerCount: (state['traveler_count'] as num?)?.toInt() ?? 1,
+      lead: 'Restored revision $revision.'
+          '${missing > 0 ? ' $missing of its places could not be put back in your picks, but the itinerary still lists them.' : ''}',
+    );
+    return true;
+  }
+
   /// The saved revisions of the trip this chat's timeline belongs to, newest first.
   Future<List<TimelineRevisionSummary>?> loadTimelineHistory() async {
     final id = _timelineBackendTripId;
