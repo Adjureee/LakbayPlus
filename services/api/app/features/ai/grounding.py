@@ -112,6 +112,11 @@ def _fact_values(facts: dict[str, Any]) -> str:
     for key, value in facts.items():
         if key in _SKIP_KEYS or key == "id" or key.endswith("_id"):
             continue
+        if value is True:
+            # A flag set to yes supports its own words ("wheelchair accessible"), nothing
+            # more: ramps and paths need their own record.
+            parts.append(key.replace("_", " "))
+            continue
         parts.append(str(value))
     return " ".join(parts)
 

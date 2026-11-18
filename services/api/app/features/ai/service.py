@@ -15,6 +15,7 @@ from app.core.exceptions import LakbayAPIError
 from app.core.provider_usage import ProviderLimiter
 from app.features.accommodations.models import Accommodation
 from app.features.ai.models import AIGenerationRun
+from app.features.ai.claims import Finding, check_claims
 from app.features.ai.short_answers import (
     describe,
     interpret_short_answer,
@@ -125,6 +126,14 @@ def _log_timing(stage: str, started_at: float, **extra: object) -> None:
     details = " ".join(f"{key}={value}" for key, value in extra.items())
     _timing_log.info(
         "ai_timing stage=%s ms=%d %s", stage, _elapsed_ms(started_at), details
+    )
+
+
+def _log_claims(findings: list[Finding]) -> None:
+    """Record which claims were flagged: category, rule and place only, never the text."""
+    _timing_log.info(
+        "ai_claims count=%d %s", len(findings),
+        " ".join(f"{f.category}:{f.rule}:place={f.destination_id}" for f in findings),
     )
 
 
@@ -1682,6 +1691,17 @@ async def _build_planning_chat_result(
             general_text=general_text or "",
             by_place=by_place,
             names=catalog or [],
+        )
+        # Statements about a place that its records do not hold (no figures involved).
+        # In the default "log" mode this only records what it found.
+        chat_response, _ = check_claims(
+            chat_response,
+            mode=get_settings().claims_check_mode,
+            message=data.message,
+            support_by_place=by_place,
+            names=catalog or [],
+            extra_support=general_text or "",
+            log=_log_claims,
         )
     return (
         chat_response,
