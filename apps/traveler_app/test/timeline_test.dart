@@ -120,6 +120,12 @@ Map<String, dynamic> _timeline({bool conflict = false}) => {
   'assumptions': ['The day starts at 8:00 (a planning default).'],
 };
 
+
+Map<String, dynamic> _timelineWithPins(List<Map<String, dynamic>> pins) => {
+  ..._timeline(),
+  'pins': pins,
+};
+
 TravelRepository _repo(MockClient client) => TravelRepository(
   apiCatalog: LakbayApiCatalogService(
     baseUrlOverride: 'https://api.lakbay.test/api/v1',
@@ -515,7 +521,7 @@ void main() {
       expect(repo.timelineBackendTripId, 501);
       expect(saves(), hasLength(1));
       // Only the planning state goes up: the server builds the timeline itself.
-      expect(saves().first.body.keys, ['state']);
+      expect(saves().first.body.keys, ['state', 'pins']);
       expect((saves().first.body['state'] as Map)['destination_ids'], [77]);
 
       await repo.reviseTimeline(const TimelineRevision(departureTime: '09:00:00'));
@@ -631,6 +637,215 @@ void main() {
       await tester.pumpAndSettle();
       expect(calls.where((c) => c.path.endsWith('/revisions/1/restore')), hasLength(1));
       expect(repo.chatMessages.last.text, startsWith('Restored revision 1.'));
+    });
+  });
+
+  // --- pins -----------------------------------------------------------------------------
+
+  group('pins', () {
+    test('a pin reads and prints in the traveler\'s words', () {
+      expect(const TimelinePin(destinationId: 1, day: 2, startsAt: '10:00:00').summary,
+          'Day 2 at 10:00 AM');
+      expect(const TimelinePin(destinationId: 1, day: 2).summary, 'Day 2');
+      expect(const TimelinePin(destinationId: 1, startsAt: '13:30:00').summary,
+          'Any day at 1:30 PM');
+      expect(const TimelinePin(destinationId: 1).summary, 'Not pinned');
+      expect(const TimelinePin(destinationId: 1, day: 2, startsAt: '10:00:00').toJson(),
+          {'destination_id': 1, 'day': 2, 'starts_at': '10:00:00'});
+      expect(const TimelinePin(destinationId: 1, day: 2).toJson(),
+          {'destination_id': 1, 'day': 2});
+    });
+
+    test('a timeline carries the pins the server says were in effect', () {
+      final data = TimelineData.fromJson(_timelineWithPins([
+        {'destination_id': 88, 'day': 2, 'starts_at': '10:00:00'},
+      ]));
+      expect(data.pins.single.destinationId, 88);
+      expect(data.pinFor(88)!.summary, 'Day 2 at 10:00 AM');
+      expect(data.pinFor(77), isNull);
+      // A timeline saved before pins existed has none.
+      expect(TimelineData.fromJson(_timeline()).pins, isEmpty);
+    });
+
+    testWidgets('the timeline marks a pinned place', (tester) async {
+      final repo = _repo(MockClient((_) async => http.Response('{}', 200)));
+      final data = TimelineData.fromJson(_timelineWithPins([
+        {'destination_id': 88, 'day': 1},
+      ]));
+      await _show(tester, TimelineCard(timeline: data, repo: repo));
+      await tester.tap(find.byKey(const ValueKey('timeline-view')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('timeline-pinned-88')), findsOneWidget);
+      expect(find.byKey(const ValueKey('timeline-pinned-77')), findsNothing);
+    });
+
+    testWidgets('pinning a place in the revise sheet sends it with the revision', (tester) async {
+      final calls = <Map<String, dynamic>>[];
+      final repo = _repo(MockClient((request) async {
+        final path = request.url.path.replaceFirst('/api/v1', '');
+        if (path == '/planning/timeline') {
+          calls.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response(
+            jsonEncode({'timeline': _timeline(), 'changes': ['Museo Davao moved from day 1 to day 2.']}),
+            200,
+          );
+        }
+        if (path == '/destinations/facets') return http.Response('{"groups":[]}', 200);
+        return http.Response('[]', 200);
+      }));
+      await tester.runAsync(repo.initialize);
+      await _show(tester, TimelineCard(timeline: TimelineData.fromJson(_timeline()), repo: repo));
+      await tester.tap(find.byKey(const ValueKey('timeline-revise')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Not pinned'), findsNWidgets(2));
+      await tester.tap(find.byKey(const ValueKey('revise-days-plus')));  // two days
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const ValueKey('revise-pin-edit-88')));
+      await tester.tap(find.byKey(const ValueKey('revise-pin-edit-88')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('pin-dialog')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('pin-day')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Day 2').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('pin-save')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Day 2'), findsOneWidget);  // the row now says where it is pinned
+      await tester.ensureVisible(find.byKey(const ValueKey('revise-apply')));
+      await tester.tap(find.byKey(const ValueKey('revise-apply')));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+      await tester.pumpAndSettle();
+
+      expect(calls, hasLength(1));
+      expect(calls.single['pins'], [
+        {'destination_id': 88, 'day': 2},
+      ]);
+    });
+
+    testWidgets('a pinned place can be changed or unpinned', (tester) async {
+      final repo = _repo(MockClient((_) async => http.Response('{}', 200)));
+      final data = TimelineData.fromJson(_timelineWithPins([
+        {'destination_id': 88, 'day': 1, 'starts_at': '12:30:00'},
+      ]));
+      await _show(tester, TimelineCard(timeline: data, repo: repo));
+      await tester.tap(find.byKey(const ValueKey('timeline-revise')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Day 1 at 12:30 PM'), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const ValueKey('revise-pin-edit-88')));
+      await tester.tap(find.byKey(const ValueKey('revise-pin-edit-88')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('pin-remove')));
+      await tester.pumpAndSettle();
+      expect(find.text('Day 1 at 12:30 PM'), findsNothing);
+      expect(find.text('Not pinned'), findsNWidgets(2));
+    });
+
+    group('in the repository', () {
+      late List<Map<String, dynamic>> timelineCalls;
+      late List<Map<String, dynamic>> saveCalls;
+      late TravelRepository repo;
+      var servedPins = <Map<String, dynamic>>[];
+
+      Future<void> setUpRepo() async {
+        timelineCalls = [];
+        saveCalls = [];
+        servedPins = [
+          {'destination_id': 77, 'day': 1, 'starts_at': '08:00:00'},
+          {'destination_id': 88, 'day': 2},
+        ];
+        final client = MockClient((req) async {
+          final path = req.url.path.replaceFirst('/api/v1', '');
+          final body = req.body.isEmpty ? <String, dynamic>{} : jsonDecode(req.body) as Map<String, dynamic>;
+          if (path == '/destinations/facets') return http.Response('{"groups":[]}', 200);
+          if (path == '/destinations') return http.Response('[]', 200);
+          if (path == '/ai/chat') {
+            return http.Response(jsonEncode({
+              'chat_response': 'ok', 'model_id': 'mock', 'ai_generation_run_id': 1,
+              'planning': {
+                'input_revision': 1, 'intent': 'show_places', 'suggested_replies': [],
+                'state_updates': {}, 'update_status': 'applied',
+                'preview': {'state': {
+                  ...(body['planning_state'] as Map<String, dynamic>),
+                  'day_count': 2, 'traveler_count': 3, 'total_budget': '2500.00',
+                  'budget_scope': 'per_person',
+                }},
+                'recommendations': [_place],
+              },
+            }), 200);
+          }
+          if (path == '/planning/timeline') {
+            timelineCalls.add(body);
+            return http.Response(
+              jsonEncode({'timeline': _timelineWithPins(servedPins), 'changes': []}), 200);
+          }
+          if (path == '/trips' && req.method == 'POST') return http.Response('{"trip_id": 501}', 201);
+          if (path == '/trips/501/timeline' && req.method == 'POST') {
+            saveCalls.add(body);
+            return http.Response('{"revision": 1}', 201);
+          }
+          return http.Response('{}', 200);
+        });
+        SharedPreferences.setMockInitialValues({
+          'lakbay_traveler_state_v1': jsonEncode({
+            'hasCompletedOnboarding': true,
+            'authSession': const LakbayAuthSession(
+              accessToken: 'token', refreshToken: 'refresh', userId: 1,
+              fullName: 'Test Traveler', email: 't@example.com', role: 'traveler',
+            ).toJson(),
+          }),
+        });
+        repo = _repo(client);
+        await repo.initialize();
+        await repo.sendChatMessage('3 travelers, 2 days, 2500 each');
+        repo.toggleChatPick(
+          repo.resolveExploreTripForRecommendation(TopPlaceRecommendation.fromJson(_place)),
+        );
+        await repo.planWithPicks();
+      }
+
+      test('a new plan starts with no pins', () async {
+        await setUpRepo();
+        expect(timelineCalls.first['pins'], isEmpty);
+      });
+
+      test('revising keeps the pins in effect unless they are changed', () async {
+        await setUpRepo();
+        await repo.reviseTimeline(const TimelineRevision(pace: 'relaxed'));
+        expect(timelineCalls.last['pins'], [
+          {'destination_id': 77, 'day': 1, 'starts_at': '08:00:00'},
+          {'destination_id': 88, 'day': 2},
+        ]);
+        // Removing a place takes its pin with it.
+        await repo.reviseTimeline(const TimelineRevision(destinationIds: [77]));
+        expect(timelineCalls.last['pins'], [
+          {'destination_id': 77, 'day': 1, 'starts_at': '08:00:00'},
+        ]);
+        // An explicit set replaces them, including an empty set.
+        await repo.reviseTimeline(const TimelineRevision(
+          pins: [TimelinePin(destinationId: 77, startsAt: '09:30:00')],
+        ));
+        expect(timelineCalls.last['pins'], [
+          {'destination_id': 77, 'starts_at': '09:30:00'},
+        ]);
+        await repo.reviseTimeline(const TimelineRevision(pins: []));
+        expect(timelineCalls.last['pins'], isEmpty);
+      });
+
+      test('a saved trip stores the pins with each revision', () async {
+        await setUpRepo();
+        repo.saveTripToMyTrips(repo.chatMessages.last.attachedTrip!);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(saveCalls.first['pins'], isNotEmpty);  // the pins the timeline was built with
+        await repo.reviseTimeline(const TimelineRevision(
+          pins: [TimelinePin(destinationId: 77, day: 2)],
+        ));
+        expect(saveCalls.last['pins'], [
+          {'destination_id': 77, 'day': 2},
+        ]);
+      });
     });
   });
 }

@@ -449,3 +449,25 @@ def test_no_lunch_is_added_to_an_afternoon_start():
     timeline = build([stop(activity_minutes=60)], [(None, 1, 30, "supported")],
                      departure_time=time(16))
     assert items(timeline, "meal") == []
+
+
+# --- pins are echoed so a saved or restored revision keeps them --------------------------
+
+
+def test_the_timeline_echoes_the_pins_in_effect_and_drops_the_rest():
+    stops = [stop(1, "A", activity_minutes=60), stop(2, "B", activity_minutes=60)]
+    pairs = [(None, 1, 10, "supported"), (1, 2, 10, "supported")]
+    timeline = build(
+        stops, pairs, day_count=2, departure_time=time(8),
+        pins=[Pin(2, day=2, starts_at=time(10)), Pin(99, day=1), Pin(1)],  # 99 is not a pick
+    )
+    assert [(p.destination_id, p.day, p.starts_at) for p in timeline.pins] == [
+        (2, 2, time(10))]  # a pin on a place not in the trip, or with nothing pinned, is dropped
+    assert build(stops, pairs).pins == []
+
+
+def test_a_pin_past_the_last_day_is_placed_on_the_last_day_and_says_so():
+    timeline = build([stop(1, "A", activity_minutes=60)], [(None, 1, 10, "supported")],
+                     day_count=2, departure_time=time(8), pins=[Pin(1, day=5)])
+    visit = items(timeline, "visit", day=2)[0]
+    assert any("Pinned to day 5, but the trip has 2" in n for n in visit.notes)

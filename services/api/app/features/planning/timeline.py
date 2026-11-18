@@ -28,6 +28,7 @@ from app.features.planning.timeline_schemas import (
     DurationBasis,
     ItemCost,
     LegBasis,
+    PinIn,
     TimeBasis,
     Timeline,
     TimelineDay,
@@ -347,6 +348,7 @@ class _Builder:
         """Adds the items for one stop; returns the problem found, if any."""
         pin = self.pins.get(stop.destination_id)
         self._break_items()
+        beyond = bool(pin and pin.day and pin.day > self.day_count)
         if self.last_was_visit:
             self._planning_item("buffer", "Buffer", BUFFER_MINUTES,
                                 note="A planning buffer between stops.")
@@ -374,6 +376,9 @@ class _Builder:
             self.basis = _worse(self.basis, "estimated")
         arrival = self.clock
         notes: list[str] = []
+        if beyond:
+            notes.append(f"Pinned to day {pin.day}, but the trip has {self.day_count}: "
+                         f"placed on day {self.day + 1}.")
         if pin and pin.starts_at is not None:
             wanted = to_minutes(pin.starts_at)
             if wanted >= arrival:
@@ -560,4 +565,11 @@ def build_timeline(inp: TimelineInput) -> Timeline:
         feasible=not failed and not builder.conflicts,
         unverified=[c.message for c in checks if c.status == "cannot_verify"],
         assumptions=assumptions,
+        # Only pins on places in this trip are in effect; the rest are dropped here.
+        pins=[
+            PinIn(destination_id=p.destination_id, day=p.day, starts_at=p.starts_at)
+            for p in inp.pins
+            if p.destination_id in {s.destination_id for s in inp.stops}
+            and (p.day is not None or p.starts_at is not None)
+        ],
     )

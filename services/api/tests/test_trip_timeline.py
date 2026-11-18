@@ -224,3 +224,23 @@ def test_only_a_manager_can_restore(client) -> None:
               email="restore-organizer@example.com", role="organizer")
     organizer = login_headers(client, "restore-organizer@example.com")
     assert _restore(client, organizer, trip_id, 1).status_code == 201
+
+
+def test_pins_are_saved_with_a_revision_and_come_back_when_it_is_restored(client) -> None:
+    owner, trip_id, a, b = _setup(client)
+    pin = {"destination_id": b, "day": 2, "starts_at": "10:00:00"}
+    saved = _save(client, owner, trip_id, _state(a, b), pins=[pin]).json()
+    assert saved["timeline"]["pins"] == [pin]
+    _save(client, owner, trip_id, _state(a, b, departure_time="09:00:00"))  # no pins
+    restored = _restore(client, owner, trip_id, 1).json()
+    assert restored["timeline"]["pins"] == [pin]  # the app starts its next revise from them
+
+
+def test_a_revision_saved_before_pins_existed_still_reads(client) -> None:
+    from app.features.planning.timeline_schemas import Timeline
+
+    owner, trip_id, a, b = _setup(client)
+    body = _save(client, owner, trip_id, _state(a, b)).json()
+    old = dict(body["timeline"])
+    old.pop("pins")  # an older stored timeline has no pins field
+    assert Timeline.model_validate(old).pins == []
