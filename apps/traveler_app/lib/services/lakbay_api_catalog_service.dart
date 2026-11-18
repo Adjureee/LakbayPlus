@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' show MediaType;
 import '../models/commute.dart';
+import '../models/timeline_models.dart';
 import '../models/travel_models.dart';
 import 'env_config.dart';
 
@@ -1353,6 +1354,54 @@ class LakbayApiCatalogService {
             ? decoded['planning_preview'] as Map<String, dynamic>
             : null,
       );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Calls `POST /planning/timeline`: a day-by-day timeline built in code from the
+  /// traveler's picks (guests and signed-in). Returns null when it cannot be reached or
+  /// the server refuses, so the caller can fall back; nothing is invented to cover it.
+  Future<TimelineResult?> fetchTimeline(
+    String? accessToken, {
+    required Map<String, dynamic> planningState,
+    int inputRevision = 0,
+    Map<String, dynamic>? previous,
+    List<Map<String, dynamic>> pins = const [],
+  }) async {
+    final base = _base;
+    if (base.isEmpty) return null;
+    try {
+      final encodedPayload = jsonEncode({
+        'input_revision': inputRevision,
+        'state': planningState,
+        'pins': pins,
+        'previous': ?previous,
+      });
+      final token = (accessToken ?? '').trim();
+      Future<http.Response> sendReq(String? tok) => _client
+          .post(
+            Uri.parse('$base/planning/timeline'),
+            headers: {
+              if (tok != null && tok.isNotEmpty) 'Authorization': 'Bearer $tok',
+              'Content-Type': 'application/json',
+            },
+            body: encodedPayload,
+          )
+          .timeout(const Duration(seconds: 25));
+      var res = token.isEmpty
+          ? await sendReq(null)
+          : await _sendAuthorized(token, sendReq);
+      if (token.isNotEmpty && res.statusCode == 401) {
+        res = await sendReq(null);
+      }
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! Map<String, dynamic> ||
+          decoded['timeline'] is! Map<String, dynamic>) {
+        return null;
+      }
+      return TimelineResult.fromJson(decoded);
     } catch (_) {
       return null;
     }
