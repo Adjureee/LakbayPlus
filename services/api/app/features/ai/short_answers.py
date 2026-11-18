@@ -226,6 +226,24 @@ def interpret_short_answer(message: str, state: PlanningState, today: date) -> d
     return found
 
 
+_VAGUE_DATE = re.compile(
+    r"\b(?:this|next|last)\s+(?:month|week|year)\b|\bnext\s+(?:"
+    + "|".join(_WEEKDAYS) + r")\b|\b(?:soon|later|sometime|anytime|someday)\b"
+)
+
+
+def is_vague_date_answer(message: str, state: PlanningState, today: date) -> bool:
+    """True when the travel date is the open question and the answer names no single day."""
+    text = message.strip().lower().rstrip("?.! ")
+    pending = missing_details(state)
+    return (
+        bool(pending) and pending[0] == "travel_start_date"
+        and len(text.split()) <= 8 and not message.strip().endswith("?")
+        and parse_travel_date(text, today) is None
+        and bool(_VAGUE_DATE.search(text))
+    )
+
+
 def describe(found: dict[str, Any]) -> str:
     """Plain words for what was saved, for a reply the server writes itself."""
     parts: list[str] = []
