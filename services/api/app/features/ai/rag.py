@@ -11,9 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.accommodations.models import Accommodation
 from app.features.ai.retrieval_intent import DISTRICTS, resolve_retrieval_intent
 from app.features.destinations.data_quality import data_quality as hours_data_quality
+from app.features.destinations.activities import activity_summary
 from app.features.destinations.hours import hours_summary
 from app.features.destinations.prices import prices_summary
-from app.features.destinations.models import Destination, DestinationHours, DestinationPrice
+from app.features.destinations.models import (
+    Destination,
+    DestinationActivity,
+    DestinationHours,
+    DestinationPrice,
+)
 from app.features.transportations.models import Transportation
 
 
@@ -409,11 +415,21 @@ class VectorRAGRetriever:
         for row in price_result.scalars().all():
             prices_by_id.setdefault(row.destination_id, []).append(row)
 
+        activity_result = await self.session.execute(
+            select(DestinationActivity)
+            .where(DestinationActivity.destination_id.in_(destinations_by_id))
+            .order_by(DestinationActivity.sort_order, DestinationActivity.id),
+        )
+        activities_by_id: dict[int, list[DestinationActivity]] = {}
+        for row in activity_result.scalars().all():
+            activities_by_id.setdefault(row.destination_id, []).append(row)
+
         documents: list[RagDocument] = [
             _destination_document(
                 destination,
                 weekly_hours=weekly_by_id.get(destination.destination_id, []),
                 prices=prices_by_id.get(destination.destination_id, []),
+                activities=activities_by_id.get(destination.destination_id, []),
             )
             for destination in destinations
         ]
@@ -440,9 +456,11 @@ def _destination_document(
     *,
     weekly_hours: "list[DestinationHours] | None" = None,
     prices: "list[DestinationPrice] | None" = None,
+    activities: "list[DestinationActivity] | None" = None,
 ) -> RagDocument:
     opening_hours = hours_summary(destination.open_24_hours, weekly_hours or [])
     price_list = prices_summary(prices or [])
+    activity_lines = [activity_summary(a) for a in activities or []]
     payload = {
         "destination_id": destination.destination_id,
         "name": destination.name,
@@ -466,6 +484,9 @@ def _destination_document(
             bool(destination.entrance_fee or destination.overnight_fee),
             destination.fees_verified_at,
         ),
+        # Structured activities (when entered). A place being open does not mean every
+        # activity is available; each line says what is and is not confirmed.
+        "activity_details": activity_lines or None,
         "operating_hours": destination.operating_hours,
         # Structured hours (when entered) with how far to trust them.
         "opening_hours": opening_hours,
@@ -505,6 +526,7 @@ def _destination_document(
         destination.activities,
         opening_hours,
         price_list,
+        *activity_lines,
         destination.best_time_to_visit,
         destination.how_to_get_there,
         destination.estimated_travel_time,

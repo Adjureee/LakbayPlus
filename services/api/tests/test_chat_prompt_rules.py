@@ -25,7 +25,7 @@ def test_plain_chat_keeps_its_original_scope():
 
 
 def test_the_prompt_version_changed_with_the_rules():
-    assert CHAT_PROMPT_VERSION == "phase5_chat_v17_trip_state"
+    assert CHAT_PROMPT_VERSION == "phase5_chat_v18_activities"
 
 
 def test_prompt_answers_first_in_a_local_voice():
