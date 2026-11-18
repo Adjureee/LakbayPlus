@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from urllib.parse import urlsplit
 
@@ -223,3 +223,103 @@ class DestinationListQuery(BaseModel):
     limit: int = Field(default=50, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
     include_inactive: bool = False
+
+
+class HoursWindowIn(BaseModel):
+    """One weekday's opening window (Monday = 0); `is_closed` days carry no times."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    weekday: int = Field(ge=0, le=6)
+    is_closed: bool = False
+    opens_at: time | None = None
+    closes_at: time | None = None
+    last_admission_at: time | None = None
+
+    @model_validator(mode="after")
+    def check_window(self) -> "HoursWindowIn":
+        if self.is_closed:
+            if self.opens_at or self.closes_at or self.last_admission_at:
+                raise ValueError("A closed day cannot have opening times.")
+        elif self.opens_at is None or self.closes_at is None:
+            raise ValueError("An open day needs opens_at and closes_at.")
+        elif self.opens_at >= self.closes_at:
+            raise ValueError("opens_at must be earlier than closes_at.")
+        elif self.last_admission_at is not None and not (
+            self.opens_at <= self.last_admission_at <= self.closes_at
+        ):
+            raise ValueError("last_admission_at must fall within the opening window.")
+        return self
+
+
+class HoursExceptionIn(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    starts_on: date
+    ends_on: date
+    is_closed: bool = False
+    opens_at: time | None = None
+    closes_at: time | None = None
+    reason: str | None = Field(default=None, max_length=255)
+
+    @model_validator(mode="after")
+    def check_exception(self) -> "HoursExceptionIn":
+        if self.starts_on > self.ends_on:
+            raise ValueError("starts_on must not be after ends_on.")
+        if self.is_closed:
+            if self.opens_at or self.closes_at:
+                raise ValueError("A closed date cannot have opening times.")
+        elif self.opens_at is None or self.closes_at is None:
+            raise ValueError("An open date needs opens_at and closes_at.")
+        elif self.opens_at >= self.closes_at:
+            raise ValueError("opens_at must be earlier than closes_at.")
+        return self
+
+
+class DestinationHoursUpdate(BaseModel):
+    """Replaces everything about a place's structured hours in one save."""
+
+    open_24_hours: bool | None = None
+    hours_source_url: str | None = Field(default=None, max_length=2048)
+    hours_verified_at: datetime | None = None
+    weekly: list[HoursWindowIn] = Field(default_factory=list, max_length=28)
+    exceptions: list[HoursExceptionIn] = Field(default_factory=list, max_length=60)
+
+    @field_validator("hours_source_url")
+    @classmethod
+    def validate_source_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("hours_source_url must be an HTTP or HTTPS URL")
+        return value
+
+    @model_validator(mode="after")
+    def check_schedule(self) -> "DestinationHoursUpdate":
+        if self.open_24_hours and self.weekly:
+            raise ValueError("A place open 24 hours has no weekly windows.")
+        # Windows on one weekday must not overlap, and a closed day stands alone.
+        by_day: dict[int, list[HoursWindowIn]] = {}
+        for row in self.weekly:
+            by_day.setdefault(row.weekday, []).append(row)
+        for rows in by_day.values():
+            if any(r.is_closed for r in rows) and len(rows) > 1:
+                raise ValueError("A closed day cannot also have an opening window.")
+            windows = sorted((r.opens_at, r.closes_at) for r in rows if not r.is_closed)
+            for (_, end), (start, _) in zip(windows, windows[1:]):
+                if start < end:
+                    raise ValueError("Opening windows on one day must not overlap.")
+        return self
+
+
+class DestinationHoursResponse(BaseModel):
+    destination_id: int
+    open_24_hours: bool | None = None
+    hours_source_url: str | None = None
+    hours_verified_at: datetime | None = None
+    weekly: list[HoursWindowIn] = Field(default_factory=list)
+    exceptions: list[HoursExceptionIn] = Field(default_factory=list)
+    summary: str | None = None
+    # supported (structured and checked within a year), estimated, or unknown.
+    data_quality: str = "unknown"

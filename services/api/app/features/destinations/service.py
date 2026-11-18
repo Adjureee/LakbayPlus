@@ -12,14 +12,20 @@ from app.integrations.storage.uploads import (
 
 from app.features.destinations.region import island_group_for
 from app.core.exceptions import LakbayAPIError
+from app.features.destinations.hours import data_quality as hours_data_quality
+from app.features.destinations.hours import hours_summary
 from app.features.destinations.repository import DestinationRepository
 from app.features.recommendations.preference_groups import load_groups
 from app.features.destinations.schemas import (
     DestinationFacetsResponse,
     DestinationCreate,
+    DestinationHoursResponse,
+    DestinationHoursUpdate,
     DestinationListQuery,
     DestinationResponse,
     DestinationUpdate,
+    HoursExceptionIn,
+    HoursWindowIn,
 )
 
 FACETS_CACHE_TTL_SECONDS = 60.0
@@ -135,6 +141,46 @@ class DestinationService:
             )
 
         return DestinationResponse.model_validate(destination)
+
+    async def get_hours(self, destination_id: int) -> DestinationHoursResponse:
+        destination = await self._active_destination(destination_id)
+        weekly, exceptions = await self.destinations.get_hours(destination_id)
+        return self._hours_response(destination, weekly, exceptions)
+
+    async def replace_hours(
+        self, destination_id: int, data: DestinationHoursUpdate,
+    ) -> DestinationHoursResponse:
+        destination = await self._active_destination(destination_id)
+        await self.destinations.replace_hours(destination, data)
+        await self.session.commit()
+        weekly, exceptions = await self.destinations.get_hours(destination_id)
+        return self._hours_response(destination, weekly, exceptions)
+
+    async def _active_destination(self, destination_id: int):
+        destination = await self.destinations.get_by_id(destination_id)
+        if destination is None:
+            raise LakbayAPIError(
+                "Destination was not found.",
+                code="destination_not_found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        return destination
+
+    @staticmethod
+    def _hours_response(destination, weekly, exceptions) -> DestinationHoursResponse:
+        structured = bool(weekly) or bool(destination.open_24_hours)
+        return DestinationHoursResponse(
+            destination_id=destination.destination_id,
+            open_24_hours=destination.open_24_hours,
+            hours_source_url=destination.hours_source_url,
+            hours_verified_at=destination.hours_verified_at,
+            weekly=[HoursWindowIn.model_validate(r) for r in weekly],
+            exceptions=[HoursExceptionIn.model_validate(r) for r in exceptions],
+            summary=hours_summary(destination.open_24_hours, weekly),
+            data_quality=hours_data_quality(
+                structured, bool(destination.operating_hours), destination.hours_verified_at,
+            ),
+        )
 
     async def create_destination(
         self,

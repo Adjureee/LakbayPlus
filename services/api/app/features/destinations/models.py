@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 
 from geoalchemy2 import Geography
@@ -6,12 +6,15 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
     Numeric,
+    SmallInteger,
     String,
     Text,
+    Time,
     UniqueConstraint,
     func,
 )
@@ -80,6 +83,10 @@ class Destination(Base):
     entrance_fee: Mapped[str | None] = mapped_column(String(255))
     overnight_fee: Mapped[str | None] = mapped_column(String(255))
     operating_hours: Mapped[str | None] = mapped_column(String(255))
+    # Structured hours live in destination_hours; these say how far to trust them.
+    open_24_hours: Mapped[bool | None] = mapped_column(Boolean)
+    hours_source_url: Mapped[str | None] = mapped_column(String(2048))
+    hours_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     best_time_to_visit: Mapped[str | None] = mapped_column(Text)
     how_to_get_there: Mapped[str | None] = mapped_column(Text)
     estimated_travel_time: Mapped[str | None] = mapped_column(Text)
@@ -182,3 +189,59 @@ class DestinationCandidate(Base):
     destination_id: Mapped[int | None] = mapped_column(ForeignKey("destinations.destination_id"), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class DestinationHours(Base):
+    """One opening window of a place on one weekday (Monday = 0).
+
+    A place may have several rows for a day (a lunch break). No rows means the hours
+    are unknown, not that the place is closed.
+    """
+
+    __tablename__ = "destination_hours"
+    __table_args__ = (
+        CheckConstraint("weekday >= 0 AND weekday <= 6", name="ck_destination_hours_weekday"),
+        CheckConstraint(
+            "(is_closed AND opens_at IS NULL AND closes_at IS NULL "
+            "AND last_admission_at IS NULL) OR "
+            "(NOT is_closed AND opens_at IS NOT NULL AND closes_at IS NOT NULL "
+            "AND opens_at < closes_at)",
+            name="ck_destination_hours_window",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    destination_id: Mapped[int] = mapped_column(
+        ForeignKey("destinations.destination_id", ondelete="CASCADE"), index=True,
+    )
+    weekday: Mapped[int] = mapped_column(SmallInteger)
+    opens_at: Mapped[time | None] = mapped_column(Time)
+    closes_at: Mapped[time | None] = mapped_column(Time)
+    is_closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    last_admission_at: Mapped[time | None] = mapped_column(Time)
+
+
+class DestinationHourException(Base):
+    """Dates when the weekly hours do not apply (a holiday, a closure)."""
+
+    __tablename__ = "destination_hour_exceptions"
+    __table_args__ = (
+        CheckConstraint("starts_on <= ends_on", name="ck_destination_hour_exceptions_range"),
+        CheckConstraint(
+            "(is_closed AND opens_at IS NULL AND closes_at IS NULL) OR "
+            "(NOT is_closed AND opens_at IS NOT NULL AND closes_at IS NOT NULL "
+            "AND opens_at < closes_at)",
+            name="ck_destination_hour_exceptions_window",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    destination_id: Mapped[int] = mapped_column(
+        ForeignKey("destinations.destination_id", ondelete="CASCADE"), index=True,
+    )
+    starts_on: Mapped[date] = mapped_column(Date)
+    ends_on: Mapped[date] = mapped_column(Date)
+    is_closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    opens_at: Mapped[time | None] = mapped_column(Time)
+    closes_at: Mapped[time | None] = mapped_column(Time)
+    reason: Mapped[str | None] = mapped_column(String(255))
