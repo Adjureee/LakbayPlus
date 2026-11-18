@@ -1,48 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../core/timeline_labels.dart';
 import '../models/timeline_models.dart';
+import '../services/pdf_share.dart';
+import '../services/timeline_pdf.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 
-/// How far to trust a time, in the traveler's words.
-const _basisLabels = <String, String>{
-  'confirmed': 'Confirmed',
-  'estimated': 'Estimated',
-  'provisional': 'Provisional',
-  'unknown': 'Unknown',
-};
-
-const _checkTitles = <String, String>{
-  'chronological_order': 'Order of the day',
-  'selected_places': 'Your places',
-  'travel_date': 'Travel date',
-  'geographic_scope': 'Inside the Davao Region',
-  'operating_status': 'Open at all',
-  'opening_hours': 'Opening hours',
-  'travel_times': 'Travel times',
-  'visit_durations': 'Visit lengths',
-  'return_deadline': 'Return deadline',
-  'activity_suitability': 'Suitable for children',
-  'budget_arithmetic': 'Costs add up',
-};
-
-const _choiceLabels = <String, String>{
-  'prioritise_places': 'Choose which places to keep',
-  'change_time_window': 'Change the time window',
-  'relax_another_constraint': 'Change another limit',
-};
-
-String _peso(double amount) {
-  final whole = amount == amount.roundToDouble();
-  final text = whole ? amount.toStringAsFixed(0) : amount.toStringAsFixed(2);
-  final parts = text.split('.');
-  final grouped = parts[0].replaceAllMapped(
-    RegExp(r'\B(?=(\d{3})+(?!\d))'),
-    (_) => ',',
-  );
-  return '₱${parts.length > 1 ? '$grouped.${parts[1]}' : grouped}';
-}
+const _basisLabels = timelineBasisLabels;
+const _checkTitles = timelineCheckTitles;
+const _choiceLabels = timelineChoiceLabels;
+String _peso(double amount) => pesoText(amount);
+String _statusText(String status) => timelineStatusText(status);
 
 IconData _kindIcon(String kind) => switch (kind) {
   'visit' => Icons.place_outlined,
@@ -65,12 +35,6 @@ IconData _statusIcon(String status) => switch (status) {
   'passed' => Icons.check_circle_outline_rounded,
   'failed' => Icons.error_outline_rounded,
   _ => Icons.help_outline_rounded,
-};
-
-String _statusText(String status) => switch (status) {
-  'passed' => 'Passed',
-  'failed' => 'Failed',
-  _ => "Can't verify",
 };
 
 /// The compact itinerary card in the chat: status, check counts and costs, with the
@@ -179,6 +143,17 @@ class TimelineCard extends StatelessWidget {
                 onPressed: () => showReviseTimelineSheet(context, timeline, repo),
                 icon: const Icon(Icons.tune_rounded, size: 18),
                 label: const Text('Revise'),
+              ),
+              TextButton.icon(
+                key: const ValueKey('timeline-export-pdf'),
+                onPressed: () => exportTimelinePdf(
+                  context,
+                  timeline,
+                  title: trip?.title ?? 'Your itinerary',
+                  startingFrom: repo.routeOrigin?.label,
+                ),
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: const Text('Export PDF'),
               ),
               if (repo.timelineBackendTripId != null)
                 TextButton(
@@ -792,3 +767,27 @@ Future<void> showTimelineHistorySheet(BuildContext context, TravelRepository rep
 
 String _date(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+
+/// Builds the itinerary PDF on the phone and opens the share sheet. It needs no sign-in
+/// and no connection.
+Future<void> exportTimelinePdf(
+  BuildContext context,
+  TimelineData timeline, {
+  String title = 'Your itinerary',
+  String? startingFrom,
+}) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  try {
+    final bytes = await TimelinePdfBuilder.build(
+      timeline,
+      title: title,
+      startingFrom: startingFrom,
+    );
+    await PdfShare.share(bytes, 'lakbay-itinerary.pdf', '$title - Lakbay+ itinerary PDF');
+  } catch (e) {
+    messenger?.showSnackBar(
+      SnackBar(content: Text('Could not make the PDF on this phone: $e')),
+    );
+  }
+}
