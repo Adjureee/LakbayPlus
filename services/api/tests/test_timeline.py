@@ -471,3 +471,25 @@ def test_a_pin_past_the_last_day_is_placed_on_the_last_day_and_says_so():
                      day_count=2, departure_time=time(8), pins=[Pin(1, day=5)])
     visit = items(timeline, "visit", day=2)[0]
     assert any("Pinned to day 5, but the trip has 2" in n for n in visit.notes)
+
+
+def test_a_pin_that_travel_pushes_past_says_travel_not_earlier_stops():
+    """Live case: day 2 starts at 8:00 and the leg takes 2 h 17 min, so a 10:00 pin slips."""
+    stops = [stop(1, "A", activity_minutes=60), stop(2, "B", activity_minutes=60)]
+    pairs = [(None, 1, 10, "supported"), (1, 2, 137, "supported")]
+    timeline = build(stops, pairs, day_count=2, departure_time=time(8),
+                     include_meals=False, pins=[Pin(2, day=2, starts_at=time(10))])
+    visit = items(timeline, "visit", day=2)[0]
+    assert hhmm(visit.starts_at) == "10:17"
+    note = next(n for n in visit.notes if "could not be kept" in n)
+    assert "the travel from A arrives after it" in note
+    assert "earlier stops" not in note
+
+
+def test_a_pin_that_earlier_stops_push_past_still_says_so():
+    stops = [stop(1, "A", activity_minutes=300), stop(2, "B", activity_minutes=60)]
+    pairs = [(None, 1, 10, "supported"), (1, 2, 10, "supported")]
+    timeline = build(stops, pairs, departure_time=time(8), include_meals=False,
+                     pins=[Pin(2, starts_at=time(10))])
+    note = next(n for n in items(timeline, "visit")[1].notes if "could not be kept" in n)
+    assert "the earlier stops run past it" in note
