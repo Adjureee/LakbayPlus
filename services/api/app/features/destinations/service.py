@@ -12,8 +12,9 @@ from app.integrations.storage.uploads import (
 
 from app.features.destinations.region import island_group_for
 from app.core.exceptions import LakbayAPIError
-from app.features.destinations.hours import data_quality as hours_data_quality
+from app.features.destinations.data_quality import data_quality as hours_data_quality
 from app.features.destinations.hours import hours_summary
+from app.features.destinations.prices import prices_summary
 from app.features.destinations.repository import DestinationRepository
 from app.features.recommendations.preference_groups import load_groups
 from app.features.destinations.schemas import (
@@ -22,10 +23,13 @@ from app.features.destinations.schemas import (
     DestinationHoursResponse,
     DestinationHoursUpdate,
     DestinationListQuery,
+    DestinationPricesResponse,
+    DestinationPricesUpdate,
     DestinationResponse,
     DestinationUpdate,
     HoursExceptionIn,
     HoursWindowIn,
+    PriceIn,
 )
 
 FACETS_CACHE_TTL_SECONDS = 60.0
@@ -155,6 +159,35 @@ class DestinationService:
         await self.session.commit()
         weekly, exceptions = await self.destinations.get_hours(destination_id)
         return self._hours_response(destination, weekly, exceptions)
+
+    async def get_prices(self, destination_id: int) -> DestinationPricesResponse:
+        destination = await self._active_destination(destination_id)
+        prices = await self.destinations.get_prices(destination_id)
+        return self._prices_response(destination, prices)
+
+    async def replace_prices(
+        self, destination_id: int, data: DestinationPricesUpdate,
+    ) -> DestinationPricesResponse:
+        destination = await self._active_destination(destination_id)
+        await self.destinations.replace_prices(destination, data)
+        await self.session.commit()
+        prices = await self.destinations.get_prices(destination_id)
+        return self._prices_response(destination, prices)
+
+    @staticmethod
+    def _prices_response(destination, prices) -> DestinationPricesResponse:
+        return DestinationPricesResponse(
+            destination_id=destination.destination_id,
+            fees_source_url=destination.fees_source_url,
+            fees_verified_at=destination.fees_verified_at,
+            prices=[PriceIn.model_validate(r) for r in prices],
+            summary=prices_summary(prices),
+            data_quality=hours_data_quality(
+                bool(prices),
+                bool(destination.entrance_fee or destination.overnight_fee),
+                destination.fees_verified_at,
+            ),
+        )
 
     async def _active_destination(self, destination_id: int):
         destination = await self.destinations.get_by_id(destination_id)

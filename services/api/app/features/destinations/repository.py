@@ -6,11 +6,13 @@ from app.features.destinations.models import (
     Destination,
     DestinationHourException,
     DestinationHours,
+    DestinationPrice,
 )
 from app.features.destinations.schemas import (
     DestinationCreate,
     DestinationHoursUpdate,
     DestinationListQuery,
+    DestinationPricesUpdate,
 )
 
 
@@ -87,6 +89,31 @@ class DestinationRepository:
                 destination_id=destination.destination_id, **row.model_dump(),
             )
             for row in data.exceptions
+        )
+        await self.session.flush()
+
+    async def get_prices(self, destination_id: int) -> "list[DestinationPrice]":
+        result = await self.session.execute(
+            select(DestinationPrice)
+            .where(DestinationPrice.destination_id == destination_id)
+            .order_by(DestinationPrice.item, DestinationPrice.audience, DestinationPrice.id),
+        )
+        return list(result.scalars().all())
+
+    async def replace_prices(
+        self, destination: Destination, data: DestinationPricesUpdate,
+    ) -> None:
+        """Swap a place's whole price list for the one given (one transaction)."""
+        destination.fees_source_url = data.fees_source_url
+        destination.fees_verified_at = data.fees_verified_at
+        await self.session.execute(
+            delete(DestinationPrice).where(
+                DestinationPrice.destination_id == destination.destination_id,
+            ),
+        )
+        self.session.add_all(
+            DestinationPrice(destination_id=destination.destination_id, **row.model_dump())
+            for row in data.prices
         )
         await self.session.flush()
 

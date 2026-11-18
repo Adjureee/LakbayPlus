@@ -7,7 +7,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.features.ai.rag import _destination_document
-from app.features.destinations.hours import data_quality, hours_on, hours_summary
+from app.features.destinations.data_quality import data_quality
+from app.features.destinations.hours import hours_on, hours_summary
 from app.features.destinations.schemas import DestinationHoursUpdate
 from tests.test_ai_rag import destination as fake_place
 from tests.test_phase5_ai_itineraries import admin_headers, create_destination, user_headers
