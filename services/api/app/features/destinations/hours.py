@@ -5,12 +5,10 @@ callers show "not listed", never "closed".
 """
 
 from collections.abc import Iterable
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, time
 from typing import Protocol
 
 _DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-# Hours checked longer ago than this are reported as stale (design doc, decision 3).
-STALE_AFTER = timedelta(days=365)
 
 
 class _Window(Protocol):
@@ -89,18 +87,3 @@ def hours_on(
     if all(row.is_closed for row in rows):
         return "closed", []
     return "open", sorted((r.opens_at, r.closes_at) for r in rows if not r.is_closed)
-
-
-def data_quality(
-    has_structured_hours: bool, has_text_hours: bool, verified_at: datetime | None,
-    *, now: datetime | None = None,
-) -> str:
-    """supported (structured and recently verified), estimated, or unknown."""
-    if not has_structured_hours and not has_text_hours:
-        return "unknown"
-    if has_structured_hours and verified_at is not None:
-        current = now or datetime.now(timezone.utc)
-        aware = verified_at if verified_at.tzinfo else verified_at.replace(tzinfo=timezone.utc)
-        if current - aware <= STALE_AFTER:
-            return "supported"
-    return "estimated"
