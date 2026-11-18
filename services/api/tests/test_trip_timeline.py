@@ -139,3 +139,88 @@ def test_only_the_newest_revisions_are_kept(client, monkeypatch) -> None:
     assert [r["revision"] for r in history["revisions"]] == [5, 4, 3]
     assert client.get(f"/api/v1/trips/{trip_id}/timeline/revisions/1",
                       headers=owner).status_code == 404
+
+
+# --- restoring an older revision ---------------------------------------------------------
+
+
+def _restore(client, headers, trip_id, revision):
+    return client.post(f"/api/v1/trips/{trip_id}/timeline/revisions/{revision}/restore",
+                       headers=headers)
+
+
+def test_restoring_saves_the_old_revision_again_as_the_newest_without_losing_any(client) -> None:
+    owner, trip_id, a, b = _setup(client)
+    first = _save(client, owner, trip_id, _state(a, b)).json()
+    _save(client, owner, trip_id, _state(a, b, departure_time="10:00:00"))
+    _save(client, owner, trip_id, _state(a, b, departure_time="11:00:00"))
+
+    restored = _restore(client, owner, trip_id, 1)
+    assert restored.status_code == 201, restored.text
+    body = restored.json()
+    assert body["revision"] == 4  # appended, never overwritten
+    assert body["state"] == first["state"] and body["timeline"] == first["timeline"]
+    assert body["changes"][0] == "Restored revision 1."
+    assert any("now starts at" in c for c in body["changes"][1:])  # what moved back
+
+    history = client.get(f"/api/v1/trips/{trip_id}/timeline", headers=owner).json()
+    assert [r["revision"] for r in history["revisions"]] == [4, 3, 2, 1]
+    assert history["latest"]["state"]["departure_time"] == "08:00:00"
+    # The revision that was restored from is untouched.
+    old = client.get(f"/api/v1/trips/{trip_id}/timeline/revisions/1", headers=owner).json()
+    assert old["revision"] == 1 and old["changes"] == []
+
+
+def test_restoring_keeps_pins_because_it_copies_instead_of_rebuilding(client) -> None:
+    owner, trip_id, a, b = _setup(client)
+    pinned = _save(client, owner, trip_id, _state(a, b),
+                   pins=[{"destination_id": b, "day": 2, "starts_at": "10:00:00"}]).json()
+    _save(client, owner, trip_id, _state(a, b, departure_time="09:00:00"))  # no pins now
+    restored = _restore(client, owner, trip_id, 1).json()
+    day2 = [i for i in restored["timeline"]["days"][1]["items"] if i["kind"] == "visit"]
+    assert day2 and day2[0]["destination_id"] == b and day2[0]["starts_at"] == "10:00:00"
+    assert restored["timeline"] == pinned["timeline"]
+
+
+def test_the_latest_a_missing_one_and_an_archived_trip_are_refused(client) -> None:
+    owner, trip_id, a, b = _setup(client)
+    assert _restore(client, owner, trip_id, 1).status_code == 404  # nothing saved yet
+    _save(client, owner, trip_id, _state(a, b))
+    latest = _restore(client, owner, trip_id, 1)
+    assert latest.status_code == 400
+    assert latest.json()["error"]["code"] == "trip_timeline_already_latest"
+    _save(client, owner, trip_id, _state(a, b, departure_time="10:00:00"))
+    assert _restore(client, owner, trip_id, 99).status_code == 404
+
+    assert client.delete(f"/api/v1/trips/{trip_id}", headers=owner).status_code == 200
+    archived = _restore(client, owner, trip_id, 1)
+    assert archived.status_code == 400
+    assert archived.json()["error"]["code"] == "trip_archived_read_only"
+
+
+def test_only_a_manager_can_restore(client) -> None:
+    from tests.invites import login_headers
+
+    owner, trip_id, a, b = _setup(client)
+    _save(client, owner, trip_id, _state(a, b))
+    _save(client, owner, trip_id, _state(a, b, departure_time="10:00:00"))
+    url = f"/api/v1/trips/{trip_id}/timeline/revisions/1/restore"
+
+    assert client.post(url).status_code in {401, 403}
+    outsider = user_headers(client, email="restore-outsider@example.com")
+    assert _restore(client, outsider, trip_id, 1).status_code == 404
+
+    user_headers(client, email="restore-member@example.com")
+    join_trip(client, headers=owner, trip_id=trip_id, email="restore-member@example.com")
+    member = login_headers(client, "restore-member@example.com")
+    denied = _restore(client, member, trip_id, 1)
+    assert denied.status_code == 403 and denied.json()["error"]["code"] == "trip_permission_denied"
+    # Nothing was written by the refused attempts.
+    history = client.get(f"/api/v1/trips/{trip_id}/timeline", headers=owner).json()
+    assert [r["revision"] for r in history["revisions"]] == [2, 1]
+
+    user_headers(client, email="restore-organizer@example.com")
+    join_trip(client, headers=owner, trip_id=trip_id,
+              email="restore-organizer@example.com", role="organizer")
+    organizer = login_headers(client, "restore-organizer@example.com")
+    assert _restore(client, organizer, trip_id, 1).status_code == 201

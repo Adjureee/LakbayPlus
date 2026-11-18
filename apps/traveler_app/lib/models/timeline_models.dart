@@ -356,6 +356,29 @@ class TimelineRevisionSummary {
       );
 }
 
+/// The outcome of restoring an older revision: the revision now saved as the newest.
+class TimelineRestoreResult {
+  const TimelineRestoreResult({
+    this.revision,
+    this.timeline,
+    this.state,
+    this.changes = const [],
+    this.errorCode,
+  });
+
+  final int? revision;
+  final TimelineData? timeline;
+
+  /// The planning state that revision was built from.
+  final Map<String, dynamic>? state;
+  final List<String> changes;
+
+  /// Set when it failed: for example `trip_permission_denied`.
+  final String? errorCode;
+
+  bool get ok => timeline != null && state != null;
+}
+
 /// What the traveler changes in the Revise sheet; null fields are left as they are.
 class TimelineRevision {
   const TimelineRevision({

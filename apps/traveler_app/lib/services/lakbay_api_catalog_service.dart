@@ -1390,6 +1390,46 @@ class LakbayApiCatalogService {
     }
   }
 
+  /// Saves an older revision again as the newest one, exactly as it was stored.
+  Future<TimelineRestoreResult> restoreTripTimelineRevision(
+    String accessToken,
+    int tripId,
+    int revision,
+  ) async {
+    final base = _base;
+    if (base.isEmpty) return const TimelineRestoreResult(errorCode: 'not_configured');
+    try {
+      Future<http.Response> sendReq(String tok) => _client
+          .post(
+            Uri.parse('$base/trips/$tripId/timeline/revisions/$revision/restore'),
+            headers: {'Authorization': 'Bearer $tok'},
+          )
+          .timeout(const Duration(seconds: 30));
+      final res = await _sendAuthorized(accessToken, sendReq);
+      final decoded = _tryDecodeJson(res.body);
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return TimelineRestoreResult(
+          errorCode: _extractErrorCode(decoded) ?? 'http_${res.statusCode}',
+        );
+      }
+      if (decoded is! Map<String, dynamic> ||
+          decoded['timeline'] is! Map<String, dynamic> ||
+          decoded['state'] is! Map<String, dynamic>) {
+        return const TimelineRestoreResult(errorCode: 'bad_response');
+      }
+      return TimelineRestoreResult(
+        revision: (decoded['revision'] as num?)?.toInt(),
+        timeline: TimelineData.fromJson(decoded['timeline'] as Map<String, dynamic>),
+        state: decoded['state'] as Map<String, dynamic>,
+        changes: (decoded['changes'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+      );
+    } catch (_) {
+      return const TimelineRestoreResult(errorCode: 'network_error');
+    }
+  }
+
   /// The trip's saved timeline revisions, newest first; null when they cannot be read.
   Future<List<TimelineRevisionSummary>?> fetchTripTimelineHistory(
     String accessToken,
