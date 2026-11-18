@@ -34,18 +34,26 @@ class DestinationBase(BaseModel):
     entrance_fee: str | None = Field(default=None, max_length=255)
     overnight_fee: str | None = Field(default=None, max_length=255)
     operating_hours: str | None = Field(default=None, max_length=255)
+    # NULL means unknown for every field below.
+    operating_status: Literal["open", "temporarily_closed", "permanently_closed"] | None = None
+    booking_requirement: Literal["required", "recommended", "not_required"] | None = None
+    booking_note: str | None = Field(default=None, max_length=1000)
+    parking_note: str | None = Field(default=None, max_length=1000)
+    typical_visit_min_minutes: int | None = Field(default=None, gt=0, le=1440)
+    typical_visit_max_minutes: int | None = Field(default=None, gt=0, le=1440)
+    best_time_basis: str | None = Field(default=None, max_length=1000)
     best_time_to_visit: str | None = None
     how_to_get_there: str | None = None
     estimated_travel_time: str | None = None
     travel_notes: str | None = None
     what_to_bring: str | None = None
-    is_kid_friendly: bool = False
-    is_wheelchair_accessible: bool = False
-    is_pet_friendly: bool = False
-    is_elderly_friendly: bool = False
-    family_friendly: bool = False
-    couple_friendly: bool = False
-    group_friendly: bool = False
+    is_kid_friendly: bool | None = None
+    is_wheelchair_accessible: bool | None = None
+    is_pet_friendly: bool | None = None
+    is_elderly_friendly: bool | None = None
+    family_friendly: bool | None = None
+    couple_friendly: bool | None = None
+    group_friendly: bool | None = None
     budget_class: str | None = Field(default=None, max_length=50)
     crowd_level: str | None = Field(default=None, max_length=50)
     difficulty_level: str | None = Field(default=None, max_length=50)
@@ -57,6 +65,13 @@ class DestinationBase(BaseModel):
     @classmethod
     def validate_arrival_source_url(cls, value: str | None) -> str | None:
         return _validate_arrival_source_url(value)
+
+    @model_validator(mode="after")
+    def check_typical_visit(self):
+        low, high = self.typical_visit_min_minutes, self.typical_visit_max_minutes
+        if low is not None and high is not None and low > high:
+            raise ValueError("typical_visit_min_minutes must not be above the maximum.")
+        return self
 
     @field_validator("access_trail_polyline")
     @classmethod
@@ -113,6 +128,14 @@ class DestinationUpdate(BaseModel):
     entrance_fee: str | None = Field(default=None, max_length=255)
     overnight_fee: str | None = Field(default=None, max_length=255)
     operating_hours: str | None = Field(default=None, max_length=255)
+    # NULL means unknown for every field below.
+    operating_status: Literal["open", "temporarily_closed", "permanently_closed"] | None = None
+    booking_requirement: Literal["required", "recommended", "not_required"] | None = None
+    booking_note: str | None = Field(default=None, max_length=1000)
+    parking_note: str | None = Field(default=None, max_length=1000)
+    typical_visit_min_minutes: int | None = Field(default=None, gt=0, le=1440)
+    typical_visit_max_minutes: int | None = Field(default=None, gt=0, le=1440)
+    best_time_basis: str | None = Field(default=None, max_length=1000)
     best_time_to_visit: str | None = None
     how_to_get_there: str | None = None
     estimated_travel_time: str | None = None
@@ -137,6 +160,13 @@ class DestinationUpdate(BaseModel):
     @classmethod
     def validate_arrival_source_url(cls, value: str | None) -> str | None:
         return _validate_arrival_source_url(value)
+
+    @model_validator(mode="after")
+    def check_typical_visit(self):
+        low, high = self.typical_visit_min_minutes, self.typical_visit_max_minutes
+        if low is not None and high is not None and low > high:
+            raise ValueError("typical_visit_min_minutes must not be above the maximum.")
+        return self
 
     @field_validator("access_trail_polyline")
     @classmethod

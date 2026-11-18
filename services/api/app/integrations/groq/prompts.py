@@ -13,7 +13,7 @@ from app.features.recommendations.schemas import RecommendationItem
 
 PROMPT_VERSION = "phase5_itinerary_picks_only_v4"
 PLANNING_PROMPT_VERSION = "phase15e_picks_compact_v7"
-CHAT_PROMPT_VERSION = "phase5_chat_v18_activities"
+CHAT_PROMPT_VERSION = "phase5_chat_v19_unknown_access"
 ONBOARDING_CHAT_PROMPT_VERSION = "onboarding_v1"
 
 _LANGUAGE_LABELS: dict[str, str] = {
@@ -322,7 +322,11 @@ def build_chat_messages(
         "departure point is not the destination province. A null destination "
         "estimated_cost means unknown, not free. A known destination "
         "estimated_cost is not a complete trip budget. A place being open does "
-        "not mean every activity is available: name an activity only from a "
+        "not mean every activity is available. An accessibility or suitability "
+        "flag (wheelchair_accessible, kid_friendly, pet_friendly, elderly_friendly) "
+        "that is missing from a record was never checked: say it is not recorded, "
+        "never that the place is not accessible, and only a false value means no. "
+        "Name an activity only from a "
         "destination's activity_details or its activities text, and when an "
         "activity says availability not confirmed, say so instead of promising it. "
         "Do not assume rate units, "

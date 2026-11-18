@@ -46,7 +46,10 @@ class DestinationEditor extends StatefulWidget {
 class _DestinationEditorState extends State<DestinationEditor> {
   final _form = GlobalKey<FormState>();
   final _controllers = <String, TextEditingController>{};
-  final _suitability = <String, bool>{};
+  // true = yes, false = checked and no, null = not checked yet.
+  final _suitability = <String, bool?>{};
+  String _status = '';
+  String _booking = '';
   bool _routeReady = false;
   late String _islandGroup;
   String? _accessTrailPolyline;
@@ -71,6 +74,11 @@ class _DestinationEditorState extends State<DestinationEditor> {
     'overnight_fee',
     'operating_hours',
     'best_time_to_visit',
+    'best_time_basis',
+    'typical_visit_min_minutes',
+    'typical_visit_max_minutes',
+    'booking_note',
+    'parking_note',
     'how_to_get_there',
     'estimated_travel_time',
     'travel_notes',
@@ -112,8 +120,10 @@ class _DestinationEditorState extends State<DestinationEditor> {
       _controllers[key] = TextEditingController(text: value);
     }
     for (final key in destinationSuitability.keys) {
-      _suitability[key] = record[key] == true;
+      _suitability[key] = record[key] is bool ? record[key] as bool : null;
     }
+    _status = record['operating_status']?.toString() ?? '';
+    _booking = record['booking_requirement']?.toString() ?? '';
     _routeReady = record['route_ready'] == true;
     _islandGroup = record['island_group']?.toString().trim() ?? '';
     final rawTrail = record['access_trail_polyline']?.toString().trim() ?? '';
@@ -139,6 +149,8 @@ class _DestinationEditorState extends State<DestinationEditor> {
     for (final entry in _controllers.entries)
       entry.key: entry.value.text.trim(),
     ..._suitability,
+    'operating_status': _status,
+    'booking_requirement': _booking,
     'route_ready': _routeReady,
     'island_group': _islandGroup,
     'access_trail_polyline': _accessTrailPolyline ?? '',
@@ -341,12 +353,24 @@ class _DestinationEditorState extends State<DestinationEditor> {
       payload[key] = switch (key) {
         'lat' || 'lng' => double.parse(text),
         'name' => text,
+        'typical_visit_min_minutes' ||
+        'typical_visit_max_minutes' => text.isEmpty ? null : int.parse(text),
         _ => text.isEmpty ? null : text,
       };
     }
     for (final entry in _suitability.entries) {
       if (widget.destination == null || entry.value != _initial[entry.key]) {
         payload[entry.key] = entry.value;
+      }
+    }
+    for (final entry in {
+      'operating_status': _status,
+      'booking_requirement': _booking,
+    }.entries) {
+      if (widget.destination == null
+          ? entry.value.isNotEmpty
+          : entry.value != _initial[entry.key]) {
+        payload[entry.key] = entry.value.isEmpty ? null : entry.value;
       }
     }
     if (widget.destination == null && _islandGroup.isNotEmpty) {
@@ -517,6 +541,52 @@ class _DestinationEditorState extends State<DestinationEditor> {
                             ),
                             _field('best_time_to_visit', 'Best time to visit'),
                             _field(
+                              'best_time_basis',
+                              'Why that time (shown with the recommendation)',
+                            ),
+                            _pair(
+                              _choice(
+                                'status-field',
+                                'Operating status',
+                                _status,
+                                const {
+                                  '': 'Not checked',
+                                  'open': 'Open',
+                                  'temporarily_closed': 'Temporarily closed',
+                                  'permanently_closed': 'Permanently closed',
+                                },
+                                (v) => _status = v,
+                              ),
+                              _choice(
+                                'booking-field',
+                                'Booking',
+                                _booking,
+                                const {
+                                  '': 'Not checked',
+                                  'required': 'Required',
+                                  'recommended': 'Recommended',
+                                  'not_required': 'Not required',
+                                },
+                                (v) => _booking = v,
+                              ),
+                            ),
+                            _field('booking_note', 'How to book', lines: 2),
+                            _field('parking_note', 'Parking', lines: 2),
+                            _pair(
+                              _field(
+                                'typical_visit_min_minutes',
+                                'Typical visit, shortest (minutes)',
+                                numeric: true,
+                                validator: _wholeMinutes,
+                              ),
+                              _field(
+                                'typical_visit_max_minutes',
+                                'Typical visit, longest (minutes)',
+                                numeric: true,
+                                validator: _wholeMinutes,
+                              ),
+                            ),
+                            _field(
                               'how_to_get_there',
                               'How to get there',
                               lines: 3,
@@ -558,19 +628,52 @@ class _DestinationEditorState extends State<DestinationEditor> {
                                       width: constraints.maxWidth >= 640
                                           ? (constraints.maxWidth - 16) / 2
                                           : constraints.maxWidth,
-                                      child: CheckboxListTile(
-                                        contentPadding: EdgeInsets.zero,
-                                        controlAffinity:
-                                            ListTileControlAffinity.leading,
-                                        title: Text(entry.value),
-                                        value: _suitability[entry.key],
-                                        onChanged: (value) {
-                                          setState(
-                                            () => _suitability[entry.key] =
-                                                value ?? false,
-                                          );
-                                          _changed();
-                                        },
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(entry.value),
+                                          const SizedBox(height: 4),
+                                          SegmentedButton<String>(
+                                            key: ValueKey(
+                                              'suitability-${entry.key}',
+                                            ),
+                                            showSelectedIcon: false,
+                                            emptySelectionAllowed: false,
+                                            segments: const [
+                                              ButtonSegment(
+                                                value: 'unknown',
+                                                label: Text('Not checked'),
+                                              ),
+                                              ButtonSegment(
+                                                value: 'yes',
+                                                label: Text('Yes'),
+                                              ),
+                                              ButtonSegment(
+                                                value: 'no',
+                                                label: Text('No'),
+                                              ),
+                                            ],
+                                            selected: {
+                                              switch (_suitability[entry.key]) {
+                                                true => 'yes',
+                                                false => 'no',
+                                                null => 'unknown',
+                                              },
+                                            },
+                                            onSelectionChanged: (picked) {
+                                              setState(
+                                                () => _suitability[entry.key] =
+                                                    switch (picked.first) {
+                                                      'yes' => true,
+                                                      'no' => false,
+                                                      _ => null,
+                                                    },
+                                              );
+                                              _changed();
+                                            },
+                                          ),
+                                        ],
                                       ),
                                     ),
                                 ],
@@ -1003,6 +1106,40 @@ class _DestinationEditorState extends State<DestinationEditor> {
       }
       return validator?.call(value);
     },
+  );
+
+  /// Empty means unknown; otherwise a whole number of minutes from 1 to 1440.
+  String? _wholeMinutes(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final minutes = int.tryParse(text);
+    return minutes == null || minutes < 1 || minutes > 1440
+        ? 'Enter whole minutes from 1 to 1440, or leave empty.'
+        : null;
+  }
+
+  /// A dropdown whose empty choice means "not checked" (saved as null).
+  Widget _choice(
+    String id,
+    String label,
+    String value,
+    Map<String, String> options,
+    void Function(String) assign,
+  ) => DropdownButtonFormField<String>(
+    key: ValueKey('$id-$value'),
+    initialValue: value,
+    decoration: InputDecoration(labelText: label),
+    items: [
+      for (final entry in options.entries)
+        DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+    ],
+    onChanged: _saving
+        ? null
+        : (picked) {
+            if (picked == null) return;
+            setState(() => assign(picked));
+            _changed();
+          },
   );
 
   String? _name(String? value) => (value?.trim().length ?? 0) < 2
