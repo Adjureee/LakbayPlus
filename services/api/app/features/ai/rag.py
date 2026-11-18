@@ -10,9 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.accommodations.models import Accommodation
 from app.features.ai.retrieval_intent import DISTRICTS, resolve_retrieval_intent
-from app.features.destinations.hours import data_quality as hours_data_quality
+from app.features.destinations.data_quality import data_quality as hours_data_quality
 from app.features.destinations.hours import hours_summary
-from app.features.destinations.models import Destination, DestinationHours
+from app.features.destinations.prices import prices_summary
+from app.features.destinations.models import Destination, DestinationHours, DestinationPrice
 from app.features.transportations.models import Transportation
 
 
@@ -399,9 +400,20 @@ class VectorRAGRetriever:
         for row in hours_result.scalars().all():
             weekly_by_id.setdefault(row.destination_id, []).append(row)
 
+        price_result = await self.session.execute(
+            select(DestinationPrice).where(
+                DestinationPrice.destination_id.in_(destinations_by_id),
+            ),
+        )
+        prices_by_id: dict[int, list[DestinationPrice]] = {}
+        for row in price_result.scalars().all():
+            prices_by_id.setdefault(row.destination_id, []).append(row)
+
         documents: list[RagDocument] = [
             _destination_document(
-                destination, weekly_hours=weekly_by_id.get(destination.destination_id, []),
+                destination,
+                weekly_hours=weekly_by_id.get(destination.destination_id, []),
+                prices=prices_by_id.get(destination.destination_id, []),
             )
             for destination in destinations
         ]
@@ -427,8 +439,10 @@ def _destination_document(
     destination: Destination,
     *,
     weekly_hours: "list[DestinationHours] | None" = None,
+    prices: "list[DestinationPrice] | None" = None,
 ) -> RagDocument:
     opening_hours = hours_summary(destination.open_24_hours, weekly_hours or [])
+    price_list = prices_summary(prices or [])
     payload = {
         "destination_id": destination.destination_id,
         "name": destination.name,
@@ -441,6 +455,17 @@ def _destination_document(
         "estimated_cost": _money(destination.estimated_cost),
         "entrance_fee": destination.entrance_fee,
         "overnight_fee": destination.overnight_fee,
+        # Structured prices (when entered) with how far to trust them.
+        "prices": price_list,
+        "fees_verified_on": (
+            destination.fees_verified_at.date().isoformat()
+            if price_list and destination.fees_verified_at else None
+        ),
+        "fees_data_quality": hours_data_quality(
+            price_list is not None,
+            bool(destination.entrance_fee or destination.overnight_fee),
+            destination.fees_verified_at,
+        ),
         "operating_hours": destination.operating_hours,
         # Structured hours (when entered) with how far to trust them.
         "opening_hours": opening_hours,
@@ -479,6 +504,7 @@ def _destination_document(
         destination.vibes,
         destination.activities,
         opening_hours,
+        price_list,
         destination.best_time_to_visit,
         destination.how_to_get_there,
         destination.estimated_travel_time,
