@@ -1,8 +1,10 @@
 import json
 import logging
 import re
+from datetime import date, datetime
 from decimal import Decimal
 from time import perf_counter
+from zoneinfo import ZoneInfo
 
 from fastapi import status
 from pydantic import ValidationError
@@ -13,6 +15,7 @@ from app.core.exceptions import LakbayAPIError
 from app.core.provider_usage import ProviderLimiter
 from app.features.accommodations.models import Accommodation
 from app.features.ai.models import AIGenerationRun
+from app.features.ai.short_answers import describe, interpret_short_answer
 from app.features.ai.grounding import (
     align_text_with_cards,
     card_figures,
@@ -1303,6 +1306,31 @@ async def _build_planning_chat_result(
             validation_status = "invalid"
             chat_response = fallback_response
 
+    # Short answers ("Just me", "600", "Easy", "Tomorrow") are read here, beside the
+    # question they answer, so a model failure never loses them. What the words clearly
+    # say wins over what the model proposed.
+    answered = {
+        field: value
+        for field, value in interpret_short_answer(
+            data.message, current_state, _local_today(),
+        ).items()
+        if getattr(next_state, field) != value
+    }
+    if answered:
+        try:
+            next_state = PlanningState.model_validate({**next_state.model_dump(), **answered})
+            changes_json.update(json.loads(json.dumps(answered, default=str)))
+            update_status = "applied"
+            if chat_response == fallback_response:
+                # The model gave nothing usable, so say what was saved and ask the next
+                # question the plan needs.
+                chat_response = " ".join(filter(None, [
+                    f"Got it: {describe(answered)}.",
+                    compute_stage(next_state).next_question,
+                ]))
+        except ValidationError:
+            pass  # an answer the plan cannot hold (for example 500 travelers) is not saved
+
     if output is not None and (rejected_fields or unconfirmed_fields):
         # The model's own reply may claim something that was not saved, so it is
         # replaced by a plain note and the next real question.
@@ -1400,6 +1428,23 @@ async def _build_planning_chat_result(
             if town_card_ids:
                 town_place = place
                 break
+
+    # A town the traveler asked to browse becomes the plan's destination area (a place
+    # merely mentioned does not; the model can record "I want to stay in X" itself).
+    if (
+        requested_locations
+        and next_state.destination_area is None
+        and town_card_ids
+    ):
+        area = requested_locations[0].strip().title()
+        try:
+            next_state = PlanningState.model_validate(
+                {**next_state.model_dump(), "destination_area": area},
+            )
+            changes_json["destination_area"] = area
+            update_status = "applied"
+        except ValidationError:
+            pass
 
     preview_started = perf_counter()
     preview = await PlanningService(session, route_service).preview(
@@ -1703,6 +1748,11 @@ def _looks_like_question(message: str) -> bool:
 _CHAT_RESPONSE_FIELD = re.compile(
     r'"chat_*response"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL,
 )
+
+
+def _local_today() -> date:
+    """Today's date where the traveler is (the server's timezone, Asia/Manila)."""
+    return datetime.now(ZoneInfo(get_settings().timezone)).date()
 
 
 def _support_text(data: AIChatRequest, retrieved_context: list[dict]) -> str:
