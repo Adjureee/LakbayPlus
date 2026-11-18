@@ -39,6 +39,7 @@ from app.features.planning.timeline_schemas import (
 DEFAULT_DAY_START = 8 * 60
 DEFAULT_DAY_END = 20 * 60
 LUNCH_FROM, LUNCH_AT, LUNCH_MINUTES = 11 * 60 + 30, 12 * 60, 60
+LUNCH_UNTIL = 14 * 60 + 30  # past this the day is beyond lunch time: no late lunch
 DINNER_FROM, DINNER_MINUTES = 18 * 60, 60
 BUFFER_MINUTES = 15
 REST_AFTER, REST_MINUTES = 180, 20
@@ -67,6 +68,7 @@ class CostInfo:
     status: CostStatus = "known"
     scope: Literal["per_person", "shared"] = "shared"
     included_in: str | None = None
+    basis_recorded: bool = True
 
 
 @dataclass
@@ -125,6 +127,8 @@ class TimelineInput:
     trip_costs: list[CostInfo] = field(default_factory=list)
     # Set when the traveler's food allowance already covers the meals.
     meal_included_in: str | None = None
+    # Details that would complete the cost estimate (prompts, not costs).
+    budget_prompts: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -198,7 +202,8 @@ class _Builder:
         if number == 1:
             label = f"Leave {self.inp.origin_label}"
             costs = [ItemCost(label=c.label, amount=c.amount, status=c.status, scope=c.scope,
-                              included_in=c.included_in) for c in self.inp.trip_costs]
+                              included_in=c.included_in, basis_recorded=c.basis_recorded)
+                     for c in self.inp.trip_costs]
             self._add("depart", label, start=self.clock, minutes=0, dur_basis="calculated",
                       costs=costs)
 
@@ -229,13 +234,19 @@ class _Builder:
         self, kind, label, *, start, minutes, dur_basis: DurationBasis,
         basis: TimeBasis | None = None, **extra,
     ) -> TimelineItem:
+        end = None if minutes is None else start + minutes
+        notes = list(extra.pop("notes", []))
+        if start >= 1440 or (end is not None and end >= 1440):
+            # Clock times cannot wrap past midnight: show the last minute and say why.
+            notes.append("This would run past midnight, so it does not fit the day.")
         item = TimelineItem(
             kind=kind, day=self.day + 1, label=label,
-            starts_at=to_time(start),
-            ends_at=None if minutes is None else to_time(start + minutes),
+            starts_at=to_time(min(start, 1439)),
+            ends_at=None if end is None else to_time(min(end, 1439)),
             duration_minutes=minutes,
             time_basis=basis or self.basis,
             duration_basis=dur_basis,
+            notes=notes,
             **extra,
         )
         self.days[self.day].append(item)
@@ -270,7 +281,7 @@ class _Builder:
 
     def _break_items(self) -> None:
         if self.inp.include_meals:
-            if not self.lunch and LUNCH_FROM <= self.clock < DINNER_FROM:
+            if not self.lunch and LUNCH_FROM <= self.clock < LUNCH_UNTIL:
                 self.lunch = True
                 self._meal("Lunch", at=max(self.clock, LUNCH_AT))
             if not self.dinner and self.clock >= DINNER_FROM:
@@ -349,13 +360,14 @@ class _Builder:
         )
         if leg.minutes is None:
             self._add("travel", f"Travel to {stop.name}", start=self.clock, minutes=None,
-                      dur_basis="unknown", travel=travel,
+                      dur_basis="unknown", basis="provisional", travel=travel,
                       notes=["No travel time is available for this leg, so the times after "
                              "it are provisional and will shift once it is known."])
             self.basis = _worse(self.basis, "provisional")
         elif leg.minutes > 0:
             self._add("travel", f"Travel to {stop.name}", start=self.clock,
-                      minutes=leg.minutes, dur_basis="calculated", travel=travel,
+                      minutes=leg.minutes, dur_basis="calculated",
+                      basis=_worse(self.basis, "estimated"), travel=travel,
                       notes=([] if leg.basis == "supported" else
                              ["Estimated from straight-line distance."]))
             self.clock += leg.minutes
@@ -392,7 +404,8 @@ class _Builder:
                 stop.booking_note,
             ]))
         costs = [ItemCost(label=c.label, amount=c.amount, status=c.status, scope=c.scope,
-                          included_in=c.included_in) for c in stop.costs]
+                          included_in=c.included_in, basis_recorded=c.basis_recorded)
+                 for c in stop.costs]
         self._add("visit", stop.name, start=start, minutes=length, dur_basis=dur_basis,
                   basis=start_basis, destination_id=stop.destination_id, costs=costs,
                   booking=booking, notes=notes)
@@ -438,13 +451,14 @@ class _Builder:
             route_verified=leg.route_verified)
         if leg.minutes is None:
             self._add("travel", f"Return to {label}", start=self.clock, minutes=None,
-                      dur_basis="unknown", travel=travel,
+                      dur_basis="unknown", basis="provisional", travel=travel,
                       notes=["No travel time is available for the return, so the arrival "
                              "time is unknown."])
             return
         if leg.minutes > 0:
             self._add("travel", f"Return to {label}", start=self.clock, minutes=leg.minutes,
-                      dur_basis="calculated", travel=travel)
+                      dur_basis="calculated", basis=_worse(self.basis, "estimated"),
+                      travel=travel)
             self.clock += leg.minutes
             self.basis = _worse(self.basis, "estimated")
         self._add("return", f"Back at {label}", start=self.clock, minutes=0,
@@ -459,8 +473,9 @@ class _Builder:
 
 
 def summarize_budget(inp: TimelineInput, days: list[TimelineDay]) -> BudgetSummary:
-    known = estimated = Decimal("0")
+    known = estimated = unbased_total = Decimal("0")
     unknown: list[str] = []
+    unbased: list[str] = []
     notes: list[str] = []
     count = inp.traveler_count
     for day in days:
@@ -483,23 +498,34 @@ def summarize_budget(inp: TimelineInput, days: list[TimelineDay]) -> BudgetSumma
                     known += amount
                 else:
                     estimated += amount
+                    if not cost.basis_recorded:
+                        unbased_total += amount
+                        unbased.append(f"{cost.label} ({item.label}): about \u20b1{amount:,.0f}")
     subtotal = known + estimated
     budget = inp.total_budget
     if budget is not None and inp.budget_scope == "per_person":
         budget = budget * count if count else None
     complete = not unknown
+    # Only known amounts and estimates with a recorded basis may decide the verdict.
+    decided = subtotal - unbased_total
     if budget is None:
         fit = "undetermined"
-    elif subtotal > budget:
+    elif decided > budget:
         fit = "over_budget"
     else:
-        fit = "fits_known_costs" if complete else "undetermined"
+        fit = "fits_known_costs" if complete and not unbased else "undetermined"
     if not complete:
         notes.append(f"This is not the full trip cost: {len(unknown)} cost(s) are unknown.")
+    if unbased:
+        notes.append(
+            f"{len(unbased)} estimate(s) have no recorded charging basis (per person or per "
+            "trip), so they are shown but not used to decide whether the trip fits."
+        )
     return BudgetSummary(
-        known_total=known, estimated_total=estimated, unknown=unknown, subtotal=subtotal,
+        known_total=known, estimated_total=estimated, unknown=unknown, unbased=unbased,
+        to_complete=list(inp.budget_prompts), subtotal=subtotal,
         complete=complete, total_budget=budget,
-        remaining=(budget - subtotal) if complete and budget is not None else None,
+        remaining=(budget - subtotal) if complete and not unbased and budget is not None else None,
         fit=fit, notes=notes,
     )
 
