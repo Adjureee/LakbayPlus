@@ -158,6 +158,12 @@ def card_figures_text(cards: list[Any]) -> str:
     return " ".join(card_figures(card) for card in cards)
 
 
+def _plain_name(text: str) -> str:
+    """Lower case, typographic quotes made plain, spaces collapsed."""
+    plain = text.replace("\u2019", "'").replace("\u2018", "'").casefold()
+    return re.sub(r"\s+", " ", plain).strip()
+
+
 def mentioned_place_ids(sentence: str, names: list[tuple[int, str]]) -> set[int]:
     """Ids of the catalog places a sentence names (all their distinctive words appear).
 
@@ -165,11 +171,18 @@ def mentioned_place_ids(sentence: str, names: list[tuple[int, str]]) -> set[int]
     Places sharing the same name words are all included.
     """
     words = set(_tokens(sentence))
+    plain_sentence = _plain_name(sentence)
     matched: dict[int, frozenset] = {}
     for place_id, name in names:
         distinctive = _distinctive(name)
         if distinctive and all(word in words for word in distinctive):
             matched[place_id] = frozenset(distinctive)
+        elif not distinctive and len(_plain_name(name)) >= 5 and (
+            _plain_name(name) in plain_sentence
+        ):
+            # A name made only of common words ("People's Park") has no distinctive word
+            # to look for, so its whole name must appear.
+            matched[place_id] = frozenset({_plain_name(name)})
     return {
         i for i, d in matched.items()
         if not any(d < other for j, other in matched.items() if j != i)

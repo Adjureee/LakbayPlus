@@ -68,3 +68,25 @@ Two judge errors were found and fixed before this run: it did not see the rate r
 The 7 misses are the ones the plan chose to leave alone or that are doubtful, not gaps in the lexicon: three plain crowd or weather tips ("go early to avoid crowds", "weather's cooler", "indoor space can get warm"), "arrive early, especially on Sundays", "call the resort to ask about ramps" (advice, not a claim), and the room rate and bus fare that may be in the rate records. Of the claims the plan puts in scope (terrain, parking and other facilities, rules, named activities, specific seasons, and a guess after "not recorded"), the check caught all 12 in this sample. The target of 80% caught and at most 3% wrongly flagged is met here, on 73 sentences, which is too few to be sure: it must be re-measured on the full sample after the guest chat limit resets.
 
 Two bugs found while replaying, now fixed and covered by tests: the "ask the operator" guard hid a guess in the same sentence ("... check with the parish, many churches have a small lot"), and non-breaking hyphens ("air-conditioned") slipped past the patterns.
+
+## Before switching to enforce (19 Nov 2026)
+
+A bigger sample (58 live replies, 19 places, 156 sentences) was judged with the full records the chat sees (the transport records' vehicle type had been missing from the judge's and the replay's view, which made some supported bus fares look invented; fixed in `tests/claims_baseline.py`).
+
+| Measure | Result |
+|---|---|
+| Replies with at least one unsupported sentence | 25 of 58 (43%) |
+| Sentences the judge called unsupported | 33 |
+| Caught by the check | 16 (48%) |
+| Other sentences wrongly flagged | **0 of 123** |
+
+The 17 misses are mostly the ones left alone on purpose: plain tips (crowds, weather, sunscreen, "bring a raincoat"), advice to ask the operator, open-ended details a word list cannot name ("learn about human and animal anatomy"), and route or price figures that belong to the figure check. By my own count about 80% of the claims in the categories the check covers were caught; that count is a judgement, not a measurement.
+
+Previewing enforcement on all 58 replies (16 would change) found three results that read badly, now fixed and covered by tests:
+- a dependent clause left as a fragment ("Because it's a highland spot.") is now dropped whole;
+- a guess after "not recorded" removed the whole sentence, leaving the question unanswered; it is now cut back to the honest clause ("Parking isn't mentioned for Aliwagwag Falls.");
+- one invented list item dropped a good sentence; list items holding the claim are now removed and the rest kept, and a ", so you can enjoy its wide paths" or ", which includes ..." clause is cut while the answer ("Yes, ... is wheelchair accessible.") stays.
+
+Two defects of the check itself were also found: a place named only with common words ("People's Park") was never recognised in a sentence, so its sentences were never checked (fixed in `mentioned_place_ids`, which also improves the figure check), and a "but" before the absence ("listed as family friendly, but accessibility is not specified") was wrongly treated as an assertion.
+
+To enforce: set `CLAIMS_CHECK_MODE=enforce` in the Render environment (no deploy needed beyond the restart). To go back, set it to `log`.
