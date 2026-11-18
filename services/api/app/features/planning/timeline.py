@@ -352,6 +352,7 @@ class _Builder:
         if self.last_was_visit:
             self._planning_item("buffer", "Buffer", BUFFER_MINUTES,
                                 note="A planning buffer between stops.")
+        leave_at = self.clock  # when the previous stop and buffer are done
         leg = self.inp.legs.get((self.prev_id, stop.destination_id)) or LegInfo(None)
         from_label = (self.inp.origin_label if self.prev_id is None
                       else self.stops[self.prev_id].name)
@@ -385,8 +386,11 @@ class _Builder:
                 arrival, self.basis = wanted, "confirmed"
                 notes.append("Start time pinned by the traveler.")
             else:
-                notes.append("The pinned start time could not be kept: the earlier stops "
-                             "run past it.")
+                # Say what actually pushed it past the pin: the trip from the previous
+                # stop, or the earlier stops themselves running late.
+                cause = (f"the travel from {from_label} arrives after it" if leave_at <= wanted
+                         else "the earlier stops run past it")
+                notes.append(f"The pinned start time could not be kept: {cause}.")
         length, dur_basis = visit_length(stop, self.inp.pace)
         start, problem, hours_state, hours_note = self._hours_slot(stop, arrival, length)
         if hours_note:
