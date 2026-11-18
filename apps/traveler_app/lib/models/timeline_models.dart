@@ -332,6 +332,30 @@ class TimelineResult {
   );
 }
 
+/// One saved version of the trip's timeline (the revision log).
+class TimelineRevisionSummary {
+  const TimelineRevisionSummary({
+    required this.revision,
+    required this.createdAt,
+    this.changes = const [],
+  });
+
+  final int revision;
+  final DateTime? createdAt;
+
+  /// Plain sentences for what moved since the previous revision.
+  final List<String> changes;
+
+  factory TimelineRevisionSummary.fromJson(Map<String, dynamic> json) =>
+      TimelineRevisionSummary(
+        revision: (json['revision'] as num?)?.toInt() ?? 0,
+        createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
+        changes: (json['changes'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+      );
+}
+
 /// What the traveler changes in the Revise sheet; null fields are left as they are.
 class TimelineRevision {
   const TimelineRevision({

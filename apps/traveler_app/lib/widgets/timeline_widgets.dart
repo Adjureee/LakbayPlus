@@ -180,6 +180,12 @@ class TimelineCard extends StatelessWidget {
                 icon: const Icon(Icons.tune_rounded, size: 18),
                 label: const Text('Revise'),
               ),
+              if (repo.timelineBackendTripId != null)
+                TextButton(
+                  key: const ValueKey('timeline-history'),
+                  onPressed: () => showTimelineHistorySheet(context, repo),
+                  child: const Text('History'),
+                ),
               if (onOpenTrip != null)
                 TextButton(
                   key: const ValueKey('timeline-open-trip'),
@@ -715,3 +721,74 @@ class _ReviseSheetState extends State<_ReviseSheet> {
     );
   }
 }
+
+
+/// The saved revisions of this itinerary, newest first, with what moved in each.
+Future<void> showTimelineHistorySheet(BuildContext context, TravelRepository repo) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (_) => FutureBuilder<List<TimelineRevisionSummary>?>(
+      future: repo.loadTimelineHistory(),
+      builder: (context, snapshot) {
+        final revisions = snapshot.data;
+        Widget body;
+        if (snapshot.connectionState != ConnectionState.done) {
+          body = const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        } else if (revisions == null) {
+          body = const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text("The history could not be loaded right now. Your itinerary is not affected."),
+          );
+        } else if (revisions.isEmpty) {
+          body = const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No saved revisions yet.'),
+          );
+        } else {
+          body = Column(
+            key: const ValueKey('timeline-history-list'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final r in revisions)
+                ListTile(
+                  key: ValueKey('timeline-revision-${r.revision}'),
+                  dense: true,
+                  title: Text(
+                    'Revision ${r.revision}'
+                    '${r.createdAt == null ? '' : ' \u00b7 ${_date(r.createdAt!.toLocal())}'}',
+                  ),
+                  subtitle: Text(
+                    r.changes.isEmpty ? 'First saved version' : r.changes.join(' '),
+                  ),
+                ),
+            ],
+          );
+        }
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Itinerary history',
+                  style: TextStyle(fontFamily: 'FigGrotesk', fontWeight: FontWeight.w700, fontSize: 17),
+                ),
+                const SizedBox(height: 8),
+                body,
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+String _date(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
