@@ -11,6 +11,7 @@ import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_image.dart';
 import '../widgets/notifications_sheet.dart';
 import '../widgets/origin_picker_sheet.dart';
+import '../widgets/timeline_widgets.dart';
 import '../widgets/user_avatar.dart';
 import 'trip_detail_screen.dart';
 
@@ -1307,7 +1308,24 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                           msg.recommendedPlaces,
                         ),
                       ],
-                      if (msg.aiOptions.isNotEmpty) ...[
+                      if (msg.timeline != null) ...[
+                        const SizedBox(height: 12),
+                        TimelineCard(
+                          timeline: msg.timeline!,
+                          repo: widget.repo,
+                          trip: msg.attachedTrip,
+                          onOpenTrip: msg.attachedTrip == null
+                              ? null
+                              : () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => TripDetailScreen(
+                                      trip: msg.attachedTrip!,
+                                      repo: widget.repo,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ] else if (msg.aiOptions.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         _buildAiOptionsPicker(context, msg.aiOptions),
                       ] else if (msg.attachedTrip != null) ...[
