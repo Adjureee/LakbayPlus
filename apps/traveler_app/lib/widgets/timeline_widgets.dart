@@ -508,6 +508,24 @@ class _BudgetPanel extends StatelessWidget {
               child: Text('• $u', style: const TextStyle(fontSize: 13)),
             ),
         ],
+        if (budget.unbased.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          const Text('Estimates with no recorded basis (not used to judge your budget):'),
+          for (final u in budget.unbased)
+            Padding(
+              padding: const EdgeInsets.only(left: 8, top: 2),
+              child: Text('• $u', style: const TextStyle(fontSize: 13)),
+            ),
+        ],
+        if (budget.toComplete.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          const Text('To complete the estimate:'),
+          for (final p in budget.toComplete)
+            Padding(
+              padding: const EdgeInsets.only(left: 8, top: 2),
+              child: Text('• $p', style: const TextStyle(fontSize: 13)),
+            ),
+        ],
         for (final note in budget.notes)
           Padding(
             padding: const EdgeInsets.only(top: 4),

@@ -78,11 +78,14 @@ def test_a_day_is_built_from_the_legs_and_recorded_lengths_in_order():
 
 def test_a_traveler_stated_departure_is_confirmed_and_a_default_start_is_provisional():
     stated = build([stop()], [(None, 1, 30, "supported")], departure_time=time(9))
-    assert items(stated, "travel")[0].time_basis == "confirmed"
+    assert items(stated, "depart")[0].time_basis == "confirmed"
     assert hhmm(items(stated, "travel")[0].starts_at) == "09:00"
+    # The leg's own duration is an estimate, so the leg is never labelled confirmed.
+    assert items(stated, "travel")[0].time_basis == "estimated"
 
     default = build([stop()], [(None, 1, 30, "supported")])
     assert hhmm(items(default, "travel")[0].starts_at) == "08:00"
+    assert items(default, "depart")[0].time_basis == "provisional"
     assert items(default, "travel")[0].time_basis == "provisional"
     assert any("8:00" in text for text in default.assumptions)
 
@@ -386,3 +389,63 @@ def test_several_picks_are_never_dropped_or_reordered_whatever_conflicts():
     assert [i.destination_id for i in items(timeline, "visit")] == [1, 2, 3]
     assert check(timeline, "selected_places").status == "passed"
     assert {c.code for c in timeline.conflicts} >= {"place_closed", "exceeds_day"}
+
+
+# --- presentation fixes found in the live check -----------------------------------------
+
+
+def test_a_leg_with_no_travel_time_is_provisional_even_after_a_stated_departure():
+    timeline = build([stop()], [], departure_time=time(8))  # no leg at all
+    leg = items(timeline, "travel")[0]
+    assert leg.time_basis == "provisional" and leg.duration_minutes is None
+
+
+def test_a_visit_cannot_end_before_it_starts_when_it_runs_past_midnight():
+    """Live case: a full-day default visit showed 16:53 to 00:53."""
+    timeline = build([stop(activity_minutes=480)], [(None, 1, 60, "supported")],
+                     departure_time=time(16))
+    visit = items(timeline, "visit")[0]
+    assert hhmm(visit.starts_at) == "17:00" and hhmm(visit.ends_at) == "23:59"
+    assert visit.duration_minutes == 480
+    assert any("past midnight" in n for n in visit.notes)
+    assert [c.code for c in timeline.conflicts] == ["exceeds_day"]
+    assert check(timeline, "chronological_order").status == "passed"
+
+
+def test_an_estimate_with_no_recorded_basis_never_decides_the_budget_verdict():
+    """Live case: two catalog estimates of unknown basis were called over budget."""
+    place = stop(costs=[CostInfo("Catalog estimate", Decimal("3000"), "estimated",
+                                 scope="per_person", basis_recorded=False)])
+    timeline = build([place], [(None, 1, 10, "supported")], traveler_count=2,
+                     total_budget=Decimal("5000"), include_meals=False)
+    budget = timeline.budget
+    assert budget.estimated_total == Decimal("6000") and budget.fit == "undetermined"
+    assert budget.remaining is None
+    assert len(budget.unbased) == 1 and "about ₱6,000" in budget.unbased[0]
+    assert any("not used to decide" in n for n in budget.notes)
+
+
+def test_known_costs_still_decide_over_budget_and_a_recorded_basis_estimate_counts():
+    over = build([stop(costs=[CostInfo("Entrance", Decimal("900"), "known"),
+                              CostInfo("Catalog estimate", Decimal("3000"), "estimated",
+                                       basis_recorded=False)])],
+                 [(None, 1, 10, "supported")], total_budget=Decimal("500"),
+                 include_meals=False)
+    assert over.budget.fit == "over_budget"
+    based = build([stop(costs=[CostInfo("Parking", Decimal("900"), "estimated")])],
+                  [(None, 1, 10, "supported")], total_budget=Decimal("500"),
+                  include_meals=False)
+    assert based.budget.fit == "over_budget" and not based.budget.unbased
+
+
+def test_prompts_to_complete_the_estimate_are_kept_apart_from_costs():
+    timeline = build([stop()], [(None, 1, 10, "supported")], include_meals=False,
+                     budget_prompts=["Provide night_count before completing the estimate."])
+    assert timeline.budget.to_complete == ["Provide night_count before completing the estimate."]
+    assert timeline.budget.unknown == ["Entrance fee (Eden)"] or timeline.budget.unknown == []
+
+
+def test_no_lunch_is_added_to_an_afternoon_start():
+    timeline = build([stop(activity_minutes=60)], [(None, 1, 30, "supported")],
+                     departure_time=time(16))
+    assert items(timeline, "meal") == []

@@ -71,7 +71,8 @@ def stop_costs(destination, prices: list, state: PlanningState) -> list[CostInfo
     if not entrance:
         if destination.estimated_cost is not None:
             return [CostInfo("Catalog estimate (charging basis not recorded)",
-                             destination.estimated_cost, "estimated", scope="per_person")]
+                             destination.estimated_cost, "estimated", scope="per_person",
+                             basis_recorded=False)]
         text = f" (listed only as text: {destination.entrance_fee})" if destination.entrance_fee else ""
         return [CostInfo(f"Entrance fee{text}", None, "unknown")]
     if adults is None:
@@ -159,9 +160,32 @@ async def _records(session: AsyncSession, ids: list[int]):
     return group(hours), group(exceptions), group(prices)
 
 
-def _trip_costs(preview) -> tuple[list[CostInfo], str | None]:
+# Missing-cost codes from the preview budget, sorted by what they mean for a traveler.
+# A cost we can name becomes one unknown line; a request for input becomes a prompt; the
+# rest (entrance and child prices, handled per stop) are left out.
+_UNKNOWN_COST_LABELS = {
+    "food_allowance_missing": "Food (no allowance set)",
+    "activity_allowance_missing": "Activity fees (no allowance set)",
+    "transport_selection_missing": "Transport (cost not set)",
+    "transport_price_basis_missing": "Transport (cost not set)",
+    "transport_connections_missing": "Transport (cost not set)",
+    "transport_outbound_missing": "Transport (cost not set)",
+    "transport_return_missing": "Transport (cost not set)",
+    "fuel_estimate_missing": "Fuel and vehicle expenses (not set)",
+    "vehicle_expense_allowance_missing": "Fuel and vehicle expenses (not set)",
+    "accommodation_selection_missing": "Accommodation (cost not set)",
+    "accommodation_price_basis_missing": "Accommodation (cost not set)",
+}
+_PROMPT_CODES = {
+    "trip_details_missing", "destination_selection_missing", "selection_invalid",
+    "allowance_conflict", "accommodation_nights_mismatch",
+}
+
+
+def _trip_costs(preview) -> tuple[list[CostInfo], str | None, list[str]]:
     costs: list[CostInfo] = []
     covered_by: str | None = None
+    prompts: list[str] = []
     for line in preview.budget.lines:
         if line.category not in _BUDGET_CATEGORIES:
             continue
@@ -171,10 +195,16 @@ def _trip_costs(preview) -> tuple[list[CostInfo], str | None]:
         costs.append(CostInfo(
             line.label, line.amount, status,
             included_in=line.included_in if line.source == "included_in_allowance" else None))
+    named: set[str] = set()
     for missing in preview.budget.missing_costs:
-        if not missing.reference_id.startswith(("destination", "activity")):
-            costs.append(CostInfo(missing.message, None, "unknown"))
-    return costs, covered_by
+        label = _UNKNOWN_COST_LABELS.get(missing.code)
+        if label is not None:
+            if label not in named:
+                named.add(label)
+                costs.append(CostInfo(label, None, "unknown"))
+        elif missing.code in _PROMPT_CODES and missing.message not in prompts:
+            prompts.append(missing.message)
+    return costs, covered_by, prompts
 
 
 async def build_timeline_response(
@@ -208,7 +238,7 @@ async def build_timeline_response(
             in_region=True if region == "inside" else False if region == "outside" else None,
             costs=stop_costs(d, prices.get(d.destination_id, []), state),
         ))
-    trip_costs, meal_cover = _trip_costs(preview)
+    trip_costs, meal_cover, prompts = _trip_costs(preview)
     inp = TimelineInput(
         stops=stops, legs=_legs(preview, ordered, state),
         start_date=state.travel_start_date, day_count=state.day_count or 1,
@@ -218,6 +248,7 @@ async def build_timeline_response(
         return_label=state.return_label, traveler_count=state.traveler_count,
         child_ages=list(state.child_ages), total_budget=preview.whole_trip_budget,
         include_meals=data.include_meals, trip_costs=trip_costs, meal_included_in=meal_cover,
+        budget_prompts=prompts,
         pins=[Pin(p.destination_id, p.day, p.starts_at) for p in data.pins],
     )
     timeline = build_timeline(inp)

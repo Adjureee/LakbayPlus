@@ -46,6 +46,9 @@ class ItemCost(BaseModel):
     scope: Literal["per_person", "shared"] = "shared"
     # Set when the amount is already part of another price (admission, a package).
     included_in: str | None = None
+    # False for an estimate whose charging basis is not recorded (per person? per trip?):
+    # it is shown, but it never decides whether the trip fits the budget.
+    basis_recorded: bool = True
 
 
 class TimelineItem(BaseModel):
@@ -91,6 +94,11 @@ class BudgetSummary(BaseModel):
     # Items whose cost is unknown; the totals above are not the full trip cost while
     # this is not empty.
     unknown: list[str] = Field(default_factory=list)
+    # Estimates with no recorded charging basis (included in the totals, not used to
+    # decide whether the trip fits).
+    unbased: list[str] = Field(default_factory=list)
+    # What the traveler could add to complete the estimate (prompts, not costs).
+    to_complete: list[str] = Field(default_factory=list)
     subtotal: Decimal
     complete: bool
     total_budget: Decimal | None = None
