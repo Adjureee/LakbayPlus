@@ -213,6 +213,8 @@ class TimelineBudget {
     required this.knownTotal,
     required this.estimatedTotal,
     required this.unknown,
+    this.unbased = const [],
+    this.toComplete = const [],
     required this.subtotal,
     required this.complete,
     required this.fit,
@@ -224,6 +226,12 @@ class TimelineBudget {
   final double knownTotal;
   final double estimatedTotal;
   final List<String> unknown;
+
+  /// Estimates with no recorded charging basis: shown, never used to judge the budget.
+  final List<String> unbased;
+
+  /// What the traveler could add to complete the estimate (prompts, not costs).
+  final List<String> toComplete;
   final double subtotal;
   final bool complete;
   final double? totalBudget;
@@ -237,6 +245,8 @@ class TimelineBudget {
     knownTotal: _money(json['known_total']) ?? 0,
     estimatedTotal: _money(json['estimated_total']) ?? 0,
     unknown: (json['unknown'] as List<dynamic>? ?? const []).map((e) => e.toString()).toList(),
+    unbased: (json['unbased'] as List<dynamic>? ?? const []).map((e) => e.toString()).toList(),
+    toComplete: (json['to_complete'] as List<dynamic>? ?? const []).map((e) => e.toString()).toList(),
     subtotal: _money(json['subtotal']) ?? 0,
     complete: json['complete'] == true,
     totalBudget: _money(json['total_budget']),

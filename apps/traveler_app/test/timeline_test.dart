@@ -106,6 +106,8 @@ Map<String, dynamic> _timeline({bool conflict = false}) => {
     'known_total': '200.00',
     'estimated_total': '0.00',
     'unknown': ['Zipline (Hagimit Falls)'],
+    'unbased': ['Catalog estimate (Museo Davao): about PHP 600'],
+    'to_complete': ['Provide night_count before completing the estimate.'],
     'subtotal': '200.00',
     'complete': false,
     'total_budget': '5000.00',
@@ -235,6 +237,10 @@ void main() {
     );
     expect(find.text('Unknown costs (not in the subtotal):'), findsOneWidget);
     expect(find.textContaining('Zipline (Hagimit Falls)'), findsWidgets);
+    expect(find.textContaining('no recorded basis'), findsOneWidget);
+    expect(find.textContaining('Catalog estimate (Museo Davao)'), findsOneWidget);
+    expect(find.text('To complete the estimate:'), findsOneWidget);
+    expect(find.textContaining('Provide night_count'), findsOneWidget);
   });
 
   testWidgets('a conflict keeps the pick and offers the three choices', (tester) async {

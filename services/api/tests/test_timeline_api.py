@@ -249,3 +249,32 @@ def test_without_a_route_legs_are_straight_line_estimates_except_for_islands():
     assert island == {}
     # No coordinates, no estimate.
     assert _legs(_preview(), [_dest(1, 7.2, 125.5)], state()) == {}
+
+
+# --- missing costs from the preview: costs become unknown lines, requests become prompts ---
+
+
+def _missing(code, message="m", reference="x"):
+    return N(code=code, message=message, reference_id=reference)
+
+
+def test_preview_missing_costs_become_named_unknowns_or_prompts_not_instructions():
+    from app.features.planning.timeline_service import _trip_costs
+
+    preview = N(budget=N(lines=[], missing_costs=[
+        _missing("trip_details_missing", "Provide night_count before completing the estimate."),
+        _missing("trip_details_missing", "Provide night_count before completing the estimate."),
+        _missing("transport_selection_missing"),
+        _missing("transport_return_missing"),
+        _missing("food_allowance_missing"),
+        _missing("fuel_estimate_missing"),
+        _missing("child_price_rule_missing"),
+        _missing("destination_allowance_missing", reference="destination:5"),
+    ]))
+    costs, covered, prompts = _trip_costs(preview)
+    assert [c.label for c in costs] == [
+        "Transport (cost not set)", "Food (no allowance set)",
+        "Fuel and vehicle expenses (not set)"]  # one line per kind, none an instruction
+    assert all(c.amount is None and c.status == "unknown" for c in costs)
+    assert prompts == ["Provide night_count before completing the estimate."]
+    assert covered is None
