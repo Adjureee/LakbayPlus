@@ -342,3 +342,35 @@ class TripTask(Base):
         back_populates="assigned_tasks",
         foreign_keys=[assigned_trip_member_id],
     )
+
+
+class TripTimelineRevision(Base):
+    """One saved version of a trip's itinerary timeline.
+
+    The server builds the timeline from `state` when it is saved, so what is stored is
+    never something a client composed. Revisions are append-only: a revision is not edited
+    after it is saved; reverting saves the old state as a new revision.
+    """
+
+    __tablename__ = "trip_timeline_revisions"
+    __table_args__ = (
+        UniqueConstraint("trip_id", "revision", name="uq_trip_timeline_revision"),
+        CheckConstraint("revision >= 1", name="ck_trip_timeline_revision_positive"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("trips.trip_id", ondelete="CASCADE"), index=True,
+    )
+    revision: Mapped[int] = mapped_column(Integer)
+    # The planning state the timeline was built from, and the timeline itself.
+    state: Mapped[dict] = mapped_column(JSON)
+    timeline: Mapped[dict] = mapped_column(JSON)
+    # Plain sentences for what moved since the previous revision.
+    changes: Mapped[list] = mapped_column(JSON, default=list)
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+    )

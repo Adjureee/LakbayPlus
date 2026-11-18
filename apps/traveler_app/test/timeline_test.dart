@@ -404,4 +404,137 @@ void main() {
     expect(last.text, contains('unchanged'));
     expect(last.timeline, isNull);
   });
+
+  // --- saving the itinerary and its history ---------------------------------------------
+
+  group('saving', () {
+    late List<({String method, String path, Map<String, dynamic> body})> calls;
+    late TravelRepository repo;
+
+    Future<void> setUpSignedInRepo() async {
+      calls = [];
+      final client = MockClient((req) async {
+        final path = req.url.path.replaceFirst('/api/v1', '');
+        final body = req.body.isEmpty
+            ? <String, dynamic>{}
+            : jsonDecode(req.body) as Map<String, dynamic>;
+        calls.add((method: req.method, path: path, body: body));
+        if (path == '/destinations/facets') return http.Response('{"groups":[]}', 200);
+        if (path == '/destinations') return http.Response('[]', 200);
+        if (path == '/ai/chat') {
+          return http.Response(jsonEncode({
+            'chat_response': 'Picked up details.', 'model_id': 'mock', 'ai_generation_run_id': 1,
+            'planning': {
+              'input_revision': 1, 'intent': 'show_places', 'suggested_replies': [],
+              'state_updates': {}, 'update_status': 'applied',
+              'preview': {'state': {
+                ...(body['planning_state'] as Map<String, dynamic>),
+                'day_count': 2, 'traveler_count': 3, 'total_budget': '2500.00',
+                'budget_scope': 'per_person',
+              }},
+              'recommendations': [_place],
+            },
+          }), 200);
+        }
+        if (path == '/planning/timeline') {
+          return http.Response(jsonEncode({'timeline': _timeline(), 'changes': []}), 200);
+        }
+        if (path == '/trips' && req.method == 'POST') {
+          return http.Response(jsonEncode({'trip_id': 501}), 201);
+        }
+        if (path == '/trips/501/timeline' && req.method == 'POST') {
+          final n = calls.where((c) => c.path == '/trips/501/timeline' && c.method == 'POST').length;
+          return http.Response(jsonEncode({'revision': n}), 201);
+        }
+        if (path == '/trips/501/timeline' && req.method == 'GET') {
+          return http.Response(jsonEncode({
+            'latest': null,
+            'revisions': [
+              {'revision': 2, 'created_at': '2026-11-19T02:00:00Z',
+               'created_by_user_id': 1, 'changes': ['Museo Davao now starts at 1:00 PM, not 12:30 PM.']},
+              {'revision': 1, 'created_at': '2026-11-18T02:00:00Z',
+               'created_by_user_id': 1, 'changes': []},
+            ],
+          }), 200);
+        }
+        return http.Response('{}', 200);
+      });
+      SharedPreferences.setMockInitialValues({
+        'lakbay_traveler_state_v1': jsonEncode({
+          'hasCompletedOnboarding': true,
+          'authSession': const LakbayAuthSession(
+            accessToken: 'token', refreshToken: 'refresh', userId: 1,
+            fullName: 'Test Traveler', email: 't@example.com', role: 'traveler',
+          ).toJson(),
+        }),
+      });
+      repo = _repo(client);
+      await repo.initialize();
+      await repo.sendChatMessage('3 travelers, 2 days, 2500 each');
+      repo.toggleChatPick(
+        repo.resolveExploreTripForRecommendation(TopPlaceRecommendation.fromJson(_place)),
+      );
+      await repo.planWithPicks();
+    }
+
+    Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 50));
+
+    test('saving the trip also saves its timeline, and revising saves another revision', () async {
+      await setUpSignedInRepo();
+      expect(repo.timelineBackendTripId, isNull);  // not saved yet
+      repo.saveTripToMyTrips(repo.chatMessages.last.attachedTrip!);
+      await settle();
+
+      Iterable<({String method, String path, Map<String, dynamic> body})> saves() =>
+          calls.where((c) => c.path == '/trips/501/timeline' && c.method == 'POST');
+      expect(repo.timelineBackendTripId, 501);
+      expect(saves(), hasLength(1));
+      // Only the planning state goes up: the server builds the timeline itself.
+      expect(saves().first.body.keys, ['state']);
+      expect((saves().first.body['state'] as Map)['destination_ids'], [77]);
+
+      await repo.reviseTimeline(const TimelineRevision(departureTime: '09:00:00'));
+      expect(saves(), hasLength(2));
+      expect(((saves().last.body['state']) as Map)['departure_time'], '09:00:00');
+    });
+
+    test('a timeline that was never saved with a trip is not sent anywhere', () async {
+      await setUpSignedInRepo();
+      await repo.reviseTimeline(const TimelineRevision(pace: 'relaxed'));
+      expect(calls.where((c) => c.path.startsWith('/trips/')), isEmpty);
+      expect(await repo.loadTimelineHistory(), isNull);
+    });
+
+    test('a new plan from the picks starts a new, unsaved timeline', () async {
+      await setUpSignedInRepo();
+      repo.saveTripToMyTrips(repo.chatMessages.last.attachedTrip!);
+      await settle();
+      expect(repo.timelineBackendTripId, 501);
+      await repo.planWithPicks();
+      expect(repo.timelineBackendTripId, isNull);
+    });
+
+    testWidgets('the card offers History once the trip is saved and lists the revisions', (
+      tester,
+    ) async {
+      await tester.runAsync(setUpSignedInRepo);
+      final message = repo.chatMessages.last;
+      await _show(tester, TimelineCard(timeline: message.timeline!, repo: repo));
+      expect(find.byKey(const ValueKey('timeline-history')), findsNothing);
+
+      await tester.runAsync(() async {
+        repo.saveTripToMyTrips(message.attachedTrip!);
+        await settle();
+      });
+      await _show(tester, TimelineCard(timeline: message.timeline!, repo: repo));
+      await tester.tap(find.byKey(const ValueKey('timeline-history')));
+      await tester.runAsync(settle);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Itinerary history'), findsOneWidget);
+      expect(find.textContaining('Revision 2'), findsOneWidget);
+      expect(find.textContaining('Museo Davao now starts at 1:00 PM'), findsOneWidget);
+      expect(find.text('First saved version'), findsOneWidget);
+    });
+  });
 }
