@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import '../models/timeline_models.dart';
 import '../models/travel_models.dart';
 import 'cloudinary_service.dart';
 import 'google_auth_service.dart';
@@ -4123,6 +4124,178 @@ class TravelRepository extends ChangeNotifier {
     return null;
   }
 
+  /// The sentence under a timeline: what the checks found, in counts, never "verified".
+  String _timelineSummary(TimelineData t, List<int> unavailable) {
+    final failed = t.count('failed');
+    final cannot = t.count('cannot_verify');
+    final parts = <String>[
+      if (unavailable.isNotEmpty)
+        '${unavailable.length} of your places ${unavailable.length == 1 ? 'is' : 'are'} no longer available.',
+      if (t.conflicts.isNotEmpty)
+        'Some places do not fit yet: see the problems below and choose what to change.'
+      else if (failed > 0)
+        '$failed ${failed == 1 ? 'check needs' : 'checks need'} attention.'
+      else
+        'Nothing we can check conflicts with your picks.',
+      if (cannot > 0)
+        '$cannot ${cannot == 1 ? 'detail' : 'details'} could not be confirmed, so those times are provisional.',
+    ];
+    return 'Here is your itinerary. ${parts.join(' ')}';
+  }
+
+  /// The timeline in the shape the trip builder already reads, so opening and saving a
+  /// trip from the chat keep working. Only costs the server knows are included.
+  Map<String, dynamic> _timelineAsOption(TimelineData t, int travelerCount) {
+    double itemCost(TimelineItem item) {
+      var total = 0.0;
+      for (final c in item.costs) {
+        if (c.amount == null || c.includedIn != null) continue;
+        total += c.scope == 'per_person' ? c.amount! * travelerCount : c.amount!;
+      }
+      return total;
+    }
+
+    return {
+      'option_number': 1,
+      'title': 'Your itinerary',
+      'summary': t.feasible
+          ? 'Built from your picks in Lakbay\'s records.'
+          : 'Some places do not fit yet.',
+      'estimated_total_cost': t.budget.subtotal.toStringAsFixed(2),
+      'is_over_budget': t.budget.fit == 'over_budget',
+      'cost_source': 'timeline_deterministic',
+      'days': [
+        for (final day in t.days)
+          {
+            'day': day.day,
+            'title': 'Day ${day.day}',
+            'summary': '',
+            'activities': [
+              for (final item in day.items)
+                if (item.kind == 'visit' || item.kind == 'meal')
+                  {
+                    'time': (item.startsAt ?? '09:00').substring(0, 5),
+                    'title': item.label,
+                    'description': item.notes.join(' '),
+                    if (item.destinationId != null)
+                      'destination_id': item.destinationId,
+                    'estimated_cost': itemCost(item).toStringAsFixed(2),
+                  },
+            ],
+          },
+      ],
+    };
+  }
+
+  void _addTimelineMessage(
+    TimelineResult result, {
+    required List<int> destinationIds,
+    required int travelerCount,
+    String? lead,
+  }) {
+    final timeline = result.timeline;
+    final hasActivities =
+        timeline.days.any((d) => d.items.any((i) => i.kind == 'visit'));
+    ItineraryTrip? trip;
+    if (hasActivities) {
+      trip = _parseBackendAiOption(
+        _timelineAsOption(timeline, travelerCount),
+        fallbackDestinationIds: destinationIds,
+      ).trip;
+    }
+    final summary = _timelineSummary(timeline, result.unavailableDestinationIds);
+    _lastTimeline = timeline;
+    _chatMessages.add(
+      ChatMessage(
+        id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
+        isUser: false,
+        text: lead == null ? summary : '$lead $summary',
+        timestamp: DateTime.now(),
+        attachedTrip: trip,
+        timeline: timeline,
+      ),
+    );
+    _aiTypingStatus = null;
+    _isAiTyping = false;
+    _syncActiveSession(titleHint: trip?.title ?? 'Your itinerary', hasTrip: true);
+    _scheduleSaveState();
+    notifyListeners();
+  }
+
+  /// The latest timeline in this chat, for revising.
+  TimelineData? _lastTimeline;
+  TimelineData? get lastTimeline => _lastTimeline;
+
+  /// Applies the traveler's changes from the Revise sheet to the plan and rebuilds the
+  /// timeline, listing what moved. Removing a place is the traveler's own choice here;
+  /// nothing is dropped silently.
+  Future<void> reviseTimeline(TimelineRevision revision) async {
+    final previous = _lastTimeline;
+    final state = _ensurePlanningState();
+    if (revision.departureTime != null) {
+      state['departure_time'] = revision.departureTime;
+    }
+    if (revision.returnDeadline != null) {
+      state['return_deadline'] = revision.returnDeadline;
+    }
+    if (revision.pace != null) state['pace'] = revision.pace;
+    if (revision.dayCount != null) {
+      state['day_count'] = revision.dayCount;
+      final nights = (state['night_count'] as num?)?.toInt();
+      if (nights != null && nights > revision.dayCount!) {
+        state['night_count'] = revision.dayCount! - 1;
+      }
+    }
+    if (revision.destinationIds != null) {
+      final keep = revision.destinationIds!.toSet();
+      _tripBuilderStops.removeWhere(
+        (s) => s.apiDestinationId != null && !keep.contains(s.apiDestinationId),
+      );
+      state['destination_ids'] = [
+        for (final stop in _tripBuilderStops)
+          if (stop.apiDestinationId != null) stop.apiDestinationId!,
+      ];
+    }
+    _planningRevision++;
+    _isAiTyping = true;
+    _aiTypingStatus = 'Updating your itinerary...';
+    notifyListeners();
+    final result = await apiCatalog.fetchTimeline(
+      _authSession?.accessToken,
+      planningState: Map<String, dynamic>.from(state),
+      inputRevision: _planningRevision,
+      previous: previous?.toJson(),
+    );
+    if (result == null) {
+      _aiTypingStatus = null;
+      _isAiTyping = false;
+      _chatMessages.add(
+        ChatMessage(
+          id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
+          isUser: false,
+          text:
+              "I couldn't update the itinerary just now, so it is unchanged. Your changes are kept; try Revise again.",
+          timestamp: DateTime.now(),
+          isError: true,
+        ),
+      );
+      notifyListeners();
+      return;
+    }
+    final ids = [
+      for (final stop in _tripBuilderStops)
+        if (stop.apiDestinationId != null) stop.apiDestinationId!,
+    ];
+    _addTimelineMessage(
+      result,
+      destinationIds: ids,
+      travelerCount: (state['traveler_count'] as num?)?.toInt() ?? 1,
+      lead: result.changes.isEmpty
+          ? 'Nothing moved.'
+          : 'Updated: ${result.changes.join(' ')}',
+    );
+  }
+
   /// Asks the AI to plan from the traveler's picked places.
   ///
   /// When days, party size, and budget are already set, this skips the extra
@@ -4166,6 +4339,22 @@ class TravelRepository extends ChangeNotifier {
     _aiTypingStatus =
         'Building your itinerary from $chatPickCount ${chatPickCount == 1 ? 'pick' : 'picks'}...';
     notifyListeners();
+
+    // One timeline built in code from the picks (docs/ITINERARY_TIMELINE_DESIGN.md).
+    // If the server cannot build it, fall back to the previous flow below.
+    final timelineResult = await apiCatalog.fetchTimeline(
+      _authSession?.accessToken,
+      planningState: Map<String, dynamic>.from(_planningState!),
+      inputRevision: _planningRevision,
+    );
+    if (timelineResult != null) {
+      _addTimelineMessage(
+        timelineResult,
+        destinationIds: targetDestIds,
+        travelerCount: travelerCount,
+      );
+      return;
+    }
 
     try {
       final result = await apiCatalog.generateAiItineraries(
