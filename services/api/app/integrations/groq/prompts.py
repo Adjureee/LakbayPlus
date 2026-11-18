@@ -13,7 +13,7 @@ from app.features.recommendations.schemas import RecommendationItem
 
 PROMPT_VERSION = "phase5_itinerary_picks_only_v4"
 PLANNING_PROMPT_VERSION = "phase15e_picks_compact_v7"
-CHAT_PROMPT_VERSION = "phase5_chat_v16_grounded_figures"
+CHAT_PROMPT_VERSION = "phase5_chat_v17_trip_state"
 ONBOARDING_CHAT_PROMPT_VERSION = "onboarding_v1"
 
 _LANGUAGE_LABELS: dict[str, str] = {
@@ -374,7 +374,14 @@ def build_chat_messages(
             "they explicitly asked to change their departure city. "
             "Allowed update fields are ONLY origin, destination_ids, total_budget, "
             "budget_scope, traveler_count, day_count, night_count, "
-            "return_to_origin, and interests. Do not update selected transport, "
+            "return_to_origin, interests, destination_area (the town or area they "
+            "want to stay in), nearby_areas_allowed (boolean, only if they say "
+            "whether nearby areas are fine), return_label (where they end the trip), "
+            "pace (relaxed, balanced or packed), special_needs (a list of short "
+            "accessibility or dietary needs they stated) and budget_includes (a "
+            "list from transport, food, accommodation, activities, fees that they "
+            "said the budget covers). Never guess these: only what they said. "
+            "Do not update selected transport, "
             "activity, accommodation, route, fuel, or pricing fields; those are "
             "controlled by the preview cards. An origin update may contain only "
             "a label; its exact JSON shape is {\"origin\":{\"label\":\"Davao City\"}}, "
