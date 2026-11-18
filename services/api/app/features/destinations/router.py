@@ -7,6 +7,8 @@ from app.core.dependencies import require_admin
 from app.db.session import get_db_session
 from app.features.destinations.schemas import (
     DestinationFacetsResponse,
+    DestinationHoursResponse,
+    DestinationHoursUpdate,
     DestinationCreate,
     DestinationListQuery,
     DestinationResponse,
@@ -155,6 +157,40 @@ async def get_destination(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DestinationResponse:
     return await DestinationService(session).get_destination(destination_id)
+
+
+@router.get(
+    "/{destination_id}/hours",
+    response_model=DestinationHoursResponse,
+    summary="Get a destination's opening hours",
+    description=(
+        "Structured weekly hours, date exceptions, a one-line summary and how far "
+        "to trust them (supported, estimated or unknown)."
+    ),
+)
+async def get_destination_hours(
+    destination_id: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DestinationHoursResponse:
+    return await DestinationService(session).get_hours(destination_id)
+
+
+@router.put(
+    "/{destination_id}/hours",
+    response_model=DestinationHoursResponse,
+    summary="Replace a destination's opening hours",
+    description=(
+        "Admin-only. Replaces the weekly windows, the date exceptions, the 24-hour "
+        "flag and the source and verified date in one save."
+    ),
+)
+async def replace_destination_hours(
+    destination_id: int,
+    data: DestinationHoursUpdate,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    admin: Annotated[User, Depends(require_admin)],
+) -> DestinationHoursResponse:
+    return await DestinationService(session).replace_hours(destination_id, data)
 
 
 @router.patch(

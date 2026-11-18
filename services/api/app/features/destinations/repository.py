@@ -1,9 +1,17 @@
 from geoalchemy2.elements import WKTElement
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.features.destinations.models import Destination
-from app.features.destinations.schemas import DestinationCreate, DestinationListQuery
+from app.features.destinations.models import (
+    Destination,
+    DestinationHourException,
+    DestinationHours,
+)
+from app.features.destinations.schemas import (
+    DestinationCreate,
+    DestinationHoursUpdate,
+    DestinationListQuery,
+)
 
 
 class DestinationRepository:
@@ -37,6 +45,50 @@ class DestinationRepository:
         result = await self.session.execute(statement)
 
         return result.scalar_one_or_none()
+
+    async def get_hours(
+        self, destination_id: int,
+    ) -> "tuple[list[DestinationHours], list[DestinationHourException]]":
+        weekly = await self.session.execute(
+            select(DestinationHours)
+            .where(DestinationHours.destination_id == destination_id)
+            .order_by(DestinationHours.weekday, DestinationHours.opens_at),
+        )
+        exceptions = await self.session.execute(
+            select(DestinationHourException)
+            .where(DestinationHourException.destination_id == destination_id)
+            .order_by(DestinationHourException.starts_on),
+        )
+        return list(weekly.scalars().all()), list(exceptions.scalars().all())
+
+    async def replace_hours(
+        self, destination: Destination, data: DestinationHoursUpdate,
+    ) -> None:
+        """Swap a place's whole schedule for the one given (one transaction)."""
+        destination.open_24_hours = data.open_24_hours
+        destination.hours_source_url = data.hours_source_url
+        destination.hours_verified_at = data.hours_verified_at
+        await self.session.execute(
+            delete(DestinationHours).where(
+                DestinationHours.destination_id == destination.destination_id,
+            ),
+        )
+        await self.session.execute(
+            delete(DestinationHourException).where(
+                DestinationHourException.destination_id == destination.destination_id,
+            ),
+        )
+        self.session.add_all(
+            DestinationHours(destination_id=destination.destination_id, **row.model_dump())
+            for row in data.weekly
+        )
+        self.session.add_all(
+            DestinationHourException(
+                destination_id=destination.destination_id, **row.model_dump(),
+            )
+            for row in data.exceptions
+        )
+        await self.session.flush()
 
     async def create(self, data: DestinationCreate) -> Destination:
         destination_values = data.model_dump()

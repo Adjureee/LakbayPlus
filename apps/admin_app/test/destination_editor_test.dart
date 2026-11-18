@@ -464,6 +464,17 @@ ApiService _api(Future<http.Response> Function(http.Request) handler) =>
             200,
           );
         }
+        // Likewise the opening-hours section (tested in hours_section_test.dart).
+        if (request.method == 'GET' && request.url.path.endsWith('/hours')) {
+          return http.Response(
+            jsonEncode({
+              'destination_id': 12,
+              'weekly': [],
+              'exceptions': [],
+            }),
+            200,
+          );
+        }
         return handler(request);
       }),
       tokenProvider: () async => 'test-access',
