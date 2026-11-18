@@ -445,6 +445,102 @@ void main() {
     expect(patch['access_trail_polyline'], isA<String>());
     expect((patch['access_trail_polyline'] as String).isNotEmpty, isTrue);
   });
+
+  testWidgets(
+    'a flag can be set to yes, no or not checked and only changes are sent',
+    (tester) async {
+      final requests = <http.Request>[];
+      final api = _api((request) async {
+        requests.add(request);
+        return http.Response(jsonEncode(_destination), 200);
+      });
+      addTearDown(api.close);
+      await _pumpEditor(tester, api);
+
+      // The record has is_kid_friendly true and the wheelchair flag unset.
+      SegmentedButton<String> segment(String key) =>
+          tester.widget<SegmentedButton<String>>(
+            find.byKey(ValueKey('suitability-$key')),
+          );
+      expect(segment('is_kid_friendly').selected, {'yes'});
+      expect(segment('is_wheelchair_accessible').selected, {'unknown'});
+
+      Future<void> choose(String key, String label) async {
+        final button = find.descendant(
+          of: find.byKey(ValueKey('suitability-$key')),
+          matching: find.text(label),
+        );
+        await _tapVisible(tester, button);
+        await tester.pumpAndSettle();
+      }
+
+      await choose('is_wheelchair_accessible', 'No');
+      await choose('is_kid_friendly', 'Not checked');
+      await _tapVisible(
+        tester,
+        find.widgetWithText(FilledButton, 'Save destination'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(requests.single.method, 'PATCH');
+      expect(jsonDecode(requests.single.body), {
+        'is_wheelchair_accessible': false,
+        'is_kid_friendly': null,
+      });
+    },
+  );
+
+  testWidgets('status, booking and visit length save only when changed', (
+    tester,
+  ) async {
+    final requests = <http.Request>[];
+    final api = _api((request) async {
+      requests.add(request);
+      return http.Response(jsonEncode(_destination), 200);
+    });
+    addTearDown(api.close);
+    await _pumpEditor(tester, api);
+
+    await _enter(tester, 'Typical visit, shortest (minutes)', '60');
+    await _enter(tester, 'Typical visit, longest (minutes)', '120');
+    await _enter(tester, 'How to book', 'Call two days ahead');
+    await _tapVisible(
+      tester,
+      find.widgetWithText(FilledButton, 'Save destination'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(jsonDecode(requests.single.body), {
+      'typical_visit_min_minutes': 60,
+      'typical_visit_max_minutes': 120,
+      'booking_note': 'Call two days ahead',
+    });
+  });
+
+  testWidgets('a visit length that is not whole minutes blocks the save', (
+    tester,
+  ) async {
+    var requests = 0;
+    final api = _api((request) async {
+      requests++;
+      return http.Response(jsonEncode(_destination), 200);
+    });
+    addTearDown(api.close);
+    await _pumpEditor(tester, api);
+
+    await _enter(tester, 'Typical visit, shortest (minutes)', 'an hour');
+    await _tapVisible(
+      tester,
+      find.widgetWithText(FilledButton, 'Save destination'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(requests, 0);
+    expect(
+      find.text('Enter whole minutes from 1 to 1440, or leave empty.'),
+      findsOneWidget,
+    );
+  });
 }
 
 ApiService _api(Future<http.Response> Function(http.Request) handler) =>
