@@ -52,7 +52,8 @@ RULES: tuple[Rule, ...] = (
     # Terrain and ground conditions.
     Rule("accessibility", "terrain", _rx(
         r"\b(?:uneven|muddy|slippery|rocky|steep|bumpy|unpaved|rough (?:road|path|trail)s?|"
-        r"flat (?:path|terrain|ground)s?|paved (?:path|road|walkway)s?)\b")),
+        r"flat (?:path|terrain|ground)s?|paved (?:path|road|walkway)s?|"
+        r"wide (?:paths?|walkways?|doors?|entrances?|aisles?))\b")),
     Rule("accessibility", "ramps and aids", _rx(
         r"\b(?:ramps?|handrails?|elevators?|lifts?|accessible (?:paths?|restrooms?|toilets?|"
         r"entrances?|parking))\b")),
@@ -79,8 +80,15 @@ RULES: tuple[Rule, ...] = (
         r"banned)|dress code|meter fees?|permits?|reservations?)\b")),
     # Named activities that are not in the record.
     Rule("activities", "activities", _rx(
-        r"\b(?:guided tours?|workshops?|cultural performances?|zip-?lines?|kayak\w*|"
-        r"snorkel\w*|boat rides?|horseback)\b")),
+        r"\b(?:workshops?|cultural performances?|"
+        r"zip-?lines?|kayak\w*|snorkel\w*|boat rides?|horseback)\b")),
+    # A "guided ... tour" is supported by a recorded guided visit, walk or tour.
+    Rule("activities", "guided tour", _rx(r"\bguided(?:\s+[\w-]+){0,3}?\s+tours?\b"),
+         _rx(r"\bguided\b|\btours?\b")),
+    # How to get there by a named vehicle, when the place's records name none.
+    Rule("access", "transport", _rx(
+        r"\b(?:tricycles?|jeepneys?|habal-?habal|buses|bus|vans?|shuttles?|motorcycles?|"
+        r"taxis?|ferry|ferries)\b")),
 )
 
 # Honest statements that something is not recorded: never a claim on their own.
@@ -92,8 +100,11 @@ _ABSENCE = _rx(
 # Advice to ask the operator is not a statement about the place.
 _ASK = _rx(
     r"\b(?:ask|check|confirm|inquire|call|contact|verify)\b[^.]{0,50}"
-    r"\b(?:about|whether|if|with|directly|first)\b")
+    r"\b(?:about|whether|if|with|directly|first)\b"
+    # "you can call the staff", "call them", "to ask": plain advice to ask the operator.
+    r"|\b(?:call|contact|ask|phone|visit)\s+(?:the|them|their|staff|us)\b|\bto ask\b")
 # A hedge that still asserts something: absence followed by a guess.
+_CONTRAST = _rx(r"\b(?:but|however|though|although|yet)\b")
 _SPECULATION = _rx(
     r"\b(?:likely|probably|usually|typically|often|generally|most|many|some|may have|"
     r"might have|should be|can fill)\b")
@@ -127,8 +138,17 @@ def _sentence_findings(sentence: str, support: str) -> list[tuple[Rule, str]]:
     support = _DASHES.sub("-", support)
     if _is_question(sentence):
         return []
-    absence = bool(_ABSENCE.search(sentence))
-    speculation = bool(_SPECULATION.search(sentence))
+    absent = _ABSENCE.search(sentence)
+    absence = bool(absent)
+    # "not recorded, but street parking is available": a "but" AFTER the absence turns an
+    # honest "not recorded" into an assertion, unless the rest is only advice to ask the
+    # operator. A "but" before it ("listed as family friendly, but accessibility is not
+    # specified") is still honest.
+    speculation = bool(_SPECULATION.search(sentence)) or (
+        absent is not None
+        and bool(_CONTRAST.search(sentence, absent.end()))
+        and not _ASK.search(sentence)
+    )
     # Advice to ask the operator, or a plain "not recorded", claims nothing; but a guess
     # in the same sentence ("... check with the parish, many churches have a lot") does.
     if (_ASK.search(sentence) or absence) and not speculation:
@@ -192,23 +212,68 @@ def find_unsupported_claims(
 
 
 # "... , with ramps and accessible paths ..." : the part after these can be cut.
-_TAIL = _rx(r",?\s+(?:with|featuring|including|offering|plus|which (?:has|have|features?))\s+")
+_TAIL = _rx(
+    r",?\s+(?:with|featuring|including|offering|plus|which (?:has|have|features?|includes?)|"
+    # "..., so you can enjoy its wide paths": the consequence clause, not the answer.
+    r"so (?=you|visitors|guests|travell?ers\b))\s*")
+
+
+# A sentence that opens with one of these is a dependent clause: cutting its end would
+# leave a fragment ("Because it's a highland spot."), so it is dropped whole.
+_SUBORDINATE = _rx(r"^\s*(?:because|since|as|although|though|if|when|while|given|due to)\b")
+# Where an honest "not recorded" clause ends and the guess begins.
+_CLAUSE_BREAK = _rx(r",|;|\s-\s|\s+so\s")
+
+
+def _words(text: str) -> int:
+    return len(text.split())
 
 
 def _trim(sentence: str, flagged: set[str]) -> str | None:
-    """The sentence without a trailing clause that holds the claim, or None to drop it."""
-    match = _TAIL.search(sentence)
-    if not match:
+    """A shorter sentence without the part that holds the claim, or None to drop it.
+
+    In order: a guess after "not recorded" is cut back to the honest clause; a trailing
+    "with ..." clause holding the claim is cut; items of a list that hold the claim are
+    removed when others remain. A dependent clause is never cut (it would leave a
+    fragment) and anything else is dropped whole.
+    """
+    # Matching uses the dash-normalised copy; slicing uses the original (same length).
+    norm = _DASHES.sub("-", sentence)
+    if _SUBORDINATE.match(norm):
         return None
-    head, tail = sentence[:match.start()], sentence[match.end():]
-    if len(head.split()) < 4:
+    rules = [rule for rule in RULES if rule.name in flagged]
+
+    if _GUESS_RULE.name in flagged:
+        absence = _ABSENCE.search(norm)
+        if absence:
+            brk = _CLAUSE_BREAK.search(norm, absence.end())
+            if brk and _words(sentence[:brk.start()]) >= 3:
+                return sentence[:brk.start()].rstrip(" ,;-") + "."
         return None
-    # Only cut when the claim is in the tail and the head makes no flagged claim itself.
-    if not any(rule.claim.search(tail) for rule in RULES if rule.name in flagged):
-        return None
-    if any(rule.claim.search(head) for rule in RULES if rule.name in flagged):
-        return None
-    return head.rstrip(" ,;") + "."
+
+    match = _TAIL.search(norm)
+    if match:
+        head, tail = norm[:match.start()], norm[match.end():]
+        # Only cut when the claim is in the tail and the head makes no flagged claim itself.
+        if (
+            _words(head) >= 4
+            and any(rule.claim.search(tail) for rule in rules)
+            and not any(rule.claim.search(head) for rule in rules)
+        ):
+            return sentence[:match.start()].rstrip(" ,;") + "."
+
+    items = sentence.rstrip(" .!").split(", ")
+    if len(items) >= 4 and rules:
+        norm_items = norm.rstrip(" .!").split(", ")
+        keep = [
+            item for item, plain in zip(items, norm_items, strict=True)
+            if not any(rule.claim.search(plain) for rule in rules)
+        ]
+        # The first item holds the subject and verb: it must survive, and so must at
+        # least one other item.
+        if len(keep) < len(items) and keep[:1] == items[:1] and len(keep) >= 2:
+            return ", ".join(keep) + "."
+    return None
 
 
 def ground_claims(

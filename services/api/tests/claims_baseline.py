@@ -148,8 +148,8 @@ def _sentences(reply: str) -> list[str]:
 
 _RATES: dict[int, dict] = {}
 RATE_FIELDS = ("name", "room_type", "price", "charging_unit", "capacity", "description",
-               "transport_type", "mode", "origin", "route", "fare", "duration_minutes",
-               "distance_km", "notes", "currency")
+               "vehicle_type", "transport_mode", "route_from", "route_to", "duration_minutes",
+               "duration_text", "notes", "currency")
 
 
 def _rates(destination_id: int) -> dict:
