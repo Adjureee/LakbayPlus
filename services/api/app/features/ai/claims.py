@@ -80,9 +80,9 @@ RULES: tuple[Rule, ...] = (
     Rule("conditions", "heat and cool", _rx(
         r"\b(?:(?:cool(?:er)?|cold(?:er)?|warm(?:er)?)\s+(?:(?:city|evening|morning|park|"
         r"garden)\s+)?(?:walks?|strolls?|visits?|trips?|outings?)|"
-        r"(?:cool(?:er)?|cold(?:er)?|warm(?:er)?|hot(?:ter)?|humid)\s+(?:weather|air|"
+        r"(?:cool(?:er)?|cold(?:er)?|warm(?:er)?|hot(?:ter)?|humid)\s+(?:\w+\s+){0,2}(?:weather|air|"
         r"breeze|temperatures?|morning|evening|hours?|conditions?)|(?:weather|air|"
-        r"temperatures?|it)(?:['’]s| is| are| gets?| turns?)\s+(?:much |a bit |quite |"
+        r"temperatures?|it|park|place|area|garden|spot)(?:['’]s| is| are| gets?| turns?)\s+(?:much |a bit |quite |"
         r"a little )?(?:cool(?:er)?|cold(?:er)?|warm(?:er)?|hot(?:ter)?|humid)|avoid\w*\s+"
         r"(?:the\s+)?(?:(?:strongest|worst|harsh|midday|noon|afternoon|hot)\s+)*(?:sun|heat)|"
         r"can (?:get|be|become) (?:very |quite |too |a bit )?(?:warm|hot|humid|stuffy|cold)|"
