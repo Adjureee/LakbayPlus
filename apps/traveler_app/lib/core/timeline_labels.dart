@@ -29,6 +29,7 @@ const timelineCheckTitles = <String, String>{
   'visit_durations': 'Visit lengths',
   'return_deadline': 'Return deadline',
   'activity_suitability': 'Suitable for children',
+  'overnight_stay': 'Where you stay',
   'budget_arithmetic': 'Costs add up',
 };
 

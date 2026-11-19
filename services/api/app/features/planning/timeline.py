@@ -105,6 +105,15 @@ class Pin:
 
 
 @dataclass
+class Lodging:
+    """The place the group sleeps. It is one of the picks (stays are offered at picked
+    places only); `name` is the stay's own name, shown on the night."""
+
+    destination_id: int
+    name: str
+
+
+@dataclass
 class TimelineInput:
     stops: list[StopInfo]
     # (from place id, to place id); None is the start or the return place.
@@ -130,6 +139,11 @@ class TimelineInput:
     meal_included_in: str | None = None
     # Details that would complete the cost estimate (prompts, not costs).
     budget_prompts: list[str] = field(default_factory=list)
+    # Where the nights are spent; None when no stay is chosen (or the choice is unclear,
+    # see lodging_note). Without it each day still starts from the last place of the day
+    # before, and the night says so.
+    lodging: Lodging | None = None
+    lodging_note: str | None = None
 
 
 @dataclass
@@ -183,6 +197,9 @@ class _Builder:
         self.last_was_visit = False
         self.conflicts: list[Conflict] = []
         self.meta: dict[int, StopMeta] = {s.destination_id: StopMeta() for s in inp.stops}
+        self.names = {s.destination_id: s.name for s in inp.stops}
+        # True from the night until the next visit: the next trip starts at the lodging.
+        self.from_lodging = False
         self.pins = {p.destination_id: p for p in inp.pins}
         self.stops = {s.destination_id: s for s in inp.stops}
         self._start_day(1)
@@ -192,6 +209,7 @@ class _Builder:
     def _start_day(self, number: int) -> None:
         while len(self.days) < number:
             self.days.append([])
+        self._close_days(number)
         self.day = number - 1
         if self.inp.departure_time is not None:
             self.clock, self.basis = to_minutes(self.inp.departure_time), "confirmed"
@@ -210,13 +228,67 @@ class _Builder:
 
     def _snapshot(self):
         return (self.day, len(self.days[self.day]), len(self.days), self.clock, self.basis,
-                self.prev_id, self.lunch, self.dinner, self.since_break, self.last_was_visit)
+                self.prev_id, self.lunch, self.dinner, self.since_break, self.last_was_visit,
+                self.from_lodging)
 
     def _restore(self, snap) -> None:
         (self.day, length, days, self.clock, self.basis, self.prev_id, self.lunch,
-         self.dinner, self.since_break, self.last_was_visit) = snap
+         self.dinner, self.since_break, self.last_was_visit, self.from_lodging) = snap
         del self.days[days:]
         del self.days[self.day][length:]
+
+    def _close_days(self, up_to: int) -> None:
+        """Ends every day before day `up_to`: the trip to the place to stay, then the night.
+
+        A pinned later day can skip empty days; each still gets its night."""
+        for index in range(self.day, up_to - 1):
+            self.day = index
+            lodging = self.inp.lodging
+            notes: list[str] = []
+            if lodging is not None:
+                label = f"Overnight at {lodging.name}"
+                if self.last_was_visit and self.prev_id != lodging.destination_id:
+                    self._travel(f"Travel to {lodging.name}", self.prev_id,
+                                 lodging.destination_id, self.names[self.prev_id],
+                                 lodging.name)
+                if self.prev_id is not None:
+                    self.prev_id = lodging.destination_id
+                    self.from_lodging = True
+            else:
+                label = "Overnight (place to stay not chosen)"
+                if self.prev_id is not None:
+                    notes.append(
+                        "No place to stay is chosen, so the next day's first travel time is "
+                        f"measured from {self.names[self.prev_id]}, where this day ended.")
+                if self.inp.lodging_note:
+                    notes.append(self.inp.lodging_note)
+            self._add("overnight", label, start=self.clock, minutes=None,
+                      dur_basis="unknown", notes=notes)
+            self.last_was_visit = False
+
+    def _travel(self, title, from_id, to_id, from_label, to_label) -> LegInfo:
+        """Adds a travel item for the leg between two places; returns the leg."""
+        leg = self.inp.legs.get((from_id, to_id)) or LegInfo(None)
+        travel = TravelLeg(
+            from_label=from_label, to_label=to_label, minutes=leg.minutes,
+            basis=leg.basis if leg.minutes is not None else "unknown", mode=leg.mode,
+            route_verified=leg.route_verified,
+        )
+        if leg.minutes is None:
+            self._add("travel", title, start=self.clock, minutes=None, dur_basis="unknown",
+                      basis="provisional", travel=travel,
+                      notes=["No travel time is available for this leg, so the times after "
+                             "it are provisional and will shift once it is known."])
+            self.basis = _worse(self.basis, "provisional")
+        elif leg.minutes > 0:
+            self._add("travel", title, start=self.clock, minutes=leg.minutes,
+                      dur_basis="calculated", basis=_worse(self.basis, "estimated"),
+                      travel=travel,
+                      notes=([] if leg.basis == "supported" else
+                             ["Estimated from straight-line distance."]))
+            self.clock += leg.minutes
+            self.basis = _worse(self.basis, "estimated")
+        return leg
 
     def _day_end(self) -> int:
         final = self.day == self.day_count - 1
@@ -353,28 +425,14 @@ class _Builder:
             self._planning_item("buffer", "Buffer", BUFFER_MINUTES,
                                 note="A planning buffer between stops.")
         leave_at = self.clock  # when the previous stop and buffer are done
-        leg = self.inp.legs.get((self.prev_id, stop.destination_id)) or LegInfo(None)
-        from_label = (self.inp.origin_label if self.prev_id is None
-                      else self.stops[self.prev_id].name)
-        travel = TravelLeg(
-            from_label=from_label, to_label=stop.name, minutes=leg.minutes,
-            basis=leg.basis if leg.minutes is not None else "unknown", mode=leg.mode,
-            route_verified=leg.route_verified,
-        )
-        if leg.minutes is None:
-            self._add("travel", f"Travel to {stop.name}", start=self.clock, minutes=None,
-                      dur_basis="unknown", basis="provisional", travel=travel,
-                      notes=["No travel time is available for this leg, so the times after "
-                             "it are provisional and will shift once it is known."])
-            self.basis = _worse(self.basis, "provisional")
-        elif leg.minutes > 0:
-            self._add("travel", f"Travel to {stop.name}", start=self.clock,
-                      minutes=leg.minutes, dur_basis="calculated",
-                      basis=_worse(self.basis, "estimated"), travel=travel,
-                      notes=([] if leg.basis == "supported" else
-                             ["Estimated from straight-line distance."]))
-            self.clock += leg.minutes
-            self.basis = _worse(self.basis, "estimated")
+        if self.from_lodging:
+            from_label = self.inp.lodging.name
+        else:
+            from_label = (self.inp.origin_label if self.prev_id is None
+                          else self.names[self.prev_id])
+        if self.prev_id != stop.destination_id:  # already there (the lodging is here): no travel
+            self._travel(f"Travel to {stop.name}", self.prev_id, stop.destination_id,
+                         from_label, stop.name)
         arrival = self.clock
         notes: list[str] = []
         if beyond:
@@ -425,6 +483,7 @@ class _Builder:
         self.since_break += length
         self.last_was_visit = True
         self.prev_id = stop.destination_id
+        self.from_lodging = False
         return problem
 
     def place(self, stop: StopInfo) -> None:
@@ -454,7 +513,7 @@ class _Builder:
         label = self.inp.return_label or self.inp.origin_label
         leg = self.inp.legs.get((self.prev_id, None)) or LegInfo(None)
         travel = TravelLeg(
-            from_label=self.stops[self.prev_id].name if self.prev_id else self.inp.origin_label,
+            from_label=self.names[self.prev_id] if self.prev_id else self.inp.origin_label,
             to_label=label, minutes=leg.minutes,
             basis=leg.basis if leg.minutes is not None else "unknown", mode=leg.mode,
             route_verified=leg.route_verified)
