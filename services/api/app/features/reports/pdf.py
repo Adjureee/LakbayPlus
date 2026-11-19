@@ -1,5 +1,6 @@
 from io import BytesIO
 from html import escape
+from zoneinfo import ZoneInfo
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -7,6 +8,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import CondPageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from app.core.config import get_settings
 from app.features.destinations.hours import clock_text
 from app.features.reports.schemas import TripReportSummaryResponse
 
@@ -32,6 +34,7 @@ def build_trip_report_pdf(report: TripReportSummaryResponse) -> bytes:
     _add_destinations(story, report, styles)
     if report.timeline is not None:
         _add_timeline(story, report, styles)
+        _add_revision_log(story, report, styles)
     else:
         _add_itinerary(story, report, styles)
     _add_tasks(story, report, styles)
@@ -290,6 +293,44 @@ def _small(styles):
     from reportlab.lib.styles import ParagraphStyle
 
     return ParagraphStyle("TimelineSmall", parent=styles["Normal"], fontSize=8.5, leading=10.5)
+
+
+# A revision with many changes lists this many, then says how many more there were.
+_LOG_CHANGES_SHOWN = 8
+
+
+def _add_revision_log(story: list, report: TripReportSummaryResponse, styles) -> None:
+    """Every saved version of the itinerary, oldest first. Printed only once the plan has
+    been revised: a single version is already the timeline above."""
+    log = report.revision_log
+    if len(log) < 2:
+        return
+    small = _small(styles)
+    zone = ZoneInfo(get_settings().timezone)
+    _add_heading(story, "Revision History", styles)
+    story.append(Paragraph(_plain(
+        f"{len(log)} saved versions, oldest first. Each line says what moved compared with "
+        "the version before it. Nothing was deleted: restoring an earlier version is saved "
+        "as a new one."), small))
+    for entry in log:
+        when = entry.saved_at.astimezone(zone)
+        who = f" by {entry.saved_by}" if entry.saved_by else ""
+        standing = "Works" if entry.works else "Has problems"
+        if entry.unverified_count:
+            standing += f", {entry.unverified_count} detail(s) unconfirmed"
+        story.append(Spacer(1, 3))
+        story.append(Paragraph("<b>" + _plain(
+            f"Revision {entry.revision} - {when:%Y-%m-%d %H:%M}{who}") + "</b>", small))
+        story.append(Paragraph(_plain(standing), small))
+        shown = entry.changes[:_LOG_CHANGES_SHOWN]
+        if not entry.changes:
+            story.append(Paragraph(_plain(
+                "- First version." if entry.revision == log[0].revision
+                else "- Nothing moved."), small))
+        story.extend(Paragraph(_plain(f"- {line}"), small) for line in shown)
+        if len(entry.changes) > len(shown):
+            story.append(Paragraph(_plain(
+                f"- and {len(entry.changes) - len(shown)} more."), small))
 
 
 def _add_timeline(story: list, report: TripReportSummaryResponse, styles) -> None:

@@ -10,7 +10,7 @@ from tests.test_phase7_trips import (
     create_trip,
     user_headers,
 )
-from tests.test_trip_timeline import _save, _state
+from tests.test_trip_timeline import _restore, _save, _state
 
 
 def _trip_with_places(client, *, name_a="Report Stop A"):
@@ -97,3 +97,70 @@ def test_a_member_can_read_the_timeline_report_but_an_outsider_cannot(client) ->
     assert client.get(url, headers=member).json()["timeline"]["revision"] == 1
     outsider = user_headers(client, email="report-timeline-outsider@example.com")
     assert client.get(url, headers=outsider).status_code == 404
+
+
+# --- the revision log ----------------------------------------------------------------------
+
+
+def test_the_summary_lists_every_saved_revision_oldest_first_with_who_and_what_moved(
+    client,
+) -> None:
+    owner, trip_id, a, b = _trip_with_places(client)
+    _save(client, owner, trip_id, _state(a, b))
+    _save(client, owner, trip_id, _state(a, b, departure_time="10:00:00"))
+    assert _restore(client, owner, trip_id, 1).status_code == 201
+    log = client.get(f"/api/v1/trips/{trip_id}/reports/summary", headers=owner).json()[
+        "revision_log"]
+    assert [r["revision"] for r in log] == [1, 2, 3]
+    assert log[0]["changes"] == [] and log[0]["saved_by"]
+    assert any("now starts at" in c for c in log[1]["changes"])
+    assert log[2]["changes"][0] == "Restored revision 1."  # a restore is a revision of its own
+    assert all(isinstance(r["works"], bool) and r["unverified_count"] >= 0 for r in log)
+
+
+def test_a_trip_with_no_timeline_has_an_empty_log(client) -> None:
+    owner, trip_id, a, b = _trip_with_places(client)
+    summary = client.get(f"/api/v1/trips/{trip_id}/reports/summary", headers=owner).json()
+    assert summary["revision_log"] == []
+
+
+def test_the_pdf_prints_the_revision_history_once_the_plan_was_revised(
+    client, monkeypatch,
+) -> None:
+    owner, trip_id, a, b = _trip_with_places(client)
+    _save(client, owner, trip_id, _state(a, b))
+    # One version is already the timeline above: no history section yet.
+    assert "Revision History" not in _pdf_text(client, owner, trip_id, monkeypatch)
+
+    _save(client, owner, trip_id, _state(a, b, departure_time="10:00:00"))
+    _restore(client, owner, trip_id, 1)
+    text = _pdf_text(client, owner, trip_id, monkeypatch)
+    assert "Revision History" in text
+    assert "3 saved versions, oldest first" in text
+    assert "Revision 1 - " in text and "Revision 2 - " in text and "Revision 3 - " in text
+    assert text.index("Revision 1 - ") < text.index("Revision 2 - ") < text.index("Revision 3 - ")
+    assert "- First version." in text
+    assert "- Restored revision 1." in text
+    assert "now starts at" in text  # what moved is in words
+
+
+def test_a_long_list_of_changes_is_cut_with_a_count_not_dropped_silently(
+    client, monkeypatch,
+) -> None:
+    from app.features.reports import pdf
+    from app.features.reports.schemas import TripReportRevision
+
+    owner, trip_id, a, b = _trip_with_places(client)
+    _save(client, owner, trip_id, _state(a, b))
+    _save(client, owner, trip_id, _state(a, b, departure_time="10:00:00"))
+    summary = client.get(f"/api/v1/trips/{trip_id}/reports/summary", headers=owner).json()
+    many = [f"Change number {n}." for n in range(1, 13)]
+    summary["revision_log"][1]["changes"] = many
+    from app.features.reports.schemas import TripReportSummaryResponse
+
+    report = TripReportSummaryResponse.model_validate(summary)
+    assert isinstance(report.revision_log[1], TripReportRevision)
+    monkeypatch.setattr(rl_config, "pageCompression", 0)
+    text = pdf.build_trip_report_pdf(report).decode("latin-1")
+    assert "Change number 8." in text and "Change number 9." not in text
+    assert "and 4 more." in text
