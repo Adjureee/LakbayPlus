@@ -84,8 +84,9 @@ def test_typographic_hyphens_do_not_hide_a_claim():
     "Parking isn't listed for Eden Nature Park.",
     "Lakbay has no record of restrooms at Eden Nature Park.",
     "Call Eden Nature Park to ask about ramps and restrooms.",
-    "Tip: go early in the morning to avoid crowds at Eden Nature Park.",
+    "Tip: go early in the morning at Eden Nature Park.",
     "Bring sunscreen, water and sturdy shoes.",
+    "Wear comfortable shoes and bring a hat to Eden Nature Park.",
     "Eden Nature Park is a green park in Toril.",
 ])
 def test_questions_honest_absence_advice_and_plain_tips_are_not_claims(sentence):
@@ -387,3 +388,92 @@ def test_the_generalisation_is_removed_and_the_honest_clause_kept():
     text = _enforce(reply)
     assert text.startswith("The catalog doesn't record any details about parking at Eden Nature Park")
     assert "Most farms" not in text
+
+
+# --- the reason a tip gives (docs/AI_TIPS_CLAIMS_PLAN.md) --------------------------------
+
+
+@pytest.mark.parametrize("sentence, rule", [
+    ("Tip: go early in the morning to avoid crowds at Eden Nature Park.", "crowd reasons"),
+    ("Eden Nature Park has fewer people on weekday mornings.", "crowd reasons"),
+    ("Visit Eden Nature Park in the early morning when the weather’s cooler.", "heat and cool"),
+    ("The museum space at Eden Nature Park can get warm, so go early.", "heat and cool"),
+    ("Go to Eden Nature Park early to avoid the strongest sun.", "heat and cool"),
+    ("Bring a raincoat to Eden Nature Park: sudden rain can hit the viewing deck.", "rain"),
+    ("Go to Eden Nature Park in the morning when the animals are most active.", "activity timing"),
+])
+def test_a_reason_a_tip_gives_is_a_claim_the_record_must_hold(sentence, rule):
+    assert rule in _rules(sentence)
+
+
+@pytest.mark.parametrize("sentence", [
+    "Go early in the morning to avoid crowds at Eden Nature Park.",
+    "Visit Eden Nature Park when the weather’s cooler.",
+    "Eden Nature Park can get warm, so go early.",
+    "Bring a raincoat to Eden Nature Park: sudden rain can hit the viewing deck.",
+    "Go to Eden Nature Park when the animals are most active.",
+])
+def test_the_same_words_in_the_records_support_a_reason(sentence):
+    support = (f"{EDEN} Quiet crowds on weekdays; avoid the crowd at noon. Cooler weather in the "
+               "morning. It can get warm and wet. Sudden rain. The animals are most active early.")
+    assert _find(sentence, support=support) == []
+
+
+@pytest.mark.parametrize("sentence, expected", [
+    ("Best to go early in the morning to avoid crowds and bring a sun hat at Eden Nature Park.",
+     "Best to go early in the morning and bring a sun hat at Eden Nature Park."),
+    ("Tip: Go early in the morning at Eden Nature Park when the weather’s cooler and the "
+     "strawberries are freshest; bring sunscreen and a hat.",
+     "Tip: Go early in the morning at Eden Nature Park; bring sunscreen and a hat."),
+    ("Tip: Visit Eden Nature Park in the morning when the animals are most active; bring a hat.",
+     "Tip: Visit Eden Nature Park in the morning; bring a hat."),
+    ("Tip: check the weather and bring a raincoat to Eden Nature Park—sudden rain can hit the deck.",
+     "Tip: check the weather and bring a raincoat to Eden Nature Park."),
+    ("Go to Eden Nature Park early (8-10 am) to avoid the strongest sun and crowds, and bring "
+     "sunscreen.",
+     "Go to Eden Nature Park early (8-10 am), and bring sunscreen."),
+    ("A tip: visit Eden Nature Park on a weekday to avoid crowds and bring water, as the indoor "
+     "space can get warm.",
+     "A tip: visit Eden Nature Park on a weekday and bring water."),
+    ("Visit Eden Nature Park in the early morning for cooler weather and less crowd, and bring "
+     "water.",
+     "Visit Eden Nature Park in the early morning, and bring water."),
+    ("Best time at Eden Nature Park is late afternoon when the lights are on and it’s cooler; "
+     "bring water.",
+     "Best time at Eden Nature Park is late afternoon; bring water."),
+])
+def test_an_unsupported_reason_is_cut_and_the_advice_is_kept(sentence, expected):
+    findings = _find(sentence)
+    assert findings, sentence
+    text, changed = ground_claims(sentence, findings)
+    assert changed == 1
+    assert text.startswith(expected), text
+    assert text.endswith(CLAIM_NOTE)
+
+
+def test_another_claim_in_the_tip_is_cut_with_its_own_clause():
+    sentence = ("Tip: go early to Eden Nature Park to avoid crowds and bring water – the museum is "
+                "air-conditioned and has lockers.")
+    text, changed = ground_claims(sentence, _find(sentence))
+    assert changed == 1 and text.startswith("Tip: go early to Eden Nature Park and bring water.")
+
+
+def test_a_tip_whose_main_advice_is_the_unsupported_claim_is_dropped_whole():
+    sentence = ("Tip: take a tricycle to Eden Nature Park, and go early on weekdays to avoid the "
+                "small crowd.")
+    text, changed = ground_claims(sentence, _find(sentence))
+    assert changed == 1 and "tricycle" not in text
+
+
+def test_what_to_bring_and_the_time_to_go_are_never_changed():
+    for sentence in (
+        "Bring sunscreen, a hat and water to Eden Nature Park.",
+        "Go early in the morning to Eden Nature Park.",
+        "Wear sturdy shoes at Eden Nature Park and arrive early.",
+    ):
+        assert _find(sentence) == []
+        assert ground_claims(sentence, _find(sentence)) == (sentence, 0)
+
+
+def test_asking_the_operator_about_crowds_is_still_plain_advice():
+    assert _find("Call Eden Nature Park to ask about crowds and the weather.") == []
