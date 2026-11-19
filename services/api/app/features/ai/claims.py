@@ -13,8 +13,8 @@ tips, and plain "go early to avoid crowds" advice (docs/AI_CLAIMS_CHECK_PLAN.md)
 A hedge ("likely", "usually", "many ... have") does not make a claim safe: the
 absence-then-speculation pattern is the one seen most in live replies.
 
-Modes (settings.claims_check_mode): "off", "log" (default: findings are logged, the reply
-is unchanged) and "enforce" (flagged sentences are trimmed or removed).
+Modes (settings.claims_check_mode): "enforce" (the default: flagged sentences are trimmed
+or removed), "log" (findings are logged, the reply is unchanged) and "off".
 """
 
 import re
@@ -77,7 +77,10 @@ RULES: tuple[Rule, ...] = (
         r"\b(?:visitors?|guests?|people|travell?ers|drivers|tourists?|you|they|most|many)\s+"
         r"(?:(?:can|could|may|will|usually|typically|often|generally|simply|just)\s+)*park\b"
         r"(?!\s+(?:entrance|gate|grounds|trail|area|visit|is|has|are)\b)|"
-        r"\bpark (?:your|the|a) (?:car|vehicle|motorbike|motorcycle|van|bike)\b"),
+        r"\bpark (?:your|the|a) (?:car|vehicle|motorbike|motorcycle|van|bike)\b|"
+        # "most visitors drive to the falls and park near the entrance"
+        r"\b(?:and|then)\s+park\s+(?:near|at|along|beside|by|outside|inside|in|around|"
+        r"close to)\b"),
          _rx(r"\bparking\b")),
     Rule("facilities", "facilities", _rx(
         r"\b(?:restrooms?|toilets?|comfort rooms?|lockers?|showers?|wi-?fi|atms?|"
