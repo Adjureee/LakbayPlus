@@ -411,6 +411,52 @@ void main() {
     expect(last.timeline, isNull);
   });
 
+  test('a failed revision can be retried, once, with the same change', () async {
+    var up = true;
+    final sent = <Map<String, dynamic>>[];
+    final client = MockClient((req) async {
+      final path = req.url.path.replaceFirst('/api/v1', '');
+      if (path == '/destinations/facets') return http.Response('{"groups":[]}', 200);
+      if (path == '/destinations') return http.Response('[]', 200);
+      if (path == '/planning/timeline') {
+        sent.add(jsonDecode(req.body) as Map<String, dynamic>);
+        return up
+            ? http.Response(jsonEncode({'timeline': _timeline(), 'changes': []}), 200)
+            : http.Response('{}', 503);
+      }
+      return http.Response('{}', 200);
+    });
+    final repo = _repo(client);
+    await repo.initialize();
+    await repo.apiCatalog.fetchTimeline(null, planningState: {'destination_ids': [77]});
+    sent.clear();
+
+    up = false;
+    await repo.reviseTimeline(const TimelineRevision(dayCount: 3));
+    final failed = repo.chatMessages.last;
+    expect(failed.isError, isTrue);
+    expect(repo.canRetryUpdate(failed.id), isTrue);
+
+    // Still down: the retry fails again, offers its own button, and the first is spent.
+    await repo.retryUpdate(failed.id);
+    expect(repo.canRetryUpdate(failed.id), isFalse);
+    final failedAgain = repo.chatMessages.last;
+    expect(failedAgain.id, isNot(failed.id));
+    expect(repo.canRetryUpdate(failedAgain.id), isTrue);
+
+    // Back up: the retry sends the same change and the itinerary comes back.
+    up = true;
+    await repo.retryUpdate(failedAgain.id);
+    expect(repo.chatMessages.last.timeline, isNotNull);
+    expect((sent.last['state'] as Map)['day_count'], 3);
+    expect(sent.map((b) => (b['state'] as Map)['day_count']), everyElement(3));
+
+    // A second tap on a spent button does nothing.
+    final count = sent.length;
+    await repo.retryUpdate(failedAgain.id);
+    expect(sent.length, count);
+  });
+
   // --- saving the itinerary and its history ---------------------------------------------
 
   group('saving', () {
@@ -605,6 +651,7 @@ void main() {
       expect(last.isError, isTrue);
       expect(last.text, contains('owner or an organizer'));
       expect(last.text, contains('unchanged'));
+      expect(repo.canRetryUpdate(last.id), isFalse);  // being refused is not worth retrying
       expect(repo.lastTimeline, same(before));
     });
 

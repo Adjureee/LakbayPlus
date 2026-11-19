@@ -4253,6 +4253,23 @@ class TravelRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// What to run again for an error message about a failed itinerary update (Revise or
+  /// Restore), by message id. Kept in memory only: after a restart the message stays but
+  /// has no button, and the traveler uses Revise again.
+  final Map<String, Future<void> Function()> _failedUpdateRetries = {};
+
+  bool canRetryUpdate(String messageId) =>
+      _failedUpdateRetries.containsKey(messageId);
+
+  /// Runs the failed update again. The button goes away first so a double tap cannot
+  /// send it twice; a new failure adds its own message and button.
+  Future<void> retryUpdate(String messageId) async {
+    final action = _failedUpdateRetries.remove(messageId);
+    if (action == null) return;
+    notifyListeners();
+    await action();
+  }
+
   /// Restores an older saved revision: the server saves it again as the newest one, and
   /// the plan and the picks go back to what that revision was built from, so the next
   /// Revise starts from it. Nothing is lost: the log keeps every revision.
@@ -4262,13 +4279,17 @@ class TravelRepository extends ChangeNotifier {
     if (tripId == null || token == null) return false;
     final result = await apiCatalog.restoreTripTimelineRevision(token, tripId, revision);
     if (!result.ok) {
+      final denied = result.errorCode == 'trip_permission_denied';
+      final id = 'ai_${DateTime.now().millisecondsSinceEpoch}';
+      // Not allowed is not worth retrying; anything else may work a moment later.
+      if (!denied) _failedUpdateRetries[id] = () => restoreTimelineRevision(revision);
       _chatMessages.add(
         ChatMessage(
-          id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
+          id: id,
           isUser: false,
-          text: result.errorCode == 'trip_permission_denied'
+          text: denied
               ? 'Only the trip owner or an organizer can restore an earlier version. Your itinerary is unchanged.'
-              : "I couldn't restore that version just now, so your itinerary is unchanged. Try again in a moment.",
+              : "I couldn't restore that version just now, so your itinerary is unchanged.",
           timestamp: DateTime.now(),
           isError: true,
         ),
@@ -4374,12 +4395,15 @@ class TravelRepository extends ChangeNotifier {
     if (result == null) {
       _aiTypingStatus = null;
       _isAiTyping = false;
+      final id = 'ai_${DateTime.now().millisecondsSinceEpoch}';
+      // The same revision again: it only sets values, so repeating it is safe.
+      _failedUpdateRetries[id] = () => reviseTimeline(revision);
       _chatMessages.add(
         ChatMessage(
-          id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
+          id: id,
           isUser: false,
           text:
-              "I couldn't update the itinerary just now, so it is unchanged. Your changes are kept; try Revise again.",
+              "I couldn't update the itinerary just now, so it is unchanged. Your changes are kept.",
           timestamp: DateTime.now(),
           isError: true,
         ),
