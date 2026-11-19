@@ -7,7 +7,11 @@ from types import SimpleNamespace as N
 from app.features.planning.schemas import PlanningState
 from app.features.planning.timeline import CostInfo, build_timeline, TimelineInput, StopInfo
 from app.features.planning.timeline_service import describe_changes, stop_costs
-from tests.test_phase5_ai_itineraries import admin_headers, create_destination
+from tests.test_phase5_ai_itineraries import (
+    admin_headers,
+    create_accommodation,
+    create_destination,
+)
 
 URL = "/api/v1/planning/timeline"
 
@@ -290,3 +294,82 @@ def test_the_response_carries_the_pins_that_were_in_effect(client) -> None:
     }).json()
     assert body["timeline"]["pins"] == [
         {"destination_id": museo, "day": 2, "starts_at": "10:00:00"}]
+
+
+# --- nights: the stay the traveler chose ------------------------------------------------
+
+
+def test_the_chosen_stay_becomes_the_place_the_nights_are_spent():
+    from app.features.planning.timeline import Lodging
+    from app.features.planning.timeline_service import _lodging
+
+    def stay(accommodation_id, destination_id, selected=True, name="Villa"):
+        return N(accommodation_id=accommodation_id, destination_id=destination_id,
+                 name=name, selected=selected)
+
+    def preview(*options):
+        return N(accommodation_options=list(options))
+
+    assert _lodging(preview(stay(1, 7, name="Villa"), stay(2, 7, selected=False))) == (
+        Lodging(7, "Villa"), None)
+    # Two rooms at one place are still one place.
+    assert _lodging(preview(stay(1, 7), stay(2, 7)))[0].destination_id == 7
+    # Nothing chosen: nothing guessed, and no reason to give.
+    assert _lodging(preview(stay(1, 7, selected=False))) == (None, None)
+    # Stays at two places: which night is where is not set, so none is assumed.
+    lodging, note = _lodging(preview(stay(1, 7), stay(2, 8)))
+    assert lodging is None and "which night is spent where" in note
+
+
+def test_legs_to_and_from_the_stay_are_estimated_but_never_to_an_island():
+    from app.features.planning.timeline import Lodging
+    from app.features.planning.timeline_service import _legs
+
+    stay = Lodging(1, "Villa")
+    places = [_dest(1, 7.2, 125.5), _dest(2, 7.3, 125.7), _dest(3, 7.4, 125.8, island="samal")]
+    legs = _legs(_preview(), places, state(), stay)
+    assert {(1, 2), (2, 1)} <= set(legs)
+    assert all(leg.basis == "estimated" and leg.minutes > 0 for leg in legs.values())
+    assert not any(3 in key for key in legs)
+    # A route's own leg is kept, not replaced by the estimate.
+    route = _preview([N(from_destination_id=1, to_destination_id=2, duration_minutes=99,
+                        is_estimated=False)])
+    assert _legs(route, places, state(), stay)[(1, 2)].minutes == 99
+
+
+def test_a_two_day_trip_with_a_chosen_stay_spends_the_night_there(client) -> None:
+    admin, eden, museo = _places(client)
+    stay = create_accommodation(client, destination_id=eden, headers=admin, name="Eden Lodge")
+    response = client.post(URL, json={
+        "state": {
+            "destination_ids": [eden, museo], "traveler_count": 2, "day_count": 2,
+            "night_count": 1, "departure_time": "08:00:00",
+            "selected_accommodation_ids": [stay["accommodation_id"]],
+            "origin": {"label": "Davao City", "lat": 7.07, "lng": 125.6},
+        },
+        "pins": [{"destination_id": museo, "day": 2}],
+    })
+    assert response.status_code == 200, response.text
+    body = response.json()
+    night = _items(body, "overnight")[0]
+    assert night["label"] == "Overnight at Eden Lodge"
+    morning = _items(body, "travel", day=2)[0]["travel"]
+    assert (morning["from_label"], morning["to_label"]) == ("Eden Lodge", "Museo Davao")
+    checks = {c["id"]: c["status"] for c in body["timeline"]["checks"]}
+    assert checks["overnight_stay"] == "passed"
+
+
+def test_without_a_chosen_stay_the_night_is_marked_not_chosen(client) -> None:
+    _, eden, museo = _places(client)
+    response = client.post(URL, json={
+        "state": {
+            "destination_ids": [eden, museo], "traveler_count": 2, "day_count": 2,
+            "night_count": 1, "departure_time": "08:00:00",
+            "origin": {"label": "Davao City", "lat": 7.07, "lng": 125.6},
+        },
+        "pins": [{"destination_id": museo, "day": 2}],
+    })
+    body = response.json()
+    assert _items(body, "overnight")[0]["label"] == "Overnight (place to stay not chosen)"
+    checks = {c["id"]: c["status"] for c in body["timeline"]["checks"]}
+    assert checks["overnight_stay"] == "cannot_verify"

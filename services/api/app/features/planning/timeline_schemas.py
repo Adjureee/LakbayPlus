@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from app.features.planning.schemas import PlanningPreviewRequest
 
-ItemKind = Literal["depart", "travel", "visit", "meal", "rest", "buffer", "return"]
+ItemKind = Literal["depart", "travel", "visit", "meal", "rest", "buffer", "overnight", "return"]
 # confirmed: fixed by the traveler or by recorded opening hours, nothing uncertain before
 # it; estimated: calculated from recorded or estimated durations and travel times;
 # provisional: depends on a planning default or on a leg with no travel time; unknown.

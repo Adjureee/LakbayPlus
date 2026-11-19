@@ -20,6 +20,7 @@ IconData _kindIcon(String kind) => switch (kind) {
   'meal' => Icons.restaurant_outlined,
   'rest' => Icons.self_improvement_outlined,
   'buffer' => Icons.hourglass_empty_rounded,
+  'overnight' => Icons.hotel_outlined,
   'depart' => Icons.flag_outlined,
   'return' => Icons.home_outlined,
   _ => Icons.circle_outlined,
