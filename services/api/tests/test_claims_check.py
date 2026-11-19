@@ -352,3 +352,38 @@ def test_driving_to_a_place_and_parking_near_it_is_a_parking_claim():
     assert "where to park" in _rules(sentence)
     assert "where to park" not in _rules(sentence, support=EDEN + " Free parking at the gate.")
     assert "where to park" not in _rules("Eden Nature Park is a good place to relax and park yourself.")
+
+
+# --- guesses about places in general -------------------------------------------------------
+
+
+@pytest.mark.parametrize("sentence", [
+    "Most farms in Davao City have some open-space parking nearby.",
+    "Many museums offer a small lot or street parking.",
+    "Most resorts include restrooms and cottages.",
+])
+def test_a_guess_about_places_in_general_is_never_supported(sentence):
+    """Live case: "Most farms in Davao City have some open-space parking nearby"."""
+    reply = f"Eden Nature Park is a green park in Toril. {sentence}"
+    assert "generalisation" in _rules(reply)
+    # Even a place that records parking does not make a statement about other places true.
+    assert "generalisation" in _rules(reply, support=EDEN + " Free parking and restrooms.")
+
+
+@pytest.mark.parametrize("sentence", [
+    "Most visitors enjoy the gardens at Eden Nature Park.",
+    "Many families have fun at Eden Nature Park.",
+    "Eden Nature Park has parking.",  # about this place: the parking rule decides, not this
+    "Most travelers have a great time here.",
+])
+def test_ordinary_most_and_many_sentences_are_not_generalisations(sentence):
+    assert "generalisation" not in _rules(sentence)
+
+
+def test_the_generalisation_is_removed_and_the_honest_clause_kept():
+    reply = ("The catalog doesn't record any details about parking at Eden Nature Park, so we "
+             "can't confirm a dedicated lot. Most farms in Davao City have some open-space "
+             "parking nearby, but it's best to call ahead.")
+    text = _enforce(reply)
+    assert text.startswith("The catalog doesn't record any details about parking at Eden Nature Park")
+    assert "Most farms" not in text
