@@ -1367,6 +1367,16 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                                 ),
                                 label: const Text('Try again'),
                                 onPressed: () => _retryChatError(msg),
+                              )
+                            else if (widget.repo.canRetryUpdate(msg.id))
+                              ActionChip(
+                                avatar: const Icon(
+                                  Icons.refresh_rounded,
+                                  size: 16,
+                                ),
+                                label: const Text('Try again'),
+                                onPressed: () =>
+                                    widget.repo.retryUpdate(msg.id),
                               ),
                           ],
                         ),
