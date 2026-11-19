@@ -71,6 +71,14 @@ RULES: tuple[Rule, ...] = (
         r"public|nearby) (?:car )?parking|parking (?:is|are) (?:available|free|limited|ample)|"
         r"park (?:on|along) the street|parking lots?|(?:small|large) lots?)\b"),
          _rx(r"\bparking\b")),
+    # Where people park, said as an action ("most visitors park near the entrance"). Only
+    # a recorded parking note supports it: "park" alone would match every "Nature Park".
+    Rule("facilities", "where to park", _rx(
+        r"\b(?:visitors?|guests?|people|travell?ers|drivers|tourists?|you|they|most|many)\s+"
+        r"(?:(?:can|could|may|will|usually|typically|often|generally|simply|just)\s+)*park\b"
+        r"(?!\s+(?:entrance|gate|grounds|trail|area|visit|is|has|are)\b)|"
+        r"\bpark (?:your|the|a) (?:car|vehicle|motorbike|motorcycle|van|bike)\b"),
+         _rx(r"\bparking\b")),
     Rule("facilities", "facilities", _rx(
         r"\b(?:restrooms?|toilets?|comfort rooms?|lockers?|showers?|wi-?fi|atms?|"
         r"card terminals?|credit cards?|air-?condition\w*)\b")),
