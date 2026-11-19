@@ -299,11 +299,16 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                         width: 54,
                         height: 54,
                         decoration: BoxDecoration(
-                          color: selectedIndex == 2
-                              ? LakbayColors.tealDeep
-                              : LakbayColors.primary,
+                          // White so the teal logo stays readable; the ring shows
+                          // whether the Chat tab is selected.
+                          color: Colors.white,
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
+                          border: Border.all(
+                            color: selectedIndex == 2
+                                ? LakbayColors.tealDeep
+                                : LakbayColors.primary,
+                            width: 3,
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.2),
@@ -313,11 +318,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                           ],
                         ),
                         alignment: Alignment.center,
-                        child: const LakbayCompassMark(
-                          size: 28,
-                          primaryColor: Colors.white,
-                          secondaryColor: Colors.white70,
-                        ),
+                        child: const LakbayCompassMark(size: 20),
                       ),
                       const SizedBox(height: 2),
                       Text(
