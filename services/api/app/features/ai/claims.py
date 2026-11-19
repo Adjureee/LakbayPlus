@@ -4,12 +4,14 @@ The figure check in grounding.py removes prices, distances and times the records
 hold. This module covers statements without a number: terrain ("uneven path"), seasons
 ("dry season, Nov-May"), parking ("street parking is usually available"), facilities
 ("restrooms", "card terminals"), accessibility details ("ramps"), rules ("meter fees",
-"photography allowed") and named activities ("guided tours", "zipline").
+"photography allowed") and named activities ("guided tours", "zipline"), and the conditions a tip gives as its reason ("to avoid crowds", "when the
+weather's cooler", "sudden rain can hit", "when the eagles are most active"). For a tip the
+reason is cut and the advice kept (docs/AI_TIPS_CLAIMS_PLAN.md).
 
 A claim is flagged only when the sentence is about one place and the place's own records
 do not contain the claim's word. Left alone: questions, honest absence statements
-("Parking isn't listed"), advice to ask the operator ("ask about ramps"), general travel
-tips, and plain "go early to avoid crowds" advice (docs/AI_CLAIMS_CHECK_PLAN.md).
+("Parking isn't listed"), advice to ask the operator ("ask about ramps"), what to bring
+("bring sunscreen"), and the timing advice itself ("go early in the morning").
 A hedge ("likely", "usually", "many ... have") does not make a claim safe: the
 absence-then-speculation pattern is the one seen most in live replies.
 
@@ -65,6 +67,34 @@ RULES: tuple[Rule, ...] = (
         r"\b(?:(?:weekend|sunday|holiday)s?\b[^.]{0,40}\bcrowd\w*|crowd\w*\b[^.]{0,40}"
         r"\b(?:weekends?|sundays?|holidays?)|fill(?:s|ed)? up|gets? (?:very |quite |too )?"
         r"(?:crowded|busy|packed))\b"), _rx(r"\bcrowd")),
+    # The conditions a tip gives as its reason. The advice ("go early", "bring a hat") is
+    # not checked; the reason is a statement about the place, supported only by a record
+    # that says the same thing.
+    Rule("conditions", "crowd reasons", _rx(
+        r"\b(?:(?:avoid\w*|beat|skip|dodge|escape)\s+(?:the\s+)?(?:(?:weekend|worst|small|"
+        r"big|large|usual|heavy|biggest|afternoon|midday)\s+)*(?:crowds?|rush(?: hour)?|"
+        r"queues?|lines)|(?:fewer|less|smaller|thinner)\s+(?:crowds?|people|visitors|"
+        r"tourists)|less crowded|(?:small|thin) crowds?|(?:busiest|peak)\s+"
+        r"(?:time|hours?|days?|periods?))\b"),
+         _rx(r"\bcrowd|\bbusy|\bpeak|\bquiet|\bqueue")),
+    Rule("conditions", "heat and cool", _rx(
+        r"\b(?:(?:cool(?:er)?|cold(?:er)?|warm(?:er)?|hot(?:ter)?|humid)\s+(?:weather|air|"
+        r"breeze|temperatures?|morning|evening|hours?|conditions?)|(?:weather|air|"
+        r"temperatures?|it)(?:['’]s| is| are| gets?| turns?)\s+(?:much |a bit |quite |"
+        r"a little )?(?:cool(?:er)?|cold(?:er)?|warm(?:er)?|hot(?:ter)?|humid)|avoid\w*\s+"
+        r"(?:the\s+)?(?:(?:strongest|worst|harsh|midday|noon|afternoon|hot)\s+)*(?:sun|heat)|"
+        r"can (?:get|be|become) (?:very |quite |too |a bit )?(?:warm|hot|humid|stuffy|cold))"
+        r"\b"),
+         _rx(r"\bcool|\bcold|\bwarm|\bhot\b|\bheat|\bhumid|\bbreez|\bshade")),
+    Rule("conditions", "rain", _rx(
+        r"\b(?:(?:sudden|heavy|frequent|afternoon)\s+(?:rain|showers?|downpours?)|"
+        r"rain\s+(?:can|may|often|usually|tends?)|(?:rain|showers?)\b[^.]{0,20}\b"
+        r"(?:can|may)\s+(?:hit|fall|pour|come))\b"),
+         _rx(r"\brain|\bwet\b|\bshower|\bdownpour|\bstorm")),
+    Rule("conditions", "activity timing", _rx(
+        r"\b(?:(?:most|more|very) active|when the (?:lights|lanterns)\b[^.]{0,15}\bare on|"
+        r"feeding (?:time|hours?|sessions?))\b"),
+         _rx(r"\bactive\b|\blights?\b|\bfeeding|\blanterns?")),
     # Parking and facilities.
     Rule("facilities", "parking", _rx(
         r"\b(?:(?:free|paid|ample|plenty of|limited|street|on-?site|dedicated|large|small|"
@@ -247,6 +277,49 @@ def _words(text: str) -> int:
     return len(text.split())
 
 
+# The reasons a tip gives (see the rules above): cut, with the advice kept.
+_REASON_RULES = {"crowd reasons", "heat and cool", "rain", "activity timing"}
+# Where a reason clause starts: "to avoid ...", "for cooler weather", "when/as/since ...".
+_REASON_START = _rx(
+    r",?\s+(?:to (?:avoid|beat|skip|dodge|escape|enjoy)|for (?:a |the )?(?:cooler|cool|warmer|"
+    r"fewer|less|smaller|clearer|best)|(?:when|as|since|because|while|so)\b)")
+# Where the reason ends and the next piece of advice begins: ", and bring ...", ";", a dash.
+_REASON_END = _rx(
+    r",?\s+(?:and\s+)?(?:then\s+)?(?:bring|wear|pack|carry|take|check|use|dress|arrive|go|"
+    r"visit|expect|stay|enjoy|try|book|reserve|remember)\b|\s*[;—–]|\s-\s")
+_SEPARATOR = _rx(r"\s*[;—–]\s*|\s-\s")
+
+
+def _cut_reasons(
+    sentence: str, norm: str, rules: list[Rule], *, connectors: bool = True,
+) -> str | None:
+    """The tip without the clauses that give an unsupported reason, or None if it cannot be
+    cut cleanly ("Go early to avoid crowds and bring a hat" becomes "Go early and bring a
+    hat"). Slices the original; the dash-normalised copy is the same length."""
+    ending = sentence[-1] if sentence and sentence[-1] in ".!" else "."
+    for _ in range(4):
+        match = next((m for rule in rules if (m := rule.claim.search(norm))), None)
+        if match is None:
+            break
+        starts = [m for m in _REASON_START.finditer(norm, 0, match.end())
+                  if connectors and m.start() <= match.start()
+                  and match.start() - m.start() <= 60]
+        if starts:
+            begin = starts[-1].start()
+        else:
+            seps = list(_SEPARATOR.finditer(sentence, 0, match.start()))
+            if not seps:
+                return None
+            begin = seps[-1].start()
+        stop = _REASON_END.search(sentence, match.end())
+        end = stop.start() if stop else len(norm.rstrip(" .!"))
+        sentence = (sentence[:begin] + sentence[end:]).rstrip(" ,;-—–.!") + ending
+        norm = _DASHES.sub("-", sentence)
+    if any(rule.claim.search(norm) for rule in rules) or _words(sentence) < 3:
+        return None
+    return sentence
+
+
 def _trim(sentence: str, flagged: set[str]) -> str | None:
     """A shorter sentence without the part that holds the claim, or None to drop it.
 
@@ -260,6 +333,24 @@ def _trim(sentence: str, flagged: set[str]) -> str | None:
     if _SUBORDINATE.match(norm):
         return None
     rules = [rule for rule in RULES if rule.name in flagged]
+
+    reasons = [rule for rule in rules if rule.name in _REASON_RULES]
+    if reasons:
+        cut = _cut_reasons(sentence, norm, reasons)
+        if cut is None:
+            return None
+        # What is left may still hold another flagged claim ("... to avoid crowds, and take
+        # a tricycle"): trim that the usual way, or drop the sentence.
+        left = {rule.name for rule in rules
+                if rule.name not in _REASON_RULES
+                and rule.claim.search(_DASHES.sub("-", cut))}
+        if not left:
+            return cut
+        # Another claim after a dash or semicolon is cut with its clause; otherwise the usual
+        # trim, or the sentence goes.
+        rest = [rule for rule in rules if rule.name in left]
+        return (_cut_reasons(cut, _DASHES.sub("-", cut), rest, connectors=False)
+                or _trim(cut, left))
 
     if _GUESS_RULE.name in flagged:
         absence = _ABSENCE.search(norm)
