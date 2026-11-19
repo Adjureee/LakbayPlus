@@ -82,6 +82,13 @@ RULES: tuple[Rule, ...] = (
         r"\b(?:and|then)\s+park\s+(?:near|at|along|beside|by|outside|inside|in|around|"
         r"close to)\b"),
          _rx(r"\bparking\b")),
+    # A guess about places in general ("most farms in Davao City have open-space parking"):
+    # no record of this place can support it, so it is never supported.
+    Rule("facilities", "generalisation", _rx(
+        r"\b(?:most|many)\s+(?:[\w'-]+\s+){1,5}?(?:have|has|offer|offers|provide|provides|"
+        r"include|includes)\b[^.]{0,60}\b(?:parking|lots?|restrooms?|toilets?|facilit\w+|"
+        r"ramps?|cottages?)\b"),
+         _rx(r"$^")),
     Rule("facilities", "facilities", _rx(
         r"\b(?:restrooms?|toilets?|comfort rooms?|lockers?|showers?|wi-?fi|atms?|"
         r"card terminals?|credit cards?|air-?condition\w*)\b")),
