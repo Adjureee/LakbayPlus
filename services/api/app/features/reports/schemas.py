@@ -67,6 +67,19 @@ class TripReportTimeline(BaseModel):
     timeline: Timeline
 
 
+class TripReportRevision(BaseModel):
+    """One line of the timeline's revision log: when, by whom, what moved, and how it stood."""
+
+    revision: int
+    saved_at: datetime
+    saved_by: str | None = None
+    # What moved since the revision before it (empty for the first).
+    changes: list[str] = []
+    # How that revision stood when it was saved.
+    works: bool
+    unverified_count: int
+
+
 class TripReportSummaryResponse(BaseModel):
     generated_at: datetime
     trip: TripReportInfo
@@ -78,3 +91,5 @@ class TripReportSummaryResponse(BaseModel):
     tasks: list[TripReportTask]
     # None when no timeline was saved for the trip.
     timeline: TripReportTimeline | None = None
+    # Every saved revision of the timeline, oldest first; empty when none was saved.
+    revision_log: list[TripReportRevision] = []

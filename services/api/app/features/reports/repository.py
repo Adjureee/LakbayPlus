@@ -2,6 +2,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.features.users.models import User
 from app.features.trips.models import (
     Trip,
     TripDestination,
@@ -31,14 +32,18 @@ class ReportRepository:
         return result.scalar_one_or_none()
 
 
-    async def latest_timeline_revision(self, trip_id: int) -> TripTimelineRevision | None:
+    async def timeline_revisions(
+        self, trip_id: int,
+    ) -> list[tuple[TripTimelineRevision, str | None]]:
+        """Every saved revision of the trip's timeline, oldest first, with the name of who
+        saved it (None when that account is gone). At most 50 are kept per trip."""
         result = await self.session.execute(
-            select(TripTimelineRevision)
+            select(TripTimelineRevision, User.full_name)
+            .outerjoin(User, User.user_id == TripTimelineRevision.created_by_user_id)
             .where(TripTimelineRevision.trip_id == trip_id)
-            .order_by(TripTimelineRevision.revision.desc())
-            .limit(1),
+            .order_by(TripTimelineRevision.revision),
         )
-        return result.scalar_one_or_none()
+        return [(row, name) for row, name in result.all()]
 
 
 def _trip_access_filter(user_id: int):
