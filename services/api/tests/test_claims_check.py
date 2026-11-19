@@ -400,6 +400,8 @@ def test_the_generalisation_is_removed_and_the_honest_clause_kept():
     ("The museum space at Eden Nature Park can get warm, so go early.", "heat and cool"),
     ("Go to Eden Nature Park early to avoid the strongest sun.", "heat and cool"),
     ("Go to Eden Nature Park in the late afternoon for a cooler city walk.", "heat and cool"),
+    ("The park is cooler and the lighting is great for cycling.", "heat and cool"),
+    ("Visit Eden Nature Park at 4 PM to enjoy the cooler afternoon weather.", "heat and cool"),
     ("Visit Eden Nature Park at 4 PM, when the sun’s heat eases.", "heat and cool"),
     ("Go to Eden Nature Park in the evening to beat the heat.", "heat and cool"),
     ("Eden Nature Park has a milder sun after 4 PM.", "heat and cool"),
@@ -508,4 +510,13 @@ def test_a_cut_reason_keeps_a_following_with_clause():
     assert changed == 1
     assert text.startswith(
         "The best time at Eden Nature Park is late afternoon or early evening, with free admission.")
+    assert "cooler" not in text
+
+
+def test_a_cooler_afternoon_weather_reason_is_cut():
+    sentence = ("The best time to visit Eden Nature Park is between 3:30 PM and 6:00 PM to enjoy "
+                "the cooler afternoon weather for cycling or walking.")
+    text, changed = ground_claims(sentence, _find(sentence))
+    assert changed == 1
+    assert text.startswith("The best time to visit Eden Nature Park is between 3:30 PM and 6:00 PM.")
     assert "cooler" not in text
