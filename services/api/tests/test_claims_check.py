@@ -399,6 +399,9 @@ def test_the_generalisation_is_removed_and_the_honest_clause_kept():
     ("Visit Eden Nature Park in the early morning when the weather’s cooler.", "heat and cool"),
     ("The museum space at Eden Nature Park can get warm, so go early.", "heat and cool"),
     ("Go to Eden Nature Park early to avoid the strongest sun.", "heat and cool"),
+    ("Visit Eden Nature Park at 4 PM, when the sun’s heat eases.", "heat and cool"),
+    ("Go to Eden Nature Park in the evening to beat the heat.", "heat and cool"),
+    ("Eden Nature Park has a milder sun after 4 PM.", "heat and cool"),
     ("Bring a raincoat to Eden Nature Park: sudden rain can hit the viewing deck.", "rain"),
     ("Go to Eden Nature Park in the morning when the animals are most active.", "activity timing"),
 ])
@@ -477,3 +480,12 @@ def test_what_to_bring_and_the_time_to_go_are_never_changed():
 
 def test_asking_the_operator_about_crowds_is_still_plain_advice():
     assert _find("Call Eden Nature Park to ask about crowds and the weather.") == []
+
+
+def test_the_live_energy_park_sentence_loses_its_heat_reason_and_keeps_the_window():
+    sentence = ("The ideal window to enjoy Eden Nature Park is between 3:30 PM and 6:00 PM, when "
+                "the sun’s heat eases and the park feels most refreshing.")
+    text, changed = ground_claims(sentence, _find(sentence))
+    assert changed == 1
+    assert text.startswith("The ideal window to enjoy Eden Nature Park is between 3:30 PM and 6:00 PM.")
+    assert "heat" not in text
