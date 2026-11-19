@@ -401,6 +401,8 @@ def test_the_generalisation_is_removed_and_the_honest_clause_kept():
     ("Go to Eden Nature Park early to avoid the strongest sun.", "heat and cool"),
     ("Go to Eden Nature Park in the late afternoon for a cooler city walk.", "heat and cool"),
     ("The park is cooler and the lighting is great for cycling.", "heat and cool"),
+    ("Go at 4 PM, when the breeze is cooler and the park is lively.", "heat and cool"),
+    ("Visit Eden Nature Park in the evening, when it feels warmer.", "heat and cool"),
     ("Visit Eden Nature Park at 4 PM to enjoy the cooler afternoon weather.", "heat and cool"),
     ("Visit Eden Nature Park at 4 PM, when the sun’s heat eases.", "heat and cool"),
     ("Go to Eden Nature Park in the evening to beat the heat.", "heat and cool"),
