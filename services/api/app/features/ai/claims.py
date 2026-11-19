@@ -83,7 +83,10 @@ RULES: tuple[Rule, ...] = (
         r"temperatures?|it)(?:['’]s| is| are| gets?| turns?)\s+(?:much |a bit |quite |"
         r"a little )?(?:cool(?:er)?|cold(?:er)?|warm(?:er)?|hot(?:ter)?|humid)|avoid\w*\s+"
         r"(?:the\s+)?(?:(?:strongest|worst|harsh|midday|noon|afternoon|hot)\s+)*(?:sun|heat)|"
-        r"can (?:get|be|become) (?:very |quite |too |a bit )?(?:warm|hot|humid|stuffy|cold))"
+        r"can (?:get|be|become) (?:very |quite |too |a bit )?(?:warm|hot|humid|stuffy|cold)|"
+        # "when the sun's heat eases", "beat the heat", "a milder sun"
+        r"(?:sun['’]s\s+)?heat\s+(?:eases|fades|subsides|dies down|lets up|drops)|"
+        r"beat the heat|(?:milder|gentler|softer)\s+(?:sun|heat|sunlight))"
         r"\b"),
          _rx(r"\bcool|\bcold|\bwarm|\bhot\b|\bheat|\bhumid|\bbreez|\bshade")),
     Rule("conditions", "rain", _rx(
