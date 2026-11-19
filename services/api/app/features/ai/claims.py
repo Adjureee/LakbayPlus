@@ -78,7 +78,9 @@ RULES: tuple[Rule, ...] = (
         r"(?:time|hours?|days?|periods?))\b"),
          _rx(r"\bcrowd|\bbusy|\bpeak|\bquiet|\bqueue")),
     Rule("conditions", "heat and cool", _rx(
-        r"\b(?:(?:cool(?:er)?|cold(?:er)?|warm(?:er)?|hot(?:ter)?|humid)\s+(?:weather|air|"
+        r"\b(?:(?:cool(?:er)?|cold(?:er)?|warm(?:er)?)\s+(?:(?:city|evening|morning|park|"
+        r"garden)\s+)?(?:walks?|strolls?|visits?|trips?|outings?)|"
+        r"(?:cool(?:er)?|cold(?:er)?|warm(?:er)?|hot(?:ter)?|humid)\s+(?:weather|air|"
         r"breeze|temperatures?|morning|evening|hours?|conditions?)|(?:weather|air|"
         r"temperatures?|it)(?:['’]s| is| are| gets?| turns?)\s+(?:much |a bit |quite |"
         r"a little )?(?:cool(?:er)?|cold(?:er)?|warm(?:er)?|hot(?:ter)?|humid)|avoid\w*\s+"
@@ -289,7 +291,7 @@ _REASON_START = _rx(
 # Where the reason ends and the next piece of advice begins: ", and bring ...", ";", a dash.
 _REASON_END = _rx(
     r",?\s+(?:and\s+)?(?:then\s+)?(?:bring|wear|pack|carry|take|check|use|dress|arrive|go|"
-    r"visit|expect|stay|enjoy|try|book|reserve|remember)\b|\s*[;—–]|\s-\s")
+    r"visit|expect|stay|enjoy|try|book|reserve|remember)\b|,?\s+with\b|\s*[;—–]|\s-\s")
 _SEPARATOR = _rx(r"\s*[;—–]\s*|\s-\s")
 
 
@@ -316,7 +318,16 @@ def _cut_reasons(
             begin = seps[-1].start()
         stop = _REASON_END.search(sentence, match.end())
         end = stop.start() if stop else len(norm.rstrip(" .!"))
-        sentence = (sentence[:begin] + sentence[end:]).rstrip(" ,;-—–.!") + ending
+        head = sentence[:begin].rstrip(" ,;-—–.!")
+        tail = sentence[end:]
+        # Advice left without its "and" starts a sentence of its own ("... 6 PM. Bring a ID").
+        lead = re.match(r",?\s+(?:then\s+)?(?=[a-z])", tail)
+        if stop and lead and not re.match(r",?\s+(?:and|with)\b", tail, re.I):
+            rest = tail[lead.end():]
+            sentence = head + ". " + rest[:1].upper() + rest[1:]
+        else:
+            sentence = head + tail
+        sentence = sentence.rstrip(" ,;-—–.!") + ending
         norm = _DASHES.sub("-", sentence)
     if any(rule.claim.search(norm) for rule in rules) or _words(sentence) < 3:
         return None
