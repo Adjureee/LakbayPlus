@@ -7,6 +7,7 @@ from app.features.trips.models import (
     TripDestination,
     TripItineraryDay,
     TripMember,
+    TripTimelineRevision,
 )
 
 
@@ -27,6 +28,16 @@ class ReportRepository:
             )
         )
 
+        return result.scalar_one_or_none()
+
+
+    async def latest_timeline_revision(self, trip_id: int) -> TripTimelineRevision | None:
+        result = await self.session.execute(
+            select(TripTimelineRevision)
+            .where(TripTimelineRevision.trip_id == trip_id)
+            .order_by(TripTimelineRevision.revision.desc())
+            .limit(1),
+        )
         return result.scalar_one_or_none()
 
 

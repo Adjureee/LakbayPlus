@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' show MediaType;
 import '../models/commute.dart';
+import '../models/timeline_models.dart';
 import '../models/travel_models.dart';
 import 'env_config.dart';
 
@@ -1353,6 +1354,153 @@ class LakbayApiCatalogService {
             ? decoded['planning_preview'] as Map<String, dynamic>
             : null,
       );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Saves the trip's itinerary timeline as the next revision. The server rebuilds the
+  /// timeline from the planning state; nothing built here is sent. Needs a signed-in
+  /// traveler who can manage the trip. Returns the revision number, or null.
+  Future<int?> saveTripTimeline(
+    String accessToken,
+    int tripId, {
+    required Map<String, dynamic> planningState,
+    List<Map<String, dynamic>> pins = const [],
+  }) async {
+    final base = _base;
+    if (base.isEmpty) return null;
+    try {
+      Future<http.Response> sendReq(String tok) => _client
+          .post(
+            Uri.parse('$base/trips/$tripId/timeline'),
+            headers: {
+              'Authorization': 'Bearer $tok',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'state': planningState, 'pins': pins}),
+          )
+          .timeout(const Duration(seconds: 30));
+      final res = await _sendAuthorized(accessToken, sendReq);
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      return (decoded['revision'] as num?)?.toInt();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Saves an older revision again as the newest one, exactly as it was stored.
+  Future<TimelineRestoreResult> restoreTripTimelineRevision(
+    String accessToken,
+    int tripId,
+    int revision,
+  ) async {
+    final base = _base;
+    if (base.isEmpty) return const TimelineRestoreResult(errorCode: 'not_configured');
+    try {
+      Future<http.Response> sendReq(String tok) => _client
+          .post(
+            Uri.parse('$base/trips/$tripId/timeline/revisions/$revision/restore'),
+            headers: {'Authorization': 'Bearer $tok'},
+          )
+          .timeout(const Duration(seconds: 30));
+      final res = await _sendAuthorized(accessToken, sendReq);
+      final decoded = _tryDecodeJson(res.body);
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return TimelineRestoreResult(
+          errorCode: _extractErrorCode(decoded) ?? 'http_${res.statusCode}',
+        );
+      }
+      if (decoded is! Map<String, dynamic> ||
+          decoded['timeline'] is! Map<String, dynamic> ||
+          decoded['state'] is! Map<String, dynamic>) {
+        return const TimelineRestoreResult(errorCode: 'bad_response');
+      }
+      return TimelineRestoreResult(
+        revision: (decoded['revision'] as num?)?.toInt(),
+        timeline: TimelineData.fromJson(decoded['timeline'] as Map<String, dynamic>),
+        state: decoded['state'] as Map<String, dynamic>,
+        changes: (decoded['changes'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+      );
+    } catch (_) {
+      return const TimelineRestoreResult(errorCode: 'network_error');
+    }
+  }
+
+  /// The trip's saved timeline revisions, newest first; null when they cannot be read.
+  Future<List<TimelineRevisionSummary>?> fetchTripTimelineHistory(
+    String accessToken,
+    int tripId,
+  ) async {
+    final base = _base;
+    if (base.isEmpty) return null;
+    try {
+      Future<http.Response> sendReq(String tok) => _client
+          .get(
+            Uri.parse('$base/trips/$tripId/timeline'),
+            headers: {'Authorization': 'Bearer $tok'},
+          )
+          .timeout(const Duration(seconds: 20));
+      final res = await _sendAuthorized(accessToken, sendReq);
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      return (decoded['revisions'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(TimelineRevisionSummary.fromJson)
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Calls `POST /planning/timeline`: a day-by-day timeline built in code from the
+  /// traveler's picks (guests and signed-in). Returns null when it cannot be reached or
+  /// the server refuses, so the caller can fall back; nothing is invented to cover it.
+  Future<TimelineResult?> fetchTimeline(
+    String? accessToken, {
+    required Map<String, dynamic> planningState,
+    int inputRevision = 0,
+    Map<String, dynamic>? previous,
+    List<Map<String, dynamic>> pins = const [],
+  }) async {
+    final base = _base;
+    if (base.isEmpty) return null;
+    try {
+      final encodedPayload = jsonEncode({
+        'input_revision': inputRevision,
+        'state': planningState,
+        'pins': pins,
+        'previous': ?previous,
+      });
+      final token = (accessToken ?? '').trim();
+      Future<http.Response> sendReq(String? tok) => _client
+          .post(
+            Uri.parse('$base/planning/timeline'),
+            headers: {
+              if (tok != null && tok.isNotEmpty) 'Authorization': 'Bearer $tok',
+              'Content-Type': 'application/json',
+            },
+            body: encodedPayload,
+          )
+          .timeout(const Duration(seconds: 25));
+      var res = token.isEmpty
+          ? await sendReq(null)
+          : await _sendAuthorized(token, sendReq);
+      if (token.isNotEmpty && res.statusCode == 401) {
+        res = await sendReq(null);
+      }
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = _tryDecodeJson(res.body);
+      if (decoded is! Map<String, dynamic> ||
+          decoded['timeline'] is! Map<String, dynamic>) {
+        return null;
+      }
+      return TimelineResult.fromJson(decoded);
     } catch (_) {
       return null;
     }

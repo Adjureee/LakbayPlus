@@ -12,14 +12,28 @@ from app.integrations.storage.uploads import (
 
 from app.features.destinations.region import island_group_for
 from app.core.exceptions import LakbayAPIError
+from app.features.destinations.data_quality import data_quality as hours_data_quality
+from app.features.destinations.hours import hours_summary
+from app.features.destinations.activities import activity_summary
+from app.features.destinations.prices import prices_summary
 from app.features.destinations.repository import DestinationRepository
 from app.features.recommendations.preference_groups import load_groups
 from app.features.destinations.schemas import (
     DestinationFacetsResponse,
+    ActivityOut,
+    DestinationActivitiesResponse,
+    DestinationActivitiesUpdate,
     DestinationCreate,
+    DestinationHoursResponse,
+    DestinationHoursUpdate,
     DestinationListQuery,
+    DestinationPricesResponse,
+    DestinationPricesUpdate,
     DestinationResponse,
     DestinationUpdate,
+    HoursExceptionIn,
+    HoursWindowIn,
+    PriceIn,
 )
 
 FACETS_CACHE_TTL_SECONDS = 60.0
@@ -135,6 +149,107 @@ class DestinationService:
             )
 
         return DestinationResponse.model_validate(destination)
+
+    async def get_hours(self, destination_id: int) -> DestinationHoursResponse:
+        destination = await self._active_destination(destination_id)
+        weekly, exceptions = await self.destinations.get_hours(destination_id)
+        return self._hours_response(destination, weekly, exceptions)
+
+    async def replace_hours(
+        self, destination_id: int, data: DestinationHoursUpdate,
+    ) -> DestinationHoursResponse:
+        destination = await self._active_destination(destination_id)
+        await self.destinations.replace_hours(destination, data)
+        await self.session.commit()
+        weekly, exceptions = await self.destinations.get_hours(destination_id)
+        return self._hours_response(destination, weekly, exceptions)
+
+    async def get_prices(self, destination_id: int) -> DestinationPricesResponse:
+        destination = await self._active_destination(destination_id)
+        prices = await self.destinations.get_prices(destination_id)
+        return self._prices_response(destination, prices)
+
+    async def replace_prices(
+        self, destination_id: int, data: DestinationPricesUpdate,
+    ) -> DestinationPricesResponse:
+        destination = await self._active_destination(destination_id)
+        await self.destinations.replace_prices(destination, data)
+        await self.session.commit()
+        prices = await self.destinations.get_prices(destination_id)
+        return self._prices_response(destination, prices)
+
+    @staticmethod
+    def _prices_response(destination, prices) -> DestinationPricesResponse:
+        return DestinationPricesResponse(
+            destination_id=destination.destination_id,
+            fees_source_url=destination.fees_source_url,
+            fees_verified_at=destination.fees_verified_at,
+            prices=[PriceIn.model_validate(r) for r in prices],
+            summary=prices_summary(prices),
+            data_quality=hours_data_quality(
+                bool(prices),
+                bool(destination.entrance_fee or destination.overnight_fee),
+                destination.fees_verified_at,
+            ),
+        )
+
+    async def get_activities(self, destination_id: int) -> DestinationActivitiesResponse:
+        await self._active_destination(destination_id)
+        rows = await self.destinations.get_activities(destination_id)
+        return self._activities_response(destination_id, rows)
+
+    async def replace_activities(
+        self, destination_id: int, data: DestinationActivitiesUpdate,
+    ) -> DestinationActivitiesResponse:
+        destination = await self._active_destination(destination_id)
+        await self.destinations.replace_activities(destination, data)
+        await self.session.commit()
+        rows = await self.destinations.get_activities(destination_id)
+        return self._activities_response(destination_id, rows)
+
+    @staticmethod
+    def _activities_response(destination_id, rows) -> DestinationActivitiesResponse:
+        return DestinationActivitiesResponse(
+            destination_id=destination_id,
+            activities=[
+                ActivityOut(
+                    **{
+                        k: getattr(r, k)
+                        for k in ActivityOut.model_fields
+                        if k not in {"summary", "data_quality"}
+                    },
+                    summary=activity_summary(r),
+                    data_quality=hours_data_quality(True, False, r.verified_at),
+                )
+                for r in rows
+            ],
+        )
+
+    async def _active_destination(self, destination_id: int):
+        destination = await self.destinations.get_by_id(destination_id)
+        if destination is None:
+            raise LakbayAPIError(
+                "Destination was not found.",
+                code="destination_not_found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        return destination
+
+    @staticmethod
+    def _hours_response(destination, weekly, exceptions) -> DestinationHoursResponse:
+        structured = bool(weekly) or bool(destination.open_24_hours)
+        return DestinationHoursResponse(
+            destination_id=destination.destination_id,
+            open_24_hours=destination.open_24_hours,
+            hours_source_url=destination.hours_source_url,
+            hours_verified_at=destination.hours_verified_at,
+            weekly=[HoursWindowIn.model_validate(r) for r in weekly],
+            exceptions=[HoursExceptionIn.model_validate(r) for r in exceptions],
+            summary=hours_summary(destination.open_24_hours, weekly),
+            data_quality=hours_data_quality(
+                structured, bool(destination.operating_hours), destination.hours_verified_at,
+            ),
+        )
 
     async def create_destination(
         self,

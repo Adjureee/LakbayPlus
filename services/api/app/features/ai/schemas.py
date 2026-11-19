@@ -148,10 +148,20 @@ class AIPlanningStateUpdates(BaseModel):
     night_count: int | None = Field(default=None, ge=0, le=30)
     return_to_origin: bool | None = None
     interests: list[PreferenceText] | None = Field(default=None, max_length=15)
+    destination_area: PreferenceText | None = None
+    nearby_areas_allowed: bool | None = None
+    return_label: PreferenceText | None = None
+    pace: Literal["relaxed", "balanced", "packed"] | None = None
+    special_needs: list[PreferenceText] | None = Field(default=None, max_length=10)
+    budget_includes: list[
+        Literal["transport", "food", "accommodation", "activities", "fees"]
+    ] | None = Field(default=None, max_length=5)
 
     @model_validator(mode="after")
     def reject_null_non_clearable_fields(self) -> "AIPlanningStateUpdates":
-        for field_name in ("destination_ids", "budget_scope", "interests"):
+        for field_name in (
+            "destination_ids", "budget_scope", "interests", "special_needs", "budget_includes",
+        ):
             if field_name in self.model_fields_set and getattr(self, field_name) is None:
                 raise ValueError(f"{field_name} cannot be null; use an empty list to clear it.")
         if self.destination_ids is not None:
