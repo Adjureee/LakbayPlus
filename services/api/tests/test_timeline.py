@@ -11,6 +11,7 @@ from app.features.planning.timeline import (
     CostInfo,
     HoursInfo,
     LegInfo,
+    Lodging,
     Pin,
     StopInfo,
     TimelineInput,
@@ -493,3 +494,97 @@ def test_a_pin_that_earlier_stops_push_past_still_says_so():
                      pins=[Pin(2, starts_at=time(10))])
     note = next(n for n in items(timeline, "visit")[1].notes if "could not be kept" in n)
     assert "the earlier stops run past it" in note
+
+
+# --- nights ------------------------------------------------------------------------------
+
+
+def overnight_trip(lodging=None, lodging_note=None, leg_pairs=None, order=(1, 2), pin=(2, 2)):
+    """Two or three days: the picks in `order`, the pin sending one to day 2, no meals."""
+    places = {1: stop(1, "A", activity_minutes=60), 2: stop(2, "B", activity_minutes=60),
+              3: stop(3, "C", activity_minutes=60)}
+    pairs = leg_pairs or [(None, 1, 10, "supported"), (1, 2, 30, "supported"),
+                          (2, 1, 20, "estimated"), (None, 2, 10, "supported")]
+    return build([places[i] for i in order], pairs, day_count=2, departure_time=time(8),
+                 include_meals=False, lodging=lodging, lodging_note=lodging_note,
+                 pins=[Pin(pin[0], day=pin[1])])
+
+
+def test_without_a_chosen_stay_the_night_says_so_and_day_two_starts_from_the_last_place():
+    timeline = overnight_trip()
+    night = items(timeline, "overnight")[0]
+    assert night.label == "Overnight (place to stay not chosen)"
+    assert any("measured from A, where this day ended" in n for n in night.notes)
+    leg = items(timeline, "travel", day=2)[0].travel
+    assert (leg.from_label, leg.to_label, leg.minutes) == ("A", "B", 30)
+    stay = check(timeline, "overnight_stay")
+    assert stay.status == "cannot_verify" and "not chosen" in stay.message
+    assert any("not chosen" in line for line in timeline.unverified)
+
+
+def test_a_stay_at_the_last_place_adds_the_night_and_day_two_starts_from_the_stay():
+    timeline = overnight_trip(Lodging(1, "Villa A"))
+    day_one = items(timeline)
+    assert [i.kind for i in day_one][-2:] == ["visit", "overnight"]  # already there: no trip
+    assert day_one[-1].label == "Overnight at Villa A"
+    leg = items(timeline, "travel", day=2)[0].travel
+    assert (leg.from_label, leg.to_label) == ("Villa A", "B")
+    assert hhmm(items(timeline, "visit", day=2)[0].starts_at) == "08:30"
+    assert check(timeline, "overnight_stay").status == "passed"
+
+
+def test_a_stay_away_from_the_last_place_adds_the_evening_trip_there():
+    # Day one ends at B (leg to the stay A: 20 minutes), the stay is at A.
+    timeline = overnight_trip(
+        Lodging(1, "Villa A"), order=(1, 2, 3), pin=(3, 2),
+        leg_pairs=[(None, 1, 10, "supported"), (1, 2, 20, "supported"),
+                   (2, 1, 20, "estimated"), (1, 3, 40, "estimated")])
+    day_one = items(timeline)
+    assert [i.kind for i in day_one][-3:] == ["visit", "travel", "overnight"]
+    evening = day_one[-2]
+    assert evening.label == "Travel to Villa A" and evening.duration_minutes == 20
+    assert hhmm(day_one[-1].starts_at) == "11:05"
+    morning = items(timeline, "travel", day=2)[0].travel
+    assert (morning.from_label, morning.to_label, morning.minutes) == ("Villa A", "C", 40)
+    assert hhmm(items(timeline, "visit", day=2)[0].starts_at) == "08:40"
+
+
+def test_an_evening_trip_with_no_travel_time_stays_unknown_and_provisional():
+    timeline = overnight_trip(
+        Lodging(1, "Villa A"), order=(1, 2, 3), pin=(3, 2),
+        leg_pairs=[(None, 1, 10, "supported"), (1, 2, 20, "supported"),
+                   (1, 3, 40, "estimated")])  # no leg from B back to the stay
+    evening = items(timeline, "travel")[-1]
+    assert evening.label == "Travel to Villa A" and evening.duration_minutes is None
+    assert evening.time_basis == "provisional"
+
+
+def test_a_stay_at_the_first_place_of_day_two_needs_no_morning_trip():
+    # Day one ends at B; the stay is at A, which is also the first visit of day two.
+    timeline = overnight_trip(Lodging(1, "Villa A"), order=(2, 1), pin=(1, 2))
+    morning = items(timeline, day=2)
+    assert [i.kind for i in morning] == ["visit"]  # the group is already there
+    assert morning[0].destination_id == 1 and hhmm(morning[0].starts_at) == "08:00"
+
+
+def test_an_unclear_stay_is_not_guessed_and_the_reason_is_shown():
+    timeline = overnight_trip(lodging_note="More than one stay is chosen.")
+    night = items(timeline, "overnight")[0]
+    assert night.label == "Overnight (place to stay not chosen)"
+    assert "More than one stay is chosen." in night.notes
+    assert check(timeline, "overnight_stay").message.startswith("More than one stay is chosen.")
+
+
+def test_a_pin_that_skips_a_day_still_gives_every_night():
+    timeline = build([stop(1, "A", activity_minutes=60)], [(None, 1, 10, "supported")],
+                     day_count=3, departure_time=time(8), include_meals=False,
+                     lodging=Lodging(1, "Villa A"), pins=[Pin(1, day=3)])
+    assert [i.kind for i in items(timeline, day=1)] == ["depart", "overnight"]
+    assert [i.kind for i in items(timeline, day=2)] == ["overnight"]
+    assert [i.kind for i in items(timeline, day=3)][-1] == "visit"
+
+
+def test_a_day_trip_has_no_night_and_no_stay_check():
+    timeline = build([stop()], [(None, 1, 30, "supported")], departure_time=time(8))
+    assert items(timeline, "overnight") == []
+    assert not any(c.id == "overnight_stay" for c in timeline.checks)

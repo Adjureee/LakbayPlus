@@ -309,6 +309,34 @@ void main() {
     expect(calls.single.containsKey('previous'), isFalse);  // nothing was revised before
   });
 
+  testWidgets('a night shows with its stay, an icon and its own check', (tester) async {
+    final json = _timeline();
+    final day = (json['days'] as List).first as Map<String, dynamic>;
+    (day['items'] as List).add(_item(
+      'overnight', 'Overnight at Eden Lodge',
+      start: '20:00:00', end: null, minutes: null,
+      notes: ['The next day starts from here.'],
+    ));
+    (json['checks'] as List).add({
+      'id': 'overnight_stay', 'status': 'passed',
+      'message': 'Each night is spent at Eden Lodge.', 'destination_ids': [],
+    });
+    final repo = _repo(MockClient((_) async => http.Response('{}', 200)));
+    await _show(tester, TimelineCard(timeline: TimelineData.fromJson(json), repo: repo));
+    await tester.tap(find.byKey(const ValueKey('timeline-view')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Overnight at Eden Lodge'), findsOneWidget);
+    expect(find.byIcon(Icons.hotel_outlined), findsOneWidget);
+    // A night has a start and no length: it does not say the time is unknown.
+    expect(find.text('8:00 PM'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('timeline-check-overnight_stay')), 400,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Where you stay'), findsOneWidget);
+  });
+
   // --- the planning flow --------------------------------------------------------------
 
   test('planWithPicks builds one timeline, keeps the trip and falls back when it cannot', () async {
