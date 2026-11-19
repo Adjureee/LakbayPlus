@@ -289,3 +289,28 @@ def test_a_consequence_or_which_includes_clause_is_cut_and_the_answer_kept():
 
 def test_general_scenery_words_like_photo_ops_are_not_claims():
     assert _find("Eden Nature Park is a good spot for photo-ops and casual walks.") == []
+
+
+# --- where people park --------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("sentence", [
+    "Most visitors park near the entrance of Eden Nature Park.",
+    "You can park along the road at Eden Nature Park.",
+    "Guests usually just park beside the gate at Eden Nature Park.",
+    "At Eden Nature Park, park your car at the main lot.",
+])
+def test_saying_where_people_park_is_a_claim_the_record_must_hold(sentence):
+    assert "where to park" in _rules(sentence)
+    # A recorded parking note supports it.
+    assert "where to park" not in _rules(sentence, support=EDEN + " Free parking at the gate.")
+
+
+@pytest.mark.parametrize("sentence", [
+    "Eden Nature Park is a park for families.",
+    "Most visitors love the park entrance at Eden Nature Park.",
+    "You can walk through the park at Eden Nature Park.",
+    "Where can I park at Eden Nature Park?",
+])
+def test_the_word_park_in_other_uses_is_not_a_parking_claim(sentence):
+    assert "where to park" not in _rules(sentence)
