@@ -23,6 +23,14 @@ from app.features.trips.schemas import (
     TripUpdate,
 )
 from app.features.trips.service import TripService
+from app.features.trips.timeline_schemas import (
+    TripTimelineHistory,
+    TripTimelineRevisionResponse,
+    TripTimelineSave,
+)
+from app.features.trips.timeline_service import TripTimelineService
+from app.features.planning.dependencies import get_optional_draft_route_service
+from app.features.routes.service import RouteService
 from app.features.users.models import User
 
 router = APIRouter(prefix="/trips", tags=["trips"])
@@ -448,3 +456,78 @@ async def delete_trip_task(
     )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{trip_id}/timeline",
+    response_model=TripTimelineRevisionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Save a revision of the trip's itinerary timeline",
+    description=(
+        "The server builds the timeline from the planning state and stores it as the next "
+        "revision, with a plain-language list of what changed since the previous one. The "
+        "client never sends a finished timeline. Needs permission to manage the trip."
+    ),
+)
+async def save_trip_timeline(
+    trip_id: int,
+    data: TripTimelineSave,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    route_service: Annotated[RouteService | None, Depends(get_optional_draft_route_service)],
+) -> TripTimelineRevisionResponse:
+    return await TripTimelineService(session, route_service).save(
+        user=current_user, trip_id=trip_id, data=data,
+    )
+
+
+@router.get(
+    "/{trip_id}/timeline",
+    response_model=TripTimelineHistory,
+    summary="Get the trip's latest timeline and its revision log",
+)
+async def get_trip_timeline(
+    trip_id: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> TripTimelineHistory:
+    return await TripTimelineService(session).history(user=current_user, trip_id=trip_id)
+
+
+@router.get(
+    "/{trip_id}/timeline/revisions/{revision}",
+    response_model=TripTimelineRevisionResponse,
+    summary="Get one saved revision of the trip's timeline",
+)
+async def get_trip_timeline_revision(
+    trip_id: int,
+    revision: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> TripTimelineRevisionResponse:
+    return await TripTimelineService(session).revision(
+        user=current_user, trip_id=trip_id, revision=revision,
+    )
+
+
+@router.post(
+    "/{trip_id}/timeline/revisions/{revision}/restore",
+    response_model=TripTimelineRevisionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Restore an older revision of the trip's timeline",
+    description=(
+        "Saves the chosen revision again as the newest one, exactly as it was stored. The "
+        "log is append-only: the older revision stays, and the new one starts its changes "
+        "with 'Restored revision N.'. Needs permission to manage the trip; an archived trip "
+        "is read-only, and restoring the latest revision is refused."
+    ),
+)
+async def restore_trip_timeline_revision(
+    trip_id: int,
+    revision: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> TripTimelineRevisionResponse:
+    return await TripTimelineService(session).restore(
+        user=current_user, trip_id=trip_id, revision=revision,
+    )

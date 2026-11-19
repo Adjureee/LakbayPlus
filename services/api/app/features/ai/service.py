@@ -1,8 +1,10 @@
 import json
 import logging
 import re
+from datetime import date, datetime
 from decimal import Decimal
 from time import perf_counter
+from zoneinfo import ZoneInfo
 
 from fastapi import status
 from pydantic import ValidationError
@@ -13,7 +15,23 @@ from app.core.exceptions import LakbayAPIError
 from app.core.provider_usage import ProviderLimiter
 from app.features.accommodations.models import Accommodation
 from app.features.ai.models import AIGenerationRun
+from app.features.ai.claims import Finding, check_claims
+from app.features.ai.short_answers import (
+    describe,
+    interpret_short_answer,
+    is_vague_date_answer,
+)
+from app.features.ai.grounding import (
+    align_text_with_cards,
+    card_figures,
+    card_figures_text,
+    facts_by_destination,
+    facts_text,
+    ground_figures,
+)
 from app.features.ai.destination_resolver import (
+    _distinctive,
+    _tokens,
     match_destinations,
     pick_single_destination,
 )
@@ -108,6 +126,14 @@ def _log_timing(stage: str, started_at: float, **extra: object) -> None:
     details = " ".join(f"{key}={value}" for key, value in extra.items())
     _timing_log.info(
         "ai_timing stage=%s ms=%d %s", stage, _elapsed_ms(started_at), details
+    )
+
+
+def _log_claims(findings: list[Finding]) -> None:
+    """Record which claims were flagged: category, rule and place only, never the text."""
+    _timing_log.info(
+        "ai_claims count=%d %s", len(findings),
+        " ".join(f"{f.category}:{f.rule}:place={f.destination_id}" for f in findings),
     )
 
 
@@ -383,6 +409,7 @@ class AIItineraryService:
             _log_timing("retrieval", chat_started, matches=len(rag_matches))
 
         retrieved_context = [match.to_prompt_dict() for match in rag_matches]
+        support_text = _support_text(data, retrieved_context)
         picked_places: list[dict] = []
         if data.planning_state is not None and data.planning_state.destination_ids:
             picked = await self.ai.list_active_destinations_by_ids(
@@ -467,6 +494,7 @@ class AIItineraryService:
                         "I could not generate a helpful answer just now. "
                         "Please try asking in another way."
                     )
+                    chat_response, _ = ground_figures(chat_response, support_text)
                 else:
                     planning_started = perf_counter()
                     # Recognize a place the traveler named even if the model does not.
@@ -499,6 +527,9 @@ class AIItineraryService:
                         ),
                         retrieval_interest=retrieval_coverage.get("interest"),
                         catalog=catalog,
+                        support_text=support_text,
+                        general_text=_general_text(data),
+                        support_by_place=facts_by_destination(retrieved_context),
                     )
                     _log_timing("planning_total", planning_started)
                 updated_run = await self.ai.update_generation_run(
@@ -1079,6 +1110,11 @@ def _build_chat_input_summary(data: AIChatRequest) -> dict:
 # With stops already picked, "more" requests show a short list, not a full row.
 MORE_WITH_PICKS = 3
 
+# Questions the app answers with its own buttons (they send a structured answer).
+# While one of these is the next question, the model's own quick replies would be
+# a second, broken set of buttons, so none are offered.
+STRUCTURED_QUESTIONS = frozenset({"activity_level", "travel_start_date", "prefers_quiet"})
+
 # Appended when the model names a destination that is not in the catalog context.
 UNMATCHED_DESTINATION_NOTE = (
     "\n\nI couldn't match that destination to an active "
@@ -1175,6 +1211,9 @@ async def _build_planning_chat_result(
     requested_locations: list[str] | None = None,
     retrieval_interest: str | None = None,
     catalog: list[tuple[int, str]] | None = None,
+    support_text: str | None = None,
+    general_text: str | None = None,
+    support_by_place: dict[int, str] | None = None,
 ) -> tuple[str, AIPlanningChatResult, str]:
     assert data.planning_state is not None
     current_state = data.planning_state
@@ -1183,23 +1222,30 @@ async def _build_planning_chat_result(
         "preview is shown below; try restating the change or use the preview controls."
     )
     output, rejected_fields = _parse_planning_chat_output(content)
+    # Details the model guessed (never said by the traveler) are dropped, not blamed.
+    unconfirmed_fields: list[str] = []
     if output is not None:
         output, unconfirmed_fields = _reject_unconfirmed_trip_details(output, data)
-        rejected_fields.extend(unconfirmed_fields)
 
-    update_status = "invalid_output"
+    # When the model ignored the JSON format but still wrote a usable answer, the
+    # traveler gets that answer; nothing in the plan is changed from it.
+    salvaged = _salvage_reply(content) if output is None else None
+    if output is None:
+        # So an unusable reply can be understood later (the traveler never sees this).
+        _timing_log.warning(
+            "planning chat reply not usable (salvaged=%s): %s",
+            bool(salvaged), (content or "")[:500].replace("\n", " "),
+        )
+    update_status = "no_changes" if salvaged else "invalid_output"
     validation_status = "invalid"
-    chat_response = fallback_response
+    chat_response = salvaged or fallback_response
     changes_json: dict = {}
     next_state = current_state
     if output is not None:
         # The recovered output is validated before use; the run table's
         # validation-status constraint does not define a separate partial value.
         validation_status = "valid"
-        chat_response = (
-            _partial_planning_reply(rejected_fields)
-            if rejected_fields else _restore_line_breaks(output.chat_response.strip())
-        )
+        chat_response = _restore_line_breaks(output.chat_response.strip())
         changes = output.state_updates.model_dump(exclude_unset=True, mode="python")
         changes_json = output.state_updates.model_dump(exclude_unset=True, mode="json")
         update_status = "no_changes"
@@ -1273,6 +1319,45 @@ async def _build_planning_chat_result(
             validation_status = "invalid"
             chat_response = fallback_response
 
+    # Short answers ("Just me", "600", "Easy", "Tomorrow") are read here, beside the
+    # question they answer, so a model failure never loses them. What the words clearly
+    # say wins over what the model proposed.
+    answered = {
+        field: value
+        for field, value in interpret_short_answer(
+            data.message, current_state, _local_today(),
+        ).items()
+        if getattr(next_state, field) != value
+    }
+    if answered:
+        try:
+            next_state = PlanningState.model_validate({**next_state.model_dump(), **answered})
+            changes_json.update(json.loads(json.dumps(answered, default=str)))
+            update_status = "applied"
+            if chat_response == fallback_response:
+                # The model gave nothing usable, so say what was saved and ask the next
+                # question the plan needs.
+                chat_response = " ".join(filter(None, [
+                    f"Got it: {describe(answered)}.",
+                    compute_stage(next_state).next_question,
+                ]))
+        except ValidationError:
+            pass  # an answer the plan cannot hold (for example 500 travelers) is not saved
+
+    elif is_vague_date_answer(data.message, next_state, _local_today()):
+        # "This month" names no day; the model's reply may treat it as settled.
+        chat_response = DATE_NEEDED_REPLY
+
+    if output is not None and (rejected_fields or unconfirmed_fields):
+        # The model's own reply may claim something that was not saved, so it is
+        # replaced by a plain note and the next real question.
+        chat_response = _refusal_reply(
+            rejected_fields,
+            unconfirmed_fields,
+            origin_label=(next_state.origin.label if next_state.origin else None),
+            next_question=compute_stage(next_state).next_question,
+        )
+
     # If the traveler clearly named one catalog destination and the model did not select
     # it (cautious models often just ask questions), add it here so the plan moves on.
     resolver_matches = (
@@ -1280,9 +1365,14 @@ async def _build_planning_chat_result(
         if catalog and not next_state.destination_ids
         else []
     )
+    # A question about a place ("What time does Museo Panabo open?") is not a request
+    # to add it.
+    asking = _looks_like_question(data.message) or (
+        output is not None and output.intent in {"question", "logistics", "smalltalk"}
+    )
     auto_added = (
         pick_single_destination(data.message, catalog)
-        if resolver_matches and not current_state.destination_ids
+        if resolver_matches and not current_state.destination_ids and not asking
         else None
     )
     if auto_added is not None:
@@ -1332,6 +1422,46 @@ async def _build_planning_chat_result(
             named_card_ids = [
                 match.destination_id for match in named_matches[:MORE_WITH_PICKS]
             ]
+
+    # "Is there a place to go in Panabo?" asks for places. Whatever the model labelled
+    # it, the traveler gets that town's places as cards (never when something was just
+    # added or a specific place was named).
+    town_card_ids: list[int] = []
+    town_place = ""
+    if (
+        not named_add_done
+        and not named_card_ids
+        and requested_locations
+        and output_intent_early != "show_places"
+        and _looks_like_browse(data.message)
+        # A whole place name typed ("Museo Panabo") is about that place, not the town.
+        and not any(m.full for m in match_destinations(data.message, catalog or []))
+    ):
+        repo = AIItineraryRepository(session)
+        for place in requested_locations:
+            town_card_ids = await repo.list_active_destination_ids_in_place(
+                place, limit=MAX_SUGGESTIONS,
+            )
+            if town_card_ids:
+                town_place = place
+                break
+
+    # A town the traveler asked to browse becomes the plan's destination area (a place
+    # merely mentioned does not; the model can record "I want to stay in X" itself).
+    if (
+        requested_locations
+        and next_state.destination_area is None
+        and town_card_ids
+    ):
+        area = requested_locations[0].strip().title()
+        try:
+            next_state = PlanningState.model_validate(
+                {**next_state.model_dump(), "destination_area": area},
+            )
+            changes_json["destination_area"] = area
+            update_status = "applied"
+        except ValidationError:
+            pass
 
     preview_started = perf_counter()
     preview = await PlanningService(session, route_service).preview(
@@ -1444,6 +1574,14 @@ async def _build_planning_chat_result(
                 # With no cards there is nothing to introduce, so say why. With
                 # some cards the model's reply stays and the reason is a note.
                 chat_response = recommendation_shortfall_reason
+    elif town_card_ids:
+        recommendations = await _named_place_cards(
+            session,
+            town_card_ids,
+            travel_mode=travel_mode,
+            reason=f"In {town_place.title()}.",
+        )
+        recommendation_total_candidates = len(recommendations)
     elif output_intent in {"question", "logistics", "smalltalk"}:
         # Q&A, logistics, and small talk stay concise text replies without card dumps.
         # So does a named place that was just added: the traveler got what they asked
@@ -1531,13 +1669,51 @@ async def _build_planning_chat_result(
                 # Only when there are no cards: the catalog and route checks are
                 # authoritative over model prose. With cards, the reason stays a note.
                 chat_response = recommendation_shortfall_reason
+    chat_response = align_text_with_cards(
+        chat_response,
+        cards=[(item.destination_id, item.name) for item in recommendations],
+        allowed_ids=set(next_state.destination_ids)
+        | {match.destination_id for match in (match_destinations(data.message, catalog or []))},
+        catalog=catalog or [],
+        origin_label=(next_state.origin.label if next_state.origin else None),
+    )
+    if support_text is not None:
+        # No price, distance, travel time or opening hour the facts do not hold, and a
+        # sentence about one place only uses that place's own records.
+        by_place = dict(support_by_place or {})
+        for item in recommendations:
+            by_place[item.destination_id] = (
+                f"{by_place.get(item.destination_id, '')} {card_figures(item)}"
+            )
+        chat_response, _ = ground_figures(
+            chat_response,
+            f"{support_text} {card_figures_text(recommendations)}",
+            general_text=general_text or "",
+            by_place=by_place,
+            names=catalog or [],
+        )
+        # Statements about a place that its records do not hold (no figures involved).
+        # In the default "log" mode this only records what it found.
+        chat_response, _ = check_claims(
+            chat_response,
+            mode=get_settings().claims_check_mode,
+            message=data.message,
+            support_by_place=by_place,
+            names=catalog or [],
+            extra_support=general_text or "",
+            log=_log_claims,
+        )
     return (
         chat_response,
         AIPlanningChatResult(
             input_revision=data.input_revision,
             intent=output_intent,
             place_query=output_place_query,
-            suggested_replies=output.suggested_replies if output is not None else [],
+            suggested_replies=(
+                []
+                if output is None or _next_question_is_structured(next_state)
+                else output.suggested_replies
+            ),
             state_updates=changes_json,
             update_status=update_status,
             preview=preview,
@@ -1584,6 +1760,129 @@ def _parse_trip_draft(content: str) -> dict | None:
     return draft
 
 
+_QUESTION_START = re.compile(
+    r"^\s*(what|when|where|which|who|whom|whose|why|how|is|are|was|were|does|do|did|"
+    r"can|could|will|would|should|may|might|unsa|asa|kanus-a|kanusa|pila|ngano|ano|"
+    r"saan|kailan|magkano|paano|sino|bakit)\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_question(message: str) -> bool:
+    text = message.strip()
+    return text.endswith("?") or _QUESTION_START.match(text) is not None
+
+
+_CHAT_RESPONSE_FIELD = re.compile(
+    r'"chat_*response"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL,
+)
+
+
+DATE_NEEDED_REPLY = (
+    "I need an exact day to plan around. Which date will you leave? "
+    "For example, Dec 5, or this Friday."
+)
+
+
+def _local_today() -> date:
+    """Today's date where the traveler is (the server's timezone, Asia/Manila)."""
+    return datetime.now(ZoneInfo(get_settings().timezone)).date()
+
+
+def _support_text(data: AIChatRequest, retrieved_context: list[dict]) -> str:
+    """Everything a reply may quote figures from: the catalog records it was given, the
+    traveler's own words and the numbers in their plan."""
+    return f"{facts_text(retrieved_context)} {_general_text(data)}"
+
+
+def _general_text(data: AIChatRequest) -> str:
+    """The traveler's own words and plan numbers: allowed beside any place."""
+    parts = [data.message]
+    parts.extend(item.content for item in data.history if item.role == "user")
+    state = data.planning_state
+    if state is not None:
+        parts.extend(
+            str(value) for value in (
+                state.total_budget, state.reserve_amount, state.traveler_count,
+                state.day_count, state.night_count,
+            ) if value is not None
+        )
+    return " ".join(parts)
+
+
+_BROWSE_PATTERNS = (
+    re.compile(
+        r"\b(places?|spots?|attractions?|things?|something)\b.{0,25}"
+        r"\b(to go|to visit|to see|to do|worth)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bwhat('?s| is| are)?\b.{0,30}\b(to do|to see|to visit)\b", re.IGNORECASE),
+    re.compile(r"\bwhere (can|should|to)\b.{0,12}\bgo\b", re.IGNORECASE),
+    re.compile(r"\bwhat\b.{0,12}\b(can|should|could)\b.{0,8}\b(do|see|visit)\b", re.IGNORECASE),
+    re.compile(r"\b(any|got|have)\b.{0,20}\b(places?|spots?|attractions?)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(unsa|asa|saan)\b.{0,20}\b(nindot|maganda|pasyalan|bisitahon)\b",
+        re.IGNORECASE,
+    ),
+)
+
+
+def _looks_like_browse(message: str) -> bool:
+    """A request to be shown places (not a question about one named place)."""
+    return any(pattern.search(message) for pattern in _BROWSE_PATTERNS)
+
+
+_CLAIMS_A_CHANGE = re.compile(
+    r"\b(i(?:'ve|\s+have)?\s+(?:added|set|updated|saved|changed|chose|selected|booked|removed)"
+    r"|(?:added|updated|saved|booked|removed)\s+(?:the|your|it|that|them|those)\b"
+    r"|(?:has|have)\s+been\s+(?:added|updated|saved|booked|removed))",
+    re.IGNORECASE,
+)
+
+
+def _salvage_reply(content: str) -> str | None:
+    """The traveler-facing text from a model reply that is not valid planning JSON.
+
+    Broken or cut-off JSON still holds a "chat_response" string; a plain-text reply
+    is the answer itself. Anything else (empty, a bare JSON object, code) gives None
+    and the caller keeps the generic fallback.
+    """
+    text = (content or "").strip()
+    if not text:
+        return None
+    candidate: str | None = None
+    try:
+        loaded = json.loads(_strip_json_fence(text))
+    except (TypeError, ValueError):
+        loaded = None
+    if isinstance(loaded, dict):
+        if "chat_response" in loaded:
+            # Valid JSON that was still refused (for example a field the model may
+            # not set): its text may claim changes that were never made.
+            return None
+        # A misspelt key such as "chat__response": the text is still the answer.
+        key = next((k for k in loaded if re.fullmatch(r"chat_*response", str(k))), None)
+        value = loaded.get(key) if key else None
+        candidate = value.strip() if isinstance(value, str) else None
+    elif loaded is not None:
+        return None
+    else:
+        field = _CHAT_RESPONSE_FIELD.search(text)
+        if field is not None:
+            try:
+                candidate = json.loads(f'"{field.group(1)}"').strip()
+            except ValueError:
+                return None
+        elif text[0] not in "{[`" and '"state_updates"' not in text and len(text) <= 1500:
+            candidate = text
+    if not candidate:
+        return None
+    # Nothing was saved, so never show text that says something was.
+    if _CLAIMS_A_CHANGE.search(candidate):
+        return None
+    return _restore_line_breaks(candidate)
+
+
 def _restore_line_breaks(text: str) -> str:
     """Some models double-escape line breaks, so travelers would see a literal "\n"."""
     return text.replace("\\n", "\n")
@@ -1623,8 +1922,15 @@ def _parse_planning_chat_output(
         return None, []
     required = {"chat_response"}
     optional = {"state_updates", "intent", "suggested_replies", "place_query"}
-    if not isinstance(raw, dict) or not required <= set(raw) <= required | optional:
+    if not isinstance(raw, dict) or not required <= set(raw):
         return None, []
+    if set(raw) - (required | optional):
+        # A stray top-level key (for example "tag") changes nothing, so it is ignored.
+        raw = {key: value for key, value in raw.items() if key in required | optional}
+        try:
+            return AIPlanningChatOutput.model_validate(raw), []
+        except ValidationError:
+            pass
     updates = raw.get("state_updates", {})
     if updates is None:
         updates = {}
@@ -1767,7 +2073,24 @@ def _reject_unconfirmed_trip_details(
     }), rejected
 
 
-def _partial_planning_reply(rejected_fields: list[str]) -> str:
+def _next_question_is_structured(state: PlanningState) -> bool:
+    missing = compute_stage(state).missing_details
+    return bool(missing) and missing[0] in STRUCTURED_QUESTIONS
+
+
+def _refusal_reply(
+    shape_fields: list[str],
+    unconfirmed_fields: list[str],
+    *,
+    origin_label: str | None,
+    next_question: str | None,
+) -> str:
+    """What to say when some proposed details were not saved.
+
+    A detail the model guessed is simply not assumed. A detail the traveler gave
+    that could not be saved is named, with a way to set it. Either way the
+    conversation moves on to the next question the plan really needs.
+    """
     labels = {
         "origin": "starting place",
         "destination_ids": "destination",
@@ -1775,15 +2098,26 @@ def _partial_planning_reply(rejected_fields: list[str]) -> str:
         "budget_scope": "budget scope",
         "traveler_count": "traveler count",
         "day_count": "day count",
-        "night_count": "overnight stay",
-        "return_to_origin": "return trip",
         "interests": "travel interests",
     }
-    names = ", ".join(labels[field] for field in rejected_fields)
-    return (
-        f"I could not use the {names}; please confirm that detail in the plan review. "
-        "Any other valid changes are shown in your plan below."
-    )
+    parts: list[str] = []
+    if unconfirmed_fields:
+        assumed = []
+        if "night_count" in unconfirmed_fields:
+            assumed.append("an overnight stay")
+        if "return_to_origin" in unconfirmed_fields:
+            assumed.append(f"whether you'll return to {origin_label or 'your starting place'}")
+        parts.append(
+            f"I haven't assumed {' or '.join(assumed)}; you can set that in the plan review."
+        )
+    if shape_fields:
+        names = ", ".join(labels.get(field, field.replace("_", " ")) for field in shape_fields)
+        parts.append(
+            f"I couldn't save your {names}. Please try again or set it in the plan review."
+        )
+    if next_question:
+        parts.append(next_question)
+    return " ".join(parts)
 
 
 def _build_run_result(

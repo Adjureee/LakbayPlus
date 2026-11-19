@@ -17,4 +17,5 @@ async def check_health() -> HealthResponse:
         environment=settings.app_env,
         api_prefix=settings.api_v1_prefix,
         timezone=settings.timezone,
+        claims_check_mode=settings.claims_check_mode,
     )

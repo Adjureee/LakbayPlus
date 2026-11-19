@@ -10,7 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.accommodations.models import Accommodation
 from app.features.ai.retrieval_intent import DISTRICTS, resolve_retrieval_intent
-from app.features.destinations.models import Destination
+from app.features.destinations.data_quality import data_quality as hours_data_quality
+from app.features.destinations.activities import activity_summary
+from app.features.destinations.hours import hours_summary
+from app.features.destinations.prices import prices_summary
+from app.features.destinations.models import (
+    Destination,
+    DestinationActivity,
+    DestinationHours,
+    DestinationPrice,
+)
 from app.features.transportations.models import Transportation
 
 
@@ -388,8 +397,41 @@ class VectorRAGRetriever:
             if item.destination_id in destinations_by_id
         ]
 
+        hours_result = await self.session.execute(
+            select(DestinationHours).where(
+                DestinationHours.destination_id.in_(destinations_by_id),
+            ),
+        )
+        weekly_by_id: dict[int, list[DestinationHours]] = {}
+        for row in hours_result.scalars().all():
+            weekly_by_id.setdefault(row.destination_id, []).append(row)
+
+        price_result = await self.session.execute(
+            select(DestinationPrice).where(
+                DestinationPrice.destination_id.in_(destinations_by_id),
+            ),
+        )
+        prices_by_id: dict[int, list[DestinationPrice]] = {}
+        for row in price_result.scalars().all():
+            prices_by_id.setdefault(row.destination_id, []).append(row)
+
+        activity_result = await self.session.execute(
+            select(DestinationActivity)
+            .where(DestinationActivity.destination_id.in_(destinations_by_id))
+            .order_by(DestinationActivity.sort_order, DestinationActivity.id),
+        )
+        activities_by_id: dict[int, list[DestinationActivity]] = {}
+        for row in activity_result.scalars().all():
+            activities_by_id.setdefault(row.destination_id, []).append(row)
+
         documents: list[RagDocument] = [
-            _destination_document(destination) for destination in destinations
+            _destination_document(
+                destination,
+                weekly_hours=weekly_by_id.get(destination.destination_id, []),
+                prices=prices_by_id.get(destination.destination_id, []),
+                activities=activities_by_id.get(destination.destination_id, []),
+            )
+            for destination in destinations
         ]
         documents.extend(
             _accommodation_document(
@@ -409,7 +451,16 @@ class VectorRAGRetriever:
         return documents
 
 
-def _destination_document(destination: Destination) -> RagDocument:
+def _destination_document(
+    destination: Destination,
+    *,
+    weekly_hours: "list[DestinationHours] | None" = None,
+    prices: "list[DestinationPrice] | None" = None,
+    activities: "list[DestinationActivity] | None" = None,
+) -> RagDocument:
+    opening_hours = hours_summary(destination.open_24_hours, weekly_hours or [])
+    price_list = prices_summary(prices or [])
+    activity_lines = [activity_summary(a) for a in activities or []]
     payload = {
         "destination_id": destination.destination_id,
         "name": destination.name,
@@ -422,7 +473,31 @@ def _destination_document(destination: Destination) -> RagDocument:
         "estimated_cost": _money(destination.estimated_cost),
         "entrance_fee": destination.entrance_fee,
         "overnight_fee": destination.overnight_fee,
+        # Structured prices (when entered) with how far to trust them.
+        "prices": price_list,
+        "fees_verified_on": (
+            destination.fees_verified_at.date().isoformat()
+            if price_list and destination.fees_verified_at else None
+        ),
+        "fees_data_quality": hours_data_quality(
+            price_list is not None,
+            bool(destination.entrance_fee or destination.overnight_fee),
+            destination.fees_verified_at,
+        ),
+        # Structured activities (when entered). A place being open does not mean every
+        # activity is available; each line says what is and is not confirmed.
+        "activity_details": activity_lines or None,
         "operating_hours": destination.operating_hours,
+        # Structured hours (when entered) with how far to trust them.
+        "opening_hours": opening_hours,
+        "hours_verified_on": (
+            destination.hours_verified_at.date().isoformat()
+            if opening_hours and destination.hours_verified_at else None
+        ),
+        "hours_data_quality": hours_data_quality(
+            opening_hours is not None, bool(destination.operating_hours),
+            destination.hours_verified_at,
+        ),
         "best_time_to_visit": destination.best_time_to_visit,
         "how_to_get_there": destination.how_to_get_there,
         "estimated_travel_time": destination.estimated_travel_time,
@@ -435,6 +510,14 @@ def _destination_document(destination: Destination) -> RagDocument:
         "transport_accessibility": destination.transport_accessibility,
         "family_friendly": destination.family_friendly,
         "group_friendly": destination.group_friendly,
+        # A flag that is missing here was never checked; false means checked, no.
+        "operating_status": destination.operating_status,
+        "booking_requirement": destination.booking_requirement,
+        "booking_note": destination.booking_note,
+        "parking_note": destination.parking_note,
+        "typical_visit_min_minutes": destination.typical_visit_min_minutes,
+        "typical_visit_max_minutes": destination.typical_visit_max_minutes,
+        "best_time_basis": destination.best_time_basis,
         "kid_friendly": destination.is_kid_friendly,
         "wheelchair_accessible": destination.is_wheelchair_accessible,
         "pet_friendly": destination.is_pet_friendly,
@@ -449,7 +532,13 @@ def _destination_document(destination: Destination) -> RagDocument:
         destination.category,
         destination.vibes,
         destination.activities,
+        opening_hours,
+        price_list,
+        *activity_lines,
         destination.best_time_to_visit,
+        destination.best_time_basis,
+        destination.booking_note,
+        destination.parking_note,
         destination.how_to_get_there,
         destination.estimated_travel_time,
         destination.travel_notes,

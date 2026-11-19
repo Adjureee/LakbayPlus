@@ -393,6 +393,55 @@ class ApiService {
       file: photo,
     ),
   );
+  /// Structured opening hours (weekly windows, date exceptions, source and
+  /// verified date). Saving replaces everything in one request.
+  Future<Map<String, dynamic>> getDestinationHours(String id) async => _object(
+    await _request('GET', '/destinations/${Uri.encodeComponent(id)}/hours'),
+  );
+  Future<Map<String, dynamic>> saveDestinationHours(
+    String id,
+    Map<String, dynamic> data,
+  ) async => _object(
+    await _request(
+      'PUT',
+      '/destinations/${Uri.encodeComponent(id)}/hours',
+      data: data,
+    ),
+  );
+  /// Structured prices (entrance, parking and so on, by audience). Saving
+  /// replaces everything in one request.
+  Future<Map<String, dynamic>> getDestinationPrices(String id) async => _object(
+    await _request('GET', '/destinations/${Uri.encodeComponent(id)}/prices'),
+  );
+  Future<Map<String, dynamic>> saveDestinationPrices(
+    String id,
+    Map<String, dynamic> data,
+  ) async => _object(
+    await _request(
+      'PUT',
+      '/destinations/${Uri.encodeComponent(id)}/prices',
+      data: data,
+    ),
+  );
+  /// Structured activities (what to do, with availability, fee, duration and
+  /// limits). Saving replaces the whole list in one request.
+  Future<Map<String, dynamic>> getDestinationActivities(String id) async =>
+      _object(
+        await _request(
+          'GET',
+          '/destinations/${Uri.encodeComponent(id)}/activities',
+        ),
+      );
+  Future<Map<String, dynamic>> saveDestinationActivities(
+    String id,
+    Map<String, dynamic> data,
+  ) async => _object(
+    await _request(
+      'PUT',
+      '/destinations/${Uri.encodeComponent(id)}/activities',
+      data: data,
+    ),
+  );
   Future<bool> deleteDestination(String id) async {
     await _request('DELETE', '/destinations/${Uri.encodeComponent(id)}');
     return true;

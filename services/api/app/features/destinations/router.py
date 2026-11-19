@@ -6,7 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import require_admin
 from app.db.session import get_db_session
 from app.features.destinations.schemas import (
+    DestinationActivitiesResponse,
+    DestinationActivitiesUpdate,
     DestinationFacetsResponse,
+    DestinationHoursResponse,
+    DestinationHoursUpdate,
+    DestinationPricesResponse,
+    DestinationPricesUpdate,
     DestinationCreate,
     DestinationListQuery,
     DestinationResponse,
@@ -155,6 +161,104 @@ async def get_destination(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DestinationResponse:
     return await DestinationService(session).get_destination(destination_id)
+
+
+@router.get(
+    "/{destination_id}/hours",
+    response_model=DestinationHoursResponse,
+    summary="Get a destination's opening hours",
+    description=(
+        "Structured weekly hours, date exceptions, a one-line summary and how far "
+        "to trust them (supported, estimated or unknown)."
+    ),
+)
+async def get_destination_hours(
+    destination_id: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DestinationHoursResponse:
+    return await DestinationService(session).get_hours(destination_id)
+
+
+@router.put(
+    "/{destination_id}/hours",
+    response_model=DestinationHoursResponse,
+    summary="Replace a destination's opening hours",
+    description=(
+        "Admin-only. Replaces the weekly windows, the date exceptions, the 24-hour "
+        "flag and the source and verified date in one save."
+    ),
+)
+async def replace_destination_hours(
+    destination_id: int,
+    data: DestinationHoursUpdate,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    admin: Annotated[User, Depends(require_admin)],
+) -> DestinationHoursResponse:
+    return await DestinationService(session).replace_hours(destination_id, data)
+
+
+@router.get(
+    "/{destination_id}/prices",
+    response_model=DestinationPricesResponse,
+    summary="Get a destination's prices",
+    description=(
+        "Structured prices (entrance, overnight, parking and so on, by audience), "
+        "a one-line summary and how far to trust them (supported, estimated or unknown)."
+    ),
+)
+async def get_destination_prices(
+    destination_id: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DestinationPricesResponse:
+    return await DestinationService(session).get_prices(destination_id)
+
+
+@router.put(
+    "/{destination_id}/prices",
+    response_model=DestinationPricesResponse,
+    summary="Replace a destination's prices",
+    description=(
+        "Admin-only. Replaces every price and the source and verified date in one save."
+    ),
+)
+async def replace_destination_prices(
+    destination_id: int,
+    data: DestinationPricesUpdate,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    admin: Annotated[User, Depends(require_admin)],
+) -> DestinationPricesResponse:
+    return await DestinationService(session).replace_prices(destination_id, data)
+
+
+@router.get(
+    "/{destination_id}/activities",
+    response_model=DestinationActivitiesResponse,
+    summary="Get a destination's activities",
+    description=(
+        "What to do at the place, each with its availability, duration, extra fee, "
+        "effort and restrictions, a one-line summary and how far to trust it."
+    ),
+)
+async def get_destination_activities(
+    destination_id: int,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DestinationActivitiesResponse:
+    return await DestinationService(session).get_activities(destination_id)
+
+
+@router.put(
+    "/{destination_id}/activities",
+    response_model=DestinationActivitiesResponse,
+    summary="Replace a destination's activities",
+    description="Admin-only. Replaces every activity of the place in one save.",
+)
+async def replace_destination_activities(
+    destination_id: int,
+    data: DestinationActivitiesUpdate,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    admin: Annotated[User, Depends(require_admin)],
+) -> DestinationActivitiesResponse:
+    return await DestinationService(session).replace_activities(destination_id, data)
 
 
 @router.patch(

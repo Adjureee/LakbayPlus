@@ -1,5 +1,7 @@
 // Core domain models for Lakbay+ — Davao Region (Region XI) AI Travel Planner.
 
+import 'timeline_models.dart';
+
 enum TransportMode { flight, train, car, bus, ferry }
 
 TransportMode _transportModeFromName(String? value) {
@@ -1579,6 +1581,9 @@ class ChatMessage {
   final String text;
   final DateTime timestamp;
   final ItineraryTrip? attachedTrip;
+
+  /// The timeline the server built from the picks, when there is one.
+  final TimelineData? timeline;
   final List<AiItineraryOptionDraft> aiOptions;
   final List<TopPlaceRecommendation> recommendedPlaces;
   final List<String> suggestedReplies;
@@ -1603,6 +1608,7 @@ class ChatMessage {
     required this.text,
     required this.timestamp,
     this.attachedTrip,
+    this.timeline,
     this.aiOptions = const [],
     this.recommendedPlaces = const [],
     this.suggestedReplies = const [],
@@ -1619,6 +1625,7 @@ class ChatMessage {
         'text': text,
         'timestamp': timestamp.toIso8601String(),
         if (attachedTrip != null) 'attachedTrip': attachedTrip!.toJson(),
+        if (timeline != null) 'timeline': timeline!.toJson(),
         if (aiOptions.isNotEmpty)
           'aiOptions': aiOptions.map((o) => o.toJson()).toList(),
         if (recommendedPlaces.isNotEmpty)
@@ -1640,6 +1647,9 @@ class ChatMessage {
             ? ItineraryTrip.fromJson(
                 json['attachedTrip'] as Map<String, dynamic>,
               )
+            : null,
+        timeline: json['timeline'] is Map<String, dynamic>
+            ? TimelineData.fromJson(json['timeline'] as Map<String, dynamic>)
             : null,
         aiOptions: (json['aiOptions'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()

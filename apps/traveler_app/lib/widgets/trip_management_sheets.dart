@@ -1,13 +1,10 @@
 import 'dart:async';
-import 'dart:io';
 
-import 'package:flutter/foundation.dart' show Uint8List, kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
+import '../services/pdf_share.dart';
 import '../services/trip_pdf.dart';
 import '../theme/lakbay_theme.dart';
 
@@ -732,29 +729,11 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
     }
   }
 
-  Future<void> _sharePdf(List<int> bytes, String name) async {
-    final List<XFile> shareFiles;
-    if (kIsWeb) {
-      shareFiles = [
-        XFile.fromData(
-          Uint8List.fromList(bytes),
-          mimeType: 'application/pdf',
-          name: name,
-        ),
-      ];
-    } else {
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$name');
-      await file.writeAsBytes(bytes, flush: true);
-      shareFiles = [XFile(file.path)];
-    }
-    await SharePlus.instance.share(
-      ShareParams(
-        files: shareFiles,
-        text: '${widget.trip.title} - Lakbay+ itinerary PDF',
-      ),
-    );
-  }
+  Future<void> _sharePdf(List<int> bytes, String name) => PdfShare.share(
+    bytes,
+    name,
+    '${widget.trip.title} - Lakbay+ itinerary PDF',
+  );
 
   /// Built on the phone from the trip itself, so it works signed out and offline.
   Future<void> _exportPdf() async {

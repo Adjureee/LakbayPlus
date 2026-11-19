@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.ai.models import AIGenerationRun
@@ -18,6 +18,43 @@ class AIItineraryRepository(CatalogSelectionQueries):
             .order_by(Destination.destination_id)
         )
         return [(row.destination_id, row.name) for row in result.all()]
+
+    async def list_active_destination_ids_in_place(
+        self, place: str, *, limit: int = 5,
+    ) -> list[int]:
+        """Ids of active destinations in a town or area, one per name.
+
+        A place matches when its name, district or location contains the town.
+        Names that start with the town come first. Catalog duplicates (the same
+        name entered twice) are listed once.
+        """
+        term = f"%{place.strip()}%"
+        result = await self.session.execute(
+            select(Destination.destination_id, Destination.name)
+            .where(
+                Destination.is_active.is_(True),
+                or_(
+                    Destination.name.ilike(term),
+                    Destination.district.ilike(term),
+                    Destination.location.ilike(term),
+                ),
+            )
+            .order_by(Destination.destination_id)
+        )
+        rows = result.all()
+        wanted = place.strip().casefold()
+        rows.sort(key=lambda row: (wanted not in row.name.casefold(), row.destination_id))
+        seen: set[str] = set()
+        ids: list[int] = []
+        for row in rows:
+            key = " ".join(row.name.split()).casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            ids.append(row.destination_id)
+            if len(ids) >= limit:
+                break
+        return ids
 
     async def create_generation_run(
         self,
