@@ -177,7 +177,21 @@ def build_checks(inp, days: list[TimelineDay], conflicts: list[Conflict], meta, 
             checks.append(Check(id="activity_suitability", status="passed",
                                 message="Every recorded age limit is met."))
 
-    # 11. Budget arithmetic and traveler counts.
+    # 11. Where the nights are spent (only when the trip has nights).
+    if any(i.kind == "overnight" for i in items):
+        if inp.lodging is None:
+            checks.append(Check(
+                id="overnight_stay", status="cannot_verify",
+                message=" ".join(filter(None, [
+                    inp.lodging_note,
+                    "Where you stay overnight is not chosen, so each day's first travel time "
+                    "is measured from the last place of the day before."]))))
+        else:
+            checks.append(Check(
+                id="overnight_stay", status="passed",
+                message=f"Each night is spent at {inp.lodging.name}."))
+
+    # 12. Budget arithmetic and traveler counts.
     recomputed = Decimal("0")
     counted = True
     for item in items:

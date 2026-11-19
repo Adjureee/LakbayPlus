@@ -26,6 +26,7 @@ from app.features.planning.timeline import (
     CostInfo,
     HoursInfo,
     LegInfo,
+    Lodging,
     Pin,
     StopInfo,
     TimelineInput,
@@ -111,7 +112,7 @@ def stop_costs(destination, prices: list, state: PlanningState) -> list[CostInfo
 # ---- legs -------------------------------------------------------------------------------
 
 
-def _legs(preview, destinations, state) -> dict:
+def _legs(preview, destinations, state, lodging: Lodging | None = None) -> dict:
     """Route legs when a route was calculated, else straight-line estimates where safe."""
     legs: dict[tuple[int | None, int | None], LegInfo] = {}
     summary = preview.route.summary if preview.route.status == "calculated" else None
@@ -135,7 +136,31 @@ def _legs(preview, destinations, state) -> dict:
         km = _haversine_km(float(a_lat), float(a_lng), float(b_lat), float(b_lng))
         minutes = round(km * ESTIMATE_DETOUR / ESTIMATE_SPEED_KMH * 60)
         legs[key] = LegInfo(minutes, "estimated")
+    if lodging is not None:
+        # To and from the place to stay, which the route (a chain of the picks) does not
+        # cover: straight-line estimates, labelled as such.
+        home = next((d for d in destinations if d.destination_id == lodging.destination_id), None)
+        if home is not None and home.lat is not None and home.lng is not None                 and home.destination_id not in islands:
+            for d in destinations:
+                if d.destination_id == home.destination_id or d.destination_id in islands                         or d.lat is None or d.lng is None:
+                    continue
+                km = _haversine_km(float(home.lat), float(home.lng), float(d.lat), float(d.lng))
+                minutes = round(km * ESTIMATE_DETOUR / ESTIMATE_SPEED_KMH * 60)
+                legs.setdefault((home.destination_id, d.destination_id), LegInfo(minutes, "estimated"))
+                legs.setdefault((d.destination_id, home.destination_id), LegInfo(minutes, "estimated"))
     return legs
+
+
+def _lodging(preview) -> tuple[Lodging | None, str | None]:
+    """The place the group sleeps, from the stay they chose; unclear stays are not guessed."""
+    stays = [o for o in preview.accommodation_options if o.selected]
+    places = {o.destination_id for o in stays}
+    if len(places) == 1:
+        return Lodging(stays[0].destination_id, stays[0].name), None
+    if len(places) > 1:
+        return None, ("More than one stay is chosen, and which night is spent where is not "
+                      "set.")
+    return None, None
 
 
 # ---- the adapter ------------------------------------------------------------------------
@@ -239,8 +264,9 @@ async def build_timeline_response(
             costs=stop_costs(d, prices.get(d.destination_id, []), state),
         ))
     trip_costs, meal_cover, prompts = _trip_costs(preview)
+    lodging, lodging_note = _lodging(preview)
     inp = TimelineInput(
-        stops=stops, legs=_legs(preview, ordered, state),
+        stops=stops, legs=_legs(preview, ordered, state, lodging),
         start_date=state.travel_start_date, day_count=state.day_count or 1,
         departure_time=state.departure_time, return_deadline=state.return_deadline,
         pace=state.pace, return_to_origin=state.return_to_origin is True,
@@ -250,6 +276,7 @@ async def build_timeline_response(
         include_meals=data.include_meals, trip_costs=trip_costs, meal_included_in=meal_cover,
         budget_prompts=prompts,
         pins=[Pin(p.destination_id, p.day, p.starts_at) for p in data.pins],
+        lodging=lodging, lodging_note=lodging_note,
     )
     timeline = build_timeline(inp)
     if unavailable:

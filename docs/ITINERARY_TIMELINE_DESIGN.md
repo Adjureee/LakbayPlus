@@ -109,3 +109,14 @@ Each step ships on its own and is live-checked before the next. T1 needs no depl
 ## 10. How it maps to the acceptance tests
 
 Times, travel legs and labelled assumptions (acceptance 10) come from section 3 and 4; no invented figures (B5) from the `unknown` rule; budget honesty (B7) from section 5; deterministic checks with "cannot verify" (B8) from section 6; picks preserved and conflicts explained from section 6; revisions without losing accepted choices from section 7.
+
+## 11. Nights (overnight modelling)
+
+A multi-day itinerary now closes each day with an `overnight` item and starts the next day from where the group sleeps.
+
+- **Where they sleep** is the stay the traveler chose (`selected_accommodation_ids`). Stays are offered at picked places only, so the lodging is always one of the picks. If the chosen rooms are all at one place, that place is the lodging. If they are at several places, which night is spent where is not recorded, so none is assumed and the night says why. If no stay is chosen, none is invented.
+- **With a lodging:** the day ends with travel to the lodging (skipped when the last stop is the lodging), then "Overnight at <stay>". The next day's first trip starts from the stay, and no trip is added when the first stop is the lodging's own place.
+- **Without a lodging:** the night reads "Overnight (place to stay not chosen)" and says the next day's first travel time is measured from the last place of the day before. This was the earlier behaviour; it is now stated.
+- **Travel times** to and from the lodging are straight-line estimates (never to an island), because the route covers only the chain of picks. A leg the route did supply is kept.
+- **Check:** `overnight_stay` passes when a stay is chosen and cannot be verified when not. It only exists when the trip has a night.
+- **Not modelled:** a different stay each night, check-in and check-out times, or the stay's own opening hours.
