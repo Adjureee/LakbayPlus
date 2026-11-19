@@ -7,3 +7,5 @@ class HealthResponse(BaseModel):
     environment: str
     api_prefix: str
     timezone: str
+    # How replies about a place are checked against its records: enforce, log or off.
+    claims_check_mode: str
