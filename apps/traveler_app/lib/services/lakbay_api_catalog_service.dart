@@ -466,6 +466,7 @@ class LakbayApiCatalogService {
     return _postAuth(
       path: '/auth/login',
       body: {'email': email.trim(), 'password': password},
+      patient: true,
     );
   }
 
@@ -483,6 +484,7 @@ class LakbayApiCatalogService {
         'password': password,
         'confirm_password': confirmPassword ?? password,
       },
+      patient: true,
     );
   }
 
@@ -498,6 +500,7 @@ class LakbayApiCatalogService {
         // not know the field behaves as before.
         if (confirmNewAccount) 'confirm_new_account': true,
       },
+      patient: true,
     );
   }
 
@@ -524,9 +527,13 @@ class LakbayApiCatalogService {
     }
   }
 
+  /// [patient] is for a traveler who is waiting on the screen (sign in, register): the
+  /// server may be waking up after a quiet spell, which can take longer than the usual
+  /// 12 seconds, and a timeout reads as words instead of a raw exception.
   Future<LakbayAuthSession> _postAuth({
     required String path,
     required Map<String, dynamic> body,
+    bool patient = false,
   }) async {
     final base = _base;
     if (base.isEmpty) {
@@ -534,13 +541,21 @@ class LakbayApiCatalogService {
         'LAKBAY_API_BASE_URL is not configured for backend sign-in.',
       );
     }
-    final res = await _client
-        .post(
-          Uri.parse('$base$path'),
-          headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 12));
+    final http.Response res;
+    try {
+      res = await _client
+          .post(
+            Uri.parse('$base$path'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(Duration(seconds: patient ? 45 : 12));
+    } on TimeoutException {
+      if (!patient) rethrow;
+      throw const LakbayApiException(
+        'The server is taking too long to answer. It may be waking up, so please try again in a moment.',
+      );
+    }
 
     final decoded = _tryDecodeJson(res.body);
     if (res.statusCode < 200 || res.statusCode >= 300) {
