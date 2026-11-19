@@ -1,6 +1,6 @@
 # Claims inside tips: plan
 
-Status: **plan for review. Nothing here is implemented.** Changing how replies are checked needs your approval (decisions in section 6).
+Status: **plan, decisions made (section 6). Nothing here is implemented.** Changing how replies are checked still needs your go-ahead to start.
 
 Follows `docs/AI_CLAIMS_CHECK_PLAN.md` and `docs/AI_CLAIMS_BASELINE.md`. Data: the same 58 live replies (156 sentences) the claims check was measured on, with the judge's labels.
 
@@ -68,12 +68,12 @@ All inside the existing claims check (`app/features/ai/claims.py`); no new servi
 - **Enforcement preview** on all 58 replies before it ships, as for the first check, to read what actually changes.
 - **Live check** through the public guest chat after deploy.
 
-## 6. Decisions for you
+## 6. Decisions (made: the recommendations were accepted)
 
-1. **Items to bring stay unflagged** (recommended), or flag them when the record says nothing? Flagging makes almost every tip lose its list, for little honesty gain.
-2. **Trim the reason and keep the advice** (recommended), or drop the whole tip when its reason is unsupported? Dropping is simpler and safer but loses useful advice ("go early" is usually good advice even when the reason is a guess).
-3. **Is a 70% recall target right,** or do you want to push higher at the cost of more removed sentences?
-4. **Also fix the other misses in the same pass** ("water park area", "photo-ops", a price inside a longer sentence), or keep this pass to tips only (recommended)?
+1. **Items to bring stay unflagged. Decided: yes.** (Alternative was: flag them when the record says nothing. Flagging makes almost every tip lose its list, for little honesty gain.)
+2. **Trim the reason and keep the advice. Decided: yes.** (Alternative was dropping the whole tip, simpler but it loses useful advice: "go early" is usually good advice even when the reason is a guess.)
+3. **Recall target 70%. Decided: yes.** Going higher would remove more sentences for less certainty.
+4. **This pass is tips only. Decided: yes.** The other misses ("water park area", "photo-ops", a price inside a longer sentence) are a separate pass.
 
 ## 7. Not in this plan
 
