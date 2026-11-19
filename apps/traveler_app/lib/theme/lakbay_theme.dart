@@ -100,7 +100,7 @@ class LakbayTheme {
   }
 }
 
-/// Lakbay+ Compass Avatar — renders the official eight-point compass rose.
+/// Lakbay+ Avatar: the Lakbay+ logo on a round badge.
 class LakbayAvatar extends StatelessWidget {
   final double size;
   final bool inverted;
@@ -125,16 +125,12 @@ class LakbayAvatar extends StatelessWidget {
         border: Border.all(color: LakbayColors.cardBorder),
       ),
       alignment: Alignment.center,
-      child: LakbayCompassMark(
-        size: size * 0.62,
-        primaryColor: LakbayColors.primary,
-        secondaryColor: LakbayColors.primary.withValues(alpha: 0.45),
-      ),
+      child: LakbayCompassMark(size: size * 0.42),
     );
   }
 }
 
-/// Official Lakbay+ Wordmark pairing the eight-point compass mark with Outfit typography.
+/// Lakbay+ wordmark: the logo beside the name, in Outfit typography.
 class LakbayBrandWordmark extends StatelessWidget {
   final double fontSize;
   final bool lightText;
@@ -154,7 +150,7 @@ class LakbayBrandWordmark extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         LakbayCompassMark(
-          size: fontSize * 1.15,
+          size: fontSize * 1.0,
           primaryColor: lightText ? Colors.white : LakbayColors.primary,
           secondaryColor: lightText
               ? Colors.white70

@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import 'lakbay_compass_mark.dart';
 
-/// The Lakbay AI planner's avatar: the original compass mark in white on a
-/// teal circle. Used beside assistant chat messages so the planner has a
+/// The Lakbay AI planner's avatar: the Lakbay+ logo on a white circle. Used beside assistant chat messages so the planner has a
 /// consistent, truthful identity — no real or implied human advisor.
 class LakbayAiAvatar extends StatelessWidget {
   const LakbayAiAvatar({super.key, this.diameter = 32});
@@ -17,16 +16,14 @@ class LakbayAiAvatar extends StatelessWidget {
       key: const ValueKey('lakbay-ai-avatar'),
       width: diameter,
       height: diameter,
-      decoration: const BoxDecoration(
-        color: AppTheme.primaryDeep,
+      decoration: BoxDecoration(
+        color: Colors.white,
         shape: BoxShape.circle,
+        border: Border.all(color: AppTheme.primaryDeep.withValues(alpha: 0.25)),
       ),
       alignment: Alignment.center,
-      child: LakbayCompassMark(
-        size: diameter * 0.6,
-        primaryColor: Colors.white,
-        secondaryColor: Colors.white70,
-      ),
+      // The logo is wider than tall, so its height is about a third of the circle.
+      child: LakbayCompassMark(size: diameter * 0.42),
     );
   }
 }
