@@ -14,6 +14,7 @@ from app.features.reports.schemas import (
     TripReportInfo,
     TripReportItineraryDay,
     TripReportMember,
+    TripReportRevision,
     TripReportSummaryResponse,
     TripReportTask,
     TripReportTimeline,
@@ -31,7 +32,8 @@ class ReportService:
     async def get_summary(self, *, user: User, trip_id: int) -> TripReportSummaryResponse:
         trip = await self._require_accessible_trip(user=user, trip_id=trip_id)
         expenses = await ExpenseService(self.session).get_summary(user=user, trip_id=trip_id)
-        revision = await self.reports.latest_timeline_revision(trip_id)
+        revisions = await self.reports.timeline_revisions(trip_id)
+        revision = revisions[-1][0] if revisions else None
 
         return TripReportSummaryResponse(
             generated_at=datetime.now(UTC),
@@ -76,6 +78,17 @@ class ReportService:
                 if revision is not None
                 else None
             ),
+            revision_log=[
+                TripReportRevision(
+                    revision=row.revision,
+                    saved_at=row.created_at,
+                    saved_by=name,
+                    changes=list(row.changes or []),
+                    works=bool(row.timeline.get("feasible")),
+                    unverified_count=len(row.timeline.get("unverified") or []),
+                )
+                for row, name in revisions
+            ],
         )
 
     async def build_pdf(self, *, user: User, trip_id: int) -> bytes:
