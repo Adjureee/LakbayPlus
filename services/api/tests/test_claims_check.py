@@ -314,3 +314,41 @@ def test_saying_where_people_park_is_a_claim_the_record_must_hold(sentence):
 ])
 def test_the_word_park_in_other_uses_is_not_a_parking_claim(sentence):
     assert "where to park" not in _rules(sentence)
+
+
+# --- enforcing is the default ---------------------------------------------------------------
+
+
+def test_the_default_mode_is_enforce_and_the_setting_can_still_turn_it_off(monkeypatch):
+    from app.core.config import Settings
+
+    monkeypatch.delenv("CLAIMS_CHECK_MODE", raising=False)
+    assert Settings(_env_file=None).claims_check_mode == "enforce"
+    monkeypatch.setenv("CLAIMS_CHECK_MODE", "log")
+    assert Settings(_env_file=None).claims_check_mode == "log"
+    monkeypatch.setenv("CLAIMS_CHECK_MODE", "off")
+    assert Settings(_env_file=None).claims_check_mode == "off"
+
+
+def test_with_no_setting_at_all_the_chat_removes_the_claim(client, monkeypatch) -> None:
+    monkeypatch.delenv("CLAIMS_CHECK_MODE", raising=False)
+    get_settings.cache_clear()
+    configure_ai(monkeypatch)
+    monkeypatch.setattr(ai_router_module, "get_osrm_client", lambda: CandidateOSRM())
+    _town_catalog(client)
+    reply = json.dumps({
+        "chat_response": "Museo Panabo is a small museum with ramps and a gift shop. "
+                         "Bring a hat.",
+        "state_updates": {}, "intent": "question",
+    })
+    body = _ask(client, "Tell me about Museo Panabo", reply, {"origin": {"label": "Davao City"}})
+    get_settings.cache_clear()
+    assert "ramps" not in body["chat_response"] and "Bring a hat." in body["chat_response"]
+
+
+def test_driving_to_a_place_and_parking_near_it_is_a_parking_claim():
+    """Live case: "Most visitors drive to the falls and park near the entrance"."""
+    sentence = "Most visitors drive to Eden Nature Park and park near the entrance."
+    assert "where to park" in _rules(sentence)
+    assert "where to park" not in _rules(sentence, support=EDEN + " Free parking at the gate.")
+    assert "where to park" not in _rules("Eden Nature Park is a good place to relax and park yourself.")

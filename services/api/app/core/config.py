@@ -60,9 +60,10 @@ class Settings(BaseSettings):
 
     # Optional second OpenAI-compatible provider (e.g. Gemini) used as the fallback
     # when the primary Groq model is rate limited. Needs its own quota to be useful.
-    # Statements about a place that its records do not hold (no numbers): "off", "log"
-    # (record findings, change nothing; the default) or "enforce" (trim or remove them).
-    claims_check_mode: Literal["off", "log", "enforce"] = "log"
+    # Statements about a place that its records do not hold (no numbers): "enforce" (the
+    # default: trim or remove them), "log" (record findings, change nothing) or "off".
+    # CLAIMS_CHECK_MODE=log switches enforcement off without a code change.
+    claims_check_mode: Literal["off", "log", "enforce"] = "enforce"
     fallback_llm_api_key: str | None = None
     fallback_llm_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     fallback_llm_model: str | None = None
