@@ -401,6 +401,8 @@ def test_the_generalisation_is_removed_and_the_honest_clause_kept():
     ("Go to Eden Nature Park early to avoid the strongest sun.", "heat and cool"),
     ("Go to Eden Nature Park in the late afternoon for a cooler city walk.", "heat and cool"),
     ("The park is cooler and the lighting is great for cycling.", "heat and cool"),
+    ("Entry is ₱600, which includes a guided tour of the park.", "what the fee includes"),
+    ("The entrance fee covers a free meal at the cafe.", "what the fee includes"),
     ("Go at 4 PM, when the breeze is cooler and the park is lively.", "heat and cool"),
     ("Visit Eden Nature Park in the evening, when it feels warmer.", "heat and cool"),
     ("Visit Eden Nature Park at 4 PM to enjoy the cooler afternoon weather.", "heat and cool"),
@@ -522,3 +524,17 @@ def test_a_cooler_afternoon_weather_reason_is_cut():
     assert changed == 1
     assert text.startswith("The best time to visit Eden Nature Park is between 3:30 PM and 6:00 PM.")
     assert "cooler" not in text
+
+
+def test_what_an_entry_fee_includes_is_cut_when_the_record_does_not_say():
+    sentence = "Eden Nature Park is open daily, with entry which includes a guided tour of the grounds."
+    text, changed = ground_claims(sentence, _find(sentence))
+    assert changed == 1
+    assert text.startswith("Eden Nature Park is open daily.")
+    assert "guided tour" not in text
+
+
+def test_what_an_entry_fee_includes_stays_when_the_record_says_it_includes():
+    sentence = "Entry to Eden Nature Park is 600, which includes a guided tour of the park."
+    support = "Eden Nature Park. Entrance fee 600. Includes a guided tour."
+    assert _find(sentence, support=support) == []
