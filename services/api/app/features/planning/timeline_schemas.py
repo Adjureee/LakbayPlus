@@ -152,6 +152,8 @@ class AlternativeOut(BaseModel):
     unverified: list[str] = Field(default_factory=list)
     # What moves in the itinerary if it is swapped in (plain sentences).
     changes: list[str] = Field(default_factory=list)
+    # What still does not work after the swap: one swap fixes one place, not the whole day.
+    still_failing: list[str] = Field(default_factory=list)
     # The trip's places with this one in the old one's position, ready to send as a revision.
     destination_ids: list[int]
 
