@@ -1,0 +1,1220 @@
+[
+ {
+  "id": "real-38-0",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is Bemwa Farm wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    38
+   ]
+  },
+  "body": {
+   "chat_response": "The Lakbay catalog doesn’t record whether Bemwa Farm is wheelchair‑accessible, so we can’t confirm it’s wheelchair‑friendly; you may want to call the farm or check in advance. Because it’s a highland agri‑tourism spot with strawberry beds and garden paths, the terrain can be uneven, so bringing a portable seat or assistive device is advisable. \n\nBest to go early in the morning to avoid crowds and bring a sun hat.\n\nWhat kind of places do you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-38-1",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at Bemwa Farm?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    38
+   ]
+  },
+  "body": {
+   "chat_response": "At Bemwa Farm in Datu Salumay, Davao City, you can enjoy farm visits, sightseeing, exploring strawberry beds, browsing potted herbs, and picking up organic produce at the stalls. Standard admission is ₱50 per person, which is consumable for farm food or produce at select counters, and toddlers or small children enter for free.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-38-2",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about Bemwa Farm.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    38
+   ]
+  },
+  "body": {
+   "chat_response": "You can wander the strawberry beds, pick herbs, and shop organic produce, then enjoy a picnic at the Small Open Day Table (₱200 for 4‑6 people) or a larger gazebo (₱400 for 8‑15 people).\n\nTip: Go early in the morning when the weather’s cooler and the strawberries are freshest; bring sunscreen, a hat, and cash for snacks and farm goodies.\n\nWhat else would you like to know?\n\nI left out some times, distances and prices because Lakbay's records do not confirm them.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-38-3",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at Bemwa Farm?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    38
+   ]
+  },
+  "body": {
+   "chat_response": "I do not have parking details recorded for Bemwa Farm in Datu Salumay, Davao City, so I recommend checking directly with their staff or checking travel community pages before driving up. Want to know what attractions are nearby?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-15-4",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at National Museum of the Philippines - Davao?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    15
+   ]
+  },
+  "body": {
+   "chat_response": "At the National Museum of the Philippines – Davao you can explore permanent and rotating exhibits on Mindanao’s history, culture, and natural heritage, join guided tours (often free), and attend occasional workshops or cultural performances. Admission is free, just check the visitor schedule for opening hours. Tip: go early in the morning to avoid crowds and bring a reusable water bottle – the museum is air‑conditioned but the surrounding People's Park is great for a stroll afterward. What kind of places do you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-15-5",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about National Museum of the Philippines - Davao.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    15
+   ]
+  },
+  "body": {
+   "chat_response": "The National Museum of the Philippines - Davao sits right inside the People's Park Compound on J. Palma Gil Street in Davao City, offering free admission to explore regional Mindanao history, culture, and natural heritage.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-15-6",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at National Museum of the Philippines - Davao?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    15
+   ]
+  },
+  "body": {
+   "chat_response": "The catalog doesn’t list a dedicated parking lot at the National Museum of the Philippines – Davao, so I can’t confirm on‑site parking. Most visitors park on the street along J. Palma Gil Street or use nearby public parking areas; just watch for traffic and pay any meter fees. A good tip is to go on a weekday morning to avoid crowds and bring a bottle of water, as the museum’s indoor space can get warm.\n\nAnything else you’d like to know?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-13-7",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is Aliwagwag Falls wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    13
+   ]
+  },
+  "body": {
+   "chat_response": "The accessibility of Aliwagwag Falls for wheelchairs is not recorded in our catalog. Visiting this scenic multi-tiered waterfall in Cateel, Davao Oriental takes about 6 to 8 hours by bus from Davao City, with fares around ₱750.00. \n\nWear water shoes and bring a dry bag since you'll be exploring the water park area!",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-13-8",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about Aliwagwag Falls.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    13
+   ]
+  },
+  "body": {
+   "chat_response": "Aliwagwag Falls in Cateel, Davao Oriental is a multi‑tiered waterfall best visited in the morning; it’s about 6‑8 hours drive from Davao City (≈₱750 by bus) and you’ll likely spend around ₱3,000 on entrance and activities, with nearby Cateel Traveller Inn offering rooms at ₱1,800 per night. Bring water shoes, a dry bag, extra clothes, snacks and sun protection, and consider staying overnight to break up the long travel.\n\nWhat kind of places do you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-13-9",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at Aliwagwag Falls?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    13
+   ]
+  },
+  "body": {
+   "chat_response": "Parking isn’t mentioned for Aliwagwag Falls, so there’s likely no dedicated lot – you’ll probably have to park at the nearby barangay area or use local transport; you can double‑check with Cateel officials. \n\nTip: go in the morning for the best views, bring water shoes, snacks and a dry bag, and allow 6‑8 hours driving from Davao City – an overnight stay in Cateel is recommended.\n\nWhat kind of places do you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-22-10",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is San Salvador del Mundo Churcg wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    22
+   ]
+  },
+  "body": {
+   "chat_response": "Whether San Salvador del Mundo Church in Caraga is wheelchair accessible is not recorded in our current catalog details. It is an active historic parish church, so you may want to confirm specific accessibility features directly with the parish before visiting.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-22-11",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at San Salvador del Mundo Churcg?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    22
+   ]
+  },
+  "body": {
+   "chat_response": "At San Salvador del Mundo Church in Caraga, Davao Oriental, you can enjoy church visits and explore its religious heritage as an active historic parish.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-22-12",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at San Salvador del Mundo Churcg?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    22
+   ]
+  },
+  "body": {
+   "chat_response": "Parking isn’t listed for San Salvador del Mundo Church, so you’ll need to check with the parish—many local churches have a small lot or street parking that may be limited. Bring some cash in case there’s a fee and arrive early, especially on Sundays. What kind of places do you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-29-13",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is DDG Beach Resort wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    29
+   ]
+  },
+  "body": {
+   "chat_response": "Whether DDG Beach Resort in Santa Maria, Davao Occidental is wheelchair accessible is not recorded in our catalog. You may want to contact the resort directly before visiting since its land and boat access require separate checking.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-29-14",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at DDG Beach Resort?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    29
+   ]
+  },
+  "body": {
+   "chat_response": "At DDG Beach Resort you can enjoy a relaxed beach‑day visit with seaside views and simple shoreline activities like swimming or sunbathing. Tip: go early in the morning during the dry season (Nov‑May) and bring sunscreen, water, and sturdy shoes for the uneven path.\n\nWhat kind of places do you enjoy?\n\nI left out some times, distances and prices because Lakbay's records do not confirm them.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-29-15",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about DDG Beach Resort.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    29
+   ]
+  },
+  "body": {
+   "chat_response": "DDG Beach Resort is a seaside getaway located in Sitio Colagsing, Barangay Tanglad, Santa Maria in Davao Occidental, offering beach day visits and seaside views with entrance fees currently unconfirmed by the operator. It's best to check with the operator directly for current access details before heading down south, as land and boat routes require separate confirmation. What kind of places do you usually enjoy visiting?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-29-16",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at DDG Beach Resort?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    29
+   ]
+  },
+  "body": {
+   "chat_response": "The catalog doesn’t list parking details for DDG Beach Resort, so I can’t confirm if they have a lot; it’s best to call the resort or ask the local operator directly. \nTip: Visit during the dry season (Nov‑May) and bring cash for any parking or entry fees, as card terminals may be limited.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-62-17",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is Discovery Samal wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    62
+   ]
+  },
+  "body": {
+   "chat_response": "Yes, Discovery Samal is wheelchair accessible, featuring a sprawling 5-star luxury layout on Samal Island that guests reach via a quick 5-minute private speedboat ride from the Davao Welcome Center in Lanang. What kind of places do you enjoy visiting around the Davao Region?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-62-18",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about Discovery Samal.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    62
+   ]
+  },
+  "body": {
+   "chat_response": "The resort offers 153 villas, three infinity pools, an Olympic‑size pool, private white‑sand beach, water sports (jet‑ski, paddle‑board, banana boat), a spa, fit studio, and several dining spots. Estimated room rates start at ₱5,000 per night (₱18,000 for an overnight stay). Bring reef‑safe sunscreen, swimwear, a smart‑casual outfit for dinner, and your ID for registration. The best time to visit is late afternoon (4‑6 PM) for sunset views, and aim for weekdays to avoid weekend crowds.\n\nWhat kind of places do you enjoy?\n\nI left out some times, distances and prices because Lakbay's records do not confirm them.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-62-19",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at Discovery Samal?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    62
+   ]
+  },
+  "body": {
+   "chat_response": "Yes, free parking is available on-site at the Discovery Samal Davao Welcome Center along Maryknoll Drive in Lanang, Davao City, where guests check in before taking the resort's 5-minute private speedboat to the island.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-25-20",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is New Barili Heights and Sights wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    25
+   ]
+  },
+  "body": {
+   "chat_response": "The catalog doesn’t record whether New Barili Heights and Sights is wheelchair‑accessible, so we can’t confirm that it’s suitable for wheelchair users. It’s best to call the resort directly to ask about ramps, restroom access, and any assistance they provide. If you need a confirmed wheelchair‑friendly spot, let me know and I can suggest alternatives.\n\nWould you like to see other mountain resorts or share what kind of places you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-25-21",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at New Barili Heights and Sights?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    25
+   ]
+  },
+  "body": {
+   "chat_response": "At New Barili Heights and Sights in Maco, Davao de Oro, you can enjoy viewpoint visits and nature appreciation overlooking Lake Leonard.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-25-22",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about New Barili Heights and Sights.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    25
+   ]
+  },
+  "body": {
+   "chat_response": "Activities are limited to the viewpoint visit and nature appreciation, and both entrance fee and exact opening hours should be confirmed with the operator.\n\nTip: go early in the morning during the dry season (Nov‑May) for clear views and bring water, sunscreen, and sturdy shoes; a private car or hired van is the easiest way to reach the site, as there’s no direct public bus.\n\nI left out some times, distances and prices because Lakbay's records do not confirm them.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-25-23",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at New Barili Heights and Sights?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    25
+   ]
+  },
+  "body": {
+   "chat_response": "I do not have parking information recorded for New Barili Heights and Sights in Maco, Davao de Oro, so you will need to confirm directly with the operator before heading out.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-14-24",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at Museo Dabawenyo?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    14
+   ]
+  },
+  "body": {
+   "chat_response": "The catalog doesn’t list parking details for Museo Dabawenyo, so you may want to call the museum or check its Facebook page for the latest info. A handy tip: the museum is on Mabini Street in Barangay 10‑A, so street parking is usually available nearby, but it can fill up on weekends.\n\nDo you need directions from your location?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-52-25",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about World's largest Rosary.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    52
+   ]
+  },
+  "body": {
+   "chat_response": "The World's Largest Rosary is a major Tagum landmark located at Christ the King Cathedral in Davao del Norte, known for its giant wooden rosary and a peaceful setting for prayer. It takes about a 5-minute tricycle ride from downtown Tagum to get there, with free entrance and an estimated cost of ₱100.00 for incidental expenses.\n\nBest visited between 6:30 AM and 8:00 AM to enjoy the cool morning air, remember to bring an umbrella, drinking water, and a personal prayer guide while observing a proper church dress code.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-33-26",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is D' Bone Collector Museum wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    33
+   ]
+  },
+  "body": {
+   "chat_response": "Whether D' Bone Collector Museum in Davao City is wheelchair accessible is not recorded in my catalog, so you may want to contact them directly before visiting.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-33-27",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at D' Bone Collector Museum?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    33
+   ]
+  },
+  "body": {
+   "chat_response": "At D' Bone Collector Museum you can do a museum visit to see its bone collections, learn about human and animal anatomy, and explore cultural‑historical displays (open Mon‑Sat 10:00‑16:00, closed Sun). Tip: take a short tricycle or jeepney ride from downtown Davao City to San Pedro Extension, and go early on weekdays to avoid the small crowd. What kind of places do you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-33-28",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about D' Bone Collector Museum.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    33
+   ]
+  },
+  "body": {
+   "chat_response": "D' Bone Collector Museum is located on San Pedro Extension in Bucana, Davao City, and is open Monday through Saturday from 10:00 to 16:00.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-33-29",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at D' Bone Collector Museum?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    33
+   ]
+  },
+  "body": {
+   "chat_response": "I don’t have information on whether D' Bone Collector Museum provides parking. If you’re driving, it’s a good idea to bring cash for possible on‑site fees or check with the museum directly before you go. What kind of places do you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-47-30",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is Sky Deck Garden Cafe and Restaurant wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    47
+   ]
+  },
+  "body": {
+   "chat_response": "Whether Sky Deck Garden Cafe and Restaurant is wheelchair accessible is not recorded in our catalog. It is located on the rooftop of the Liongkang Building along Panabo's National Highway and can be easily reached via highway-bound buses, vans, or tricycles for around ₱300.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-47-31",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at Sky Deck Garden Cafe and Restaurant?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    47
+   ]
+  },
+  "body": {
+   "chat_response": "At Sky Deck Garden Cafe and Restaurant, you can enjoy dining, coffee, group meetups, and photography from its rooftop overlooking location, with estimated costs around ₱300.00.\n\nBest to visit between 5:00 PM and 6:30 PM for the scenic views.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-47-32",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about Sky Deck Garden Cafe and Restaurant.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    47
+   ]
+  },
+  "body": {
+   "chat_response": "No entrance fee, but reserve for weekend evenings and bring a light jacket or cap, sunglasses, a power bank, and cash/e‑wallet for payment. Tip: check the weather forecast and bring a raincoat—sudden rain can hit the rooftop.\n\nWhat else would you like to explore?\n\nI left out some times, distances and prices because Lakbay's records do not confirm them.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-49-33",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is Energy Park wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    49
+   ]
+  },
+  "body": {
+   "chat_response": "Yes, Energy Park is wheelchair accessible, so you can enjoy its wide paths and picnic lawns without hassle. Tip: Arrive early (around 5 AM) to avoid crowds and bring a small snack and water for a comfortable visit. What kind of places do you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-49-34",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at Energy Park?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    49
+   ]
+  },
+  "body": {
+   "chat_response": "At Energy Park, you can enjoy cycling and bike rentals, picnics and nature walks, playground fun, and sports fields across its 25-hectare green space, with an estimated cost around ₱200.00 and free entrance. \n\nBring a valid ID if you plan to rent a bike.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-49-35",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about Energy Park.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    49
+   ]
+  },
+  "body": {
+   "chat_response": "Energy Park in Tagum City is a 25-hectare green sanctuary featuring tree-lined walking and cycling paths, picnic lawns, sports fields, a skate area, and a children's park with an estimated cost around ₱200.00 and free entrance. Best visited between 3:30 PM and 6:00 PM, you can get there by taking a Ridea tricycle heading to Barangay Apokon. \n\nBring a valid ID if you plan to rent a bike, along with a picnic mat and water bottle.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-49-36",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at Energy Park?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    49
+   ]
+  },
+  "body": {
+   "chat_response": "The Energy Park record doesn’t specify parking, so I can’t confirm if there’s a dedicated lot; you may want to call the park or look for nearby street parking when you arrive. A good tip: visit between 3:30 PM‑6:00 PM for a cooler breeze and bring a valid ID if you plan to rent a bike.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-58-37",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at Lanikai Hijo Estate Resort?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    58
+   ]
+  },
+  "body": {
+   "chat_response": "At Lanikai Hijo Estate Resort you can swim in the ocean‑front infinity pool, kayak or stand‑up paddleboard on the Davao Gulf, try the \"catch‑your‑own‑protein\" line fishing at The Spot, cycle through coconut and banana groves, play billiards, stargaze, go horseback riding, or join guided Wild Forest or River & Beach Cruise tours. \n\nTip: Arrive by private car via Daang Maharlika Highway to the Hijo Plantation gate, or take a bus/jeepney to Madaum and a tricycle to the resort; bring swimwear, sunblock, and cash or cards for activity add‑ons. \n\nWhat kind of places do you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-58-38",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about Lanikai Hijo Estate Resort.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    58
+   ]
+  },
+  "body": {
+   "chat_response": "Lanikai Hijo Estate Resort is an exclusive 8-room boutique resort in Tagum City set inside the 760-hectare Hijo Plantation, featuring an American-colonial ancestral house with an overnight fee of ₱8,500 per night. To get there from Davao City, take a northbound bus or van to the Tagum transport terminal, transfer to a Madaum-bound jeepney or bus, alight at the Hijo Plantation gate in Madaum, and hire a tricycle or habal-habal inside to the resort. \n\nBring proper swimwear for the oceanfront infinity pool, sunblock, and mosquito repellent for the forest and river tours.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-58-39",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at Lanikai Hijo Estate Resort?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    58
+   ]
+  },
+  "body": {
+   "chat_response": "Yes, on-site parking is free at Lanikai Hijo Estate Resort if you are arriving by private vehicle through the Hijo Plantation main gate.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-63-40",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is Chema's by the Sea wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    63
+   ]
+  },
+  "body": {
+   "chat_response": "Yes, Chema's by the Sea is listed as wheelchair‑accessible. It’s a short 10‑15‑minute boat ride from the Waterfront Insular Hotel Jetty in Lanang, Davao City, and the resort’s private pier and facilities accommodate wheelchair users.\n\nAnything else you’d like to know?\n\nI left out some times, distances and prices because Lakbay's records do not confirm them.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-63-41",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about Chema's by the Sea.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    63
+   ]
+  },
+  "body": {
+   "chat_response": "Chema's by the Sea is a boutique nature‑beach resort in Barangay Limao, Samal (about a 1‑hour drive from Davao City plus a 10‑15 min private boat ride from the Waterfront Insular Hotel jetty).  Rates are roughly ₱18,000 per night (estimated total cost ₱20,000 for a day‑use package).  You can swim in three infinity pools, enjoy the private white‑sand beach, kayak, paddle‑board, jet‑ski, play pickleball, hit the Fit Studio, or unwind at Samal Escape Spa.  \n\nTip: Go early (8‑10:30 am) or late afternoon (4‑6 pm) to avoid the strongest sun and crowds, and bring reef‑safe sunscreen and a swim‑suit.\n\nWhat kind of places do you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-63-42",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at Chema's by the Sea?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    63
+   ]
+  },
+  "body": {
+   "chat_response": "The retrieved record for Chema's by the Sea does not state whether parking is available at the mainland docking area or the resort.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-1-43",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is People's Park wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    1
+   ]
+  },
+  "body": {
+   "chat_response": "Yes, People's Park is listed as elderly-friendly and family-friendly in the record, but its wheelchair accessibility is not specifically recorded. It is located in the Poblacion District of Davao City and is free to enter.\n\nBest visited in the late afternoon or early evening when the sun is milder.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-1-44",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at People's Park?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    1
+   ]
+  },
+  "body": {
+   "chat_response": "Best time is late afternoon or early evening when the lights are on and it’s cooler; bring a bottle of water and wear comfy shoes. What kind of places do you enjoy?\n\nI left out some times, distances and prices because Lakbay's records do not confirm them.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-1-45",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at People's Park?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    1
+   ]
+  },
+  "body": {
+   "chat_response": "The parking details for People's Park are not recorded in the catalog, but being an urban public park in Davao City's Poblacion District, street parking and nearby commercial parking areas are available around the perimeter.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-57-46",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is Banana Beach at Hijo Resorts Davao wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    57
+   ]
+  },
+  "body": {
+   "chat_response": "Yes—Banana Beach at Hijo Resorts Davao is listed as wheelchair accessible, so you should be able to move around the beach area and resort facilities without major barriers. \n\nTip: Visit in the early morning (8‑10:30 AM) for cooler weather and less crowd, and bring a sturdy, lightweight wheelchair or mobility aid that handles sand and uneven paths.\n\nAnything else you’d like to know?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-57-47",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at Banana Beach at Hijo Resorts Davao?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    57
+   ]
+  },
+  "body": {
+   "chat_response": "At Banana Beach at Hijo Resorts Davao, you can swim in the beachfront infinity pool, kayak along the coast or mangrove river, join a Wild Forest Experience guided walk, or take a river and beach cruise, with entrance fees ranging from ₱500 to ₱850.\n\nBring proper swimwear, which is strictly required for the infinity pool.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-57-48",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about Banana Beach at Hijo Resorts Davao.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    57
+   ]
+  },
+  "body": {
+   "chat_response": "Entrance fees range from ₱500‑₱850, while overnight stays cost ₱3,300‑₱6,000 per night; the listed estimated cost of ₱1,650 likely covers basic day‑use amenities. Highlights include an ocean‑front infinity pool, kayaking on the coast or the Madaum River, guided forest walks (spotting macaques, wild boars and birds), river‑beach cruises, banana‑plantation tours, horseback riding, cycling and line‑fishing. You can drive via Daang Maharlika (AH‑26) then the Tagum‑Mati/Davao‑Surgao Coastal Road, or take a bus/van to Tagum terminal and transfer to a jeepney or multicab to the Hijo gate, followed by a short tricycle ride.\n\nTip: Arrive early (8:00‑10:30 AM) for cooler weather on forest and river tours, and bring reef‑safe sunscreen, sturdy shoes and extra dry clothes.\n\nI left out some times, distances and prices because Lakbay's records do not confirm them.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-57-49",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at Banana Beach at Hijo Resorts Davao?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    57
+   ]
+  },
+  "body": {
+   "chat_response": "Yes, free parking is available on-site at Banana Beach at Hijo Resorts Davao, located right past the Hijo Plantation gate in Tagum City about a 5 to 10-minute drive from the main entrance.\n\nBring comfortable walking shoes if you plan to join the guided forest or plantation tours.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-23-50",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at Rizal Park Digos?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    23
+   ]
+  },
+  "body": {
+   "chat_response": "The park is ideal for casual walking, kids’ playtime, and photo‑ops with the historic Digos City Hall backdrop.\n\nI left out some times, distances and prices because Lakbay's records do not confirm them.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-23-51",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about Rizal Park Digos.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    23
+   ]
+  },
+  "body": {
+   "chat_response": "Rizal Park Digos is a public city park right beside Digos City Hall in Digos, Davao del Sur—perfect for a relaxed stroll or family outing. Entrance is listed as “unknown,” so double‑check with the city office, and operating hours should also be confirmed locally.\nTip: Go early morning or late afternoon to avoid the heat, wear comfy shoes, and bring water and a hat.\nWhat kind of places do you enjoy?\n\nI left out some times, distances and prices because Lakbay's records do not confirm them.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-23-52",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at Rizal Park Digos?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    23
+   ]
+  },
+  "body": {
+   "chat_response": "Parking availability at Rizal Park Digos is not recorded in the catalog.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-2-53",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is Philippine Eagle Center wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    2
+   ]
+  },
+  "body": {
+   "chat_response": "The accessibility of the Philippine Eagle Center is not recorded in our catalog. To get there from Davao City proper, you can take a public van for ₱250, which takes about 1 to 1.5 hours.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-2-54",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "What can I do at Philippine Eagle Center?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    2
+   ]
+  },
+  "body": {
+   "chat_response": "At the Philippine Eagle Center you can join a guided wildlife‑viewing tour to see the endangered Philippine eagle and other native species, take photos of the birds and the surrounding forest, and learn about conservation efforts through their educational displays (entrance fee about ₱600, about a half‑day visit). A public van from Davao City proper costs around ₱250 and takes 1–1.5 hours. Tip: go in the morning when the eagles are most active, wear comfortable shoes and bring a water bottle. What kind of places do you enjoy?",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-2-55",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Tell me about Philippine Eagle Center.",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    2
+   ]
+  },
+  "body": {
+   "chat_response": "The Philippine Eagle Center in Malagos, Davao City is about a 1‑1.5‑hour (≈75 min) van ride from the city proper (≈₱250) and charges around ₱600 for entry, which includes a guided wildlife‑viewing tour and photo‑ops with the eagles.\n\nTip: Visit in the morning when the eagles are most active; bring a hat, sunscreen, and a water bottle, and wear comfortable shoes for the short walk around the grounds.\n\nWhat kind of places do you enjoy?\n\nI left out some times, distances and prices because Lakbay's records do not confirm them.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-2-56",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is there parking at Philippine Eagle Center?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    2
+   ]
+  },
+  "body": {
+   "chat_response": "I do not have parking details recorded for the Philippine Eagle Center in my current catalog.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ },
+ {
+  "id": "real-60-57",
+  "note": "A real guest-chat answer about one place (17-19 Nov 2026).",
+  "text": "Is Pearl Farm Beach Resort wheelchair accessible?",
+  "origin_label": "Davao City",
+  "lang": "en",
+  "state": {
+   "destination_ids": [
+    60
+   ]
+  },
+  "body": {
+   "chat_response": "Yes, Pearl Farm Beach Resort is recorded as wheelchair accessible. \n\nBefore heading to the resort wharf on Lizada Street in Lanang, Davao City, remember to check in at least 30 minutes before your 45-minute motorboat transfer.",
+   "seconds": 4.0,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": []
+   }
+  },
+  "expect_failed": []
+ }
+]
