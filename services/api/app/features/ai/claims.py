@@ -138,6 +138,12 @@ RULES: tuple[Rule, ...] = (
     Rule("activities", "activities", _rx(
         r"\b(?:workshops?|cultural performances?|"
         r"zip-?lines?|kayak\w*|snorkel\w*|boat rides?|horseback)\b")),
+    # What an entry fee covers ("charges P600, which includes a tour") needs a recorded
+    # inclusion.
+    Rule("rules", "what the fee includes", _rx(
+        r"\b(?:entry|entrance|admission|tickets?|fees?|rates?|prices?)\b[^.]{0,50}?"
+        r"\b(?:includes?|inclusive of|covers?)\b|\bwhich\s+(?:includes?|covers?)\b"),
+         _rx(r"\binclu|\bcovers?\b")),
     # A "guided ... tour" is supported by a recorded guided visit, walk or tour.
     Rule("activities", "guided tour", _rx(r"\bguided(?:\s+[\w-]+){0,3}?\s+tours?\b"),
          _rx(r"\bguided\b|\btours?\b")),
