@@ -47,6 +47,7 @@ class TripTimelineService:
                 state=data.state, pins=data.pins, previous=previous,
                 include_meals=data.include_meals,
             ),
+            with_alternatives=False,
         )
         return await self._append(
             user=user, trip_id=trip_id, latest=latest,
