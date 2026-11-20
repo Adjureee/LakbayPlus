@@ -192,6 +192,21 @@ def test_a_closer_better_match_ranks_first():
     assert [o.destination_id for o in sets[0].options] == [11, 10]
 
 
+# --- one swap fixes one place, not the whole day ---------------------------------------
+
+
+def test_what_still_fails_after_a_swap_is_named_and_empty_when_the_day_is_fixed():
+    fixed = run([closed_place()], [place(10, "Garden", 1.0, hours=OPEN_THU)])
+    assert fixed[0].options[0].still_failing == []
+
+    # Two closed places: replacing one leaves the other closed.
+    other = place(2, "Also shut", 2.0, hours=CLOSED_THU)
+    left = run([closed_place(), other], [place(10, "Garden", 1.0, hours=OPEN_THU)])
+    first = next(s for s in left if s.destination_id == 1)
+    assert first.options[0].still_failing
+    assert any("Also shut" in m for m in first.options[0].still_failing)
+
+
 # --- what is never replaced -------------------------------------------------------------
 
 
