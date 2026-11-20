@@ -1,6 +1,6 @@
 # Alternative places plan
 
-Status: **draft for review. Nothing here is built.** No database change is proposed. Decisions for you are in section 7.
+Status: **decisions made (the recommendations in section 7). Nothing here is built.** No database change is proposed.
 
 ## 1. The problem
 
@@ -74,14 +74,14 @@ A recorded but unfavourable fact (closed that day, no wheelchair access when nee
 - It does not invent facts: no recorded hours means "hours not confirmed", not "open".
 - It does not rebalance the whole trip. It replaces **one** place at a time.
 
-## 7. Decisions for you
+## 7. Decisions (all recommendations accepted)
 
-1. **When alternatives appear.** Only for a place that fails a check or causes a conflict (recommended), or also an on-demand "find something else" on any stop?
-2. **How many to show.** Three per problem place (recommended), or more?
-3. **How far to look.** 15 km, growing once to 30 km (recommended), or stay strictly near?
-4. **Unknown hours.** A candidate with unrecorded hours may be shown, ranked lower and labelled "hours not confirmed" (recommended), or shown only when hours are recorded?
-5. **Same category only?** Prefer the same category but allow close ones (recommended), or require the same category?
-6. **Where it runs.** On the server inside the timeline response (recommended: one call, one source of truth), or a separate call the app makes when the traveler taps?
+1. **When alternatives appear. Decided: only for a failing place.** Only for a place that fails a check or causes a conflict (recommended), or also an on-demand "find something else" on any stop?
+2. **How many to show. Decided: three.** Three per problem place (recommended), or more?
+3. **How far to look. Decided: 15 km, growing once to 30 km.** 15 km, growing once to 30 km (recommended), or stay strictly near?
+4. **Unknown hours. Decided: shown, ranked lower, labelled.** A candidate with unrecorded hours may be shown, ranked lower and labelled "hours not confirmed" (recommended), or shown only when hours are recorded?
+5. **Same category only? Decided: prefer it, allow close ones.** Prefer the same category but allow close ones (recommended), or require the same category?
+6. **Where it runs. Decided: on the server, in the timeline response.** On the server inside the timeline response (recommended: one call, one source of truth), or a separate call the app makes when the traveler taps?
 
 ## 8. Steps
 
