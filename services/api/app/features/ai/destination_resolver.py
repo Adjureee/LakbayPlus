@@ -89,7 +89,12 @@ def _distinctive(name: str) -> list[str]:
         for token in _tokens(name)
         if len(token) >= 3 and token not in _COMMON_WORDS and token not in _REGION_WORDS
     ]
-    return core if len(core) >= 2 else []
+    if len(core) >= 2:
+        return core
+    # A common word can be part of a real name ("People's Park"): identify it by all
+    # of its words, which match_destinations requires typed together and in order.
+    whole = [token for token in _tokens(name) if len(token) >= 3 and token not in _REGION_WORDS]
+    return whole if len(whole) >= 2 else []
 
 
 def _within_one_edit(a: str, b: str) -> bool:
