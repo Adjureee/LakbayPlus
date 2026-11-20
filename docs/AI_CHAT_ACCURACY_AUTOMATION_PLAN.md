@@ -1,6 +1,6 @@
 # AI chat accuracy automation plan
 
-Status: **draft for review. Nothing here is built.** No database or app change is proposed. Decisions for you are in section 7.
+Status: **decisions made (the recommendations in section 7). Nothing here is built.** No database or app change is proposed.
 
 ## 1. What this is for
 
@@ -91,14 +91,14 @@ Budget: **20 calls a run**, about 80,000 tokens. That is within one day's allowa
 
 Each step ships on its own. K1 to K3 add tests that fail on a real regression; K4 and K5 only report.
 
-## 7. Decisions for you
+## 7. Decisions (all recommendations accepted)
 
-1. **Where the corpus lives.** Commit the saved replies into `services/api/tests/accuracy/` (recommended: the replay then runs for everyone, and replies carry no personal data, only guest questions about places), or keep them out of the repo.
-2. **Which model the live run uses.** **Gemini only, from the local `.env`** (recommended: it has its own daily allowance and never touches the Groq quota real users share), or the production guest endpoint (shows exactly what users get, but spends Groq tokens).
-3. **How often.** Run after each deploy by one command (recommended), plus a weekly schedule only if you want it (K5), or only by hand.
-4. **What fails the test suite.** Layers 1 to 3 fail on a real regression (recommended); the live run only reports.
-5. **The golden queries.** I draft about 25 from the catalog's categories and provinces and you read the list once (recommended), or you write them.
-6. **Ranking changes.** A changed top card is **flagged for review** (recommended), not failed.
+1. **Where the corpus lives. Decided: committed in `services/api/tests/accuracy/`.** Commit the saved replies into `services/api/tests/accuracy/` (recommended: the replay then runs for everyone, and replies carry no personal data, only guest questions about places), or keep them out of the repo.
+2. **Which model the live run uses. Decided: Gemini only, from the local `.env`.** **Gemini only, from the local `.env`** (recommended: it has its own daily allowance and never touches the Groq quota real users share), or the production guest endpoint (shows exactly what users get, but spends Groq tokens).
+3. **How often. Decided: one command after each deploy; a weekly schedule is optional (K5).** Run after each deploy by one command (recommended), plus a weekly schedule only if you want it (K5), or only by hand.
+4. **What fails the test suite. Decided: layers 1 to 3 fail on a real regression; the live run only reports.** Layers 1 to 3 fail on a real regression (recommended); the live run only reports.
+5. **The golden queries. Decided: I draft about 25, you read the list once.** I draft about 25 from the catalog's categories and provinces and you read the list once (recommended), or you write them.
+6. **Ranking changes. Decided: a changed top card is flagged for review, not failed.** A changed top card is **flagged for review** (recommended), not failed.
 
 ## 8. How we will know it works
 
