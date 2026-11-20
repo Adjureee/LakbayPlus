@@ -146,6 +146,40 @@ Future<void> _show(WidgetTester tester, Widget child) async {
   await tester.pumpAndSettle();
 }
 
+// --- alternatives for a place that does not work -----------------------------------------
+
+Map<String, dynamic> _alternativeSet({bool empty = false}) => {
+  'destination_id': 88,
+  'name': 'Museo Davao',
+  'problems': ['A 60-minute visit to Museo Davao does not fit its opening hours that day.'],
+  'options': empty
+      ? []
+      : [
+          {
+            'destination_id': 2,
+            'name': 'Garden Cafe',
+            'distance_km': 2.4,
+            'reasons': ['Same kind of place', '2.4 km from Museo Davao'],
+            'unverified': ['Opening hours are not confirmed.'],
+            'changes': ['Garden Cafe was added on day 1 at 12:30 PM.', 'Museo Davao was removed.'],
+            'still_failing': ['The return arrives after the deadline.'],
+            'destination_ids': [77, 2],
+          },
+        ],
+};
+
+TimelineData _withAlternatives({bool empty = false, Map<String, dynamic>? timeline}) =>
+    TimelineData.fromJson(
+      timeline ?? _timeline(conflict: true),
+      alternatives: [TimelineAlternativeSet.fromJson(_alternativeSet(empty: empty))],
+    );
+
+Future<void> _openTimeline(WidgetTester tester, TravelRepository repo, TimelineData data) async {
+  await _show(tester, TimelineCard(timeline: data, repo: repo));
+  await tester.tap(find.byKey(const ValueKey('timeline-view')));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -922,5 +956,160 @@ void main() {
         ]);
       });
     });
+  });
+
+  group('alternatives for a place that does not work', () {
+    const chip = ValueKey('timeline-swap-88-2');
+
+    test('they are read from the response and kept out of the saved timeline', () {
+      final result = TimelineResult.fromJson({
+        'timeline': _timeline(conflict: true),
+        'alternatives': [_alternativeSet()],
+      });
+      final set = result.timeline.alternativeSetFor(88)!;
+      expect(set.options.single.name, 'Garden Cafe');
+      expect(set.options.single.destinationIds, [77, 2]);
+      expect(set.options.single.stillFailing, ['The return arrives after the deadline.']);
+      expect(result.timeline.alternativeSetFor(77), isNull);
+      expect(result.timeline.toJson(), _timeline(conflict: true));  // raw is untouched
+      expect(TimelineData.fromJson(_timeline()).alternatives, isEmpty);
+    });
+
+    testWidgets('a conflict offers a swap once, even when a check names the same place', (
+      tester,
+    ) async {
+      final repo = _repo(MockClient((_) async => http.Response('{}', 200)));
+      await _openTimeline(tester, repo, _withAlternatives());
+      expect(find.text('Swap Museo Davao for:'), findsOneWidget);
+      expect(find.byKey(chip), findsOneWidget);
+      expect(find.text('Garden Cafe · 2.4 km'), findsOneWidget);
+      // The three generic choices are still there.
+      expect(find.byKey(const ValueKey('timeline-choice-prioritise_places')), findsOneWidget);
+    });
+
+    testWidgets('when none survived the test it says so and suggests nothing', (tester) async {
+      final repo = _repo(MockClient((_) async => http.Response('{}', 200)));
+      await _openTimeline(tester, repo, _withAlternatives(empty: true));
+      expect(find.byKey(const ValueKey('timeline-no-swap-88')), findsOneWidget);
+      expect(find.textContaining('could not find a place that fits instead of Museo Davao'),
+          findsOneWidget);
+      expect(find.byKey(chip), findsNothing);
+      expect(find.byKey(const ValueKey('timeline-choice-prioritise_places')), findsOneWidget);
+    });
+
+    testWidgets('an older timeline without alternatives shows no swap at all', (tester) async {
+      final repo = _repo(MockClient((_) async => http.Response('{}', 200)));
+      await _openTimeline(tester, repo, TimelineData.fromJson(_timeline(conflict: true)));
+      expect(find.textContaining('Swap Museo'), findsNothing);
+      expect(find.textContaining('could not find a place'), findsNothing);
+    });
+
+    testWidgets('a failed check on a place with no conflict offers the swap in the checks', (
+      tester,
+    ) async {
+      final json = {
+        ..._timeline(),
+        'checks': [
+          {
+            'id': 'activity_suitability',
+            'status': 'failed',
+            'message': 'A child is younger than a recorded minimum age.',
+            'destination_ids': [88],
+          },
+        ],
+      };
+      final repo = _repo(MockClient((_) async => http.Response('{}', 200)));
+      await _openTimeline(tester, repo, _withAlternatives(timeline: json));
+      expect(find.byKey(const ValueKey('timeline-conflict-card')), findsNothing);
+      expect(find.byKey(chip), findsOneWidget);
+    });
+
+    testWidgets('the confirmation says what changes and what is not recorded; cancel swaps '
+        'nothing', (tester) async {
+      var posts = 0;
+      final repo = _repo(MockClient((request) async {
+        if (request.url.path.endsWith('/planning/timeline')) posts++;
+        return http.Response('{}', 200);
+      }));
+      await _openTimeline(tester, repo, _withAlternatives());
+      await tester.tap(find.byKey(chip));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('timeline-swap-dialog')), findsOneWidget);
+      expect(find.text('Swap Museo Davao for Garden Cafe?'), findsOneWidget);
+      expect(find.text('• Same kind of place'), findsOneWidget);
+      expect(find.text('• Opening hours are not confirmed.'), findsOneWidget);
+      expect(find.text('• Garden Cafe was added on day 1 at 12:30 PM.'), findsOneWidget);
+      expect(find.text('Still not working after this swap:'), findsOneWidget);
+      expect(find.text('• The return arrives after the deadline.'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('timeline-swap-cancel')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('timeline-swap-dialog')), findsNothing);
+      expect(posts, 0);
+    });
+
+    testWidgets('a swap that fixes the day says so', (tester) async {
+      final fixed = _alternativeSet();
+      ((fixed['options'] as List).single as Map<String, dynamic>)['still_failing'] = <String>[];
+      final data = TimelineData.fromJson(
+        _timeline(conflict: true),
+        alternatives: [TimelineAlternativeSet.fromJson(fixed)],
+      );
+      final repo = _repo(MockClient((_) async => http.Response('{}', 200)));
+      await _openTimeline(tester, repo, data);
+      await tester.tap(find.byKey(chip));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('nothing in the itinerary is flagged'), findsOneWidget);
+      expect(find.text('Still not working after this swap:'), findsNothing);
+    });
+
+    testWidgets('confirming sends the places with the new one in position', (tester) async {
+      final posts = <Map<String, dynamic>>[];
+      final repo = _repo(MockClient((request) async {
+        final path = request.url.path.replaceFirst('/api/v1', '');
+        if (path == '/planning/timeline') {
+          posts.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response(
+            jsonEncode({'timeline': _timeline(), 'changes': ['Museo Davao was removed.']}),
+            200,
+          );
+        }
+        if (path == '/destinations/facets') return http.Response('{"groups":[]}', 200);
+        return http.Response('[]', 200);
+      }));
+      await tester.runAsync(repo.initialize);
+      // The trip's own pick (77); the replacement (catalog place 2) is not among the picks.
+      repo.toggleChatPick(
+        repo.resolveExploreTripForRecommendation(TopPlaceRecommendation.fromJson(_place)),
+      );
+      await _openTimeline(tester, repo, _withAlternatives());
+      await tester.tap(find.byKey(chip));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('timeline-swap-confirm')));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+      await tester.pumpAndSettle();
+
+      expect(posts, hasLength(1));
+      expect((posts.single['state'] as Map)['destination_ids'], [77, 2]);
+    });
+  });
+
+  test('a swap to a place the catalog does not have changes nothing and says so', () async {
+    var posts = 0;
+    final repo = _repo(MockClient((request) async {
+      final path = request.url.path.replaceFirst('/api/v1', '');
+      if (path == '/planning/timeline') posts++;
+      if (path == '/destinations/facets') return http.Response('{"groups":[]}', 200);
+      return http.Response('[]', 200);
+    }));
+    await repo.initialize();
+    await repo.reviseTimeline(const TimelineRevision(
+      destinationIds: [77, 4242],
+      bringIn: [4242],
+    ));
+    expect(posts, 0);
+    expect(repo.chatMessages.last.isError, isTrue);
+    expect(repo.chatMessages.last.text, contains('unchanged'));
   });
 }
