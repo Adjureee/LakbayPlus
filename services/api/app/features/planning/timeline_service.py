@@ -19,6 +19,12 @@ from app.features.destinations.models import (
 )
 from app.features.destinations.prices import money_text
 from app.features.destinations.region import region_status
+from app.features.planning.alternatives import (
+    FAR_KM,
+    PlaceProfile,
+    find_alternatives,
+    problem_places,
+)
 from app.features.planning.draft import _haversine_km
 from app.features.planning.schemas import PlanningPreviewRequest, PlanningState
 from app.features.planning.service import PlanningService
@@ -35,6 +41,8 @@ from app.features.planning.timeline import (
     build_timeline,
 )
 from app.features.planning.timeline_schemas import (
+    AlternativeOut,
+    AlternativeSetOut,
     Check,
     Timeline,
     TimelineRequest,
@@ -230,8 +238,81 @@ def _trip_costs(preview) -> tuple[list[CostInfo], str | None, list[str]]:
     return costs, covered_by, prompts
 
 
+def _stop_info(d, hours, exceptions, prices, state: PlanningState) -> StopInfo:
+    region = region_status(d.lat, d.lng)
+    return StopInfo(
+        destination_id=d.destination_id, name=d.name,
+        typical_visit_min_minutes=d.typical_visit_min_minutes,
+        typical_visit_max_minutes=d.typical_visit_max_minutes,
+        stay_duration_type=d.stay_duration_type,
+        hours=HoursInfo(
+            open_24_hours=d.open_24_hours, weekly=hours.get(d.destination_id, []),
+            exceptions=exceptions.get(d.destination_id, []), text=d.operating_hours),
+        operating_status=d.operating_status, booking_requirement=d.booking_requirement,
+        booking_note=d.booking_note,
+        in_region=True if region == "inside" else False if region == "outside" else None,
+        costs=stop_costs(d, prices.get(d.destination_id, []), state),
+    )
+
+
+def _profile(d, stop: StopInfo) -> PlaceProfile:
+    return PlaceProfile(
+        stop=stop, lat=float(d.lat), lng=float(d.lng), island=bool(d.island_group),
+        category=d.category, vibes=d.vibes, activities=d.activities,
+        budget_class=d.budget_class, kid_friendly=d.is_kid_friendly,
+        elderly_friendly=d.is_elderly_friendly, wheelchair_accessible=d.is_wheelchair_accessible,
+    )
+
+
+async def _alternatives(
+    session: AsyncSession, state: PlanningState, ordered, profiles, inp, timeline,
+) -> list[AlternativeSetOut]:
+    """Tested replacements for the places that do not work; nothing is loaded without one."""
+    failing = [profiles[i] for i in problem_places(timeline) if i in profiles]
+    if not failing:
+        return []
+    from app.features.planning.repository import PlanningRepository
+
+    in_trip = {d.destination_id for d in ordered}
+    near = []
+    for d in await PlanningRepository(session).list_all_active_destinations():
+        if d.destination_id in in_trip or d.lat is None or d.lng is None:
+            continue
+        if any(_haversine_km(float(d.lat), float(d.lng), p.lat, p.lng) <= FAR_KM
+               for p in failing if p.lat is not None and p.lng is not None):
+            near.append(d)
+    hours, exceptions, prices = await _records(session, [d.destination_id for d in near])
+    pool = [_profile(d, _stop_info(d, hours, exceptions, prices, state)) for d in near]
+    origin = None
+    if state.origin is not None:
+        origin = PlaceProfile(StopInfo(0, state.origin.label), lat=float(state.origin.lat),
+                              lng=float(state.origin.lng))
+    # Only what the state records: children are the one group need it carries.
+    needs = {"kids"} if state.child_ages else set()
+    order = [s.destination_id for s in inp.stops]
+    out = []
+    for entry in find_alternatives(
+        inp, profiles, pool, timeline=timeline, needs=needs, origin=origin,
+    ):
+        options = []
+        for option in entry.options:
+            ids = [option.destination_id if i == entry.destination_id else i for i in order]
+            options.append(AlternativeOut(
+                destination_id=option.destination_id, name=option.name,
+                distance_km=option.distance_km, reasons=option.reasons,
+                unverified=option.unverified,
+                changes=describe_changes(timeline, option.timeline), destination_ids=ids,
+            ))
+        out.append(AlternativeSetOut(
+            destination_id=entry.destination_id, name=entry.name, problems=entry.problems,
+            options=options,
+        ))
+    return out
+
+
 async def build_timeline_response(
     session: AsyncSession, route_service: RouteService | None, data: TimelineRequest,
+    *, with_alternatives: bool = True,
 ) -> TimelineResponse:
     state = data.state
     preview = await PlanningService(session, route_service).preview(
@@ -245,22 +326,7 @@ async def build_timeline_response(
     unavailable = [i for i in state.destination_ids if i not in by_id]
     hours, exceptions, prices = await _records(session, [d.destination_id for d in ordered])
 
-    stops = []
-    for d in ordered:
-        region = region_status(d.lat, d.lng)
-        stops.append(StopInfo(
-            destination_id=d.destination_id, name=d.name,
-            typical_visit_min_minutes=d.typical_visit_min_minutes,
-            typical_visit_max_minutes=d.typical_visit_max_minutes,
-            stay_duration_type=d.stay_duration_type,
-            hours=HoursInfo(
-                open_24_hours=d.open_24_hours, weekly=hours.get(d.destination_id, []),
-                exceptions=exceptions.get(d.destination_id, []), text=d.operating_hours),
-            operating_status=d.operating_status, booking_requirement=d.booking_requirement,
-            booking_note=d.booking_note,
-            in_region=True if region == "inside" else False if region == "outside" else None,
-            costs=stop_costs(d, prices.get(d.destination_id, []), state),
-        ))
+    stops = [_stop_info(d, hours, exceptions, prices, state) for d in ordered]
     trip_costs, meal_cover, prompts = _trip_costs(preview)
     lodging, lodging_note = _lodging(preview)
     inp = TimelineInput(
@@ -277,12 +343,17 @@ async def build_timeline_response(
         lodging=lodging, lodging_note=lodging_note,
     )
     timeline = build_timeline(inp)
+    alternatives = []
+    if with_alternatives:
+        profiles = {s.destination_id: _profile(d, s) for d, s in zip(ordered, stops, strict=True)}
+        alternatives = await _alternatives(session, state, ordered, profiles, inp, timeline)
     if unavailable:
         timeline = _with_unavailable(timeline, unavailable)
     return TimelineResponse(
         input_revision=data.input_revision, timeline=timeline,
         changes=describe_changes(data.previous, timeline) if data.previous else [],
         route_status=preview.route.status, unavailable_destination_ids=unavailable,
+        alternatives=alternatives,
     )
 
 

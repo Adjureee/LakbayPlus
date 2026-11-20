@@ -75,7 +75,7 @@ class AlternativeSet:
 # ---- which places do not work -----------------------------------------------------------
 
 
-def _problems(timeline: Timeline) -> dict[int, list[str]]:
+def problem_places(timeline: Timeline) -> dict[int, list[str]]:
     found: dict[int, list[str]] = {}
     for conflict in timeline.conflicts:
         if conflict.destination_id is not None:
@@ -242,7 +242,7 @@ def find_alternatives(
     in_trip = {s.destination_id for s in inp.stops}
     lodging_id = inp.lodging.destination_id if inp.lodging else None
     result = []
-    for failing_id, problems in _problems(before).items():
+    for failing_id, problems in problem_places(before).items():
         failing = profiles.get(failing_id)
         if failing is None or failing_id not in in_trip or failing_id == lodging_id:
             continue

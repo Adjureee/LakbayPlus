@@ -141,6 +141,29 @@ class TimelineRequest(PlanningPreviewRequest):
     include_meals: bool = True
 
 
+class AlternativeOut(BaseModel):
+    """A replacement that was tested: the whole itinerary was rebuilt with it in place."""
+
+    destination_id: int
+    name: str
+    distance_km: float
+    reasons: list[str]
+    # What is not recorded about it, never reported as fine.
+    unverified: list[str] = Field(default_factory=list)
+    # What moves in the itinerary if it is swapped in (plain sentences).
+    changes: list[str] = Field(default_factory=list)
+    # The trip's places with this one in the old one's position, ready to send as a revision.
+    destination_ids: list[int]
+
+
+class AlternativeSetOut(BaseModel):
+    destination_id: int
+    name: str
+    problems: list[str]
+    # Empty when no replacement survived the test: nothing is suggested that was not tested.
+    options: list[AlternativeOut] = Field(default_factory=list)
+
+
 class TimelineResponse(BaseModel):
     input_revision: int
     timeline: Timeline
@@ -149,3 +172,5 @@ class TimelineResponse(BaseModel):
     route_status: str = "not_requested"
     # Picks that are no longer active in the catalog: reported, never silently dropped.
     unavailable_destination_ids: list[int] = Field(default_factory=list)
+    # Tested replacements for each place that does not work; empty when none does not.
+    alternatives: list[AlternativeSetOut] = Field(default_factory=list)
