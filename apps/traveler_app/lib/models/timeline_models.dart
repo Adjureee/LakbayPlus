@@ -289,8 +289,79 @@ class TimelinePin {
   }
 }
 
+/// A replacement the server tested for a place that does not work: the whole itinerary was
+/// rebuilt with it, and what is not recorded about it is listed, never reported as fine.
+class TimelineAlternative {
+  const TimelineAlternative({
+    required this.destinationId,
+    required this.name,
+    required this.distanceKm,
+    required this.reasons,
+    required this.unverified,
+    required this.changes,
+    required this.stillFailing,
+    required this.destinationIds,
+  });
+
+  final int destinationId;
+  final String name;
+  final double distanceKm;
+  final List<String> reasons;
+  final List<String> unverified;
+
+  /// What moves in the itinerary if this is swapped in.
+  final List<String> changes;
+
+  /// What still does not work after the swap: one swap fixes one place, not the whole day.
+  final List<String> stillFailing;
+
+  /// The trip's places with this one in the old one's position, to send as a revision.
+  final List<int> destinationIds;
+
+  factory TimelineAlternative.fromJson(Map<String, dynamic> json) => TimelineAlternative(
+    destinationId: (json['destination_id'] as num?)?.toInt() ?? 0,
+    name: json['name']?.toString() ?? '',
+    distanceKm: (json['distance_km'] as num?)?.toDouble() ?? 0,
+    reasons: _strings(json['reasons']),
+    unverified: _strings(json['unverified']),
+    changes: _strings(json['changes']),
+    stillFailing: _strings(json['still_failing']),
+    destinationIds: (json['destination_ids'] as List<dynamic>? ?? const [])
+        .whereType<num>()
+        .map((e) => e.toInt())
+        .toList(),
+  );
+}
+
+/// The tested replacements for one place that does not work. An empty list of options
+/// means none survived the test; nothing untested is ever suggested.
+class TimelineAlternativeSet {
+  const TimelineAlternativeSet({
+    required this.destinationId,
+    required this.name,
+    required this.problems,
+    required this.options,
+  });
+
+  final int destinationId;
+  final String name;
+  final List<String> problems;
+  final List<TimelineAlternative> options;
+
+  factory TimelineAlternativeSet.fromJson(Map<String, dynamic> json) => TimelineAlternativeSet(
+    destinationId: (json['destination_id'] as num?)?.toInt() ?? 0,
+    name: json['name']?.toString() ?? '',
+    problems: _strings(json['problems']),
+    options: _maps(json['options']).map(TimelineAlternative.fromJson).toList(),
+  );
+}
+
+List<String> _strings(Object? value) =>
+    (value as List<dynamic>? ?? const []).map((e) => e.toString()).toList();
+
 class TimelineData {
   TimelineData._({
+    this.alternatives = const [],
     required this.raw,
     required this.days,
     required this.conflicts,
@@ -317,7 +388,18 @@ class TimelineData {
   /// The pins that were in effect when this timeline was built.
   final List<TimelinePin> pins;
 
-  factory TimelineData.fromJson(Map<String, dynamic> json) => TimelineData._(
+  /// Tested replacements from the latest build, in memory only: they are not part of the
+  /// saved timeline (`raw`), because they depend on the catalog at the moment of the build.
+  final List<TimelineAlternativeSet> alternatives;
+
+  TimelineAlternativeSet? alternativeSetFor(int destinationId) =>
+      alternatives.where((a) => a.destinationId == destinationId).firstOrNull;
+
+  factory TimelineData.fromJson(
+    Map<String, dynamic> json, {
+    List<TimelineAlternativeSet> alternatives = const [],
+  }) => TimelineData._(
+    alternatives: alternatives,
     raw: json,
     days: _maps(json['days']).map(TimelineDay.fromJson).toList(),
     conflicts: _maps(json['conflicts']).map(TimelineConflict.fromJson).toList(),
@@ -363,7 +445,10 @@ class TimelineResult {
   final List<int> unavailableDestinationIds;
 
   factory TimelineResult.fromJson(Map<String, dynamic> json) => TimelineResult(
-    timeline: TimelineData.fromJson(json['timeline'] as Map<String, dynamic>),
+    timeline: TimelineData.fromJson(
+      json['timeline'] as Map<String, dynamic>,
+      alternatives: _maps(json['alternatives']).map(TimelineAlternativeSet.fromJson).toList(),
+    ),
     changes: (json['changes'] as List<dynamic>? ?? const []).map((e) => e.toString()).toList(),
     routeStatus: json['route_status']?.toString() ?? 'not_requested',
     unavailableDestinationIds: (json['unavailable_destination_ids'] as List<dynamic>? ?? const [])
@@ -428,6 +513,7 @@ class TimelineRevision {
     this.dayCount,
     this.pace,
     this.destinationIds,
+    this.bringIn,
     this.pins,
   });
 
@@ -439,6 +525,10 @@ class TimelineRevision {
 
   /// The places kept, in order; removing one is the traveler's own choice.
   final List<int>? destinationIds;
+
+  /// Places in [destinationIds] that are not among the picks yet and come from the catalog:
+  /// the replacement in a swap. Everything else in the list is only kept or removed.
+  final List<int>? bringIn;
 
   /// The full set of pins after the change; null leaves them as they are.
   final List<TimelinePin>? pins;

@@ -4365,10 +4365,46 @@ class TravelRepository extends ChangeNotifier {
       }
     }
     if (revision.destinationIds != null) {
-      final keep = revision.destinationIds!.toSet();
+      final wanted = revision.destinationIds!;
+      final keep = wanted.toSet();
+      // A swap brings in a place that is not among the picks yet: it must be in the
+      // catalog, or nothing is changed at all.
+      final incoming = <ExploreTrip>[];
+      for (final id in revision.bringIn ?? const <int>[]) {
+        if (_tripBuilderStops.any((s) => s.apiDestinationId == id)) continue;
+        final place = _allTrips.where((t) => t.apiDestinationId == id).firstOrNull;
+        if (place == null) {
+          _chatMessages.add(
+            ChatMessage(
+              id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
+              isUser: false,
+              text: "I couldn't find that place in your catalog just now, so your itinerary "
+                  'is unchanged.',
+              timestamp: DateTime.now(),
+              isError: true,
+            ),
+          );
+          notifyListeners();
+          return;
+        }
+        incoming.add(place);
+      }
       _tripBuilderStops.removeWhere(
         (s) => s.apiDestinationId != null && !keep.contains(s.apiDestinationId),
       );
+      if (incoming.isNotEmpty) {
+        // The new place takes the position the list gives it; other stops keep theirs.
+        _tripBuilderStops.addAll(incoming);
+        final byId = {
+          for (final s in _tripBuilderStops)
+            if (s.apiDestinationId != null) s.apiDestinationId!: s,
+        };
+        final others = _tripBuilderStops.where((s) => s.apiDestinationId == null).toList();
+        _tripBuilderStops
+          ..clear()
+          ..addAll([for (final id in wanted) if (byId[id] != null) byId[id]!])
+          ..addAll(others);
+      }
       state['destination_ids'] = [
         for (final stop in _tripBuilderStops)
           if (stop.apiDestinationId != null) stop.apiDestinationId!,
