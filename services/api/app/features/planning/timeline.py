@@ -45,6 +45,10 @@ DINNER_FROM, DINNER_MINUTES = 18 * 60, 60
 BUFFER_MINUTES = 15
 REST_AFTER, REST_MINUTES = 180, 20
 PACE_FACTORS = {"relaxed": 1.25, "balanced": 1.0, "packed": 0.85}
+# A straight-line estimate is only a planning basis: an assumed average road speed with a
+# detour factor. It is labelled "estimated" and never used for a place on an island.
+ESTIMATE_SPEED_KMH = 35.0
+ESTIMATE_DETOUR = 1.3
 _RANK = {"confirmed": 0, "estimated": 1, "provisional": 2, "unknown": 3}
 
 
