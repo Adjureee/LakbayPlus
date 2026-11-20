@@ -418,6 +418,7 @@ def test_a_closed_place_comes_back_with_tested_alternatives(client) -> None:
     assert any("Open Thursday" in r for r in option["reasons"])
     assert any("km from Eden Nature Park" in r for r in option["reasons"])
     assert option["changes"]
+    assert option["still_failing"] == []  # the day is fixed by this swap
 
 
 def test_a_trip_with_no_problem_has_no_alternatives_and_loads_nothing_extra(client) -> None:
