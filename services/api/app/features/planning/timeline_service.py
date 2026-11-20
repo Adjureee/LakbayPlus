@@ -23,6 +23,8 @@ from app.features.planning.draft import _haversine_km
 from app.features.planning.schemas import PlanningPreviewRequest, PlanningState
 from app.features.planning.service import PlanningService
 from app.features.planning.timeline import (
+    ESTIMATE_DETOUR,
+    ESTIMATE_SPEED_KMH,
     CostInfo,
     HoursInfo,
     LegInfo,
@@ -40,10 +42,6 @@ from app.features.planning.timeline_schemas import (
 )
 from app.features.routes.service import RouteService
 
-# A straight-line estimate is only a planning basis: an assumed average road speed with a
-# detour factor. It is labelled "estimated" and never used for a place on an island.
-ESTIMATE_SPEED_KMH = 35.0
-ESTIMATE_DETOUR = 1.3
 _BUDGET_CATEGORIES = {"transportation", "accommodation", "food", "other"}
 _STATUS_FROM_SOURCE = {
     "catalog_price_with_verified_basis": "known",
