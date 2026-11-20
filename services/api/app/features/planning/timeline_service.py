@@ -300,7 +300,7 @@ async def _alternatives(
             options.append(AlternativeOut(
                 destination_id=option.destination_id, name=option.name,
                 distance_km=option.distance_km, reasons=option.reasons,
-                unverified=option.unverified,
+                unverified=option.unverified, still_failing=option.still_failing,
                 changes=describe_changes(timeline, option.timeline), destination_ids=ids,
             ))
         out.append(AlternativeSetOut(

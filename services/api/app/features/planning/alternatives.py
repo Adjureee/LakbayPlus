@@ -62,6 +62,9 @@ class Alternative:
     reasons: list[str]  # plain words: why it was offered
     unverified: list[str]  # what is not recorded, never reported as fine
     timeline: Timeline  # the whole itinerary with the swap in place
+    # What still does not work after the swap (a swap fixes one place, not the whole day):
+    # the conflicts and failed checks left in `timeline`, in plain words.
+    still_failing: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -181,6 +184,13 @@ def _survives(before: Timeline, after: Timeline, cand_id: int) -> bool:
     return all(c.id in failed_before for c in after.checks if c.status == "failed")
 
 
+def remaining_problems(timeline: Timeline) -> list[str]:
+    """Plain sentences for every conflict and failed check left in a timeline."""
+    messages = [c.message for c in timeline.conflicts]
+    messages += [c.message for c in timeline.checks if c.status == "failed"]
+    return list(dict.fromkeys(messages))
+
+
 def _hours_note(stop: StopInfo, start: date | None) -> tuple[str | None, str | None]:
     """(a reason, or what is not recorded) from the recorded hours on the travel date."""
     if start is None:
@@ -270,7 +280,7 @@ def find_alternatives(
                 reasons, unverified = _reasons(failing, cand, km, needs, inp.start_date)
                 entry.options.append(Alternative(
                     cand.stop.destination_id, cand.stop.name, round(km, 1), reasons,
-                    unverified, after))
+                    unverified, after, remaining_problems(after)))
             if len(entry.options) >= MAX_ALTERNATIVES:
                 break
         result.append(entry)
