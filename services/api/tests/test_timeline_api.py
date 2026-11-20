@@ -373,3 +373,80 @@ def test_without_a_chosen_stay_the_night_is_marked_not_chosen(client) -> None:
     assert _items(body, "overnight")[0]["label"] == "Overnight (place to stay not chosen)"
     checks = {c["id"]: c["status"] for c in body["timeline"]["checks"]}
     assert checks["overnight_stay"] == "cannot_verify"
+
+
+# --- alternatives for a place that does not work -----------------------------------------
+
+THURSDAY = "2026-11-19"  # weekday 3
+
+
+def _hours(client, admin, destination_id, *, closed_thursday):
+    rows = [{"weekday": d, "opens_at": "09:00:00", "closes_at": "17:00:00"}
+            for d in range(7) if not (closed_thursday and d == 3)]
+    if closed_thursday:
+        rows.append({"weekday": 3, "is_closed": True})
+    saved = client.put(f"/api/v1/destinations/{destination_id}/hours", headers=admin, json={
+        "weekly": rows, "hours_verified_at": "2026-11-01T00:00:00+08:00"})
+    assert saved.status_code == 200, saved.text
+
+
+def _near(client, admin, name, *, lat, **fields):
+    return create_destination(client, headers=admin, name=name, lat=lat, lng=125.4,
+                              typical_visit_min_minutes=60, typical_visit_max_minutes=60,
+                              **fields)["destination_id"]
+
+
+def test_a_closed_place_comes_back_with_tested_alternatives(client) -> None:
+    admin, eden, museo = _places(client)
+    _hours(client, admin, eden, closed_thursday=True)
+    garden = _near(client, admin, "Garden", lat=7.16)
+    _hours(client, admin, garden, closed_thursday=False)
+    shut = _near(client, admin, "Shut Garden", lat=7.151)
+    _hours(client, admin, shut, closed_thursday=True)
+    body = client.post(URL, json={"state": {
+        "destination_ids": [eden, museo], "travel_start_date": THURSDAY,
+        "departure_time": "08:00:00",
+        "origin": {"label": "Davao City", "lat": 7.07, "lng": 125.6},
+    }}).json()
+    (entry,) = body["alternatives"]
+    assert entry["destination_id"] == eden and entry["name"] == "Eden Nature Park"
+    assert entry["problems"]
+    ids = [o["destination_id"] for o in entry["options"]]
+    assert garden in ids and shut not in ids and museo not in ids
+    option = next(o for o in entry["options"] if o["destination_id"] == garden)
+    assert option["destination_ids"] == [garden, museo]  # ready to send as a revision
+    assert any("Open Thursday" in r for r in option["reasons"])
+    assert any("km from Eden Nature Park" in r for r in option["reasons"])
+    assert option["changes"]
+
+
+def test_a_trip_with_no_problem_has_no_alternatives_and_loads_nothing_extra(client) -> None:
+    admin, eden, museo = _places(client)
+    _hours(client, admin, eden, closed_thursday=False)
+    _hours(client, admin, museo, closed_thursday=False)
+    body = client.post(URL, json={"state": {
+        "destination_ids": [eden, museo], "travel_start_date": THURSDAY,
+        "departure_time": "08:00:00",
+        "origin": {"label": "Davao City", "lat": 7.07, "lng": 125.6},
+    }}).json()
+    assert body["alternatives"] == []
+
+
+def test_a_problem_with_no_survivor_is_reported_with_an_empty_list(client) -> None:
+    admin, eden, museo = _places(client)
+    _hours(client, admin, eden, closed_thursday=True)
+    body = client.post(URL, json={"state": {
+        "destination_ids": [eden, museo], "travel_start_date": THURSDAY,
+        "departure_time": "08:00:00",
+        "origin": {"label": "Davao City", "lat": 7.07, "lng": 125.6},
+    }}).json()
+    (entry,) = body["alternatives"]
+    assert entry["destination_id"] == eden and entry["options"] == []
+
+
+def test_saving_a_trip_revision_does_not_compute_alternatives() -> None:
+    import inspect
+
+    from app.features.trips import timeline_service as trips
+
+    assert "with_alternatives=False" in inspect.getsource(trips.TripTimelineService.save)
