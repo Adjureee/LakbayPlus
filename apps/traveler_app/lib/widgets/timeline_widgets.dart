@@ -196,7 +196,7 @@ class TimelineScreen extends StatelessWidget {
           ],
           for (final day in timeline.days) _DaySection(day: day, timeline: timeline),
           const SizedBox(height: 8),
-          _ChecksPanel(checks: timeline.checks),
+          _ChecksPanel(checks: timeline.checks, timeline: timeline, repo: repo),
           const SizedBox(height: 16),
           _BudgetPanel(budget: timeline.budget),
           if (timeline.assumptions.isNotEmpty) ...[
@@ -248,6 +248,11 @@ class _ConflictCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(conflict.message),
             ),
+          for (final id in {
+            for (final c in timeline.conflicts)
+              if (c.destinationId != null) c.destinationId!,
+          })
+            _SwapOptions(destinationId: id, timeline: timeline, repo: repo),
           const SizedBox(height: 4),
           const Text(
             'Nothing has been removed. Choose what to change:',
@@ -446,10 +451,127 @@ class _BasisChip extends StatelessWidget {
   }
 }
 
+/// Tested replacements for one place that does not work, as chips; tapping one asks first.
+class _SwapOptions extends StatelessWidget {
+  const _SwapOptions({
+    required this.destinationId,
+    required this.timeline,
+    required this.repo,
+  });
+
+  final int destinationId;
+  final TimelineData timeline;
+  final TravelRepository repo;
+
+  @override
+  Widget build(BuildContext context) {
+    final set = timeline.alternativeSetFor(destinationId);
+    // No alternatives came with this timeline (an older one): offer nothing.
+    if (set == null) return const SizedBox.shrink();
+    if (set.options.isEmpty) {
+      return Padding(
+        key: ValueKey('timeline-no-swap-$destinationId'),
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          'We could not find a place that fits instead of ${set.name}.',
+          style: const TextStyle(fontSize: 13),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Swap ${set.name} for:', style: const TextStyle(fontSize: 13)),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              for (final option in set.options)
+                ActionChip(
+                  key: ValueKey('timeline-swap-$destinationId-${option.destinationId}'),
+                  label: Text('${option.name} · ${option.distanceKm.toStringAsFixed(1)} km'),
+                  onPressed: () => _confirmSwap(context, set, option, repo),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shows what the swap changes and what is not recorded, then swaps only on a tap.
+Future<void> _confirmSwap(
+  BuildContext context,
+  TimelineAlternativeSet set,
+  TimelineAlternative option,
+  TravelRepository repo,
+) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      key: const ValueKey('timeline-swap-dialog'),
+      title: Text('Swap ${set.name} for ${option.name}?'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final r in option.reasons) Text('• $r'),
+            if (option.unverified.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              const Text('Not recorded:', style: TextStyle(fontWeight: FontWeight.w700)),
+              for (final u in option.unverified) Text('• $u'),
+            ],
+            if (option.changes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              const Text('What changes:', style: TextStyle(fontWeight: FontWeight.w700)),
+              for (final c in option.changes) Text('• $c'),
+            ],
+            const SizedBox(height: 8),
+            if (option.stillFailing.isEmpty)
+              const Text('After this swap, nothing in the itinerary is flagged as not fitting.')
+            else ...[
+              const Text(
+                'Still not working after this swap:',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              for (final p in option.stillFailing) Text('• $p'),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          key: const ValueKey('timeline-swap-cancel'),
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const ValueKey('timeline-swap-confirm'),
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('Swap'),
+        ),
+      ],
+    ),
+  );
+  if (ok == true) {
+    repo.reviseTimeline(TimelineRevision(
+      destinationIds: option.destinationIds,
+      bringIn: [option.destinationId],
+    ));
+  }
+}
+
 class _ChecksPanel extends StatelessWidget {
-  const _ChecksPanel({required this.checks});
+  const _ChecksPanel({required this.checks, required this.timeline, required this.repo});
 
   final List<TimelineCheck> checks;
+  final TimelineData timeline;
+  final TravelRepository repo;
 
   @override
   Widget build(BuildContext context) {
@@ -471,7 +593,17 @@ class _ChecksPanel extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             leading: Icon(_statusIcon(check.status), color: _statusColor(check.status)),
             title: Text(_checkTitles[check.id] ?? check.id),
-            subtitle: Text('${_statusText(check.status)}: ${check.message}'),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${_statusText(check.status)}: ${check.message}'),
+                // A place already offered in the conflict card is not offered twice.
+                if (check.status == 'failed')
+                  for (final id in check.destinationIds)
+                    if (!timeline.conflicts.any((c) => c.destinationId == id))
+                      _SwapOptions(destinationId: id, timeline: timeline, repo: repo),
+              ],
+            ),
           ),
       ],
     );
