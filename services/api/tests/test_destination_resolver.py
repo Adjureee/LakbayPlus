@@ -95,3 +95,28 @@ def test_a_name_made_only_of_generic_words_matches_when_its_words_are_typed_toge
     assert [m.destination_id for m in match_destinations("add the national museum", catalog)] == [1]
     # One generic word is not enough: "museum" alone names no single place.
     assert match_destinations("any museum nearby?", catalog) == []
+
+
+_PEOPLES_PARK = [(1, "People's Park"), (2, "Rizal Park Digos")]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "add People's Park to my trip",
+        "I want to visit People’s Park",
+        "how much is the entrance to peoples park?",
+    ],
+)
+def test_a_name_with_a_common_word_matches_when_typed_whole(message):
+    assert [m.destination_id for m in match_destinations(message, _PEOPLES_PARK)] == [1]
+    pick = pick_single_destination(message, _PEOPLES_PARK)
+    assert pick is not None and pick.destination_id == 1
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["a park for people", "people by the park", "any park nearby?", "lots of people"],
+)
+def test_scattered_words_of_a_common_word_name_never_match(message):
+    assert match_destinations(message, _PEOPLES_PARK) == []
