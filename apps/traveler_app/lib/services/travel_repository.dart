@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/timeline_models.dart';
 import '../models/travel_models.dart';
+import 'analytics_service.dart';
 import 'cloudinary_service.dart';
 import 'google_auth_service.dart';
 import 'lakbay_ai_service.dart';
@@ -33,11 +34,22 @@ class TravelRepository extends ChangeNotifier {
     LocationService? locationService,
     GoogleAuthService? googleAuthService,
     PushNotificationService? pushService,
+    AnalyticsService? analytics,
   })  : apiCatalog = apiCatalog ?? LakbayApiCatalogService(),
         locationService = locationService ?? LocationService(),
         googleAuthService = googleAuthService ?? GoogleAuthService(),
-        pushService = pushService ?? PushNotificationService() {
+        pushService = pushService ?? PushNotificationService(),
+        analytics = analytics ?? AnalyticsService() {
     this.apiCatalog.onUnauthorizedRefresh = _refreshAuthAccessToken;
+  }
+
+  /// Anonymous usage counts; does nothing unless Firebase is set up.
+  final AnalyticsService analytics;
+  bool get analyticsEnabled => analytics.enabled;
+
+  Future<void> setAnalyticsEnabled(bool enabled) async {
+    await analytics.setEnabled(enabled);
+    notifyListeners();
   }
 
   final MapboxService mapbox = MapboxService();
@@ -357,6 +369,7 @@ class TravelRepository extends ChangeNotifier {
       }
     } else if (_tripBuilderStops.length < maxTripBuilderStops) {
       _tripBuilderStops.add(stop);
+      analytics.placeAdded();
     }
     notifyListeners();
   }
@@ -2611,6 +2624,7 @@ class TravelRepository extends ChangeNotifier {
   }
 
   void completeOnboarding() {
+    if (!_hasCompletedOnboarding) analytics.onboardingDone();
     _hasCompletedOnboarding = true;
     _scheduleSaveState();
     notifyListeners();
@@ -2652,6 +2666,7 @@ class TravelRepository extends ChangeNotifier {
       _savedTrips[existingIdx] = trip;
     } else {
       _savedTrips.insert(0, trip);
+      analytics.tripSaved(days: trip.daysCount);
     }
     _scheduleSaveState();
     notifyListeners();
@@ -4684,6 +4699,26 @@ class TravelRepository extends ChangeNotifier {
   /// the AI cannot be reached the traveler sees an error and can retry; the
   /// app never substitutes an invented itinerary.
   Future<void> sendChatMessage(String text, {bool isOnboarding = false}) async {
+    if (text.trim().isEmpty) return;
+    await _deliverChatMessage(text, isOnboarding: isOnboarding);
+    _recordChatReply();
+  }
+
+  /// Counts the answer for the anonymous usage numbers: only how many cards or
+  /// itinerary options it carried, never its text.
+  void _recordChatReply() {
+    if (_chatMessages.isEmpty || _chatMessages.last.isUser) return;
+    final reply = _chatMessages.last;
+    if (reply.isError) return;
+    analytics.chatReply(
+      cards: reply.recommendedPlaces.length + reply.aiOptions.length,
+    );
+  }
+
+  Future<void> _deliverChatMessage(
+    String text, {
+    bool isOnboarding = false,
+  }) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
 

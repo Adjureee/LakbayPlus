@@ -37,6 +37,15 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Usage counts and crash reports start OFF. The app turns them on after it
+             reads the traveler's choice in Settings (AnalyticsService), so someone who
+             opted out is never counted, not even at startup. -->
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
