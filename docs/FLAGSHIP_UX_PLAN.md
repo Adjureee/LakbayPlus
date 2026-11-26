@@ -56,7 +56,7 @@ A change that does not strengthen this sentence, or remove friction from it, wai
 
 | # | Finding | Where |
 |---|---|---|
-| R1 | Four ways to start a trip (**corrected 28 Nov: three already go to chat; the tray sheet is a deliberate no-AI planner, so F2 became "two named doors"**): chat "Plan it", the Discover trip tray, the My Trips "+" form, the first-run wizard | `home_chat_screen.dart`, `explore_screen.dart:657`, `my_trips_screen.dart:31`, `yes_ai_onboarding_flow.dart` |
+| R1 | Four ways to start a trip (**corrected 27 Nov: three already go to chat; the tray sheet is a deliberate no-AI planner, so F2 became "two named doors"**): chat "Plan it", the Discover trip tray, the My Trips "+" form, the first-run wizard | `home_chat_screen.dart`, `explore_screen.dart:657`, `my_trips_screen.dart:31`, `yes_ai_onboarding_flow.dart` |
 | R2 | The first trip is shown twice: a hero card and again in the list | `my_trips_screen.dart:159,270` (`heroTrip = allTrips.first`, list built from `allTrips`) |
 | R3 | Repeated words: "Davao del Norte • Davao Del Norte", "TOP DAVAO PICK … TOP DA…" | Trips and Discover screenshots |
 
@@ -114,7 +114,7 @@ Covers R2, R3, X1 to X5, X9, X10. No schema, no backend, no new screens.
 - **Done when:** the string scan passes, no duplicated hero row, delete can be undone.
 
 ### F2: Two clearly named doors (S) — scope changed after reading the code
-**Original idea:** make chat the single way to start a trip. **What the code showed (28 Nov):** three of the four paths already end in chat. The My Trips "+" form and Discover city search call `planInChat`, and the first-run wizard runs through the chat pipeline. The fourth, the Discover tray's "Plan Your Route" sheet, is a separate planner built on purpose with no AI (`isCatalogFallback`, "Lakbay Catalog Planner (No AI)"): it spends no model quota and offers pace, lock-first-stop and must-visit options. Removing it would delete the app's only no-AI planner, so R1 was overstated. **Decision (you, 28 Nov): keep both and name them by what they do.**
+**Original idea:** make chat the single way to start a trip. **What the code showed (27 Nov):** three of the four paths already end in chat. The My Trips "+" form and Discover city search call `planInChat`, and the first-run wizard runs through the chat pipeline. The fourth, the Discover tray's "Plan Your Route" sheet, is a separate planner built on purpose with no AI (`isCatalogFallback`, "Lakbay Catalog Planner (No AI)"): it spends no model quota and offers pace, lock-first-stop and must-visit options. Removing it would delete the app's only no-AI planner, so R1 was overstated. **Decision (you, 27 Nov): keep both and name them by what they do.**
 - **Door 1, "Plan with Lakbay AI":** the My Trips "+" sheet is titled "Plan a trip with Lakbay AI" (was "Create Davao Region Trip"), the "+" tooltip says "Plan a trip" (was "Create Trip"), and the form still hands off to chat.
 - **Door 2, "Build my trip (no AI)":** in the tray sheet the main button reads "Build my N-day trip (no AI)" (was "Optimize & Create N-Day Trip") and the busy text "Building your trip..." (was "Optimizing & Refining Route..."). The second button reads "Plan it with Lakbay AI instead" (was "Improve with AI", which wrongly sounded like editing an existing trip). The sheet subtitle says "Build it yourself, or let Lakbay AI plan it".
 - Both doors end on the trip screen (the tray pushes `TripDetailScreen`; a chat plan opens the same screen from its trip card).
@@ -123,7 +123,7 @@ Covers R2, R3, X1 to X5, X9, X10. No schema, no backend, no new screens.
 - **Done when:** both doors are named by what they do and neither uses jargon ("Optimize", "Improve with AI" for planning).
 
 ### F3: Trust: prices and photos (M, needs data work)
-Addresses X6, X7, X8. **Status (28 Nov): built on `feat/ux-f3`, one item deliberately not done.**
+Addresses X6, X7, X8. **Status (27 Nov): built on `feat/ux-f3`, one item deliberately not done.**
 - **Photos (X7), done.** The code showed the cause: any place without its own photo got `davaoBackdropAssetFor`'s loose keyword guess, and anything unmatched got People's Park's photo (e.g. "Huyong-huyong Nature Park" got Eden's, "Pyalitan Falls" got Aliwagwag's). Cards also fell back to the home background. Now `ownPhotoAssetFor` matches only the 10 places that are a bundled photo's own subject, and everything else shows `PlacePhotoPlaceholder`, an illustration tinted for the kind of place (`lib/core/place_kinds.dart` reads the free-text category). The loading state no longer flashes a regional photo either.
 - **Travel time (X6, part), done.** "~34 min" now reads "~34 min from Tubaon" (`repo.travelTimeLabel`).
 - **Chat boilerplate (X8), done.** "Here are top Beach Resort spots from the catalog (tap + Add to plan from them):" is now "Top Beach Resort places. Tap + Add to start a trip with them."
