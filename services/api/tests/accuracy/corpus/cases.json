@@ -381,6 +381,51 @@
   }
  },
  {
+  "id": "resort-for-museum-request",
+  "note": "26 Nov live run: a heritage beach resort shown for 'any other museums?' (fixed by the museums sub-type).",
+  "text": "any other museums?",
+  "body": {
+   "chat_response": "Here are 3 places that match what you asked for: D' Bone Collector Museum, Museo Dabawenyo and Pearl Farm Beach Resort.",
+   "seconds": 5.1,
+   "planning": {
+    "update_status": "applied",
+    "recommendations": [
+     {
+      "destination_id": 33,
+      "name": "D' Bone Collector Museum",
+      "district": "Davao City"
+     },
+     {
+      "destination_id": 14,
+      "name": "Museo Dabawenyo",
+      "district": "Davao City"
+     },
+     {
+      "destination_id": 60,
+      "name": "Pearl Farm Beach Resort",
+      "district": "Davao Del Norte"
+     }
+    ]
+   }
+  },
+  "expect_failed": [
+   "category_match"
+  ],
+  "state": {
+   "destination_ids": [
+    15
+   ]
+  },
+  "step": {
+   "cards_category": [
+    "museum",
+    "museo",
+    "cultural",
+    "historical"
+   ]
+  }
+ },
+ {
   "id": "right-category",
   "note": "A beach resort for a beach request.",
   "text": "show me beach resorts",

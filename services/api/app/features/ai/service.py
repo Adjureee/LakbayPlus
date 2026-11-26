@@ -4,10 +4,12 @@ import re
 from datetime import date, datetime
 from decimal import Decimal
 from time import perf_counter
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import status
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
@@ -35,12 +37,16 @@ from app.features.ai.destination_resolver import (
     match_destinations,
     pick_single_destination,
 )
-from app.features.ai.geo_context import selected_geo_inputs
+from app.features.ai.geo_context import (
+    compute_geographic_itinerary_plan,
+    selected_geo_inputs,
+)
 from app.features.ai.repository import AIItineraryRepository
 from app.features.ai.rag import VectorRAGRetriever
 from app.features.ai.schemas import (
     AIChatRequest,
     AIChatResponse,
+    AIItineraryOption,
     AIPlaceQuery,
     AIPlanningChatOutput,
     AIPlanningChatResult,
@@ -83,8 +89,16 @@ from app.features.recommendations.service import (
     RecommendationService,
     planning_recommendation_from_top_place,
 )
+from app.features.routes.day_planner import (
+    StopPlanInput,
+    normalize_island_group,
+    plan_multi_day_route,
+)
+from app.features.routes.multimodal import network_from_links
 from app.features.routes.schemas import RouteCoordinate
+from app.features.routes.sea_planner import PlannerPoint, haversine_km
 from app.features.routes.service import RouteService
+from app.features.sea_links.repository import SeaLinkRepository
 from app.features.transportations.models import Transportation
 from app.features.users.models import User
 from app.integrations.groq.client import GroqClient
@@ -251,8 +265,22 @@ class AIItineraryService:
 
         geo_analytics_context = None
         route_destination_order = None
+        origin_pt: PlannerPoint | None = None
+        travel_mode = "driving"
         if planning_preview is not None:
             route = planning_preview.route
+            if route.travel_mode:
+                travel_mode = route.travel_mode
+            if (
+                planning_preview.state.origin is not None
+                and planning_preview.state.origin.lat is not None
+                and planning_preview.state.origin.lng is not None
+            ):
+                origin_pt = PlannerPoint(
+                    lat=float(planning_preview.state.origin.lat),
+                    lng=float(planning_preview.state.origin.lng),
+                    island_group=None,
+                )
             if route.status == "calculated" and route.summary is not None:
                 route_destination_order = tuple(
                     stop.destination_id
@@ -273,6 +301,28 @@ class AIItineraryService:
                 scored_groups=scored_groups,
             )
 
+        network = None
+        if len(destinations) >= 2:
+            network = network_from_links(await SeaLinkRepository(self.session).list_active_links())
+        geo_plan = compute_geographic_itinerary_plan(
+            destinations=destinations,
+            day_count=data.day_count,
+            origin=origin_pt,
+            network=network,
+            travel_mode=travel_mode,
+        )
+        if route_destination_order is None and len(destinations) >= 2:
+            route_destination_order = geo_plan.ordered_destination_ids
+
+        geographic_guidance = (
+            {
+                "suggested_day_clusters": geo_plan.suggested_day_clusters,
+                "consecutive_legs": geo_plan.consecutive_legs,
+            }
+            if geo_plan.suggested_day_clusters
+            else None
+        )
+
         selections = self._select_models(settings=settings, data=data)
         catalog_payload = _build_catalog_payload(
             destinations=destinations,
@@ -292,6 +342,8 @@ class AIItineraryService:
             minimum_option_count=settings.ai_itinerary_option_count,
             required_destination_ids=set(data.destination_ids),
             route_destination_order=route_destination_order,
+            destination_coords=geo_plan.destination_coords,
+            destination_island_groups=geo_plan.destination_island_groups,
             required_accommodation_ids=set(data.accommodation_ids) if planning_preview else None,
             required_transportation_ids=set(data.transportation_ids) if planning_preview else None,
             accommodation_destination_ids={
@@ -308,6 +360,7 @@ class AIItineraryService:
             planning_preview=planning_preview,
             geo_analytics_context=geo_analytics_context,
             route_destination_order=route_destination_order,
+            geographic_guidance=geographic_guidance,
         )
         quality_warnings = _itinerary_quality_warnings(
             destinations=destinations,
@@ -334,6 +387,7 @@ class AIItineraryService:
                     planning_preview=planning_preview,
                     geo_analytics_context=geo_analytics_context,
                     quality_warnings=quality_warnings,
+                    destinations=destinations,
                 )
             except LakbayAPIError as exc:
                 # On a rate limit, try the next (fallback) selection if there is one.
@@ -663,7 +717,18 @@ class AIItineraryService:
         selections = self._select_chat_models(
             settings=settings, model_role="default", allow_fallback=True,
         )
-        names = [name for _, name in await self.ai.list_active_destination_names()]
+        active_dest_result = await self.session.execute(
+            select(Destination)
+            .where(Destination.is_active.is_(True))
+            .order_by(Destination.destination_id)
+        )
+        active_destinations = list(active_dest_result.scalars().all())
+        names = [dest.name for dest in active_destinations]
+        network = (
+            network_from_links(await SeaLinkRepository(self.session).list_active_links())
+            if len(active_destinations) >= 2
+            else None
+        )
         messages = build_trip_draft_messages(
             request=data, catalog_names=names[:TRIP_DRAFT_CATALOG_LIMIT],
         )
@@ -715,6 +780,10 @@ class AIItineraryService:
                 continue
 
             draft = _parse_trip_draft(completion.content)
+            if draft is not None and active_destinations:
+                draft = _ground_trip_draft(
+                    draft, active_destinations, network=network,
+                )
             await self.ai.update_generation_run(
                 run,
                 status="succeeded" if draft is not None else "failed",
@@ -780,6 +849,7 @@ class AIItineraryService:
         planning_preview: PlanningPreviewResponse | None = None,
         geo_analytics_context: dict | None = None,
         quality_warnings: list[str] | None = None,
+        destinations: list[Destination] | None = None,
     ) -> AIModelRunResult:
         settings = get_settings()
         if user is not None:
@@ -848,6 +918,11 @@ class AIItineraryService:
                     catalog=catalog,
                 )
             response_time_ms = _elapsed_ms(started_at)
+            if destinations:
+                options = _hydrate_option_coordinates(
+                    options=options,
+                    destinations=destinations,
+                )
             options = [
                 option.model_copy(update={"quality_warnings": list(quality_warnings or [])})
                 for option in options
@@ -920,6 +995,63 @@ class AIItineraryService:
             return _build_run_result(run=updated_run, options=[])
 
 
+def _hydrate_option_coordinates(
+    *,
+    options: list[AIItineraryOption],
+    destinations: list[Destination],
+) -> list[AIItineraryOption]:
+    """Attach verified catalog coordinates & island metadata to every activity."""
+    if not destinations:
+        return options
+    by_id = {dest.destination_id: dest for dest in destinations}
+    catalog_pairs = [(dest.destination_id, dest.name) for dest in destinations]
+    fallback_dest = destinations[0]
+    hydrated_options: list[AIItineraryOption] = []
+
+    for option in options:
+        last_known = fallback_dest
+        hydrated_days = []
+        for day in sorted(option.days, key=lambda item: item.day):
+            resolved_acts = []
+            for activity in day.activities:
+                dest = (
+                    by_id.get(activity.destination_id)
+                    if activity.destination_id is not None
+                    else None
+                )
+                if dest is None:
+                    matched = pick_single_destination(activity.title, catalog_pairs)
+                    if matched is not None:
+                        dest = by_id.get(matched.destination_id)
+                if dest is not None:
+                    last_known = dest
+                resolved_acts.append((activity, dest))
+
+            day_fallback = next((d for _, d in resolved_acts if d is not None), last_known)
+            current_anchor = day_fallback
+            updated_acts = []
+            for activity, dest in resolved_acts:
+                anchor = dest or current_anchor
+                if dest is not None:
+                    current_anchor = dest
+                updated_acts.append(
+                    activity.model_copy(
+                        update={
+                            "destination_id": (
+                                dest.destination_id if dest is not None else activity.destination_id
+                            ),
+                            "lat": float(anchor.lat),
+                            "lng": float(anchor.lng),
+                            "island_group": getattr(anchor, "island_group", None),
+                            "destination_name": anchor.name if dest is not None else None,
+                        }
+                    )
+                )
+            hydrated_days.append(day.model_copy(update={"activities": updated_acts}))
+        hydrated_options.append(option.model_copy(update={"days": hydrated_days}))
+    return hydrated_options
+
+
 def _itinerary_quality_warnings(
     *,
     destinations: list[Destination],
@@ -929,10 +1061,11 @@ def _itinerary_quality_warnings(
 ) -> list[str]:
     warnings: list[str] = []
     for destination in destinations:
-        warnings.append(
-            f"Current opening hours for {destination.name} are not verified by Lakbay; "
-            "confirm before traveling."
-        )
+        if getattr(destination, "hours_verified_at", None) is None:
+            warnings.append(
+                f"Current opening hours for {destination.name} are not verified by Lakbay; "
+                "confirm before traveling."
+            )
         access_text = " ".join(
             part for part in (destination.description, destination.how_to_get_there) if part
         )
@@ -1129,6 +1262,34 @@ _ADD_WORDS = re.compile(
 
 def _asks_to_add(message: str) -> bool:
     return _ADD_WORDS.search(message) is not None
+
+
+_PLAN_REQUEST = re.compile(
+    r"\b(?:start planning|(?:let'?s|lets|please|go ahead and)\s+plan"
+    r"|plan\s+(?:it|this|that|my|our|the)\b"
+    r"|(?:build|make|create|generate)\s+(?:it|this|that|my|our|the|an?)?\s*(?:trip|itinerary|plan)\b)",
+    re.IGNORECASE,
+)
+_YES_ONLY = re.compile(
+    r"(?:yes|yeah|yep|sure|ok|okay|go ahead|do it|yes please|please do)[\s.!]*", re.IGNORECASE,
+)
+_OFFERED_PLANNING = re.compile(r"\bstart planning\b|\bplan (?:the|your|this)\b", re.IGNORECASE)
+_NOT_A_GO_AHEAD = re.compile(r"\b(?:more|another|other|instead)\b", re.IGNORECASE)
+PLAN_NOW_REPLY = "Planning your trip now."
+
+
+def _is_go_ahead(data: AIChatRequest) -> bool:
+    """The traveler clearly asks to build the trip now ("Let's plan this trip", or "yes"
+    to the assistant's own offer to start planning). Asking to add or see more places,
+    or a question about planning, is not one."""
+    message = data.message.strip()
+    if _asks_to_add(message) or _NOT_A_GO_AHEAD.search(message):
+        return False
+    if _PLAN_REQUEST.search(message):
+        return _QUESTION_START.match(message) is None
+    if _YES_ONLY.fullmatch(message) and data.history and data.history[-1].role == "assistant":
+        return _OFFERED_PLANNING.search(data.history[-1].content) is not None
+    return False
 
 
 def _state_with_destinations(state: PlanningState, ids: list[int]) -> PlanningState:
@@ -1669,6 +1830,18 @@ async def _build_planning_chat_result(
                 # Only when there are no cards: the catalog and route checks are
                 # authoritative over model prose. With cards, the reason stays a note.
                 chat_response = recommendation_shortfall_reason
+    # The stage never moves past "picking" and only the model can label a message
+    # "plan_trip", so a clear "plan it" got the same offer again. With picks and every
+    # detail in hand, the go-ahead starts the trip: the app builds it on this intent.
+    planning_now = (
+        bool(next_state.destination_ids)
+        and not compute_stage(next_state).missing_details
+        and _is_go_ahead(data)
+    )
+    if planning_now:
+        output_intent = "plan_trip"
+        chat_response = PLAN_NOW_REPLY
+        recommendations = []
     chat_response = align_text_with_cards(
         chat_response,
         cards=[(item.destination_id, item.name) for item in recommendations],
@@ -1711,7 +1884,7 @@ async def _build_planning_chat_result(
             place_query=output_place_query,
             suggested_replies=(
                 []
-                if output is None or _next_question_is_structured(next_state)
+                if output is None or planning_now or _next_question_is_structured(next_state)
                 else output.suggested_replies
             ),
             state_updates=changes_json,
@@ -1758,6 +1931,247 @@ def _parse_trip_draft(content: str) -> dict | None:
                 activity["lat"] = None
                 activity["lng"] = None
     return draft
+
+
+_FILLER_ACTIVITY_CATEGORIES = frozenset({
+    "food", "meal", "restaurant", "dining", "cafe",
+    "transit", "travel", "ferry", "boat",
+    "stay", "hotel", "accommodation", "rest", "buffer", "depart", "return",
+})
+_FILLER_ACTIVITY_WORDS = re.compile(
+    r"\b(?:breakfast|lunch|dinner|merienda|snack|coffee|ferry|barge|roro|pier|"
+    r"wharf|port|check[- ]?in|check[- ]?out|drive|transfer|travel|return|depart|"
+    r"arrival|arrive|rest)\b",
+    re.IGNORECASE,
+)
+
+
+def _match_draft_destination(
+    title: str,
+    dest_id: Any,
+    *,
+    by_id: dict[int, Destination],
+    by_lower: dict[str, Destination],
+    catalog_pairs: list[tuple[int, str]],
+) -> Destination | None:
+    if isinstance(dest_id, int) and not isinstance(dest_id, bool) and dest_id in by_id:
+        return by_id[dest_id]
+    normalized = " ".join(title.split()).casefold()
+    if normalized in by_lower:
+        return by_lower[normalized]
+    picked = pick_single_destination(title, catalog_pairs)
+    if picked is not None and picked.destination_id in by_id:
+        return by_id[picked.destination_id]
+    matches = match_destinations(title, catalog_pairs)
+    if matches and (matches[0].full or matches[0].strong):
+        return by_id.get(matches[0].destination_id)
+    return None
+
+
+def _is_logistics_or_meal_activity(activity: dict) -> bool:
+    category = str(activity.get("category") or "").strip().lower()
+    title = str(activity.get("title") or "").strip()
+    return category in _FILLER_ACTIVITY_CATEGORIES or bool(
+        _FILLER_ACTIVITY_WORDS.search(title)
+    )
+
+
+def _has_geo_violation(
+    days_with_stops: list[list[Destination]],
+    *,
+    max_same_day_jump_km: float = 140.0,
+) -> bool:
+    seen_islands: set[str] = set()
+    current_island: str | None = None
+    for stops in days_with_stops:
+        for dest in stops:
+            island = normalize_island_group(getattr(dest, "island_group", None))
+            if island != current_island:
+                if island in seen_islands:
+                    return True
+                seen_islands.add(island)
+                current_island = island
+        if len(days_with_stops) >= 2:
+            for a, b in zip(stops, stops[1:]):
+                if (
+                    haversine_km(
+                        PlannerPoint(float(a.lat), float(a.lng), None),
+                        PlannerPoint(float(b.lat), float(b.lng), None),
+                    )
+                    > max_same_day_jump_km
+                ):
+                    return True
+    return False
+
+
+def _ground_trip_draft(
+    draft: dict,
+    destinations: list[Destination],
+    *,
+    network=None,
+) -> dict:
+    """Resolve trip-draft stops to catalog rows, drop ungrounded attractions, and cluster days."""
+    raw_days = draft.get("days")
+    if not destinations or not isinstance(raw_days, list):
+        return draft
+
+    by_id = {dest.destination_id: dest for dest in destinations}
+    by_lower = {" ".join(dest.name.split()).casefold(): dest for dest in destinations}
+    catalog_pairs = [(dest.destination_id, dest.name) for dest in destinations]
+
+    day_entries: list[tuple[dict, list[tuple[dict, Destination | None]]]] = []
+    any_grounded = False
+    for day in raw_days:
+        if not isinstance(day, dict):
+            continue
+        raw_acts = day.get("activities")
+        if not isinstance(raw_acts, list):
+            continue
+        kept: list[tuple[dict, Destination | None]] = []
+        for activity in raw_acts:
+            if not isinstance(activity, dict):
+                continue
+            title = str(activity.get("title") or "").strip()
+            if not title:
+                continue
+            dest = _match_draft_destination(
+                title,
+                activity.get("destination_id"),
+                by_id=by_id,
+                by_lower=by_lower,
+                catalog_pairs=catalog_pairs,
+            )
+            if dest is not None:
+                any_grounded = True
+                enriched = {
+                    **activity,
+                    "destination_id": dest.destination_id,
+                    "lat": float(dest.lat),
+                    "lng": float(dest.lng),
+                    "island_group": getattr(dest, "island_group", None),
+                    "district": dest.district,
+                }
+                kept.append((enriched, dest))
+            elif _is_logistics_or_meal_activity(activity):
+                kept.append((dict(activity), None))
+        if kept:
+            day_entries.append((dict(day), kept))
+
+    if draft.get("should_create_itinerary") is True and not any_grounded:
+        return {**draft, "should_create_itinerary": False, "days": []}
+    if not any_grounded:
+        return draft
+
+    # Fill coordinates on meal/transit items from nearest grounded stop in that day.
+    first_grounded = next(
+        dest for _, acts in day_entries for _, dest in acts if dest is not None
+    )
+    cleaned_days: list[dict] = []
+    days_dests: list[list[Destination]] = []
+    for day_meta, acts in day_entries:
+        day_anchor = next((d for _, d in acts if d is not None), first_grounded)
+        cur_anchor = day_anchor
+        day_acts: list[dict] = []
+        day_dest_list: list[Destination] = []
+        for act, dest in acts:
+            if dest is not None:
+                cur_anchor = dest
+                if not day_dest_list or day_dest_list[-1].destination_id != dest.destination_id:
+                    day_dest_list.append(dest)
+                day_acts.append(act)
+            else:
+                if act.get("lat") is None or act.get("lng") is None:
+                    act = {
+                        **act,
+                        "lat": float(cur_anchor.lat),
+                        "lng": float(cur_anchor.lng),
+                        "island_group": getattr(cur_anchor, "island_group", None),
+                    }
+                day_acts.append(act)
+        cleaned_days.append({
+            **day_meta,
+            "day": len(cleaned_days) + 1,
+            "activities": day_acts,
+        })
+        days_dests.append(day_dest_list)
+
+    # Re-cluster grounded stops if days ping-pong across islands or make impossible same-day jumps.
+    unique_dests: dict[int, Destination] = {}
+    act_by_dest_id: dict[int, list[dict]] = {}
+    filler_by_anchor_id: dict[int, list[dict]] = {}
+    for day in cleaned_days:
+        last_did_in_day = next(
+            (a["destination_id"] for a in day["activities"] if isinstance(a.get("destination_id"), int)),
+            first_grounded.destination_id,
+        )
+        for act in day["activities"]:
+            did = act.get("destination_id")
+            if isinstance(did, int) and did in by_id:
+                unique_dests[did] = by_id[did]
+                act_by_dest_id.setdefault(did, []).append(act)
+                last_did_in_day = did
+            else:
+                filler_by_anchor_id.setdefault(last_did_in_day, []).append(act)
+
+    if len(cleaned_days) >= 2 and len(unique_dests) >= 2 and _has_geo_violation(days_dests):
+        plan = plan_multi_day_route(
+            stops=[
+                StopPlanInput(
+                    destination_id=d.destination_id,
+                    name=d.name,
+                    lat=float(d.lat),
+                    lng=float(d.lng),
+                    island_group=getattr(d, "island_group", None),
+                    stay_duration_type=getattr(d, "stay_duration_type", None) or "half_day",
+                    must_visit=True,
+                )
+                for d in unique_dests.values()
+            ],
+            days=len(cleaned_days),
+            pace="balanced",
+            driving=True,
+            network=network,
+        )
+        rebuilt_days: list[dict] = []
+        for planned_day in plan.days:
+            if not planned_day.stops:
+                continue
+            acts_for_day: list[dict] = []
+            for stop in planned_day.stops:
+                if stop.destination_id is not None:
+                    acts_for_day.extend(act_by_dest_id.get(stop.destination_id, []))
+                    acts_for_day.extend(filler_by_anchor_id.get(stop.destination_id, []))
+            if not acts_for_day:
+                continue
+            lead_names = ", ".join(s.name for s in planned_day.stops[:2])
+            rebuilt_days.append({
+                "day": len(rebuilt_days) + 1,
+                "title": f"Day {len(rebuilt_days) + 1} • {lead_names}",
+                "summary": f"Explore {lead_names} without backtracking.",
+                "activities": acts_for_day,
+            })
+        if rebuilt_days:
+            cleaned_days = rebuilt_days
+
+    grounded_coords = [
+        (act["lat"], act["lng"])
+        for day in cleaned_days
+        for act in day["activities"]
+        if isinstance(act.get("destination_id"), int)
+        and isinstance(act.get("lat"), (int, float))
+        and isinstance(act.get("lng"), (int, float))
+    ]
+    updated = {**draft, "days": cleaned_days}
+    if cleaned_days:
+        updated["days_count"] = len(cleaned_days)
+    if grounded_coords:
+        updated["center_lat"] = round(
+            sum(lat for lat, _ in grounded_coords) / len(grounded_coords), 5
+        )
+        updated["center_lng"] = round(
+            sum(lng for _, lng in grounded_coords) / len(grounded_coords), 5
+        )
+    return updated
 
 
 _QUESTION_START = re.compile(

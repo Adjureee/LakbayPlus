@@ -104,11 +104,13 @@ class MapboxDirectionsClient(OSRMClient):
             return self.settings.mapbox_directions_profile_driving
         if travel_mode == "walking":
             return "walking"
-        raise OSRMConfigurationError("Mapbox does not support public_transport mode.")
+        if travel_mode == "cycling":
+            return "cycling"
+        raise OSRMConfigurationError(f"Mapbox does not support {travel_mode} mode.")
 
     def _base_url_for_mode(self, travel_mode: TravelMode) -> str:
-        if travel_mode not in ("driving", "walking"):
-            raise OSRMConfigurationError("Mapbox does not support public_transport mode.")
+        if travel_mode not in ("driving", "walking", "cycling"):
+            raise OSRMConfigurationError(f"Mapbox does not support {travel_mode} mode.")
         return self.settings.mapbox_directions_base_url
 
 

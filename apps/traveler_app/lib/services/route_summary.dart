@@ -21,19 +21,29 @@ class RouteSummaryText {
   static String modeLabel(String mode) => switch (mode) {
         'public_transport' => 'Public transit',
         'walking' => 'Walking',
+        'cycling' => 'Cycling',
         _ => 'Private car',
       };
+
+  static String _qualifier(BackendRouteResult route, String? mode) {
+    if (route.isEstimated) return 'estimate';
+    if (mode == 'driving' && route.routeProvider == 'mapbox') {
+      return 'with current traffic';
+    }
+    return 'road route';
+  }
 
   /// Straight-line length through [origin] (when given) and then every stop.
   static double straightLineKm(List<GeoPoint> stops, {GeoPoint? origin}) =>
       MapboxService.calculateRouteDistanceKm([?origin, ...stops]);
 
   /// A short value for a small chip ("82.7 km • 1 h 34 min") with what kind of
-  /// number it is ("road route", "estimate", "straight line"), or null.
+  /// number it is ("road route", "with current traffic", "estimate", "straight line"), or null.
   static ({String value, String qualifier})? chip({
     BackendRouteResult? route,
     required List<GeoPoint> stops,
     GeoPoint? origin,
+    String? mode,
   }) {
     if (route != null && route.totalDistanceKm > 0) {
       final km = route.totalDistanceKm;
@@ -43,7 +53,7 @@ class RouteSummaryText {
           '${km >= 10 ? km.toStringAsFixed(0) : km.toStringAsFixed(1)} km',
           if (time.isNotEmpty) time,
         ].join(' • '),
-        qualifier: route.isEstimated ? 'estimate' : 'road route',
+        qualifier: _qualifier(route, mode),
       );
     }
     final km = straightLineKm(stops, origin: origin);
@@ -68,7 +78,7 @@ class RouteSummaryText {
         '${km >= 10 ? km.toStringAsFixed(0) : km.toStringAsFixed(1)} km',
         if (time.isNotEmpty) time,
         if (mode != null) modeLabel(mode),
-        route.isEstimated ? 'estimate' : 'road route',
+        _qualifier(route, mode),
       ].join(' • ');
     }
     final km = straightLineKm(stops, origin: origin);

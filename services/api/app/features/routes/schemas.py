@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, PositiveInt, model_validator
 
-TravelMode = Literal["driving", "walking", "public_transport"]
+TravelMode = Literal["driving", "walking", "public_transport", "cycling"]
 DistanceKm = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
 TrafficLevel = Literal["unknown", "light", "moderate", "heavy", "severe"]
 # How the stop order was chosen: kept as requested, exact search over every

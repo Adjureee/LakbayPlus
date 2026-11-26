@@ -1684,10 +1684,12 @@ class LakbayApiCatalogService {
       do {
         if (index >= encoded.length) return points;
         byte = encoded.codeUnitAt(index++) - 63;
-        result |= (byte & 0x1f) << shift;
+        result += (byte & 0x1f) * (1 << shift);
         shift += 5;
       } while (byte >= 0x20);
-      final dLat = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+      // Avoid Dart bitwise NOT (~) which produces unsigned 32-bit values on Web JS.
+      final halfLat = result ~/ 2;
+      final dLat = (result & 1) != 0 ? -(halfLat + 1) : halfLat;
       lat += dLat;
 
       shift = 0;
@@ -1695,13 +1697,23 @@ class LakbayApiCatalogService {
       do {
         if (index >= encoded.length) return points;
         byte = encoded.codeUnitAt(index++) - 63;
-        result |= (byte & 0x1f) << shift;
+        result += (byte & 0x1f) * (1 << shift);
         shift += 5;
       } while (byte >= 0x20);
-      final dLng = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+      final halfLng = result ~/ 2;
+      final dLng = (result & 1) != 0 ? -(halfLng + 1) : halfLng;
       lng += dLng;
 
-      points.add(GeoPoint(lat: lat / 1e5, lng: lng / 1e5));
+      final decodedLat = lat / 1e5;
+      final decodedLng = lng / 1e5;
+      if (decodedLat.isFinite &&
+          decodedLng.isFinite &&
+          decodedLat >= -90.0 &&
+          decodedLat <= 90.0 &&
+          decodedLng >= -180.0 &&
+          decodedLng <= 180.0) {
+        points.add(GeoPoint(lat: decodedLat, lng: decodedLng));
+      }
     }
     return points;
   }

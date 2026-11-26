@@ -61,6 +61,11 @@ enum MapboxStylePreset {
     title: 'Coastal Light',
     subtitle: 'Minimalist Lakbay+ street map',
   ),
+  navigationDay(
+    id: 'navigation-day-v1',
+    title: 'Traffic',
+    subtitle: 'Daytime roads with live traffic',
+  ),
   navigationNight(
     id: 'navigation-night-v1',
     title: 'Night Nav',

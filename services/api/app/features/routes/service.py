@@ -60,6 +60,7 @@ ZERO_DISTANCE = Decimal("0.00")
 FALLBACK_SPEED_KMH = {
     "driving": Decimal("40"),
     "walking": Decimal("5"),
+    "cycling": Decimal("15"),
     "public_transport": Decimal("30"),
 }
 
@@ -331,7 +332,7 @@ class RouteService:
         override_by_pair: dict[tuple[int | None, int | None], tuple[float, float]] = {}
         matrix_provider = getattr(self.osrm_client, "provider_name", "osrm")
 
-        if data.travel_mode in ("driving", "walking") and self.osrm_client is not None:
+        if data.travel_mode in ("driving", "walking", "cycling") and self.osrm_client is not None:
             grouped: dict[str, list[tuple[int | None, RouteCoordinate]]] = {}
             if origin_stop is not None:
                 grouped.setdefault(

@@ -26,6 +26,8 @@ class LakbayMapMarker {
 
   /// A catalog place near the trip but not part of it: drawn small and muted.
   final bool isNearby;
+  final int? dayNumber;
+  final bool isFerryPier;
 
   const LakbayMapMarker({
     required this.id,
@@ -42,6 +44,8 @@ class LakbayMapMarker {
     this.isUserLocation = false,
     this.isCompact = false,
     this.isNearby = false,
+    this.dayNumber,
+    this.isFerryPier = false,
   });
 
   bool get hasThumbnail =>
@@ -88,6 +92,12 @@ class LakbayMapboxMap extends StatefulWidget {
   final bool clampToDavao;
   final double borderRadius;
   final double controlsBottomOffset;
+  final int? focusedDayNumber;
+  final bool showLegend;
+  final EdgeInsets boundsPadding;
+  final bool isLoadingRoute;
+  final String? routeError;
+  final VoidCallback? onRetryRoute;
 
   const LakbayMapboxMap({
     super.key,
@@ -114,6 +124,12 @@ class LakbayMapboxMap extends StatefulWidget {
     this.clampToDavao = false,
     this.borderRadius = 20,
     this.controlsBottomOffset = 36,
+    this.focusedDayNumber,
+    this.showLegend = false,
+    this.boundsPadding = const EdgeInsets.fromLTRB(40, 72, 40, 72),
+    this.isLoadingRoute = false,
+    this.routeError,
+    this.onRetryRoute,
   });
 
   @override
@@ -136,6 +152,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
   late RouteTrailController _trailController;
   bool _trailInitializedDeps = false;
   bool _flyAlongTrail = false;
+  Size? _lastViewportSize;
 
   RouteTrailController get trailController => _trailController;
 
@@ -313,28 +330,39 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
     _cameraAnimController.forward(from: 0);
   }
 
-  void fitBounds() {
-    final routePts = <GeoPoint>[
-      ...widget.routePoints,
-      for (final seg in widget.routeSegments) ...seg.points,
-      if (widget.routeSegments.isEmpty) ...widget.roadGeometry,
-    ];
-    final pts = <GeoPoint>[
-      ...routePts,
-      for (final m in widget.markers)
-        if (!m.isUserLocation ||
-            routePts.isEmpty ||
-            routePts.any(
-              (p) =>
-                  MapboxService.haversineKm(p.lat, p.lng, m.lat, m.lng) <= 120.0,
-            ))
-          GeoPoint(lat: m.lat, lng: m.lng),
-    ];
+  void fitBounds({List<GeoPoint>? points}) {
+    final List<GeoPoint> pts;
+    if (points != null) {
+      pts = points;
+    } else {
+      final routePts = <GeoPoint>[
+        ...widget.routePoints,
+        for (final seg in widget.routeSegments) ...seg.points,
+        if (widget.routeSegments.isEmpty) ...widget.roadGeometry,
+      ];
+      pts = <GeoPoint>[
+        ...routePts,
+        for (final m in widget.markers)
+          if (!m.isNearby &&
+              (!m.isUserLocation ||
+                  routePts.isEmpty ||
+                  routePts.any(
+                    (p) =>
+                        MapboxService.haversineKm(p.lat, p.lng, m.lat, m.lng) <=
+                        120.0,
+                  )))
+            GeoPoint(lat: m.lat, lng: m.lng),
+      ];
+    }
     if (pts.isEmpty) {
       flyTo(widget.initialLat, widget.initialLng, zoom: widget.initialZoom);
       return;
     }
-    final (cLat, cLng, cZoom) = MapboxService.computeBoundsCenterAndZoom(pts);
+    final (cLat, cLng, cZoom) = MapboxService.computeBoundsCenterAndZoom(
+      pts,
+      viewportSize: _lastViewportSize,
+      padding: widget.boundsPadding,
+    );
     flyTo(cLat, cLng, zoom: cZoom);
   }
 
@@ -435,6 +463,8 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
 
   void _handlePointerScroll(PointerScrollEvent event, Size viewportSize) {
     if (!widget.interactive || event.scrollDelta.dy == 0) return;
+    if (widget.followUser) widget.onFollowUserChanged?.call(false);
+    _cameraAnimController.stop();
     final zoomStep = event.scrollDelta.dy < 0 ? 0.55 : -0.55;
     final newZoom = (_zoom + zoomStep).clamp(4.0, 17.5);
     if ((newZoom - _zoom).abs() < 1e-4) return;
@@ -449,8 +479,14 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
         MapboxService.tileXYToLatLng(nextX, nextY, newZoom);
     setState(() {
       _zoom = newZoom;
-      _centerLat = newLat.clamp(-84.0, 84.0);
-      _centerLng = ((newLng + 180.0) % 360.0) - 180.0;
+      if (widget.clampToDavao) {
+        final (cLat, cLng) = MapboxService.clampToDavaoRegion(newLat, newLng);
+        _centerLat = cLat;
+        _centerLng = cLng;
+      } else {
+        _centerLat = newLat.clamp(-84.0, 84.0);
+        _centerLng = ((newLng + 180.0) % 360.0) - 180.0;
+      }
     });
   }
 
@@ -607,6 +643,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final size = Size(constraints.maxWidth, constraints.maxHeight);
+          _lastViewportSize = size;
           final hasTrailData =
               _trail.hasAnimatedTrail || _trail.estimatedLegs.isNotEmpty;
           final effectiveRoute = _hasRoutedGeometry
@@ -689,33 +726,10 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                         ],
                       ),
                     ),
-                if (widget.trailNotice != null && widget.showControls)
-                  Positioned(
-                    left: 12,
-                    top: 12,
-                    child: IgnorePointer(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Text(
-                          widget.trailNotice!,
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: LakbayColors.tealDeep,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
 
                 // 3a. No road geometry: never draw a vehicle crossing land or sea.
                 // Show only dashed stop-order connectors and say so.
-                if (!hasTrailData && projectedRoute.length >= 2) ...[
+                if (!hasTrailData && projectedRoute.length >= 2)
                   CustomPaint(
                     size: size,
                     painter: _UnroutedConnectorPainter(
@@ -723,25 +737,10 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                       isDark: isDarkStyle,
                     ),
                   ),
-                  if (widget.interactive)
-                    Positioned(
-                      left: 12,
-                      right: widget.showControls ? 68 : 12,
-                      bottom: widget.showControls
-                          ? widget.controlsBottomOffset + 4
-                          : null,
-                      top: widget.showControls ? null : 12,
-                      child: IgnorePointer(
-                        child: widget.routeNotice != null
-                            ? _buildUnroutedNotice(widget.routeNotice!)
-                            : _buildUnroutedNotice(),
-                      ),
-                    ),
-                ],
 
                 // 3b. Progressive per-day road trail + dashed boat crossings +
                 //     static dashed grey estimated connectors (never animated).
-                if (hasTrailData) ...[
+                if (hasTrailData)
                   RepaintBoundary(
                     child: AnimatedBuilder(
                       animation: _trailController,
@@ -776,6 +775,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                                     _trailController.currentDistanceMeters,
                                 isSettled: _trailController.isSettled,
                                 isDark: isDarkStyle,
+                                highlightedDayNumber: widget.focusedDayNumber,
                               ),
                             ),
                             if (showVehicleHead && headOffset != null)
@@ -793,26 +793,9 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                       },
                     ),
                   ),
-                  if (_trail.estimatedLegs.isNotEmpty && widget.interactive)
-                    Positioned(
-                      left: 12,
-                      right: widget.showControls ? 68 : 12,
-                      bottom: widget.showControls
-                          ? widget.controlsBottomOffset +
-                              (showTrailControls ? 46 : 4)
-                          : null,
-                      top: widget.showControls ? null : 12,
-                      child: IgnorePointer(
-                        child: _buildUnroutedNotice(
-                          widget.routeNotice ??
-                              'Part of this road route is unavailable — grey dashed lines are estimates.',
-                        ),
-                      ),
-                    ),
-                ],
 
-                // 4. Interactive Pin Markers + Pulsing CircleAnnotation Halo + APK Pin Sprites
-                ...widget.markers.map((marker) {
+                // 4. Interactive Pin Markers (sorted so selected/primary sit on top)
+                ..._sortedMarkersForRender(widget.markers).map((marker) {
                   // When a live GPS layer is active, anchor the "You" badge neatly
                   // below the live dot instead of drawing a second blue dot.
                   final lat = (marker.isUserLocation && widget.livePosition != null)
@@ -996,6 +979,23 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                 if (widget.livePosition != null)
                   _buildLivePositionLayer(widget.livePosition!, size),
 
+                // 5c. Top-Right Route Loading / Error Retry Status Pill
+                if (widget.isLoadingRoute || widget.routeError != null)
+                  Positioned(
+                    top: 10,
+                    right: 12,
+                    child: widget.isLoadingRoute
+                        ? _buildRouteStatusPill(
+                            isError: false,
+                            text: 'Finding route…',
+                          )
+                        : _buildRouteStatusPill(
+                            isError: true,
+                            text: widget.routeError!,
+                            onRetry: widget.onRetryRoute,
+                          ),
+                  ),
+
                 // 6. Right-Side Location, Zoom & Fit-Route Controls
                 if (widget.showControls)
                   Positioned(
@@ -1109,7 +1109,76 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                     ),
                   ),
 
-                // 6b. Bottom-Left Replay & Fly-Along Controls for Active Route Trail
+                // 6b. Bottom-Left Notices, Legend & Replay Controls
+                if (widget.interactive &&
+                    ((!hasTrailData && projectedRoute.length >= 2) ||
+                        (hasTrailData && _trail.estimatedLegs.isNotEmpty) ||
+                        (widget.trailNotice != null && widget.trails.isNotEmpty) ||
+                        (widget.showLegend &&
+                            (hasTrailData ||
+                                widget.markers.any(
+                                  (m) => m.dayNumber != null || m.isFerryPier,
+                                )))))
+                  Positioned(
+                    left: 12,
+                    right: widget.showControls ? 68 : 12,
+                    bottom: widget.showControls
+                        ? widget.controlsBottomOffset +
+                            (showTrailControls ? 44 : 4)
+                        : 32,
+                    child: IgnorePointer(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (widget.showLegend &&
+                              (hasTrailData ||
+                                  widget.markers.any(
+                                    (m) => m.dayNumber != null || m.isFerryPier,
+                                  )))
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: _buildCompactLegend(hasSea: _hasSeaLegsOrPiers()),
+                            ),
+                          if (widget.trailNotice != null &&
+                              widget.trails.isNotEmpty &&
+                              widget.showControls)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.92),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  widget.trailNotice!,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: LakbayColors.tealDeep,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (!hasTrailData && projectedRoute.length >= 2)
+                            widget.routeNotice != null
+                                ? _buildUnroutedNotice(widget.routeNotice!)
+                                : _buildUnroutedNotice()
+                          else if (hasTrailData && _trail.estimatedLegs.isNotEmpty)
+                            _buildUnroutedNotice(
+                              widget.routeNotice ??
+                                  'Part of this road route is unavailable — grey dashed lines are estimates.',
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // 6c. Bottom-Left Replay & Fly-Along Controls for Active Route Trail
                 if (showTrailControls)
                   Positioned(
                     left: 12,
@@ -1165,10 +1234,17 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                     ),
                   ),
 
-                // 7. Bottom-Left Mapbox Attribution (compact, non-intrusive)
+                // 7. Compact Mapbox / OSM Attribution (moves to top beside Layer pill if bottom carousel occupies >80px)
                 Positioned(
-                  left: 10,
-                  bottom: 8,
+                  left: widget.showControls && widget.controlsBottomOffset > 80
+                      ? 124
+                      : 10,
+                  top: widget.showControls && widget.controlsBottomOffset > 80
+                      ? 14
+                      : null,
+                  bottom: widget.showControls && widget.controlsBottomOffset > 80
+                      ? null
+                      : 8,
                   child: IgnorePointer(
                     child: Container(
                       padding:
@@ -1178,7 +1254,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        '© Mapbox',
+                        widget.repo.mapbox.tileAttribution(style),
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.88),
                           fontSize: 9.5,
@@ -1193,6 +1269,193 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
             ),
           );
         },
+      ),
+    );
+  }
+
+  List<LakbayMapMarker> _sortedMarkersForRender(List<LakbayMapMarker> markers) {
+    int rank(LakbayMapMarker m) {
+      if (m.id == widget.selectedMarkerId) return 5;
+      if (m.isUserLocation) return 4;
+      if (m.isPrimary) return 3;
+      if (m.isFerryPier || m.badgeText == '⚓') return 2;
+      if (m.isNearby) return 0;
+      return 1;
+    }
+
+    final sorted = List<LakbayMapMarker>.from(markers);
+    sorted.sort((a, b) => rank(a).compareTo(rank(b)));
+    return sorted;
+  }
+
+  bool _hasSeaLegsOrPiers() =>
+      _trail.animatedLegs.any((l) => l.mode == RouteTrailMode.sea) ||
+      widget.routeSegments.any((s) => s.isSea) ||
+      widget.markers.any((m) => m.isFerryPier || m.badgeText == '⚓');
+
+  Widget _buildRouteStatusPill({
+    required bool isError,
+    required String text,
+    VoidCallback? onRetry,
+  }) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 250),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isError
+            ? const Color(0xFFB3261E).withValues(alpha: 0.92)
+            : Colors.black.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isError)
+            const Icon(Icons.error_outline_rounded, size: 14, color: Colors.white)
+          else
+            const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          if (isError && onRetry != null) ...[
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: onRetry,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactLegend({required bool hasSea}) {
+    final markerDayNums = <int>{
+      for (final m in widget.markers)
+        if (m.dayNumber != null) m.dayNumber!,
+    };
+    final dayNums = (markerDayNums.isNotEmpty
+            ? markerDayNums
+            : <int>{for (final leg in _trail.animatedLegs) leg.dayNumber})
+        .toList()
+      ..sort();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.68),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+      ),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          for (final d in dayNums.take(4))
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: RouteTrail.colorForDay(d, RouteTrailMode.road),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'D$d',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          if (hasSea)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 12,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: RouteTrail.seaRouteColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Text(
+                  'Ferry',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          if (widget.trails.isNotEmpty)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 12,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8A5A2B),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Text(
+                  'Trail',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
     );
   }
@@ -1368,46 +1631,65 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
   Widget _buildMarkerImageThumb(LakbayMapMarker marker) {
     final url = marker.imageUrl?.trim() ?? '';
     final asset = marker.imageAsset?.trim() ?? '';
+    const fallbackIcon = ColoredBox(
+      color: LakbayColors.tealWash,
+      child: Center(
+        child: Icon(
+          Icons.place_rounded,
+          size: 18,
+          color: LakbayColors.tealDeep,
+        ),
+      ),
+    );
+    Widget foreground;
     if (url.isNotEmpty) {
-      return Image.network(
+      foreground = Image.network(
         url,
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => asset.isNotEmpty
             ? Image.asset(
                 asset,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const Icon(
-                  Icons.place_rounded,
-                  size: 18,
-                  color: LakbayColors.tealDeep,
-                ),
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
               )
-            : const Icon(
-                Icons.place_rounded,
-                size: 18,
-                color: LakbayColors.tealDeep,
-              ),
+            : const SizedBox.shrink(),
       );
-    }
-    if (asset.isNotEmpty) {
-      return Image.asset(
+    } else if (asset.isNotEmpty) {
+      foreground = Image.asset(
         asset,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const Icon(
-          Icons.place_rounded,
-          size: 18,
-          color: LakbayColors.tealDeep,
-        ),
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
       );
+    } else {
+      return fallbackIcon;
     }
-    return const Icon(
-      Icons.place_rounded,
-      size: 18,
-      color: LakbayColors.tealDeep,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        fallbackIcon,
+        foreground,
+      ],
     );
   }
 
   Widget _buildMarkerWidget(
+    LakbayMapMarker marker,
+    bool isSelected, {
+    bool showUserDot = true,
+  }) {
+    final isDimmedByDay = widget.focusedDayNumber != null &&
+        marker.dayNumber != null &&
+        marker.dayNumber != widget.focusedDayNumber &&
+        !isSelected;
+    final core = _buildMarkerCore(
+      marker,
+      isSelected,
+      showUserDot: showUserDot,
+    );
+    return isDimmedByDay ? Opacity(opacity: 0.45, child: core) : core;
+  }
+
+  Widget _buildMarkerCore(
     LakbayMapMarker marker,
     bool isSelected, {
     bool showUserDot = true,
@@ -1493,28 +1775,88 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
       );
     }
 
+    final isPier = marker.isFerryPier || marker.badgeText == '⚓';
+    if (isPier) {
+      const pierBlue = Color(0xFF1E88E5);
+      final showLabel = isSelected || _zoom >= 10.0;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showLabel && marker.title.trim().isNotEmpty)
+            Container(
+              constraints: const BoxConstraints(maxWidth: 104),
+              margin: const EdgeInsets.only(bottom: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: pierBlue, width: 1.2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: Text(
+                marker.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                  color: pierBlue,
+                ),
+              ),
+            ),
+          Container(
+            width: isSelected ? 30 : 25,
+            height: isSelected ? 30 : 25,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isSelected ? pierBlue : Colors.white,
+              border: Border.all(
+                color: isSelected ? Colors.white : pierBlue,
+                width: 2.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.28),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.directions_boat_rounded,
+              size: isSelected ? 16 : 14,
+              color: isSelected ? Colors.white : pierBlue,
+            ),
+          ),
+          const CustomPaint(
+            size: Size(9, 5),
+            painter: _PinTrianglePainter(color: pierBlue),
+          ),
+        ],
+      );
+    }
+
     if ((marker.isCompact || marker.isNearby) &&
         !isSelected &&
         !marker.isPrimary) {
-      final isPier = marker.badgeText == '⚓';
-      final pinColor = isPier
-          ? const Color(0xFF1E88E5)
-          : marker.isNearby
-              ? const Color(0xFF8A9A9A)
-              : LakbayColors.tealDeep;
+      final pinColor = marker.isNearby
+          ? const Color(0xFF8A9A9A)
+          : LakbayColors.tealDeep;
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: isPier ? 24 : (marker.isNearby ? 14 : 18),
-            height: isPier ? 24 : (marker.isNearby ? 14 : 18),
+            width: marker.isNearby ? 14 : 18,
+            height: marker.isNearby ? 14 : 18,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isPier ? Colors.white : pinColor,
-              border: Border.all(
-                color: isPier ? pinColor : Colors.white,
-                width: isPier ? 2.0 : 2.2,
-              ),
+              color: pinColor,
+              border: Border.all(color: Colors.white, width: 2.2),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.25),
@@ -1523,13 +1865,6 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                 ),
               ],
             ),
-            child: isPier
-                ? Icon(
-                    Icons.directions_boat_rounded,
-                    size: 13,
-                    color: pinColor,
-                  )
-                : null,
           ),
           CustomPaint(
             size: const Size(8, 5),
@@ -1539,10 +1874,14 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
       );
     }
 
+    final dayColor = marker.dayNumber != null
+        ? RouteTrail.colorForDay(marker.dayNumber!, RouteTrailMode.road)
+        : null;
+
     if (marker.hasThumbnail) {
-      final ringColor = isSelected || marker.isPrimary
-          ? LakbayColors.primary
-          : LakbayColors.tealDeep;
+      final dayAccent = dayColor ??
+          (marker.isPrimary ? LakbayColors.primary : LakbayColors.tealDeep);
+      final ringColor = isSelected ? LakbayColors.primary : dayAccent;
       final thumbSize = isSelected || marker.isPrimary ? 44.0 : 38.0;
       return Stack(
         alignment: Alignment.bottomCenter,
@@ -1562,8 +1901,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                       height: thumbSize + 6,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: LakbayColors.primary
-                            .withValues(alpha: (1.0 - t) * 0.42),
+                        color: ringColor.withValues(alpha: (1.0 - t) * 0.42),
                       ),
                     ),
                   );
@@ -1600,6 +1938,32 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                       padding: const EdgeInsets.all(1.5),
                       child: ClipOval(child: _buildMarkerImageThumb(marker)),
                     ),
+                    if (marker.isOrigin || marker.isDestination)
+                      Positioned(
+                        left: -8,
+                        top: -5,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: marker.isOrigin
+                                ? LakbayColors.successGreen
+                                : LakbayColors.cocoaOrange,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
+                          child: Text(
+                            marker.isOrigin ? 'START' : 'END',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 7.5,
+                            ),
+                          ),
+                        ),
+                      ),
                     if (marker.badgeText.isNotEmpty)
                       Positioned(
                         right: -6,
@@ -1611,7 +1975,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                             vertical: 1.5,
                           ),
                           decoration: BoxDecoration(
-                            color: ringColor,
+                            color: dayAccent,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.white, width: 1.1),
                           ),
@@ -1632,7 +1996,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                 ),
                 CustomPaint(
                   size: const Size(12, 7),
-                  painter: _PinTrianglePainter(color: ringColor),
+                  painter: _PinTrianglePainter(color: dayAccent),
                 ),
               ],
             ),
@@ -1646,6 +2010,16 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
         : (marker.isDestination
             ? 'assets/map_sprites/map_to.png'
             : 'assets/map_sprites/map-pin-filled.png');
+    final pillColor = dayColor;
+    final pillGradient = dayColor != null
+        ? null
+        : (isSelected || marker.isPrimary
+            ? LakbayColors.brandGradient
+            : LakbayColors.deepTealGradient);
+    final tipColor = dayColor ??
+        (isSelected || marker.isPrimary
+            ? LakbayColors.primary
+            : LakbayColors.tealDeep);
 
     return Stack(
       alignment: Alignment.center,
@@ -1663,8 +2037,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                     height: 42,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: LakbayColors.primary
-                          .withValues(alpha: (1.0 - t) * 0.45),
+                      color: tipColor.withValues(alpha: (1.0 - t) * 0.45),
                     ),
                   ),
                 );
@@ -1680,9 +2053,8 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    gradient: isSelected || marker.isPrimary
-                        ? LakbayColors.brandGradient
-                        : LakbayColors.deepTealGradient,
+                    color: pillColor,
+                    gradient: pillGradient,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: Colors.white,
@@ -1720,11 +2092,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                 ),
                 CustomPaint(
                   size: const Size(12, 7),
-                  painter: _PinTrianglePainter(
-                    color: isSelected || marker.isPrimary
-                        ? LakbayColors.primary
-                        : LakbayColors.tealDeep,
-                  ),
+                  painter: _PinTrianglePainter(color: tipColor),
                 ),
               ],
             ),
@@ -1773,6 +2141,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
         borderRadius: BorderRadius.circular(12),
         child: Tooltip(
           message: tooltip,
+          preferBelow: true,
           child: Padding(
             padding: const EdgeInsets.all(8),
             child: Icon(icon, color: Colors.white, size: 20),

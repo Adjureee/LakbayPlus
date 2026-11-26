@@ -16,6 +16,7 @@ final _banned = RegExp(r'Region XI|IGaCoS|trip tray|Mapbox|Groq|Gemini');
 const _allowed = <(String, String)>[
   // The map's terms require this credit on the map itself.
   ('lakbay_mapbox_widget.dart', '© Mapbox'),
+  ('mapbox_service.dart', '© Mapbox'),
   // A saved key for the bucket list: changing it would orphan saved choices.
   ('travel_repository.dart', 'Island Garden City of Samal (IGaCoS)'),
   // Token entry for developers; the menu item is built only in debug builds.

@@ -9,9 +9,21 @@ DISTRICTS = (
     "davao occidental", "davao de oro",
 )
 CITY_DISTRICTS = {
-    "samal": "davao del norte", "tagum": "davao del norte",
-    "panabo": "davao del norte", "mati": "davao oriental",
+    "samal": "davao del norte",
+    "igacos": "davao del norte",
+    "talikud": "davao del norte",
+    "tagum": "davao del norte",
+    "panabo": "davao del norte",
+    "mati": "davao oriental",
+    "cateel": "davao oriental",
+    "baganga": "davao oriental",
     "digos": "davao del sur",
+    "kapatagan": "davao del sur",
+    "marilog": "davao city",
+    "buda": "davao city",
+    "calinan": "davao city",
+    "toril": "davao city",
+    "maragusan": "davao de oro",
 }
 GENERIC_PLACES = {
     "area", "beach", "beaches", "city", "coast", "destination", "destinations",

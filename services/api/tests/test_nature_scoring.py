@@ -117,6 +117,26 @@ def test_words_travelers_use_resolve_to_the_group_or_sub_type() -> None:
     assert groups.resolve("coffee") is None
 
 
+def test_museum_names_the_museum_sub_type_not_the_whole_heritage_group() -> None:
+    groups = load_groups()
+    for word in ("museum", "Museums"):
+        resolved = groups.resolve(word)
+        assert (resolved.group, resolved.subtype) == ("culture_heritage", "museums")
+    # Wider words still mean the whole group.
+    for word in ("heritage", "culture", "church"):
+        assert groups.resolve(word).subtype is None
+
+
+def test_a_heritage_resort_is_in_the_group_but_is_not_a_museum() -> None:
+    groups = load_groups()
+    museum = groups.membership("culture_heritage", "museum")
+    assert museum is not None and museum.subtypes == {"museums"}
+    resort = groups.membership("culture_heritage", "Island Resort, Heritage Beach Sanctuary")
+    assert resort is not None and "museums" not in resort.subtypes
+    church = groups.membership("culture_heritage", "Church")
+    assert church is not None and "museums" not in church.subtypes
+
+
 def test_a_word_cannot_name_two_groups() -> None:
     raw = json.loads(pg.DATA_PATH.read_text(encoding="utf-8"))
     raw["groups"]["beaches"]["aliases"].append("nature")

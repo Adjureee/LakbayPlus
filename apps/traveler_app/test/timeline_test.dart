@@ -448,6 +448,68 @@ void main() {
     expect(repo.chatMessages.last.text, startsWith('Nothing moved.'));
   });
 
+  test('a plan_trip chat reply builds the same timeline as the button, AI options only as a fallback', () async {
+    var timelineUp = true;
+    final recorded = <String>[];
+    final client = MockClient((req) async {
+      final path = req.url.path.replaceFirst('/api/v1', '');
+      final body = req.body.isEmpty ? <String, dynamic>{} : jsonDecode(req.body) as Map<String, dynamic>;
+      recorded.add(path);
+      if (path == '/destinations/facets') return http.Response('{"groups":[]}', 200);
+      if (path == '/destinations') return http.Response('[]', 200);
+      if (path == '/ai/chat') {
+        return http.Response(jsonEncode({
+          'chat_response': 'Planning your trip now.', 'model_id': 'mock', 'ai_generation_run_id': 1,
+          'planning': {
+            'input_revision': 1, 'intent': 'plan_trip', 'suggested_replies': [],
+            'state_updates': {}, 'update_status': 'applied',
+            'preview': {'state': {
+              ...(body['planning_state'] as Map<String, dynamic>),
+              'destination_ids': [77], 'day_count': 2, 'traveler_count': 3,
+              'total_budget': '2500.00', 'budget_scope': 'per_person',
+            }},
+            'recommendations': [],
+          },
+        }), 200);
+      }
+      if (path == '/planning/timeline') {
+        return timelineUp
+            ? http.Response(jsonEncode({'timeline': _timeline(), 'changes': []}), 200)
+            : http.Response('{"error":"down"}', 503);
+      }
+      return http.Response('{}', 200);
+    });
+    SharedPreferences.setMockInitialValues({
+      'lakbay_traveler_state_v1': jsonEncode({
+        'hasCompletedOnboarding': true,
+        'authSession': const LakbayAuthSession(
+          accessToken: 'token', refreshToken: 'refresh', userId: 1,
+          fullName: 'Test Traveler', email: 't@example.com', role: 'traveler',
+        ).toJson(),
+      }),
+    });
+    final repo = _repo(client);
+    await repo.initialize();
+
+    await repo.sendChatMessage("Let's plan this trip");
+    final message = repo.chatMessages.last;
+    expect(message.timeline, isNotNull);  // the button's builder, not five AI options
+    expect(message.aiOptions, isEmpty);
+    expect(message.text, startsWith('Planning your trip now.'));
+    expect(repo.lastTimeline, same(message.timeline));
+    expect(recorded.contains('/ai/itineraries/generate/guest'), isFalse);
+    expect(recorded.contains('/ai/itineraries/generate'), isFalse);
+
+    // The server cannot build the timeline: the earlier AI generator still answers.
+    timelineUp = false;
+    await repo.sendChatMessage("Let's plan this trip");
+    expect(
+      recorded.contains('/ai/itineraries/generate/guest') ||
+          recorded.contains('/ai/itineraries/generate'),
+      isTrue,
+    );
+  });
+
   test('a failed revision says nothing changed and keeps the timeline', () async {
     var up = true;
     final client = MockClient((req) async {
