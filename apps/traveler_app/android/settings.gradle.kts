@@ -23,6 +23,8 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.4.20" apply false
     // Firebase (push notifications). Applied in :app only when google-services.json exists.
     id("com.google.gms.google-services") version "4.4.4" apply false
+    // Crash reports (Crashlytics): uploads the build's symbols. Same condition as above.
+    id("com.google.firebase.crashlytics") version "3.0.6" apply false
 }
 
 include(":app")

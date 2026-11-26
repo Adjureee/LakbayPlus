@@ -8,6 +8,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/profile_screen.dart';
 import 'core/lakbay_motion.dart';
 import 'services/env_config.dart';
+import 'services/firebase_analytics_setup.dart';
 import 'services/firebase_push.dart';
 import 'services/notification_routing.dart';
 import 'screens/trip_detail_screen.dart';
@@ -20,7 +21,17 @@ Future<void> main() async {
   await EnvConfig.load();
   // Push notifications through Firebase; a quiet no-op when Firebase is not set up.
   final pushService = await FirebasePush.create();
-  runApp(LakbayTravelApp(repository: TravelRepository(pushService: pushService)));
+  // Anonymous usage counts and crash reports; off in debug builds and when the
+  // traveler turns it off in Settings.
+  final analytics = await FirebaseAnalyticsSetup.create();
+  runApp(
+    LakbayTravelApp(
+      repository: TravelRepository(
+        pushService: pushService,
+        analytics: analytics,
+      ),
+    ),
+  );
 }
 
 class LakbayTravelApp extends StatefulWidget {

@@ -110,6 +110,16 @@ class SettingsScreen extends StatelessWidget {
                         value: repo.priceDropAlertsEnabled,
                         onChanged: repo.setNotificationsEnabled,
                       ),
+                      _SettingsToggleCard(
+                        icon: Icons.insights_outlined,
+                        title: 'Share anonymous usage and crash reports',
+                        subtitle:
+                            'Helps us fix crashes and see which steps people '
+                            'get stuck on. We never send your messages, name, '
+                            'email or GPS position.',
+                        value: repo.analyticsEnabled,
+                        onChanged: repo.setAnalyticsEnabled,
+                      ),
                       _SettingsLocationCard(
                         value: repo.locationSharingEnabled,
                         statusText: _locationStatusSummary(repo),
@@ -946,12 +956,14 @@ class _SettingsToggleCard extends StatelessWidget {
   final String title;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final String? subtitle;
 
   const _SettingsToggleCard({
     required this.icon,
     required this.title,
     required this.value,
     required this.onChanged,
+    this.subtitle,
   });
 
   @override
@@ -969,13 +981,30 @@ class _SettingsToggleCard extends StatelessWidget {
           Icon(icon, color: LakbayColors.tealDeep, size: 22),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 15,
-                color: LakbayColors.tealDeep,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: LakbayColors.tealDeep,
+                  ),
+                ),
+                if (subtitle != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      subtitle!,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        height: 1.3,
+                        color: LakbayColors.textMuted,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           Switch(
