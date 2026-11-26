@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
 import '../services/location_service.dart';
@@ -917,8 +918,9 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                             ),
                           ),
                         ),
-                        const PopupMenuDivider(),
-                        PopupMenuItem<String>(
+                        if (kDebugMode) ...[
+                          const PopupMenuDivider(),
+                          PopupMenuItem<String>(
                           value: '__token__',
                           child: Row(
                             children: [
@@ -945,6 +947,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                             ],
                           ),
                         ),
+                        ],
                       ],
                       child: Container(
                         padding: const EdgeInsets.symmetric(

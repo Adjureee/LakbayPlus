@@ -863,7 +863,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('Mapbox'));
+    await tester.tap(find.text('Map'));
     await tester.pump();
 
     expect(find.byType(LakbayMapboxMap), findsOneWidget);
@@ -934,7 +934,7 @@ void main() {
       lng: 125.6,
       thumbnailUrl: '',
     );
-    expect(missingPoint.regionName, equals('Region XI'));
+    expect(missingPoint.regionName, equals('Davao Region'));
 
     final hits = await repo.searchStartingPlaces('Makati');
     expect(hits, hasLength(1));
@@ -948,7 +948,7 @@ void main() {
     expect(repo.isOriginOutsideRegionXi, isTrue);
     expect(
       repo.originRegionNote,
-      contains('Road routes are planned inside Region XI'),
+      contains('Road routes are planned inside the Davao Region'),
     );
 
     final pinLabel = await repo.reverseGeocodePoint(7.4479, 125.8078);
@@ -1003,7 +1003,7 @@ void main() {
     expect(repo.resolvedOriginLabel, equals('Cebu City, Philippines'));
     expect(repo.isOriginOutsideRegionXi, isTrue);
     expect(
-      find.textContaining('Road routes are planned inside Region XI'),
+      find.textContaining('Road routes are planned inside the Davao Region'),
       findsOneWidget,
     );
   });

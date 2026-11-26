@@ -275,8 +275,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                       onTap: () => widget.repo.setActiveNavIndex(0),
                     ),
                     _NavItem(
-                      icon: Icons.ondemand_video_outlined,
-                      selectedIcon: Icons.ondemand_video,
+                      icon: Icons.explore_outlined,
+                      selectedIcon: Icons.explore,
                       label: 'Discover',
                       selected: selectedIndex == 1,
                       onTap: () => widget.repo.setActiveNavIndex(1),

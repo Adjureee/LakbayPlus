@@ -84,7 +84,7 @@ void main() {
         );
     expect(navIcon('Trips', Icons.map), findsOneWidget);
     expect(navIcon('Trips', Icons.map_outlined), findsNothing);
-    expect(navIcon('Discover', Icons.ondemand_video_outlined), findsOneWidget);
+    expect(navIcon('Discover', Icons.explore_outlined), findsOneWidget);
     expect(navIcon('Memories', Icons.photo_library_outlined), findsOneWidget);
 
     final selected = _labelColor(tester, 'Trips')!;

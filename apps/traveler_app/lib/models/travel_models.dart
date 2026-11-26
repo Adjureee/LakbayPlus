@@ -1,3 +1,5 @@
+import '../core/plain_words.dart';
+
 // Core domain models for Lakbay+ — Davao Region (Region XI) AI Travel Planner.
 
 import 'timeline_models.dart';
@@ -197,7 +199,7 @@ class ExploreTrip {
         lower.contains('igacos') ||
         lower.contains('talikud') ||
         lower.contains('pearl farm')) {
-      return 'Samal (IGaCoS)';
+      return PlainWords.samal;
     }
     if (ig == 'balut' || lower.contains('balut') || lower.contains('sarangani')) {
       return 'Davao Occidental';
@@ -244,7 +246,7 @@ class ExploreTrip {
       return 'Davao City';
     }
     final d = district?.trim() ?? '';
-    return d.isNotEmpty ? d : 'Region XI';
+    return d.isNotEmpty ? d : PlainWords.region;
   }
 
   /// Base estimate in USD (repository formats into PHP ₱ at 57.0 default or live FX).
@@ -406,7 +408,7 @@ class SuggestedRoute {
         const [];
     return SuggestedRoute(
       id: (json['id'] ?? '').toString(),
-      title: (json['title'] ?? 'Suggested Region XI Route').toString(),
+      title: (json['title'] ?? 'Suggested route').toString(),
       destinationIds: idsRaw.map((e) => e.toString()).toList(),
       suggestedDays:
           ((json['suggested_days'] ?? json['suggestedDays']) as num?)?.toInt(),
@@ -1040,7 +1042,7 @@ class RoutePlanOptimizationSummary {
 
   String get sourceLabel => switch (costSource) {
         'osrm' => 'OSRM roads',
-        'mapbox' => 'Mapbox roads',
+        'mapbox' => 'Road routes',
         'google_routes' => 'Google roads',
         _ => 'On-device Haversine',
       };
