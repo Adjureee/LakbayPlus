@@ -1,0 +1,425 @@
+[
+  {
+    "destination_id": 7,
+    "name": "Panabo City Parks and Plaza",
+    "district": "Davao del Norte",
+    "notes": "From Davao City or Tagum City, ride any northbound bus or jeepney along the Agusan-Davao National Highway and get off directly at Panabo City Center / City Hall.",
+    "routes": [
+      {
+        "start_area": null,
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "bus",
+            "from_place": "Davao City or Tagum City",
+            "to_place": "Panabo City Center / City Hall",
+            "get_off_at": "Panabo City Center / City Hall",
+            "minutes": null,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": "Ride northbound bus along the Agusan-Davao National Highway"
+          }
+        ]
+      },
+      {
+        "start_area": null,
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "jeepney",
+            "from_place": "Davao City or Tagum City",
+            "to_place": "Panabo City Center / City Hall",
+            "get_off_at": "Panabo City Center / City Hall",
+            "minutes": null,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": "Ride northbound jeepney along the Agusan-Davao National Highway"
+          }
+        ]
+      }
+    ],
+    "unclear": [
+      "Start location could be Davao City or Tagum City"
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 8,
+    "name": "Tagbibinta Falls",
+    "district": "Davao de Oro",
+    "notes": "Travel from Davao City to Maragusan by bus or van, then hire local transport to the falls.",
+    "routes": [
+      {
+        "start_area": "Davao City",
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "bus",
+            "from_place": "Davao City",
+            "to_place": "Maragusan",
+            "get_off_at": "Maragusan",
+            "minutes": null,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": "Travel by bus"
+          }
+        ]
+      },
+      {
+        "start_area": "Davao City",
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "van",
+            "from_place": "Davao City",
+            "to_place": "Maragusan",
+            "get_off_at": "Maragusan",
+            "minutes": null,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": "Travel by van"
+          }
+        ]
+      }
+    ],
+    "unclear": [
+      "Local transport from Maragusan to Tagbibinta Falls not specified (vehicle, fare, time)"
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 9,
+    "name": "Mainit Hot Springs",
+    "district": "Davao de Oro",
+    "notes": "Travel from Davao City to Maco, then arrange local transport to Mainit.",
+    "routes": [],
+    "unclear": [
+      "Notes lack specific public transport details such as vehicle type, stops, fares, or times."
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 10,
+    "name": "Little Boracay Beach",
+    "district": "Davao Occidental",
+    "notes": "Travel from Davao City to Digos or Malita, then continue by local transport toward Santa Maria.",
+    "routes": [],
+    "unclear": [
+      "Notes do not specify any public transport steps; only vague directions."
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 11,
+    "name": "Balut Island",
+    "district": "Davao Occidental",
+    "notes": "Travel to General Santos or Davao Occidental access points, then arrange sea transport to Sarangani islands.",
+    "routes": [],
+    "unclear": [
+      "Notes lack specific public-transport details such as vehicle type, stops, fares, or times; only a vague suggestion to arrange sea transport."
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 12,
+    "name": "Tudaya Falls",
+    "district": "Davao del Sur",
+    "notes": "Travel from Davao City to Sta. Cruz or Kapatagan, then arrange local guide and transport.",
+    "routes": [],
+    "unclear": [
+      "Notes do not specify any public transport vehicles, stops, fares, or times; only a generic travel suggestion."
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 13,
+    "name": "Aliwagwag Falls",
+    "district": "Davao Oriental",
+    "notes": "Travel from Davao City toward Cateel via Davao Oriental routes, then proceed to Aliwagwag area.",
+    "routes": [],
+    "unclear": [
+      "The notes only describe a general travel direction without specifying any public transport mode, vehicle, stops, fares, or times."
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 16,
+    "name": "Aqua Water Park",
+    "district": "Davao del Norte",
+    "notes": "Samal ferry or boat connection must be arranged separately.",
+    "routes": [
+      {
+        "start_area": null,
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "ferry",
+            "from_place": null,
+            "to_place": null,
+            "get_off_at": null,
+            "minutes": null,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": "Samal ferry or boat connection must be arranged separately."
+          }
+        ]
+      }
+    ],
+    "unclear": [],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 17,
+    "name": "Camp Sabros Mountain Resort",
+    "district": "Davao del Sur",
+    "notes": "Operator describes a parking area below the camp; its exact pin is not verified.",
+    "routes": [],
+    "unclear": [
+      "Notes only mention a parking area below the camp and do not provide any public transport directions."
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 42,
+    "name": "Agriya Naturetainment",
+    "district": "Davao Del Norte",
+    "notes": "By Private Car or Tricycle",
+    "routes": [
+      {
+        "start_area": null,
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "tricycle",
+            "from_place": null,
+            "to_place": null,
+            "get_off_at": null,
+            "minutes": null,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": "By Private Car or Tricycle"
+          }
+        ]
+      }
+    ],
+    "unclear": [],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 45,
+    "name": "Maria Clara Resort",
+    "district": "Davao Del Norte",
+    "notes": "By Private Car or Tricycle",
+    "routes": [
+      {
+        "start_area": null,
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "tricycle",
+            "from_place": null,
+            "to_place": "Maria Clara Resort",
+            "get_off_at": null,
+            "minutes": null,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": "Tricycle option"
+          }
+        ]
+      }
+    ],
+    "unclear": [],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 46,
+    "name": "Sky Deck Garden Cafe and Restaurant",
+    "district": "Davao Del Norte",
+    "notes": "Easy to reach via any highway-bound bus, van, tricycle passing through.",
+    "routes": [],
+    "unclear": [
+      "Notes mention highway-bound bus, van, tricycle but no specific start area, stops, fare, or time."
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 47,
+    "name": "Sky Deck Garden Cafe and Restaurant",
+    "district": "Davao Del Norte",
+    "notes": "Easy to reach via any highway-bound bus, van, tricycle passing through.",
+    "routes": [],
+    "unclear": [
+      "Notes lack specific start area and step details; only mention generic highway-bound bus, van, tricycle."
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 48,
+    "name": "Tagum Freedom Park",
+    "district": "Davao Del Norte",
+    "notes": "Walking distance from Gaisano Grand Mall of Tagum, or a quick Tricycle ride from the Tagum Overland Transport Integrated Terminal",
+    "routes": [
+      {
+        "start_area": "Gaisano Grand Mall of Tagum",
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "walk",
+            "from_place": "Gaisano Grand Mall of Tagum",
+            "to_place": "Tagum Freedom Park",
+            "get_off_at": null,
+            "minutes": null,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": "Walking distance"
+          }
+        ]
+      },
+      {
+        "start_area": "Tagum Overland Transport Integrated Terminal",
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "tricycle",
+            "from_place": "Tagum Overland Transport Integrated Terminal",
+            "to_place": "Tagum Freedom Park",
+            "get_off_at": null,
+            "minutes": null,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": "quick Tricycle ride"
+          }
+        ]
+      }
+    ],
+    "unclear": [],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 49,
+    "name": "Energy Park",
+    "district": "Davao Del Norte",
+    "notes": "Ridea tricycle heading to Barangay Apokon / Energy Park.",
+    "routes": [
+      {
+        "start_area": null,
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "tricycle",
+            "from_place": null,
+            "to_place": "Barangay Apokon / Energy Park",
+            "get_off_at": null,
+            "minutes": null,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": "Ridea tricycle heading to Barangay Apokon / Energy Park."
+          }
+        ]
+      }
+    ],
+    "unclear": [],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 50,
+    "name": "San Agustin Botanical Park",
+    "district": "Davao Del Norte",
+    "notes": "located about a 15 minute drive along fully cemented roads from downtown Tagum City.",
+    "routes": [],
+    "unclear": [
+      "No public transport information provided; only driving directions."
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 51,
+    "name": "Tagum New City Hall",
+    "district": "Davao Del Norte",
+    "notes": "Ride a tricycle hadingto New City Hall / J.V Ayala Avenue.",
+    "routes": [
+      {
+        "start_area": null,
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "tricycle",
+            "from_place": null,
+            "to_place": "New City Hall / J.V Ayala Avenue",
+            "get_off_at": null,
+            "minutes": null,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": "Ride a tricycle hadingto New City Hall / J.V Ayala Avenue."
+          }
+        ]
+      }
+    ],
+    "unclear": [
+      "Starting point not specified"
+    ],
+    "model_id": "openai/gpt-oss-120b"
+  },
+  {
+    "destination_id": 52,
+    "name": "World's largest Rosary",
+    "district": "Davao Del Norte",
+    "notes": "5 minute tricycle ride from downtown Tagum",
+    "routes": [
+      {
+        "start_area": null,
+        "notes": null,
+        "source_url": null,
+        "is_verified": false,
+        "is_active": true,
+        "steps": [
+          {
+            "vehicle": "tricycle",
+            "from_place": "downtown Tagum",
+            "to_place": "World's largest Rosary",
+            "get_off_at": null,
+            "minutes": 5,
+            "fare_php": null,
+            "charging_unit": null,
+            "notes": null
+          }
+        ]
+      }
+    ],
+    "unclear": [],
+    "model_id": "openai/gpt-oss-120b"
+  }
+]
