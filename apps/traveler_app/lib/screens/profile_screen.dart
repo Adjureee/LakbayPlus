@@ -22,7 +22,7 @@ class ProfileScreen extends StatelessWidget {
     final profile = repo.profile;
     final trips = repo.savedTrips;
     final previewTrips = trips.take(2).toList();
-    final coverAsset = trips.isNotEmpty
+    final coverAsset = trips.isNotEmpty && trips.first.heroAsset.isNotEmpty
         ? trips.first.heroAsset
         : 'assets/home_backdrops/01-samal-island.jpg';
 
@@ -807,6 +807,7 @@ class _ProfileTripTile extends StatelessWidget {
               child: LakbayNetworkOrAssetImage(
                 networkUrl: trip.remoteImageUrl,
                 assetPath: trip.heroAsset,
+ category: trip.vibeTag,
                 width: 52,
                 height: 52,
               ),

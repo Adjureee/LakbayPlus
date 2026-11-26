@@ -820,6 +820,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                       LakbayNetworkOrAssetImage(
                         networkUrl: networkImg,
                         assetPath: resolved.localAssetPath,
+ category: resolved.tag,
                       ),
                       if (place.category != null &&
                           place.category!.trim().isNotEmpty)
@@ -874,7 +875,7 @@ class _YesAiOnboardingFlowState extends State<YesAiOnboardingFlow> {
                                 place.district!.trim().isNotEmpty)
                               place.district!.trim(),
                             if (place.travelMinutes != null)
-                              '~${place.travelMinutes} min',
+                              widget.repo.travelTimeLabel(place.travelMinutes!),
                             ...place.reasons.take(2),
                           ].join(' • '),
                           maxLines: 3,

@@ -2576,7 +2576,7 @@ class TravelRepository extends ChangeNotifier {
         isUser: false,
         text: results.isEmpty
             ? 'Lakbay has no active ${category.label} places listed yet.'
-            : 'Here are top ${category.label} spots from the catalog (tap + Add to plan from them):',
+            : 'Top ${category.label} places. Tap + Add to start a trip with them.',
         timestamp: DateTime.now(),
         recommendedPlaces: results,
       ),
@@ -5243,7 +5243,7 @@ class TravelRepository extends ChangeNotifier {
     final heroLocal = preferredHeroAsset ??
         fallbackTrip?.heroAsset ??
         firstMatchedCatalog?.localAssetPath ??
-        currentBackdrop.localAssetPath;
+        '';
     final destLabel = fallbackTrip?.destination ??
         firstMatchedCatalog?.regionName ??
         'Davao Region, Philippines';
@@ -5370,7 +5370,7 @@ class TravelRepository extends ChangeNotifier {
       daysCount: ai.daysCount ?? days.length,
       centerLat: fallbackCenter.$1,
       centerLng: fallbackCenter.$2,
-      heroAsset: currentBackdrop.localAssetPath,
+      heroAsset: '',
       vibeTag: ai.vibe?.isNotEmpty == true ? ai.vibe! : 'Davao AI Route',
       overviewText: ai.replyText,
       bestMonths: '',
@@ -5556,7 +5556,7 @@ class TravelRepository extends ChangeNotifier {
     bool includeFlights = false,
   }) {
     final tripId = id ?? 'davao_${DateTime.now().millisecondsSinceEpoch}';
-    final effectiveHero = heroAsset ?? currentBackdrop.localAssetPath;
+    final effectiveHero = heroAsset ?? '';
     final cleanTitle = title ?? '$daysCount-Day $destination';
 
     final (clampedLat, clampedLng) = MapboxService.clampToDavaoRegion(
@@ -5698,6 +5698,17 @@ class TravelRepository extends ChangeNotifier {
     return looksLikeCoordinates ? 'Pinned location' : label;
   }
 
+  /// Where a trip starts, in a word or two ("Tubaon", "Pinned location"), for
+  /// lines like "~34 min from Tubaon". Empty when no start is set.
+  String get originShortName => originDisplayName.split(',').first.trim();
+
+  /// A travel time always says where it starts, so "~34 min" is never a guess
+  /// about which start it means.
+  String travelTimeLabel(num minutes) {
+    final from = originShortName;
+    return from.isEmpty ? '~$minutes min' : '~$minutes min from $from';
+  }
+
   String? get resolvedOriginLabel {
     final label = effectiveOriginLabel.trim();
     return label.isEmpty ? null : label;
@@ -5762,10 +5773,8 @@ class TravelRepository extends ChangeNotifier {
                     trip.remoteImageUrl!.startsWith('https://'))
             ? trip.remoteImageUrl
             : null);
-    final asset = matched?.localAssetPath ??
-        (trip.heroAsset.isNotEmpty
-            ? trip.heroAsset
-            : currentBackdrop.localAssetPath);
+    final ownPhoto = matched?.localAssetPath ?? '';
+    final asset = ownPhoto.isNotEmpty ? ownPhoto : trip.heroAsset;
     return (imageUrl: remote, imageAsset: asset);
   }
 

@@ -165,7 +165,7 @@ class ExploreTrip {
   bool get hasRemoteThumbnail =>
       thumbnailUrl.startsWith('http://') || thumbnailUrl.startsWith('https://');
 
-  String get localAssetPath => davaoBackdropAssetFor('$title ${district ?? ''}');
+  String get localAssetPath => ownPhotoAssetFor(title);
 
   /// Normalizes backend or CSV stay duration types into canonical keys.
   String get normalizedStayDurationType => normalizeStayDurationType(
@@ -2661,7 +2661,7 @@ class TopPlaceRecommendation {
   });
 
   String get fallbackAssetPath =>
-      davaoBackdropAssetFor('$name ${district ?? ''} ${category ?? ''}');
+      ownPhotoAssetFor(name);
 
   Map<String, dynamic> toJson() => {
         'rank': rank,
@@ -2735,60 +2735,28 @@ class TopPlacesResult {
       );
 }
 
-String davaoBackdropAssetFor(String seed) {
+/// The bundled photo of this exact place, or an empty string when the app has
+/// none. A match needs the place's own name: a photo of Samal Island's beach is
+/// not a photo of any other Samal resort, and the old "closest region" guess put
+/// People's Park or Eden on places that look nothing like them.
+String ownPhotoAssetFor(String seed) {
   final lower = seed.toLowerCase();
-  if (lower.contains('samal') ||
-      lower.contains('talikud') ||
-      lower.contains('vanishing') ||
-      lower.contains('coral')) {
-    return 'assets/home_backdrops/01-samal-island.jpg';
+  const photos = <(String, List<String>)>[
+    ('01-samal-island.jpg', ['samal island beach area', 'samal island (igacos)']),
+    ('02-dahican-mati.jpg', ['dahican beach']),
+    ('03-mount-apo.jpg', ['mount apo']),
+    ('04-eden-toril.jpg', ['eden nature park']),
+    ('05-aliwagwag-falls.jpg', ['aliwagwag']),
+    ('06-cape-san-agustin.jpg', ['cape san agustin']),
+    ('07-malagos-eagle.jpg', ['philippine eagle center']),
+    ('08-peoples-park.jpg', ["people's park", 'peoples park']),
+    ('09-marilog-bemwa.jpg', ['marilog highlands']),
+    ('10-calamba-clouds.jpg', ['maragusan sea of clouds']),
+  ];
+  for (final (file, names) in photos) {
+    if (names.any(lower.contains)) return 'assets/home_backdrops/$file';
   }
-  if (lower.contains('mati') ||
-      lower.contains('dahican') ||
-      lower.contains('pujada') ||
-      lower.contains('sleeping dinosaur')) {
-    return 'assets/home_backdrops/02-dahican-mati.jpg';
-  }
-  if (lower.contains('apo') ||
-      lower.contains('kapatagan') ||
-      lower.contains('digos') ||
-      lower.contains('bansalan')) {
-    return 'assets/home_backdrops/03-mount-apo.jpg';
-  }
-  if (lower.contains('eden') ||
-      lower.contains('toril') ||
-      lower.contains('nature park')) {
-    return 'assets/home_backdrops/04-eden-toril.jpg';
-  }
-  if (lower.contains('aliwagwag') ||
-      lower.contains('falls') ||
-      lower.contains('cateel') ||
-      lower.contains('hagimit')) {
-    return 'assets/home_backdrops/05-aliwagwag-falls.jpg';
-  }
-  if (lower.contains('cape san agustin') ||
-      lower.contains('gov. generoso') ||
-      lower.contains('san victor')) {
-    return 'assets/home_backdrops/06-cape-san-agustin.jpg';
-  }
-  if (lower.contains('eagle') ||
-      lower.contains('malagos') ||
-      lower.contains('calinan')) {
-    return 'assets/home_backdrops/07-malagos-eagle.jpg';
-  }
-  if (lower.contains('maragusan') ||
-      lower.contains('sea of clouds') ||
-      lower.contains('davao de oro') ||
-      lower.contains('monkayo')) {
-    return 'assets/home_backdrops/10-calamba-clouds.jpg';
-  }
-  if (lower.contains('marilog') ||
-      lower.contains('buda') ||
-      lower.contains('bemwa') ||
-      lower.contains('hills')) {
-    return 'assets/home_backdrops/09-marilog-bemwa.jpg';
-  }
-  return 'assets/home_backdrops/08-peoples-park.jpg';
+  return '';
 }
 
 double _parseDoubleModel(dynamic value) {

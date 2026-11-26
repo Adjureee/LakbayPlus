@@ -1731,7 +1731,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
     final infoLine = [
       if (place.district != null && place.district!.trim().isNotEmpty)
         place.district!.trim(),
-      if (place.travelMinutes != null) '~${place.travelMinutes} min',
+      if (place.travelMinutes != null)
+        widget.repo.travelTimeLabel(place.travelMinutes!),
     ].join(' • ');
     final price = _priceLine(place.reasons);
     final networkImg =
@@ -1780,6 +1781,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 LakbayNetworkOrAssetImage(
                   networkUrl: networkImg,
                   assetPath: resolved.localAssetPath,
+ category: resolved.tag,
                 ),
                 if (place.category != null && place.category!.trim().isNotEmpty)
                   Positioned(
@@ -2054,6 +2056,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                           LakbayNetworkOrAssetImage(
                             networkUrl: trip.remoteImageUrl,
                             assetPath: trip.heroAsset,
+ category: trip.vibeTag,
                           ),
                           Positioned(
                             top: 8,
@@ -2229,6 +2232,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                   LakbayNetworkOrAssetImage(
                     networkUrl: trip.remoteImageUrl,
                     assetPath: trip.heroAsset,
+ category: trip.vibeTag,
                   ),
                   Positioned(
                     top: 10,

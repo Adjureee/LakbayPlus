@@ -11,7 +11,7 @@ import 'package:lakbay_travel/services/lakbay_api_catalog_service.dart';
 import 'package:lakbay_travel/services/travel_repository.dart';
 
 void main() {
-  test('All Region XI ExploreTrip fallback assets map strictly to Davao backdrops', () {
+  test('An ExploreTrip bundled photo is only ever its own place and exists on disk', () {
     const samples = [
       ExploreTrip(
         locale: 'en',
@@ -51,7 +51,14 @@ void main() {
       ),
     ];
 
+    // Only a place that is the photo's own subject has a bundled photo; the rest
+    // get none (the card shows a placeholder), never a nearby region's photo.
+    const ownPhoto = {'api_2', 'api_4'}; // Dahican Beach, Aliwagwag Falls
     for (final trip in samples) {
+      if (!ownPhoto.contains(trip.id)) {
+        expect(trip.localAssetPath, isEmpty, reason: trip.title);
+        continue;
+      }
       expect(trip.localAssetPath, startsWith('assets/home_backdrops/'));
       expect(trip.localAssetPath, isNot(contains('thoddoo')));
       expect(trip.localAssetPath, isNot(contains('seceda')));

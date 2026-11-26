@@ -434,6 +434,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   LakbayNetworkOrAssetImage(
                     networkUrl: _activeTrip.remoteImageUrl,
                     assetPath: _activeTrip.heroAsset,
+ category: _activeTrip.vibeTag,
                   ),
                   Container(
                     decoration: const BoxDecoration(
