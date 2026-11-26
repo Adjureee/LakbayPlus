@@ -472,8 +472,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                 ? trip.thumbnailUrl
                                                 : null,
                                             assetPath: trip.localAssetPath,
-                                            fallbackAsset: widget
-                                                .repo.currentBackdrop.localAssetPath,
+ category: trip.tag,
                                           ),
                                           Container(
                                             decoration: const BoxDecoration(
@@ -823,8 +822,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 ? activeTrip.thumbnailUrl
                                 : null,
                             assetPath: activeTrip.localAssetPath,
-                            fallbackAsset:
-                                widget.repo.currentBackdrop.localAssetPath,
+ category: activeTrip.tag,
                           ),
                         ),
                       ),
@@ -1073,7 +1071,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             LakbayNetworkOrAssetImage(
               networkUrl: trip.hasRemoteThumbnail ? trip.thumbnailUrl : null,
               assetPath: trip.localAssetPath,
-              fallbackAsset: widget.repo.currentBackdrop.localAssetPath,
+ category: trip.tag,
             ),
             Container(
               decoration: const BoxDecoration(
@@ -1256,6 +1254,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     ? trip.thumbnailUrl
                                     : null,
                                 assetPath: trip.localAssetPath,
+ category: trip.tag,
                               ),
                               Positioned(
                                 top: 8,
@@ -1478,6 +1477,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 child: LakbayNetworkOrAssetImage(
                   networkUrl: trip.hasRemoteThumbnail ? trip.thumbnailUrl : null,
                   assetPath: trip.localAssetPath,
+ category: trip.tag,
                   width: 64,
                   height: 64,
                 ),

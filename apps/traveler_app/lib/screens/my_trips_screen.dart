@@ -298,6 +298,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                       LakbayNetworkOrAssetImage(
                         networkUrl: heroTrip.remoteImageUrl,
                         assetPath: heroTrip.heroAsset,
+ category: heroTrip.vibeTag,
                       ),
                       Container(
                         decoration: const BoxDecoration(
@@ -542,6 +543,7 @@ class _TripListTile extends StatelessWidget {
               child: LakbayNetworkOrAssetImage(
                 networkUrl: trip.remoteImageUrl,
                 assetPath: trip.heroAsset,
+ category: trip.vibeTag,
                 width: 58,
                 height: 58,
               ),

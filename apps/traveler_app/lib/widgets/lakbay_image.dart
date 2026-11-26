@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/lakbay_theme.dart';
+import 'place_photo_placeholder.dart';
 
 /// Sizes remote photos to what is shown.
 ///
@@ -36,12 +36,18 @@ class LakbayImageSizing {
   }
 }
 
-/// Shared Davao Region image renderer that prefers verified Cloudinary URLs,
-/// then falls back smoothly to bundled local Davao Region photography.
+/// Shows a place's photo: the admin's Cloudinary photo when there is one, else
+/// the bundled photo of that exact place, else a plain illustration for the kind
+/// of place ([PlacePhotoPlaceholder]). It never falls back to a photo of a
+/// different place, so a card cannot show a beach for a waterfall.
 class LakbayNetworkOrAssetImage extends StatelessWidget {
   final String? networkUrl;
+
+  /// A bundled photo of this exact place, or empty when the app has none.
   final String assetPath;
-  final String fallbackAsset;
+
+  /// The place's category, to pick the placeholder's illustration.
+  final String? category;
   final double? width;
   final double? height;
   final BoxFit fit;
@@ -50,7 +56,7 @@ class LakbayNetworkOrAssetImage extends StatelessWidget {
     super.key,
     required this.networkUrl,
     required this.assetPath,
-    this.fallbackAsset = 'assets/home_backdrops/01-samal-island.jpg',
+    this.category,
     this.width,
     this.height,
     this.fit = BoxFit.cover,
@@ -61,30 +67,24 @@ class LakbayNetworkOrAssetImage extends StatelessWidget {
     return trimmed.startsWith('http://') || trimmed.startsWith('https://');
   }
 
-  Widget _buildAssetFallback() {
+  Widget _placeholder() =>
+      PlacePhotoPlaceholder(category: category, width: width, height: height);
+
+  Widget _buildAsset() {
+    if (assetPath.trim().isEmpty) return _placeholder();
     return Image.asset(
       assetPath,
       width: width,
       height: height,
       fit: fit,
-      errorBuilder: (_, _, _) => Image.asset(
-        fallbackAsset,
-        width: width,
-        height: height,
-        fit: fit,
-        errorBuilder: (_, _, _) => Container(
-          width: width,
-          height: height,
-          decoration: const BoxDecoration(gradient: LakbayColors.deepTealGradient),
-        ),
-      ),
+      errorBuilder: (_, _, _) => _placeholder(),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_hasRemoteUrl) {
-      return _buildAssetFallback();
+      return _buildAsset();
     }
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final target = LakbayImageSizing.stepFor(
@@ -100,15 +100,9 @@ class LakbayNetworkOrAssetImage extends StatelessWidget {
       gaplessPlayback: true,
       loadingBuilder: (context, child, loadingProgress) {
         if (loadingProgress == null) return child;
-        return Stack(
-          fit: StackFit.passthrough,
-          children: [
-            _buildAssetFallback(),
-            Container(color: Colors.black.withValues(alpha: 0.08)),
-          ],
-        );
+        return _buildAsset();
       },
-      errorBuilder: (_, _, _) => _buildAssetFallback(),
+      errorBuilder: (_, _, _) => _buildAsset(),
     );
   }
 }
