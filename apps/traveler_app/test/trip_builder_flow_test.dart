@@ -363,6 +363,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Plan Your Route'), findsOneWidget);
+    // The two ways to get a trip are named by what they do.
+    expect(find.text('Build my 4-day trip (no AI)', skipOffstage: false),
+        findsOneWidget);
+    expect(find.text('Plan it with Lakbay AI instead', skipOffstage: false),
+        findsOneWidget);
     expect(find.text('Eden Nature Park'), findsOneWidget);
     expect(find.textContaining('Suggested:'), findsWidgets);
     expect(find.text('My location'), findsOneWidget);

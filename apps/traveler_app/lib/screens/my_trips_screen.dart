@@ -53,7 +53,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Create Davao Region Trip',
+                  'Plan a trip with Lakbay AI',
                   style: TextStyle(
                     fontFamily: 'FigGrotesk',
                     fontSize: 20,
@@ -200,7 +200,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                   color: LakbayColors.primary,
                   shape: const CircleBorder(),
                   child: IconButton(
-                    tooltip: 'Create Trip',
+                    tooltip: 'Plan a trip',
                     onPressed: _showCreateTripDialog,
                     icon: const Icon(Icons.add_rounded, color: Colors.white),
                   ),
