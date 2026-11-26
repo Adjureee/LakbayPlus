@@ -391,7 +391,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             foregroundColor: Colors.white,
             actions: [
               IconButton(
-                tooltip: 'Play Animated Mapbox Route',
+                tooltip: 'Play route animation',
                 onPressed: _openFullRouteMap,
                 icon: const Icon(Icons.map_rounded, color: Colors.white),
               ),
@@ -1335,7 +1335,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     errorBuilder: (_, _, _) => const SizedBox.shrink(),
                   ),
                 IconButton(
-                  tooltip: 'View on Mapbox',
+                  tooltip: 'View on map',
                   onPressed: _openFullRouteMap,
                   icon: const Icon(Icons.location_on_outlined,
                       color: LakbayColors.primary, size: 20),
@@ -1751,7 +1751,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                         ),
                       ],
                       IconButton(
-                        tooltip: 'Inspect Day on Mapbox',
+                        tooltip: 'See this day on the map',
                         onPressed: _openFullRouteMap,
                         icon: const Icon(Icons.map_outlined,
                             color: LakbayColors.tealAccent, size: 20),

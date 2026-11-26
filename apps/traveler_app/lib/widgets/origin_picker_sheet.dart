@@ -346,7 +346,7 @@ class _OriginPickerSheetBodyState extends State<_OriginPickerSheetBody> {
                     padding: EdgeInsets.only(bottom: 6),
                     child: _RegionNoteBanner(
                       text:
-                          'This pinned start is outside Davao Region — road routes are planned inside Region XI.',
+                          'This pinned start is outside the Davao Region — road routes are planned inside the Davao Region.',
                     ),
                   ),
                 ElevatedButton.icon(

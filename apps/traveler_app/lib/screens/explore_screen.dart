@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/plain_words.dart';
 import '../models/travel_models.dart';
 import '../services/mapbox_service.dart';
 import '../services/route_optimizer.dart';
@@ -297,7 +298,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           size: 16,
                         ),
                         label: Text(
-                          _isMapView ? 'List View' : 'Mapbox',
+                          _isMapView ? 'List View' : PlainWords.map,
                           style: const TextStyle(
                             fontFamily: 'FigGrotesk',
                             fontWeight: FontWeight.w700,
@@ -312,7 +313,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     children: [
                       const Expanded(
                         child: Text(
-                          'Single Region XI places, Mapbox pins & local guides',
+                          'Places across the Davao Region, with maps and local guides',
                           style: TextStyle(
                             fontSize: 12.5,
                             color: LakbayColors.textSecondary,
@@ -913,7 +914,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'Curated starter combinations — tap one to fill your trip tray',
+                  'Ready-made combinations — tap one to add its places to your trip',
                   style: TextStyle(
                     fontSize: 12.5,
                     color: LakbayColors.textSecondary,
@@ -1141,7 +1142,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          '${trip.municipalityLabel} • ${trip.tag ?? "Place"} • ${trip.stayDurationLabel}',
+                          '${trip.municipalityLabel} • ${trip.stayDurationLabel}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

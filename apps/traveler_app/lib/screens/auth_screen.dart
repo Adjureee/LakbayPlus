@@ -552,7 +552,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         ..onTap = () => _showLegalDialog(
                               context,
                               'Terms of Service',
-                              'Lakbay+ provides AI-assisted travel planning across Davao Region (Region XI). Market rates and schedules are synced from verified Lakbay+ partners and local databases; always confirm live operator availability before departure.',
+                              'Lakbay+ provides AI-assisted travel planning across the Davao Region. Market rates and schedules are synced from verified Lakbay+ partners and local databases; always confirm live operator availability before departure.',
                             ),
                     ),
                     const TextSpan(text: ' and\n'),

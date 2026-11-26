@@ -109,10 +109,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('Browse by category'), findsOneWidget);
-    expect(find.text('Public Plaza (2)'), findsOneWidget);
-    expect(find.text('Observatory Dome (1)'), findsOneWidget);
+    expect(find.text('Public Plaza'), findsOneWidget);
+    expect(find.text('Observatory Dome'), findsOneWidget);
 
-    await tester.tap(find.text('Public Plaza (2)'));
+    await tester.tap(find.text('Public Plaza'));
     await tester.pumpAndSettle();
 
     expect(aiCalls, 0);

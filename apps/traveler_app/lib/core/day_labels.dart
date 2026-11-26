@@ -15,4 +15,32 @@ class DayLabels {
     final label = kind.toUpperCase();
     return days > 1 ? '$days DAYS • $label' : label;
   }
+
+  /// The badge on the featured trip, from its real start date. A trip with no
+  /// date says so, instead of claiming it starts tomorrow.
+  static String startsLabel(DateTime? start, {DateTime? now}) {
+    if (start == null) return 'Dates not set';
+    final today = now ?? DateTime.now();
+    final days = DateTime.utc(start.year, start.month, start.day)
+        .difference(DateTime.utc(today.year, today.month, today.day))
+        .inDays;
+    if (days < 0) return 'Dates passed';
+    if (days == 0) return 'Starts today';
+    if (days == 1) return 'Starts tomorrow';
+    return 'Starts in $days days';
+  }
+
+  /// Joins the parts with " • " and drops repeats, ignoring case, so
+  /// "Davao del Norte • Davao Del Norte" reads once.
+  static String joinDistinct(Iterable<String> parts) {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final part in parts) {
+      for (final piece in part.split('•')) {
+        final text = piece.trim();
+        if (text.isNotEmpty && seen.add(text.toLowerCase())) out.add(text);
+      }
+    }
+    return out.join(' • ');
+  }
 }

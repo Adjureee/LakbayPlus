@@ -65,7 +65,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                 TextField(
                   controller: destController,
                   decoration: InputDecoration(
-                    labelText: 'Destination in Region XI',
+                    labelText: 'Where in the Davao Region?',
                     hintText: 'e.g. Samal Island, Mati, or Mt. Apo',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -157,6 +157,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
     }
 
     final heroTrip = allTrips.isNotEmpty ? allTrips.first : null;
+    // The featured trip is not repeated in the list below it.
+    final listTrips = (heroTrip != null && query.isEmpty)
+        ? filtered.where((t) => t.id != heroTrip.id).toList()
+        : filtered;
 
     return Scaffold(
       backgroundColor: LakbayColors.canvasBg,
@@ -319,9 +323,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                             color: LakbayColors.primaryLight,
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: const Text(
-                            'Starts tomorrow',
-                            style: TextStyle(
+                          child: Text(
+                            DayLabels.startsLabel(heroTrip.startDate),
+                            style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
                               color: LakbayColors.primaryDark,
@@ -338,7 +342,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                           children: [
                             Text(
                               heroTrip.title,
-                              maxLines: 2,
+                              maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontFamily: 'FigGrotesk',
@@ -350,12 +354,12 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              [
+                              DayLabels.joinDistinct([
                                 DayLabels.countTitle(heroTrip.daysCount),
                                 if (heroTrip.travelerCount != null)
                                   '${heroTrip.travelerCount} ${heroTrip.travelerCount == 1 ? 'traveller' : 'travellers'}',
                                 heroTrip.destination,
-                              ].join(' • '),
+                              ]),
                               style: TextStyle(
                                 fontSize: 12.5,
                                 color: Colors.white.withValues(alpha: 0.9),
@@ -466,7 +470,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                 ),
               )
             else
-              for (final trip in filtered)
+              for (final trip in listTrips)
                 _TripListTile(
                   trip: trip,
                   onTap: () => Navigator.of(context).push(
@@ -476,14 +480,25 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                     ),
                   ),
                   onDelete: () {
-                    widget.repo.removeSavedTrip(trip.id);
+                    widget.repo.removeSavedTripWithUndo(trip.id);
                     setState(() {});
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Removed "${trip.title}"'),
-                        backgroundColor: LakbayColors.tealDeep,
-                      ),
-                    );
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        SnackBar(
+                          content: Text('Removed "${trip.title}"'),
+                          backgroundColor: LakbayColors.tealDeep,
+                          duration: TravelRepository.undoWindow,
+                          action: SnackBarAction(
+                            label: 'Undo',
+                            textColor: Colors.white,
+                            onPressed: () {
+                              widget.repo.undoRemoveSavedTrip(trip.id);
+                              setState(() {});
+                            },
+                          ),
+                        ),
+                      );
                   },
                 ),
           ],
@@ -538,7 +553,7 @@ class _TripListTile extends StatelessWidget {
                 children: [
                   Text(
                     trip.title,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontFamily: 'FigGrotesk',
@@ -549,7 +564,11 @@ class _TripListTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${isPlanning ? 'Planning' : 'Upcoming'} • ${DayLabels.countTitle(trip.daysCount)} • ${trip.destination}',
+                    DayLabels.joinDistinct([
+                      isPlanning ? 'Planning' : 'Upcoming',
+                      DayLabels.countTitle(trip.daysCount),
+                      trip.destination,
+                    ]),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -562,7 +581,7 @@ class _TripListTile extends StatelessWidget {
             ),
             if (onDelete != null)
               IconButton(
-                tooltip: 'Archive Trip',
+                tooltip: 'Remove trip',
                 onPressed: onDelete,
                 icon: const Icon(
                   Icons.delete_outline_rounded,

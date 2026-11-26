@@ -17,6 +17,14 @@ import 'notification_routing.dart';
 import 'push_notification_service.dart';
 import 'route_optimizer.dart';
 
+/// A trip taken off the list that can still be brought back.
+class _PendingTripRemoval {
+  _PendingTripRemoval(this.trip, this.index, this.timer);
+  final ItineraryTrip trip;
+  final int index;
+  final Timer timer;
+}
+
 class TravelRepository extends ChangeNotifier {
   bool _disposed = false;
 
@@ -25,6 +33,10 @@ class TravelRepository extends ChangeNotifier {
     _disposed = true;
     _liveSubscription?.cancel();
     _notificationTimer?.cancel();
+    // A removal still waiting to be undone is made final, not lost.
+    for (final id in _pendingRemovals.keys.toList()) {
+      _finishRemoval(id);
+    }
     pushService.dispose();
     super.dispose();
   }
@@ -193,7 +205,7 @@ class TravelRepository extends ChangeNotifier {
   }
 
   String? get originRegionNote => isOriginOutsideRegionXi
-      ? 'Your starting point is outside Davao Region (Region XI). Road routes are planned inside Region XI.'
+      ? 'Your starting point is outside the Davao Region. Road routes are planned inside the Davao Region.'
       : null;
 
   // ── Live location tracking ────────────────────────────────────────────────
@@ -2745,6 +2757,51 @@ class TravelRepository extends ChangeNotifier {
     }
   }
 
+  /// How long a removed trip can be brought back.
+  static const Duration undoWindow = Duration(seconds: 6);
+  final Map<String, _PendingTripRemoval> _pendingRemovals = {};
+
+  /// Takes the trip off the list now but keeps the chance to bring it back.
+  /// The cloud copy is deleted only after [undoWindow], so Undo restores it
+  /// completely; if the app is closed inside that window the trip can come back
+  /// on the next sync.
+  void removeSavedTripWithUndo(String tripId) {
+    final index = _savedTrips.indexWhere((t) => t.id == tripId);
+    if (index < 0) return;
+    final trip = _savedTrips.removeAt(index);
+    _scheduleSaveState();
+    notifyListeners();
+    _pendingRemovals[tripId] = _PendingTripRemoval(
+      trip,
+      index,
+      Timer(undoWindow, () => _finishRemoval(tripId)),
+    );
+  }
+
+  /// Puts a just-removed trip back where it was. False when the time is up.
+  bool undoRemoveSavedTrip(String tripId) {
+    final pending = _pendingRemovals.remove(tripId);
+    if (pending == null) return false;
+    pending.timer.cancel();
+    _savedTrips.insert(
+      pending.index.clamp(0, _savedTrips.length),
+      pending.trip,
+    );
+    _scheduleSaveState();
+    notifyListeners();
+    return true;
+  }
+
+  void _finishRemoval(String tripId) {
+    final pending = _pendingRemovals.remove(tripId);
+    if (pending == null) return;
+    pending.timer.cancel();
+    final cloudId = pending.trip.backendTripId;
+    if (isSignedIn && cloudId != null) {
+      apiCatalog.deleteTrip(_authSession!.accessToken, cloudId);
+    }
+  }
+
   void removeSavedTrip(String tripId) {
     final idx = _savedTrips.indexWhere((t) => t.id == tripId);
     final cloudId = idx >= 0 ? _savedTrips[idx].backendTripId : null;
@@ -3261,7 +3318,7 @@ class TravelRepository extends ChangeNotifier {
       remoteImageUrl: primary.hasRemoteThumbnail ? primary.thumbnailUrl : null,
       vibeTag: 'Multi-Stop Route',
       overviewText:
-          'Custom $daysCount-day Region XI route connecting ${shortNames.join(', ')}.',
+          'Custom $daysCount-day route connecting ${shortNames.join(', ')}.',
       // No invented climate: weather comes from the forecast service.
       bestMonths: '',
       avgTemp: '',
@@ -5341,7 +5398,7 @@ class TravelRepository extends ChangeNotifier {
       daysCount: count,
       vibe: explore.tag?.isNotEmpty == true
           ? '${explore.tag} • ${explore.regionName}'
-          : '${explore.regionName} • Region XI',
+          : explore.regionName,
       heroAsset: explore.localAssetPath,
       remoteImageUrl: explore.hasRemoteThumbnail ? explore.thumbnailUrl : null,
       centerLat: explore.lat,

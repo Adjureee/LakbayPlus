@@ -627,7 +627,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
-                      'Mapbox Static Davao Route Card',
+                      'Route card',
                       style: TextStyle(
                         fontFamily: 'FigGrotesk',
                         fontWeight: FontWeight.w700,
@@ -715,8 +715,8 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                     ),
                     child: Text(
                       staticUrl != null
-                          ? 'Mapbox Static Images API active (${widget.repo.activeMapStyle.id})'
-                          : 'Tip: Tap "Mapbox Key" on the map to set MAPBOX_ACCESS_TOKEN for high-DPI Static Images export.',
+                          ? 'Map image ready to share.'
+                          : 'The map image is not available right now.',
                       style: const TextStyle(
                         fontSize: 11.5,
                         color: LakbayColors.tealDeep,

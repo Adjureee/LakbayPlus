@@ -170,7 +170,7 @@ class SettingsScreen extends StatelessWidget {
                           icon: Icons.developer_mode_rounded,
                           title: 'Connection diagnostics (Debug)',
                           trailingText: repo.aiService.isConfigured
-                              ? 'Server + Mapbox'
+                              ? 'Online'
                               : 'Offline',
                           onTap: () => _showDebugDiagnosticsSheet(context),
                         ),
@@ -306,8 +306,8 @@ class SettingsScreen extends StatelessWidget {
             _StatusRow('Lakbay+ Cloud API', repo.apiCatalog.isConfigured),
             _StatusRow('Lakbay+ Cloud Account', repo.isSignedIn),
             _StatusRow('Lakbay AI (server)', repo.aiService.isConfigured),
-            _StatusRow('Mapbox Maps & Routes', repo.mapbox.hasValidToken),
-            _StatusRow('Cloudinary Media', repo.cloudinary.isConfigured),
+            _StatusRow('Maps & routes', repo.mapbox.hasValidToken),
+            _StatusRow('Photo uploads', repo.cloudinary.isConfigured),
           ],
         ),
       ),
@@ -711,7 +711,7 @@ class SettingsScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('About Lakbay+'),
         content: const Text(
-          'Lakbay+ v1.0.0+1\n\nHigh-grade AI travel planner & Mapbox route companion scoped for Davao Region (Region XI, Philippines), powered by Groq, Gemini Fallback, Mapbox & Cloudinary.',
+          'Lakbay+ v1.0.0+1\n\nAn AI travel planner and route companion for the Davao Region, Philippines.',
         ),
         actions: [
           FilledButton(
@@ -775,7 +775,7 @@ class SettingsScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Imprint'),
         content: const Text(
-          'Lakbay+ Travel Companion\nDavao Region XI Explorer Edition\nDavao City, Philippines\n\nAll coordinates & routes are scoped within Region XI (Davao City, Samal IGaCoS, Davao del Norte, Davao Oriental, Davao del Sur, Davao de Oro, and Davao Occidental).',
+          'Lakbay+ Travel Companion\nDavao City, Philippines\n\nPlaces and routes cover the Davao Region: Davao City, Samal Island, Davao del Norte, Davao Oriental, Davao del Sur, Davao de Oro and Davao Occidental.',
         ),
         actions: [
           FilledButton(

@@ -846,7 +846,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                   onSubmitted: (_) => _handleSend(),
                   decoration: const InputDecoration(
                     hintText:
-                        'Ask Lakbay+ to plan a trip, find hotels, or routes...',
+                        'Plan a trip or ask about a place',
                     hintStyle: TextStyle(
                       fontSize: 13.5,
                       color: LakbayColors.textMuted,
@@ -909,7 +909,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               children: [
                 for (final cat in categories)
                   ActionChip(
-                    label: Text('${cat.label} (${cat.count})'),
+                    label: Text(cat.label),
                     onPressed: () {
                       Navigator.of(sheetContext).pop();
                       widget.repo.browseCategoryInChat(cat);
@@ -1471,7 +1471,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 backgroundColor: Colors.white.withValues(alpha: 0.92),
                 side: const BorderSide(color: Color(0x330B3C49)),
                 label: Text(
-                  '${cat.label} (${cat.count})',
+                  cat.label,
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,

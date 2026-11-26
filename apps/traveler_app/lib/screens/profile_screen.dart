@@ -339,7 +339,7 @@ class ProfileScreen extends StatelessWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'Lakbay+ Davao Region XI Concierge • Region XI travel support active.',
+                      'Lakbay+ travel support for the Davao Region is active.',
                     ),
                   ),
                 );
