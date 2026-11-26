@@ -398,7 +398,7 @@ void main() {
 
     expect(find.text('Plan Your Route'), findsOneWidget);
     expect(repo.tripBuilderStops, isNotEmpty);
-    expect(find.text('Improve with AI'), findsOneWidget);
+    expect(find.text('Plan it with Lakbay AI instead'), findsOneWidget);
     expect(aiCalls, 0);
   });
 }

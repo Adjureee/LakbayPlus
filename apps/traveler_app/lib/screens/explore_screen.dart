@@ -2036,7 +2036,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                           ),
                         ),
                         Text(
-                          '${stops.length} ${stops.length == 1 ? 'place' : 'places'} · You choose the days & pace',
+                          '${stops.length} ${stops.length == 1 ? 'place' : 'places'} · Build it yourself, or let Lakbay AI plan it',
                           style: const TextStyle(
                             fontSize: 12,
                             color: LakbayColors.textSecondary,
@@ -2550,8 +2550,8 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                     : const Icon(Icons.alt_route_rounded),
                 label: Text(
                   _isGenerating
-                      ? 'Optimizing & Refining Route...'
-                      : 'Optimize & Create $_days-Day Trip',
+                      ? 'Building your trip...'
+                      : 'Build my $_days-day trip (no AI)',
                 ),
               ),
               if (stops.isNotEmpty) ...[
@@ -2570,7 +2570,7 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                           widget.repo.planInChat(prompt);
                         },
                   icon: const Icon(Icons.auto_awesome_rounded, size: 17),
-                  label: const Text('Improve with AI'),
+                  label: const Text('Plan it with Lakbay AI instead'),
                 ),
               ],
             ],
