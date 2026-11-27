@@ -844,15 +844,26 @@ class _ProfileTripTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: LakbayColors.successGreen.withValues(alpha: 0.14),
+                color: (trip.isArchived
+                        ? LakbayColors.textSecondary
+                        : LakbayColors.successGreen)
+                    .withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Text(
-                '✓ Upcoming',
+              child: Text(
+                trip.isCompleted
+                    ? '✓ Completed'
+                    : trip.isArchived
+                        ? 'Archived'
+                        : trip.backendStatus == 'ongoing'
+                            ? 'Ongoing'
+                            : '✓ Upcoming',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: LakbayColors.successGreen,
+                  color: trip.isArchived
+                      ? LakbayColors.textSecondary
+                      : LakbayColors.successGreen,
                 ),
               ),
             ),

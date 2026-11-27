@@ -145,9 +145,12 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
           !t.destination.toLowerCase().contains(query)) {
         return false;
       }
-      if (_selectedFilter == 'Past') return false;
+      if (_selectedFilter == 'Past') return t.isCompleted;
+      if (_selectedFilter == 'Upcoming') {
+        return !t.isCompleted && !t.isArchived;
+      }
       if (_selectedFilter == 'Planning') {
-        return t.id.startsWith('ai_trip_');
+        return t.id.startsWith('ai_trip_') && !t.isCompleted && !t.isArchived;
       }
       return true;
     }).toList();
@@ -157,8 +160,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
     }
 
     final heroTrip = allTrips.isNotEmpty ? allTrips.first : null;
+    final showHero =
+        _selectedFilter == 'All' && heroTrip != null && query.isEmpty;
     // The featured trip is not repeated in the list below it.
-    final listTrips = (heroTrip != null && query.isEmpty)
+    final listTrips = showHero
         ? filtered.where((t) => t.id != heroTrip.id).toList()
         : filtered;
 
@@ -271,7 +276,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
             const SizedBox(height: 16),
 
             // Featured "Starts tomorrow" Hero Card (Image 7)
-            if (heroTrip != null && query.isEmpty) ...[
+            if (showHero) ...[
               GestureDetector(
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
@@ -325,7 +330,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            DayLabels.startsLabel(heroTrip.startDate),
+                            heroTrip.isCompleted
+                                ? 'Completed'
+                                : DayLabels.startsLabel(heroTrip.startDate),
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
@@ -381,37 +388,34 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
             Row(
               children: [
                 Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final f in ['All', 'Upcoming', 'Planning', 'Past'])
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(f),
-                              selected: _selectedFilter == f,
-                              onSelected: (_) =>
-                                  setState(() => _selectedFilter = f),
-                              selectedColor: LakbayColors.tealDeep,
-                              backgroundColor: Colors.white,
-                              labelStyle: TextStyle(
-                                color: _selectedFilter == f
-                                    ? Colors.white
-                                    : LakbayColors.tealDeep,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(22),
-                                side: const BorderSide(
-                                  color: LakbayColors.cardBorder,
-                                ),
-                              ),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      for (final f in ['All', 'Upcoming', 'Planning', 'Past'])
+                        ChoiceChip(
+                          label: Text(f),
+                          selected: _selectedFilter == f,
+                          onSelected: (_) =>
+                              setState(() => _selectedFilter = f),
+                          selectedColor: LakbayColors.tealDeep,
+                          backgroundColor: Colors.white,
+                          visualDensity: VisualDensity.compact,
+                          labelStyle: TextStyle(
+                            color: _selectedFilter == f
+                                ? Colors.white
+                                : LakbayColors.tealDeep,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            side: const BorderSide(
+                              color: LakbayColors.cardBorder,
                             ),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
                 ),
                 Material(
@@ -567,7 +571,13 @@ class _TripListTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     DayLabels.joinDistinct([
-                      isPlanning ? 'Planning' : 'Upcoming',
+                      trip.isCompleted
+                          ? 'Completed'
+                          : trip.isArchived
+                              ? 'Archived'
+                              : trip.backendStatus == 'ongoing'
+                                  ? 'Ongoing'
+                                  : (isPlanning ? 'Planning' : 'Upcoming'),
                       DayLabels.countTitle(trip.daysCount),
                       trip.destination,
                     ]),

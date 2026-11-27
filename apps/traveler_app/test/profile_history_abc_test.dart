@@ -14,7 +14,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 Future<TravelRepository> _repo(
   WidgetTester tester, {
   int chats = 2,
-  Map<String, dynamic>? auth,
 }) async {
   final sessions = [
     for (var i = 0; i < chats; i++)

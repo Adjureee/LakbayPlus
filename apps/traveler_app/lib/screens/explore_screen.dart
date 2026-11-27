@@ -6,6 +6,7 @@ import '../services/mapbox_service.dart';
 import '../services/route_optimizer.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
+import '../widgets/lakbay_destination_media.dart';
 import '../widgets/lakbay_image.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
 import 'trip_detail_screen.dart';
@@ -467,12 +468,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                       child: Stack(
                                         fit: StackFit.expand,
                                         children: [
-                                          LakbayNetworkOrAssetImage(
-                                            networkUrl: trip.hasRemoteThumbnail
+                                          LakbayDestinationMedia(
+                                            posterUrl: trip.hasRemoteThumbnail
                                                 ? trip.thumbnailUrl
                                                 : null,
                                             assetPath: trip.localAssetPath,
- category: trip.tag,
+                                            mediaUrl: trip.mediaUrl,
+                                            mediaType: trip.mediaType,
+                                            mediaDurationSeconds:
+                                                trip.mediaDurationSeconds,
+                                            category: trip.tag,
                                           ),
                                           Container(
                                             decoration: const BoxDecoration(
@@ -504,7 +509,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                       BorderRadius.circular(14),
                                                 ),
                                                 child: Text(
-                                                  '${trip.tag ?? "Place"} • ${trip.stayDurationLabel}',
+                                                  trip.tag ?? 'Place',
                                                   maxLines: 1,
                                                   overflow:
                                                       TextOverflow.ellipsis,
@@ -551,6 +556,37 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                     color: Colors.white70,
                                                   ),
                                                 ),
+                                                if (trip.typicalVisitLabel !=
+                                                    null) ...[
+                                                  const SizedBox(height: 2),
+                                                  Row(
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.schedule_rounded,
+                                                        size: 11.5,
+                                                        color: Colors.white70,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Expanded(
+                                                        child: Text(
+                                                          trip
+                                                              .typicalVisitLabel!,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style:
+                                                              const TextStyle(
+                                                            fontSize: 10.5,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color:
+                                                                Colors.white70,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
                                                 const SizedBox(height: 6),
                                                 SizedBox(
                                                   width: double.infinity,
@@ -627,15 +663,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text(
-                                    'Davao Region Encyclopedia',
-                                    style: TextStyle(
-                                      fontFamily: 'FigGrotesk',
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 21,
-                                      color: LakbayColors.tealDeep,
+                                  const Expanded(
+                                    child: Text(
+                                      'Davao Region Encyclopedia',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontFamily: 'FigGrotesk',
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 21,
+                                        color: LakbayColors.tealDeep,
+                                      ),
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
                                   TextButton(
                                     onPressed: () => setState(
                                         () => _selectedFilter = 'City Guides'),
@@ -738,7 +779,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           id: t.id,
           lat: t.lat,
           lng: t.lng,
-          badgeText: t.stayDurationLabel,
+          badgeText: t.stayDurationLabel ?? t.tag ?? 'Place',
           title: t.title,
           subtitle: '${t.municipalityLabel} • ${t.tag ?? "Place"}',
           imageUrl: t.hasRemoteThumbnail ? t.thumbnailUrl : null,
@@ -844,7 +885,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${activeTrip.municipalityLabel} • ${activeTrip.tag ?? "Place"} • ${activeTrip.stayDurationLabel}',
+                              [
+                                activeTrip.municipalityLabel,
+                                activeTrip.tag ?? 'Place',
+                                if (activeTrip.typicalVisitLabel != null)
+                                  activeTrip.typicalVisitLabel!,
+                              ].join(' • '),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -1068,10 +1114,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            LakbayNetworkOrAssetImage(
-              networkUrl: trip.hasRemoteThumbnail ? trip.thumbnailUrl : null,
+            LakbayDestinationMedia(
+              posterUrl: trip.hasRemoteThumbnail ? trip.thumbnailUrl : null,
               assetPath: trip.localAssetPath,
- category: trip.tag,
+              mediaUrl: trip.mediaUrl,
+              mediaType: trip.mediaType,
+              mediaDurationSeconds: trip.mediaDurationSeconds,
+              category: trip.tag,
             ),
             Container(
               decoration: const BoxDecoration(
@@ -1140,7 +1189,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          '${trip.municipalityLabel} • ${trip.stayDurationLabel}',
+                          [
+                            trip.municipalityLabel,
+                            if (trip.typicalVisitLabel != null)
+                              trip.typicalVisitLabel!,
+                          ].join(' • '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -1222,7 +1275,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 245,
+            height: 262,
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               scrollDirection: Axis.horizontal,
@@ -1249,12 +1302,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              LakbayNetworkOrAssetImage(
-                                networkUrl: trip.hasRemoteThumbnail
+                              LakbayDestinationMedia(
+                                posterUrl: trip.hasRemoteThumbnail
                                     ? trip.thumbnailUrl
                                     : null,
                                 assetPath: trip.localAssetPath,
- category: trip.tag,
+                                mediaUrl: trip.mediaUrl,
+                                mediaType: trip.mediaType,
+                                mediaDurationSeconds:
+                                    trip.mediaDurationSeconds,
+                                category: trip.tag,
                               ),
                               Positioned(
                                 top: 8,
@@ -1267,7 +1324,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                   child: Text(
-                                    '${trip.tag ?? "Place"} • ${trip.stayDurationLabel}',
+                                    trip.tag ?? 'Place',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -1346,6 +1403,31 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   height: 1.2,
                                 ),
                               ),
+                              if (trip.typicalVisitLabel != null) ...[
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.schedule_rounded,
+                                      size: 12,
+                                      color: LakbayColors.textSecondary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        trip.typicalVisitLabel!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: LakbayColors.textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               const SizedBox(height: 6),
                               Row(
                                 children: [
@@ -1491,7 +1573,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
               ),
               subtitle: Text(
-                '${trip.municipalityLabel} • ${trip.tag ?? "Place"} • ${trip.stayDurationLabel}',
+                [
+                  trip.municipalityLabel,
+                  trip.tag ?? 'Place',
+                  if (trip.typicalVisitLabel != null) trip.typicalVisitLabel!,
+                ].join(' • '),
                 style: const TextStyle(fontSize: 12.5),
               ),
               trailing: TextButton(
@@ -1640,13 +1726,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Tap for full Davao guide',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: LakbayColors.textMuted,
+                      const Expanded(
+                        child: Text(
+                          'Tap for full Davao guide',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: LakbayColors.textMuted,
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       TextButton.icon(
                         onPressed: () => _openCityPlanSheet(cityObj.city),
                         icon: const Icon(Icons.route_rounded, size: 16),
@@ -2118,7 +2209,11 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                                 ),
                               ),
                               Text(
-                                '${stop.regionName} · ${stop.stayDurationLabel}',
+                                [
+                                  stop.regionName,
+                                  if (stop.typicalVisitLabel != null)
+                                    stop.typicalVisitLabel!,
+                                ].join(' · '),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(

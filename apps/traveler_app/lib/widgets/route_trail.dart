@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../models/travel_models.dart';
+import '../services/lakbay_api_catalog_service.dart';
 
 /// Travel category for a leg of a [RouteTrail].
 enum RouteTrailMode { road, sea, estimated }
@@ -32,6 +33,7 @@ class RouteTrailLeg {
   final List<RouteTrailPoint> points;
   final double startMeters;
   final double endMeters;
+  final List<String> congestionLevels;
 
   const RouteTrailLeg({
     required this.dayNumber,
@@ -39,6 +41,7 @@ class RouteTrailLeg {
     required this.points,
     required this.startMeters,
     required this.endMeters,
+    this.congestionLevels = const [],
   });
 
   double get lengthMeters => math.max(0.0, endMeters - startMeters);
@@ -104,6 +107,19 @@ class RouteTrail {
     return dayPalette[index];
   }
 
+  static Color colorForCongestion(
+    String level, {
+    required Color fallback,
+  }) {
+    return switch (level.trim().toLowerCase()) {
+      'low' || 'light' => const Color(0xFF2E7D4F),
+      'moderate' => const Color(0xFFF59E0B),
+      'heavy' => const Color(0xFFE65100),
+      'severe' => const Color(0xFFC62828),
+      _ => fallback,
+    };
+  }
+
   /// Approximate ground resolution (meters per logical pixel) at Web Mercator [zoom].
   static double metersPerPixel(double zoom, double centerLat) {
     final cosLat = math.cos(centerLat * math.pi / 180.0).abs().clamp(0.1, 1.0);
@@ -135,6 +151,8 @@ class RouteTrail {
     required List<RouteSegmentGeometry> segments,
     List<GeoPoint> roadGeometry = const [],
     List<GeoPoint> waypoints = const [],
+    List<String> congestionSegments = const [],
+    List<RoadRouteSegment> detailSegments = const [],
   }) {
     final allLatLng = <GeoPoint>[
       for (final s in segments) ...s.points,
@@ -167,8 +185,12 @@ class RouteTrail {
     var totalAnimatedMeters = 0.0;
 
     if (segments.isNotEmpty) {
+      final totalRoadSegs =
+          segments.where((s) => !s.isEstimated && !s.isSea).length;
+      var roadSegIdx = 0;
       var wpCursor = 0;
-      for (final seg in segments) {
+      for (var segIdx = 0; segIdx < segments.length; segIdx++) {
+        final seg = segments[segIdx];
         if (seg.points.length < 2) continue;
         // Infer monotonic day number from destination waypoints when available.
         var dayNum = 1;
@@ -208,7 +230,10 @@ class RouteTrail {
               (wpCursor + 1);
         }
 
-        final mode = seg.isEstimated
+        final detailMatch =
+            segIdx < detailSegments.length ? detailSegments[segIdx] : null;
+        final isUnroutedMode = detailMatch?.mode == 'unrouted';
+        final mode = (seg.isEstimated || isUnroutedMode)
             ? RouteTrailMode.estimated
             : (seg.isSea ? RouteTrailMode.sea : RouteTrailMode.road);
 
@@ -233,6 +258,28 @@ class RouteTrail {
           continue;
         }
 
+        var legCongestion = const <String>[];
+        if (mode == RouteTrailMode.road) {
+          if (detailMatch != null && detailMatch.congestionSegments.isNotEmpty) {
+            legCongestion = detailMatch.congestionSegments;
+          } else if (congestionSegments.isNotEmpty && totalRoadSegs > 0) {
+            if (totalRoadSegs == 1) {
+              legCongestion = congestionSegments;
+            } else {
+              final startSlice =
+                  (roadSegIdx * congestionSegments.length) ~/ totalRoadSegs;
+              final endSlice =
+                  ((roadSegIdx + 1) * congestionSegments.length) ~/ totalRoadSegs;
+              if (endSlice > startSlice) {
+                legCongestion = congestionSegments.sublist(startSlice, endSlice);
+              } else if (roadSegIdx < congestionSegments.length) {
+                legCongestion = [congestionSegments[roadSegIdx]];
+              }
+            }
+          }
+          roadSegIdx++;
+        }
+
         final legStart = totalAnimatedMeters;
         final pts = <RouteTrailPoint>[projectGeo(seg.points.first, legStart)];
         for (var i = 1; i < seg.points.length; i++) {
@@ -250,6 +297,7 @@ class RouteTrail {
               points: pts,
               startMeters: legStart,
               endMeters: totalAnimatedMeters,
+              congestionLevels: legCongestion,
             ),
           );
         }
@@ -302,6 +350,7 @@ class RouteTrail {
             points: pts,
             startMeters: 0.0,
             endMeters: totalAnimatedMeters,
+            congestionLevels: congestionSegments,
           ),
         );
       } else {
@@ -778,6 +827,7 @@ class RouteTrailPainter extends CustomPainter {
   final bool isSettled;
   final bool isDark;
   final int? highlightedDayNumber;
+  final bool showTrafficColors;
 
   const RouteTrailPainter({
     required this.trail,
@@ -787,6 +837,7 @@ class RouteTrailPainter extends CustomPainter {
     required this.isSettled,
     required this.isDark,
     this.highlightedDayNumber,
+    this.showTrafficColors = false,
   });
 
   @override
@@ -891,16 +942,30 @@ class RouteTrailPainter extends CustomPainter {
           ..strokeJoin = StrokeJoin.round,
       );
 
+      final hasTrafficColors = showTrafficColors &&
+          !isDimmed &&
+          leg.congestionLevels.any((c) => c != 'unknown' && c.isNotEmpty);
+
       if (isSettled || legProgress >= 0.9999 || isDimmed) {
-        canvas.drawPath(
-          revealedPath,
-          Paint()
-            ..color = legColor
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = isDimmed ? 2.6 : 4.2
-            ..strokeCap = StrokeCap.round
-            ..strokeJoin = StrokeJoin.round,
-        );
+        if (hasTrafficColors) {
+          _drawCongestionSpans(
+            canvas,
+            revealedPath,
+            levels: leg.congestionLevels,
+            fallbackColor: legColor,
+            strokeWidth: 4.2,
+          );
+        } else {
+          canvas.drawPath(
+            revealedPath,
+            Paint()
+              ..color = legColor
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = isDimmed ? 2.6 : 4.2
+              ..strokeCap = StrokeCap.round
+              ..strokeJoin = StrokeJoin.round,
+          );
+        }
       } else {
         // Active drawing head: solid settled core + ~15% faded leading tail.
         final metrics = revealedPath.computeMetrics().toList();
@@ -1046,12 +1111,49 @@ class RouteTrailPainter extends CustomPainter {
     }
   }
 
+  static void _drawCongestionSpans(
+    Canvas canvas,
+    Path path, {
+    required List<String> levels,
+    required Color fallbackColor,
+    required double strokeWidth,
+  }) {
+    if (levels.isEmpty) return;
+    final metrics = path.computeMetrics().toList();
+    final totalLen = metrics.fold<double>(0.0, (sum, m) => sum + m.length);
+    if (!totalLen.isFinite || totalLen <= 0.5) return;
+
+    final n = levels.length;
+    var i = 0;
+    while (i < n) {
+      final level = levels[i];
+      var j = i + 1;
+      while (j < n && levels[j] == level) {
+        j++;
+      }
+      final startDist = (i / n) * totalLen;
+      final endDist = (j / n) * totalLen;
+      final spanPath = _extractSpan(metrics, startDist, endDist);
+      canvas.drawPath(
+        spanPath,
+        Paint()
+          ..color = RouteTrail.colorForCongestion(level, fallback: fallbackColor)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+      i = j;
+    }
+  }
+
   @override
   bool shouldRepaint(covariant RouteTrailPainter oldDelegate) =>
       oldDelegate.currentDistanceMeters != currentDistanceMeters ||
       oldDelegate.isSettled != isSettled ||
       oldDelegate.isDark != isDark ||
       oldDelegate.highlightedDayNumber != highlightedDayNumber ||
+      oldDelegate.showTrafficColors != showTrafficColors ||
       oldDelegate.trail != trail ||
       oldDelegate.animatedProjectedLegs != animatedProjectedLegs ||
       oldDelegate.estimatedProjectedLegs != estimatedProjectedLegs;

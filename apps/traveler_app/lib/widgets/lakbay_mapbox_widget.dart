@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../models/travel_models.dart';
+import '../services/lakbay_api_catalog_service.dart';
 import '../services/location_service.dart';
 import '../services/mapbox_service.dart';
 import '../services/travel_repository.dart';
@@ -98,6 +99,8 @@ class LakbayMapboxMap extends StatefulWidget {
   final bool isLoadingRoute;
   final String? routeError;
   final VoidCallback? onRetryRoute;
+  final RouteTrafficInfo? routeTraffic;
+  final List<RoadRouteSegment> detailSegments;
 
   const LakbayMapboxMap({
     super.key,
@@ -130,6 +133,8 @@ class LakbayMapboxMap extends StatefulWidget {
     this.isLoadingRoute = false,
     this.routeError,
     this.onRetryRoute,
+    this.routeTraffic,
+    this.detailSegments = const [],
   });
 
   @override
@@ -166,10 +171,13 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
   Offset _prevFocalPoint = Offset.zero;
 
   RouteTrail _buildTrailFromWidget() {
+    final congestion = widget.routeTraffic?.congestionSegments ?? const [];
     if (widget.routeSegments.isNotEmpty) {
       return RouteTrail.fromRoute(
         segments: widget.routeSegments,
         waypoints: widget.routePoints,
+        congestionSegments: congestion,
+        detailSegments: widget.detailSegments,
       );
     }
     if (_hasRoutedGeometry) {
@@ -177,10 +185,18 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
         segments: const [],
         roadGeometry: widget.roadGeometry,
         waypoints: widget.routePoints,
+        congestionSegments: congestion,
+        detailSegments: widget.detailSegments,
       );
     }
     return RouteTrail.empty();
   }
+
+  bool get _showTrafficColors =>
+      widget.repo.showLiveTraffic &&
+      widget.repo.canToggleLiveTraffic &&
+      (widget.routeTraffic?.isLive ?? false) &&
+      (widget.routeTraffic?.hasCongestionData ?? false);
 
   void _onTrailTick() {
     if (!mounted) return;
@@ -297,7 +313,10 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
         (nextTrail.totalAnimatedMeters - _trail.totalAnimatedMeters).abs() > 1.0 ||
             nextTrail.animatedLegs.length != _trail.animatedLegs.length ||
             nextTrail.estimatedLegs.length != _trail.estimatedLegs.length ||
-            widget.animateRoute != oldWidget.animateRoute;
+            widget.animateRoute != oldWidget.animateRoute ||
+            widget.routeTraffic?.status != oldWidget.routeTraffic?.status ||
+            widget.routeTraffic?.congestionSegments.length !=
+                oldWidget.routeTraffic?.congestionSegments.length;
     if (changed) {
       _trail = nextTrail;
       _trailController.updateTrail(
@@ -776,6 +795,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                                 isSettled: _trailController.isSettled,
                                 isDark: isDarkStyle,
                                 highlightedDayNumber: widget.focusedDayNumber,
+                                showTrafficColors: _showTrafficColors,
                               ),
                             ),
                             if (showVehicleHead && headOffset != null)
@@ -1059,18 +1079,18 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                                     zoom: _zoom + 1.0,
                                   ),
                                   child: const SizedBox(
-                                    width: 36,
-                                    height: 34,
+                                    width: 44,
+                                    height: 44,
                                     child: Icon(
                                       Icons.add_rounded,
-                                      size: 19,
+                                      size: 20,
                                       color: LakbayColors.tealDeep,
                                     ),
                                   ),
                                 ),
                               ),
                               Container(
-                                width: 22,
+                                width: 26,
                                 height: 1,
                                 color: Colors.black.withValues(alpha: 0.08),
                               ),
@@ -1086,11 +1106,11 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                                     zoom: _zoom - 1.0,
                                   ),
                                   child: const SizedBox(
-                                    width: 36,
-                                    height: 34,
+                                    width: 44,
+                                    height: 44,
                                     child: Icon(
                                       Icons.remove_rounded,
-                                      size: 19,
+                                      size: 20,
                                       color: LakbayColors.tealDeep,
                                     ),
                                   ),
@@ -1299,7 +1319,7 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
     VoidCallback? onRetry,
   }) {
     return Container(
-      constraints: const BoxConstraints(maxWidth: 250),
+      constraints: const BoxConstraints(maxWidth: 280),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: isError
@@ -1336,21 +1356,24 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
             ),
           ),
           if (isError && onRetry != null) ...[
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             InkWell(
+              key: const ValueKey('route-retry-button'),
               onTap: onRetry,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                constraints: const BoxConstraints(minHeight: 30, minWidth: 52),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(10),
+                  color: Colors.white.withValues(alpha: 0.24),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text(
                   'Retry',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1455,6 +1478,35 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
                 ),
               ],
             ),
+          if (_showTrafficColors)
+            for (final item in const [
+              (label: 'Clear', color: Color(0xFF2E7D4F)),
+              (label: 'Slow', color: Color(0xFFF59E0B)),
+              (label: 'Heavy', color: Color(0xFFE65100)),
+            ])
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: item.color,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    item.label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
         ],
       ),
     );
@@ -2142,9 +2194,11 @@ class LakbayMapboxMapState extends State<LakbayMapboxMap>
         child: Tooltip(
           message: tooltip,
           preferBelow: true,
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Icon(icon, color: Colors.white, size: 20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            child: Center(
+              child: Icon(icon, color: Colors.white, size: 21),
+            ),
           ),
         ),
       ),

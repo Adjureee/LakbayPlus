@@ -207,25 +207,27 @@ void main() {
       expect(modes.toSet(), {'cycling'});
       expect(repo.preferredTravelMode, 'cycling');
 
-      // Traffic toggle starts off, no note yet
+      // Traffic toggle starts off, no status pill yet
       final trafficFinder = find.byKey(const ValueKey('traffic-toggle-chip'));
       expect(trafficFinder, findsOneWidget);
       expect(repo.showLiveTraffic, isFalse);
       expect(find.text('Live traffic data is limited in this region'), findsNothing);
+      expect(find.byKey(const ValueKey('traffic-status-pill')), findsNothing);
 
-      // Tap Traffic -> switches to navigationDay and shows note
+      // Tap Traffic -> switches to navigationDay and shows calm contextual pill (no unconditional banner)
       await tester.tap(trafficFinder);
       await tester.pump();
       expect(repo.showLiveTraffic, isTrue);
       expect(repo.activeMapStyle, MapboxStylePreset.navigationDay);
-      expect(find.text('Live traffic data is limited in this region'), findsOneWidget);
+      expect(find.text('Live traffic data is limited in this region'), findsNothing);
+      expect(find.byKey(const ValueKey('traffic-status-pill')), findsOneWidget);
 
-      // Tap Traffic again -> restores outdoors and hides note
+      // Tap Traffic again -> restores outdoors and hides status pill
       await tester.tap(trafficFinder);
       await tester.pump();
       expect(repo.showLiveTraffic, isFalse);
       expect(repo.activeMapStyle, MapboxStylePreset.outdoors);
-      expect(find.text('Live traffic data is limited in this region'), findsNothing);
+      expect(find.byKey(const ValueKey('traffic-status-pill')), findsNothing);
 
       // Switch to Satellite -> Traffic toggle disabled with one-line reason
       repo.setMapboxStyle(MapboxStylePreset.satelliteStreets);

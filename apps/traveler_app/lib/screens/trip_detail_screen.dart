@@ -5,7 +5,7 @@ import '../services/mapbox_service.dart';
 import '../services/route_summary.dart';
 import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
-import '../widgets/lakbay_image.dart';
+import '../widgets/lakbay_destination_media.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
 import '../widgets/route_trail.dart';
 import '../widgets/trip_management_sheets.dart';
@@ -40,6 +40,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
   late String _selectedTravelMode = widget.repo.preferredTravelMode;
   BackendRouteResult? _route;
   List<String> _routeWarnings = const [];
+  bool _updatingStatus = false;
   final Set<String> _packedItems = {};
   final GlobalKey<LakbayMapboxMapState> _desktopMapKey =
       GlobalKey<LakbayMapboxMapState>();
@@ -826,7 +827,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           final nestedScrollView = NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
               SliverAppBar(
-            expandedHeight: 280,
+            expandedHeight: 220,
             pinned: true,
             backgroundColor: LakbayColors.tealDeep,
             foregroundColor: Colors.white,
@@ -872,10 +873,13 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  LakbayNetworkOrAssetImage(
-                    networkUrl: _activeTrip.remoteImageUrl,
+                  LakbayDestinationMedia(
+                    posterUrl: _activeTrip.remoteImageUrl,
                     assetPath: _activeTrip.heroAsset,
- category: _activeTrip.vibeTag,
+                    mediaUrl: _activeTrip.mediaUrl,
+                    mediaType: _activeTrip.mediaType,
+                    mediaDurationSeconds: _activeTrip.mediaDurationSeconds,
+                    category: _activeTrip.vibeTag,
                   ),
                   Container(
                     decoration: const BoxDecoration(
@@ -1079,6 +1083,203 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     );
   }
 
+  Future<void> _confirmAndCompleteTrip(ItineraryTrip trip) async {
+    if (_updatingStatus || trip.isArchived || trip.isCompleted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mark as Completed'),
+        content: Text(
+          'Mark "${trip.title}" as completed? You can still export PDFs and reopen this trip anytime.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Mark as Completed'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _updatingStatus = true);
+    final result = await widget.repo.setTripStatus(trip, 'completed');
+    if (!mounted) return;
+    setState(() {
+      _updatingStatus = false;
+      if (result.ok) {
+        _liveTrip = result.trip;
+      }
+    });
+    if (!result.ok) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              result.error ?? 'Could not mark trip as completed.',
+            ),
+          ),
+        );
+    }
+  }
+
+  Future<void> _reopenTrip(ItineraryTrip trip) async {
+    if (_updatingStatus || trip.isArchived || !trip.isCompleted) return;
+    setState(() => _updatingStatus = true);
+    final result = await widget.repo.setTripStatus(trip, 'planned');
+    if (!mounted) return;
+    setState(() {
+      _updatingStatus = false;
+      if (result.ok) {
+        _liveTrip = result.trip;
+      }
+    });
+    if (!result.ok) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(result.error ?? 'Could not reopen trip.'),
+          ),
+        );
+    }
+  }
+
+  Widget _buildLifecycleSection(ItineraryTrip trip) {
+    final statusLabel = trip.isCompleted
+        ? 'Completed'
+        : trip.isArchived
+            ? 'Archived'
+            : trip.backendStatus == 'ongoing'
+                ? 'Ongoing'
+                : 'Planned';
+    final statusColor = trip.isCompleted
+        ? LakbayColors.successGreen
+        : trip.isArchived
+            ? LakbayColors.textSecondary
+            : LakbayColors.primaryDark;
+
+    Widget buildBadge() => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            statusLabel,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: statusColor,
+            ),
+          ),
+        );
+
+    final subtitleText = trip.isCompleted
+        ? 'Trip finished — PDF export and itinerary stay available.'
+        : trip.isArchived
+            ? 'Archived trips are read-only for new memories.'
+            : trip.isEndDatePassed
+                ? 'Trip end date has passed — ready to wrap up?'
+                : 'Trip in progress — wrap up whenever you return.';
+
+    Widget? buildActionButton() {
+      if (trip.isArchived) return null;
+      if (trip.isCompleted) {
+        return OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          onPressed: _updatingStatus ? null : () => _reopenTrip(trip),
+          icon: const Icon(Icons.replay_rounded, size: 17),
+          label: Text(_updatingStatus ? 'Updating...' : 'Reopen Trip'),
+        );
+      }
+      return FilledButton.tonalIcon(
+        style: FilledButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ),
+        onPressed: _updatingStatus ? null : () => _confirmAndCompleteTrip(trip),
+        icon: const Icon(Icons.check_circle_outline_rounded, size: 17),
+        label: Text(
+          _updatingStatus ? 'Updating...' : 'Mark Trip as Completed',
+        ),
+      );
+    }
+
+    final actionButton = buildActionButton();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: LakbayColors.cardBorder),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 500) {
+            return Row(
+              children: [
+                buildBadge(),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    subtitleText,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: LakbayColors.textSecondary,
+                    ),
+                  ),
+                ),
+                if (actionButton != null) ...[
+                  const SizedBox(width: 10),
+                  actionButton,
+                ],
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  buildBadge(),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      subtitleText,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: LakbayColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (actionButton != null) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [actionButton],
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildOverviewTab(
     ItineraryTrip trip, {
     bool hideEmbeddedMap = false,
@@ -1095,8 +1296,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     final optSummary = trip.optimizationSummary;
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
       children: [
+        _buildLifecycleSection(trip),
+        const SizedBox(height: 10),
         Row(
           children: [
             // Weather and best months are shown only when real data exists.
@@ -1795,7 +1998,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                 const Padding(
                   padding: EdgeInsets.only(top: 6),
                   child: Text(
-                    'Archived trips are read-only for new memories.',
+                    'Read-only archive.',
                     style: TextStyle(
                       fontSize: 12.5,
                       color: LakbayColors.textSecondary,
@@ -2335,16 +2538,33 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                                                             BorderRadius
                                                                 .circular(6),
                                                       ),
-                                                      child: Text(
-                                                        _stayLengthLabel(stop
-                                                            .stayDurationType)!,
-                                                        style: const TextStyle(
-                                                          fontSize: 10.5,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: LakbayColors
-                                                              .textSecondary,
-                                                        ),
+                                                      child: Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          const Icon(
+                                                            Icons
+                                                                .schedule_rounded,
+                                                            size: 11,
+                                                            color: LakbayColors
+                                                                .textSecondary,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 3,
+                                                          ),
+                                                          Text(
+                                                            'Typical visit: ${_stayLengthLabel(stop.stayDurationType)!}',
+                                                            style:
+                                                                const TextStyle(
+                                                              fontSize: 10.5,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              color: LakbayColors
+                                                                  .textSecondary,
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
                                                     ),
                                                 ],
@@ -2404,7 +2624,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
 
   Widget _buildStaysAndFlightsTab(ItineraryTrip trip) {
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
       children: [
         if (trip.flights.isNotEmpty) ...[
           const Text(

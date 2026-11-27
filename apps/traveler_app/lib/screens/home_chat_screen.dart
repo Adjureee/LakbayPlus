@@ -4,6 +4,7 @@ import '../core/lakbay_motion.dart';
 import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
+import '../services/ai_chat_chip_helper.dart';
 import '../services/voice_input_service.dart';
 import '../models/travel_models.dart';
 import '../services/travel_repository.dart';
@@ -36,6 +37,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
   /// animated). Only a message that is not in here fades in.
   Set<String>? _knownMessageIds;
 
+  /// Message IDs where the traveler tapped "Skip" on "What matters most?"
+  /// so the chip hides immediately without waiting for the next server reply.
+  final Set<String> _dismissedPriorityMsgIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -61,7 +66,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
 
   void _handleSend([String? presetPrompt]) {
     final text = presetPrompt ?? _inputController.text;
-    if (text.trim().isEmpty) return;
+    if (text.trim().isEmpty || widget.repo.isAiTyping) return;
     if (presetPrompt == null) {
       _inputController.clear();
     }
@@ -78,6 +83,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
   }
 
   void _retryChatError(ChatMessage msg) {
+    if (widget.repo.isAiTyping) return;
     final retryText = msg.retryText;
     if (retryText == null) return;
     if (retryText.startsWith('Plan a trip with my ') &&
@@ -496,7 +502,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                   minLines: 2,
                   maxLines: 4,
                   textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _handleSend(),
+                  onSubmitted:
+                      widget.repo.isAiTyping ? null : (_) => _handleSend(),
                   decoration: const InputDecoration(
                     hintText:
                         'Where to in Davao Region? tell Lakbay+ your dates, budget and style...',
@@ -586,7 +593,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                     const SizedBox(width: 8),
                     Flexible(
                       child: ElevatedButton(
-                      onPressed: _handleSend,
+                      onPressed: widget.repo.isAiTyping ? null : _handleSend,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: LakbayColors.primary,
                         foregroundColor: Colors.white,
@@ -843,7 +850,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               Expanded(
                 child: TextField(
                   controller: _inputController,
-                  onSubmitted: (_) => _handleSend(),
+                  onSubmitted:
+                      widget.repo.isAiTyping ? null : (_) => _handleSend(),
                   decoration: const InputDecoration(
                     hintText:
                         'Plan a trip or ask about a place',
@@ -858,7 +866,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               ),
               IconButton(
                 tooltip: 'Send',
-                onPressed: _handleSend,
+                onPressed: widget.repo.isAiTyping ? null : _handleSend,
                 style: IconButton.styleFrom(
                   backgroundColor: LakbayColors.primary,
                   foregroundColor: Colors.white,
@@ -1265,6 +1273,37 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
       );
     }
 
+    final isLatestMessage = widget.repo.chatMessages.isNotEmpty &&
+        widget.repo.chatMessages.last.id == msg.id;
+    final showPriorities =
+        msg.offerPriorities && !_dismissedPriorityMsgIds.contains(msg.id);
+    final isSafeFallback = !msg.isError &&
+        AiChatChipHelper.isSafeUpdateFallbackMessage(msg.text);
+    final fallbackRetryText = isSafeFallback && isLatestMessage
+        ? _precedingUserMessageText(msg)
+        : null;
+    final missingDetail = isLatestMessage &&
+            !widget.repo.isAiTyping &&
+            msg.askNext == null &&
+            msg.suggestedReplies.isEmpty &&
+            !msg.isError &&
+            !isSafeFallback &&
+            msg.recommendedPlaces.isEmpty &&
+            msg.aiOptions.isEmpty &&
+            msg.timeline == null &&
+            msg.attachedTrip == null
+        ? AiChatChipHelper.inferMissingDetailFromState(
+            widget.repo.planningStateView,
+            hasNatureInterest: _hasNatureInterest(),
+          )
+        : null;
+    final freeQuickChips = missingDetail == null
+        ? const <AiChatStructuredChip>[]
+        : AiChatChipHelper.buildFreeQuestionQuickChips(
+            missingDetail,
+            widget.repo.planningStateView,
+          );
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16, right: 8),
       child: Column(
@@ -1381,16 +1420,33 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                           ],
                         ),
                       ],
+                      if (fallbackRetryText != null &&
+                          !widget.repo.isAiTyping) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            ActionChip(
+                              avatar: const Icon(
+                                Icons.refresh_rounded,
+                                size: 16,
+                              ),
+                              label: const Text('Try again'),
+                              onPressed: () => _handleSend(fallbackRetryText),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
             ],
           ),
-          if ((msg.askNext != null || msg.offerPriorities) &&
+          if ((msg.askNext != null || showPriorities) &&
               !widget.repo.isAiTyping &&
-              widget.repo.chatMessages.isNotEmpty &&
-              widget.repo.chatMessages.last.id == msg.id) ...[
+              isLatestMessage) ...[
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.only(left: 30),
@@ -1401,7 +1457,10 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               ),
             ),
           ],
-          if (msg.suggestedReplies.isNotEmpty) ...[
+          if (msg.suggestedReplies.isNotEmpty &&
+              isLatestMessage &&
+              !widget.repo.isAiTyping &&
+              msg.askNext == null) ...[
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.only(left: 30),
@@ -1411,7 +1470,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                 children: msg.suggestedReplies
                     .map(
                       (reply) => ActionChip(
-                        onPressed: () => _handleSend(reply),
+                        onPressed: () => _handleSuggestedReplyTap(reply),
                         backgroundColor: Colors.black.withValues(alpha: 0.45),
                         side: BorderSide(
                             color: Colors.white.withValues(alpha: 0.3)),
@@ -1421,6 +1480,40 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
                             color: Colors.white,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ] else if (freeQuickChips.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 30),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: freeQuickChips
+                    .map(
+                      (chip) => ActionChip(
+                        onPressed: () {
+                          if (widget.repo.isAiTyping) return;
+                          widget.repo.answerChatDetail(
+                            chip.field,
+                            chip.value,
+                            chip.messageLabel,
+                          );
+                        },
+                        backgroundColor:
+                            LakbayColors.primary.withValues(alpha: 0.9),
+                        side: BorderSide.none,
+                        label: Text(
+                          chip.label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -1528,6 +1621,71 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
     );
   }
 
+  bool _hasNatureInterest() {
+    final raw = widget.repo.planningStateView['interests'];
+    if (raw is! List || raw.isEmpty) return false;
+    final natureKeys = <String>{'nature_attractions'};
+    for (final group in widget.repo.preferenceGroups) {
+      if (group.key == 'nature_attractions') {
+        for (final sub in group.subtypes) {
+          natureKeys.add(sub.key);
+        }
+      }
+    }
+    return raw.any((e) => natureKeys.contains(e.toString()));
+  }
+
+  String? _precedingUserMessageText(ChatMessage msg) {
+    final messages = widget.repo.chatMessages;
+    final idx = messages.indexWhere((m) => m.id == msg.id);
+    if (idx <= 0) return null;
+    for (var i = idx - 1; i >= 0; i--) {
+      final candidate = messages[i];
+      if (candidate.isUser && candidate.text.trim().isNotEmpty) {
+        return candidate.text;
+      }
+    }
+    return null;
+  }
+
+  void _handleSuggestedReplyTap(String reply) {
+    if (widget.repo.isAiTyping) return;
+    final missing = AiChatChipHelper.inferMissingDetailFromState(
+      widget.repo.planningStateView,
+      hasNatureInterest: _hasNatureInterest(),
+    );
+    final resolved = AiChatChipHelper.resolveSuggestedReplyDetail(
+      reply,
+      missing,
+      widget.repo.planningStateView,
+    );
+    if (resolved != null) {
+      widget.repo.answerChatDetail(
+        resolved.field,
+        resolved.value,
+        resolved.messageLabel,
+      );
+      return;
+    }
+    _handleSend(reply);
+  }
+
+  Future<void> _pickStartDate(BuildContext context) async {
+    if (widget.repo.isAiTyping) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: today,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 365)),
+    );
+    if (picked == null || !mounted) return;
+    final iso = AiChatChipHelper.formatIsoDate(picked);
+    final label = AiChatChipHelper.formatReadableDate(picked);
+    await widget.repo.answerChatDetail('travel_start_date', iso, label);
+  }
+
   /// Answer buttons for the detail the AI asked about, under its latest reply.
   List<Widget> _buildAnswerChips(BuildContext context, ChatMessage msg) {
     final repo = widget.repo;
@@ -1545,23 +1703,16 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
         chips.add(('Quiet places', () => repo.answerChatDetail('prefers_quiet', true, 'Quiet places')));
         chips.add(('Popular is fine', () => repo.answerChatDetail('prefers_quiet', false, 'Popular is fine')));
       case 'travel_start_date':
-        final today = DateTime.now();
-        for (var i = 0; i < 3; i++) {
-          final month = DateTime(today.year, today.month + i);
-          // This month starts today; later months start on the 1st.
-          final start = i == 0 ? today : month;
-          const names = [
-            'January', 'February', 'March', 'April', 'May', 'June', 'July',
-            'August', 'September', 'October', 'November', 'December',
-          ];
-          final label = i == 0 ? 'This month' : names[month.month - 1];
-          final iso =
-              '${start.year.toString().padLeft(4, '0')}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
-          chips.add((label, () => repo.answerChatDetail('travel_start_date', iso, label)));
+        for (final chip in AiChatChipHelper.buildStartDateChips()) {
+          chips.add((
+            chip.label,
+            () => repo.answerChatDetail(chip.field, chip.value, chip.messageLabel),
+          ));
         }
+        chips.add(('Pick a date', () => _pickStartDate(context)));
     }
-    if (msg.offerPriorities) {
-      chips.add(('What matters most?', () => _askPriorities(context)));
+    if (msg.offerPriorities && !_dismissedPriorityMsgIds.contains(msg.id)) {
+      chips.add(('What matters most?', () => _askPriorities(context, msg.id)));
     }
     return [
       for (final (label, onTap) in chips)
@@ -1591,7 +1742,7 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
   };
 
   /// Pick up to three priorities; the order you tap them is their rank.
-  Future<void> _askPriorities(BuildContext context) async {
+  Future<void> _askPriorities(BuildContext context, String msgId) async {
     final order = <String>[];
     final result = await showModalBottomSheet<List<String>>(
       context: context,
@@ -1638,7 +1789,8 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
               Row(
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.of(sheetContext).pop(const []),
+                    onPressed: () =>
+                        Navigator.of(sheetContext).pop(const <String>[]),
                     child: const Text('Skip'),
                   ),
                   const Spacer(),
@@ -1656,6 +1808,9 @@ class _HomeChatScreenState extends State<HomeChatScreen> {
       ),
     );
     if (result == null) return;
+    if (result.isEmpty && mounted) {
+      setState(() => _dismissedPriorityMsgIds.add(msgId));
+    }
     final label = result.isEmpty
         ? 'Skip'
         : 'What matters most to me: ${result.map((k) => _priorityLabels[k]).join(', ')}';

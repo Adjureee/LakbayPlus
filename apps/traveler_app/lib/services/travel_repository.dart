@@ -1293,7 +1293,10 @@ class TravelRepository extends ChangeNotifier {
         t.travelNotes,
         t.whatToBring,
         t.islandGroup,
-        t.normalizedStayDurationType,
+        t.normalizedStayDurationType ?? '',
+        t.mediaUrl ?? '',
+        t.mediaType ?? '',
+        t.mediaDurationSeconds?.toString() ?? '',
       ].join('\u0001');
 
   /// Saved trips keep their own copy of each stop's coordinates. When an admin
@@ -1607,13 +1610,19 @@ class TravelRepository extends ChangeNotifier {
       );
       final rowStatus = (row['status'] ?? 'planned').toString().trim();
       final rowEndDate = DateTime.tryParse((row['end_date'] ?? '').toString());
+      final rowCompletedAt = DateTime.tryParse(
+        (row['completed_at'] ?? '').toString(),
+      );
       if (existingIdx >= 0) {
         final existingTrip = _savedTrips[existingIdx];
         if (existingTrip.backendStatus != rowStatus ||
-            existingTrip.endDate != rowEndDate) {
+            existingTrip.endDate != rowEndDate ||
+            existingTrip.completedAt != rowCompletedAt) {
           _savedTrips[existingIdx] = existingTrip.copyWith(
             backendStatus: rowStatus,
             endDate: rowEndDate,
+            completedAt: rowCompletedAt,
+            clearCompletedAt: rowCompletedAt == null && rowStatus != 'completed',
           );
           updated = true;
         }
@@ -1688,6 +1697,7 @@ class TravelRepository extends ChangeNotifier {
               double.tryParse((row['total_budget'] ?? '0').toString()),
           backendStatus: rowStatus,
           endDate: rowEndDate,
+          completedAt: rowCompletedAt,
         ),
       );
       updated = true;
@@ -1839,69 +1849,660 @@ class TravelRepository extends ChangeNotifier {
     return enriched;
   }
 
+  String? _lastRouteErrorCode;
+  String? get lastRouteErrorCode => _lastRouteErrorCode;
+  String? _lastRouteErrorReason;
+  String? get lastRouteErrorReason => _lastRouteErrorReason;
+
+  List<int> orderedBackendDestinationIdsForTrip(
+    ItineraryTrip trip, {
+    int? dayNumber,
+    Set<int>? excludeIds,
+  }) {
+    final collected = <int>[];
+    for (final day in trip.days) {
+      if (day.isContinuationDay) continue;
+      if (dayNumber != null && day.dayNumber != dayNumber) continue;
+      final dayStopIds = <int>[
+        for (final stop in day.stops)
+          if (stop.category != 'stay' && stop.destinationId != null)
+            stop.destinationId!,
+      ];
+      if (dayStopIds.isNotEmpty) {
+        collected.addAll(dayStopIds);
+      } else if (day.apiDestinationId != null) {
+        collected.add(day.apiDestinationId!);
+      }
+    }
+    var rawIds = collected;
+    if (rawIds.isEmpty && dayNumber == null) {
+      rawIds = trip.effectiveBackendDestinationIds;
+    }
+    if (excludeIds != null && excludeIds.isNotEmpty) {
+      rawIds = [
+        for (final id in rawIds)
+          if (!excludeIds.contains(id)) id,
+      ];
+    }
+    return LakbayApiCatalogService.dedupConsecutiveIds(rawIds);
+  }
+
   /// [destinationIds] overrides the trip's stops, e.g. only the stops not yet
   /// reached when rerouting from the traveler's live position.
-  Future<BackendRouteResult?> fetchRoadRouteForTrip(
+  Future<RoadRouteResult?> fetchRoadRouteForTrip(
     ItineraryTrip trip, {
     bool optimize = false,
     String? travelMode,
     List<int>? destinationIds,
+    bool? useLiveTraffic,
+    bool forceRefreshIds = false,
+    bool dayOnlyFallback = false,
+    int? selectedDayNumber,
   }) async {
-    final first = await _fetchRoadRouteOnce(
-      trip,
-      optimize: optimize,
-      travelMode: travelMode,
-      destinationIds: destinationIds,
-    );
-    if (first != null) return first;
-    // One retry: the first request often only wakes a sleeping API server.
-    return _fetchRoadRouteOnce(
-      trip,
-      optimize: optimize,
-      travelMode: travelMode,
-      destinationIds: destinationIds,
-    );
-  }
+    _lastRouteErrorCode = null;
+    _lastRouteErrorReason = null;
 
-  Future<BackendRouteResult?> _fetchRoadRouteOnce(
-    ItineraryTrip trip, {
-    required bool optimize,
-    String? travelMode,
-    List<int>? destinationIds,
-  }) async {
-    final destIds = destinationIds ?? trip.effectiveBackendDestinationIds;
-    if (destIds.isEmpty || !apiCatalog.isConfigured) {
+    if (!apiCatalog.isConfigured) {
+      _lastRouteErrorCode = 'not_configured';
+      _lastRouteErrorReason = 'Routing API is not configured.';
       return null;
     }
-    final mode = travelMode ?? preferredTravelMode;
-    final origin = _routeOriginFromUserLocation();
-    if (isSignedIn) {
-      final authed = optimize && destIds.length >= 2
-          ? await apiCatalog.optimizeRoute(
-              _authSession!.accessToken,
-              destinationIds: destIds,
-              travelMode: mode,
-              origin: origin,
-            )
-          : await apiCatalog.previewRoute(
-              _authSession!.accessToken,
-              destinationIds: destIds,
-              travelMode: mode,
-              origin: origin,
-            );
-      if (authed != null) return authed;
+
+    var workingTrip = trip;
+    var didRefreshCatalog = false;
+    final excludeIds = <int>{};
+
+    if (forceRefreshIds) {
+      await refreshFromApi();
+      didRefreshCatalog = true;
+      workingTrip = _remapStaleDestinationIdsIfNeeded(workingTrip, excludeIds);
     }
-    final guestPlan = await apiCatalog.planRoute(
+
+    var destIds = LakbayApiCatalogService.dedupConsecutiveIds(
+      destinationIds ?? orderedBackendDestinationIdsForTrip(workingTrip, excludeIds: excludeIds),
+    );
+    if (destIds.isEmpty) {
+      return null;
+    }
+
+    final mode = travelMode ?? preferredTravelMode;
+    final effectiveTraffic =
+        useLiveTraffic ?? (_showLiveTraffic && canToggleLiveTraffic && mode == 'driving');
+    final origin = _routeOriginFromUserLocation();
+    final coordCount =
+        destIds.length + (origin != null ? 1 : 0) + (workingTrip.roundtrip && origin != null ? 1 : 0);
+
+    // Proactively chunk only very long itineraries above single-request capacity;
+    // server supports up to 50 destinations per call and chunks provider calls internally.
+    if (!optimize && (destIds.length > 35 || coordCount > 45)) {
+      final chunked = await _fetchChunkedRoadRoute(
+        workingTrip,
+        destIds: destIds,
+        travelMode: mode,
+        origin: origin,
+        useLiveTraffic: effectiveTraffic,
+      );
+      if (chunked != null) return chunked;
+    } else {
+      final first = await _fetchRoadRouteWithDiagnostics(
+        workingTrip,
+        optimize: optimize,
+        travelMode: mode,
+        destinationIds: destIds,
+        useLiveTraffic: effectiveTraffic,
+      );
+      if (first.isSuccess) return first.route;
+
+      final errCode = first.errorCode;
+      if (errCode == 'offline') {
+        _lastRouteErrorCode = 'offline';
+        _lastRouteErrorReason = first.errorMessage ?? 'You appear to be offline.';
+        return null;
+      }
+
+      if ((errCode == 'route_destination_limit_exceeded' || errCode == 'timeout') &&
+          destIds.length > 2) {
+        final chunked = await _fetchChunkedRoadRoute(
+          workingTrip,
+          destIds: destIds,
+          travelMode: mode,
+          origin: origin,
+          useLiveTraffic: effectiveTraffic,
+        );
+        if (chunked != null) return chunked;
+      } else if (errCode == 'destination_not_found') {
+        if (!didRefreshCatalog) {
+          await refreshFromApi();
+          didRefreshCatalog = true;
+        }
+        excludeIds.addAll(first.missingDestinationIds);
+        workingTrip = _remapStaleDestinationIdsIfNeeded(workingTrip, excludeIds);
+        destIds = LakbayApiCatalogService.dedupConsecutiveIds([
+          for (final id in destIds)
+            if (!excludeIds.contains(id)) id,
+        ]);
+        if (destIds.length >= 2 || (origin != null && destIds.isNotEmpty)) {
+          if (!optimize && (destIds.length > 10 || destIds.length + (origin != null ? 1 : 0) > 22)) {
+            final chunked = await _fetchChunkedRoadRoute(
+              workingTrip,
+              destIds: destIds,
+              travelMode: mode,
+              origin: origin,
+              useLiveTraffic: effectiveTraffic,
+            );
+            if (chunked != null) return chunked;
+          } else {
+            final retried = await _fetchRoadRouteWithDiagnostics(
+              workingTrip,
+              optimize: optimize,
+              travelMode: mode,
+              destinationIds: destIds,
+              useLiveTraffic: effectiveTraffic,
+            );
+            if (retried.isSuccess) return retried.route;
+            _lastRouteErrorCode = retried.errorCode;
+            _lastRouteErrorReason = retried.errorMessage;
+          }
+        }
+      } else {
+        // One warm-up retry for transient cold-start / server failures.
+        final second = await _fetchRoadRouteWithDiagnostics(
+          workingTrip,
+          optimize: optimize,
+          travelMode: mode,
+          destinationIds: destIds,
+          useLiveTraffic: effectiveTraffic,
+        );
+        if (second.isSuccess) return second.route;
+        _lastRouteErrorCode = second.errorCode;
+        _lastRouteErrorReason = second.errorMessage;
+      }
+    }
+
+    if (dayOnlyFallback && selectedDayNumber != null) {
+      final dayIds = orderedBackendDestinationIdsForTrip(
+        workingTrip,
+        dayNumber: selectedDayNumber,
+        excludeIds: excludeIds,
+      );
+      final canRouteDay = dayIds.length >= 2 || (origin != null && dayIds.isNotEmpty);
+      if (canRouteDay && dayIds.length < destIds.length) {
+        final dayAttempt = await _fetchRoadRouteWithDiagnostics(
+          workingTrip,
+          optimize: false,
+          travelMode: mode,
+          destinationIds: dayIds,
+          useLiveTraffic: effectiveTraffic,
+        );
+        if (dayAttempt.isSuccess && dayAttempt.route != null) {
+          final warning =
+              'Showing Day $selectedDayNumber route only — full multi-day route could not be loaded.';
+          return dayAttempt.route!.copyWith(
+            warnings: [warning, ...dayAttempt.route!.warnings],
+          );
+        }
+      }
+    }
+
+    _lastRouteErrorCode ??= 'unavailable';
+    _lastRouteErrorReason ??= 'Road directions unavailable.';
+    return null;
+  }
+
+  ItineraryTrip _remapStaleDestinationIdsIfNeeded(
+    ItineraryTrip trip,
+    Set<int> excludeIds,
+  ) {
+    final hasApiCatalog = _allTrips.any((t) => t.isApiBacked);
+    if (!hasApiCatalog) return trip;
+
+    final activeByName = <String, int>{};
+    for (final exp in _allTrips) {
+      if (exp.isApiBacked && exp.apiDestinationId != null) {
+        activeByName[exp.title.trim().toLowerCase()] = exp.apiDestinationId!;
+      }
+    }
+
+    var changed = false;
+    final updatedDays = <ItineraryDay>[];
+    for (final day in trip.days) {
+      final updatedStops = <ItineraryStop>[];
+      for (final stop in day.stops) {
+        final dId = stop.destinationId;
+        if (dId != null && _tripsById['api_$dId'] == null) {
+          final remapped = activeByName[stop.title.trim().toLowerCase()];
+          if (remapped != null && _tripsById['api_$remapped'] != null) {
+            updatedStops.add(stop.copyWith(destinationId: remapped));
+            changed = true;
+            continue;
+          }
+          excludeIds.add(dId);
+        }
+        updatedStops.add(stop);
+      }
+      var dayApiId = day.apiDestinationId;
+      if (dayApiId != null && _tripsById['api_$dayApiId'] == null) {
+        final remappedDay = updatedStops
+            .map((s) => s.destinationId)
+            .whereType<int>()
+            .firstOrNull;
+        if (remappedDay != null) {
+          dayApiId = remappedDay;
+          changed = true;
+        } else {
+          excludeIds.add(dayApiId);
+        }
+      }
+      updatedDays.add(day.copyWith(apiDestinationId: dayApiId, stops: updatedStops));
+    }
+    return changed ? trip.copyWith(days: updatedDays) : trip;
+  }
+
+  Future<RouteFetchAttempt> _fetchRoadRouteWithDiagnostics(
+    ItineraryTrip trip, {
+    required bool optimize,
+    required String travelMode,
+    required List<int> destinationIds,
+    required bool useLiveTraffic,
+  }) async {
+    final destIds = LakbayApiCatalogService.dedupConsecutiveIds(destinationIds);
+    if (destIds.isEmpty || !apiCatalog.isConfigured) {
+      return const RouteFetchAttempt(errorCode: 'not_configured');
+    }
+    final origin = _routeOriginFromUserLocation();
+    RouteFetchAttempt? authedAttempt;
+    if (isSignedIn) {
+      authedAttempt = optimize && destIds.length >= 2
+          ? await apiCatalog.optimizeRouteWithDiagnostics(
+              _authSession!.accessToken,
+              destinationIds: destIds,
+              travelMode: travelMode,
+              origin: origin,
+              useLiveTraffic: useLiveTraffic,
+            )
+          : await apiCatalog.previewRouteWithDiagnostics(
+              _authSession!.accessToken,
+              destinationIds: destIds,
+              travelMode: travelMode,
+              origin: origin,
+              useLiveTraffic: useLiveTraffic,
+            );
+      if (authedAttempt.isSuccess) return authedAttempt;
+      if (authedAttempt.errorCode == 'offline' ||
+          authedAttempt.errorCode == 'route_destination_limit_exceeded' ||
+          authedAttempt.errorCode == 'destination_not_found') {
+        return authedAttempt;
+      }
+    }
+    final guestRes = await apiCatalog.planRouteWithDiagnostics(
       null,
       destinationIds: destIds,
       days: trip.daysCount.clamp(1, 14),
       pace: trip.pace,
-      travelMode: mode,
+      travelMode: travelMode,
       origin: origin,
       returnToOrigin: trip.roundtrip && origin != null,
       preserveFirstDestination: !optimize,
+      useLiveTraffic: useLiveTraffic,
     );
-    return guestPlan?.route;
+    if (guestRes.plan != null) {
+      return RouteFetchAttempt(
+        route: RoadRouteResult.fromBackendRoute(guestRes.plan!.route),
+      );
+    }
+    return guestRes.attempt.errorCode != null
+        ? guestRes.attempt
+        : (authedAttempt ?? const RouteFetchAttempt(errorCode: 'request_failed'));
+  }
+
+  Future<RoadRouteResult?> _fetchChunkedRoadRoute(
+    ItineraryTrip trip, {
+    required List<int> destIds,
+    required String travelMode,
+    required GeoPoint? origin,
+    required bool useLiveTraffic,
+  }) async {
+    const maxStopsPerChunk = 8;
+    final cleanIds = LakbayApiCatalogService.dedupConsecutiveIds(destIds);
+    if (cleanIds.isEmpty) return null;
+
+    if (cleanIds.length == 1) {
+      if (origin == null) return null;
+      final single = await _fetchChunkAttempt(
+        trip,
+        chunkIds: cleanIds,
+        travelMode: travelMode,
+        origin: origin,
+        useLiveTraffic: useLiveTraffic,
+      );
+      return single.route;
+    }
+
+    final windows = <List<int>>[];
+    const step = maxStopsPerChunk - 1;
+    for (var i = 0; i < cleanIds.length - 1; i += step) {
+      final end = (i + maxStopsPerChunk).clamp(0, cleanIds.length);
+      windows.add(cleanIds.sublist(i, end));
+    }
+
+    final coordById = _stopCoordsByIdForTrip(trip);
+    final chunkResults = <RoadRouteResult>[];
+
+    for (var wIdx = 0; wIdx < windows.length; wIdx++) {
+      final window = windows[wIdx];
+      final chunkOrigin = wIdx == 0 ? origin : null;
+      final attempt = await _fetchChunkAttempt(
+        trip,
+        chunkIds: window,
+        travelMode: travelMode,
+        origin: chunkOrigin,
+        useLiveTraffic: useLiveTraffic,
+      );
+      if (attempt.isSuccess && attempt.route != null) {
+        chunkResults.add(attempt.route!);
+        continue;
+      }
+      if (attempt.errorCode == 'offline') {
+        _lastRouteErrorCode = 'offline';
+        _lastRouteErrorReason = attempt.errorMessage ?? 'You appear to be offline.';
+        return null;
+      }
+      if (attempt.errorCode == 'destination_not_found' &&
+          attempt.missingDestinationIds.isNotEmpty) {
+        final missingSet = attempt.missingDestinationIds.toSet();
+        final filtered = [
+          for (final id in cleanIds)
+            if (!missingSet.contains(id)) id,
+        ];
+        if (filtered.length >= 2 && filtered.length < cleanIds.length) {
+          return _fetchChunkedRoadRoute(
+            trip,
+            destIds: filtered,
+            travelMode: travelMode,
+            origin: origin,
+            useLiveTraffic: useLiveTraffic,
+          );
+        }
+      }
+
+      // Isolate failure down to pairwise legs inside this chunk.
+      if (window.length > 2) {
+        for (var k = 0; k < window.length - 1; k++) {
+          final pair = [window[k], window[k + 1]];
+          final pairOrigin = (wIdx == 0 && k == 0) ? origin : null;
+          final pairAttempt = await _fetchChunkAttempt(
+            trip,
+            chunkIds: pair,
+            travelMode: travelMode,
+            origin: pairOrigin,
+            useLiveTraffic: useLiveTraffic,
+          );
+          if (pairAttempt.isSuccess && pairAttempt.route != null) {
+            chunkResults.add(pairAttempt.route!);
+          } else {
+            if (pairAttempt.errorCode == 'offline') {
+              _lastRouteErrorCode = 'offline';
+              _lastRouteErrorReason =
+                  pairAttempt.errorMessage ?? 'You appear to be offline.';
+              return null;
+            }
+            final synthetic = _syntheticUnroutedLeg(
+              pair.first,
+              pair.last,
+              coordById: coordById,
+              reason: pairAttempt.errorCode ?? 'unrouted_leg',
+            );
+            if (synthetic != null) {
+              chunkResults.add(synthetic);
+            }
+          }
+        }
+      } else {
+        final synthetic = _syntheticUnroutedLeg(
+          window.first,
+          window.last,
+          coordById: coordById,
+          reason: attempt.errorCode ?? 'unrouted_leg',
+        );
+        if (synthetic != null) {
+          chunkResults.add(synthetic);
+        }
+      }
+    }
+
+    if (chunkResults.isEmpty) return null;
+    final hasAnyRealRoad = chunkResults.any(
+      (r) => !r.isEstimated || r.detailSegments.any((s) => !s.estimated),
+    );
+    if (!hasAnyRealRoad) {
+      _lastRouteErrorCode ??= 'unavailable';
+      _lastRouteErrorReason ??= 'Road directions unavailable.';
+      return null;
+    }
+    return _mergeRoadRouteResults(chunkResults);
+  }
+
+  Future<RouteFetchAttempt> _fetchChunkAttempt(
+    ItineraryTrip trip, {
+    required List<int> chunkIds,
+    required String travelMode,
+    required GeoPoint? origin,
+    required bool useLiveTraffic,
+  }) async {
+    if (isSignedIn) {
+      final res = await apiCatalog.previewRouteWithDiagnostics(
+        _authSession!.accessToken,
+        destinationIds: chunkIds,
+        travelMode: travelMode,
+        origin: origin,
+        useLiveTraffic: useLiveTraffic,
+      );
+      if (res.isSuccess ||
+          res.errorCode == 'offline' ||
+          res.errorCode == 'destination_not_found') {
+        return res;
+      }
+    }
+    final guestRes = await apiCatalog.planRouteWithDiagnostics(
+      null,
+      destinationIds: chunkIds,
+      days: trip.daysCount.clamp(1, 14),
+      pace: trip.pace,
+      travelMode: travelMode,
+      origin: origin,
+      returnToOrigin: false,
+      preserveFirstDestination: true,
+      useLiveTraffic: useLiveTraffic,
+    );
+    if (guestRes.plan != null) {
+      return RouteFetchAttempt(
+        route: RoadRouteResult.fromBackendRoute(guestRes.plan!.route),
+      );
+    }
+    return guestRes.attempt;
+  }
+
+  Map<int, ({GeoPoint point, String name})> _stopCoordsByIdForTrip(
+    ItineraryTrip trip,
+  ) {
+    final map = <int, ({GeoPoint point, String name})>{};
+    for (final day in trip.days) {
+      for (final stop in day.stops) {
+        if (stop.destinationId != null) {
+          map[stop.destinationId!] = (
+            point: GeoPoint(lat: stop.lat, lng: stop.lng, label: stop.title),
+            name: stop.title,
+          );
+        }
+      }
+      if (day.apiDestinationId != null && !map.containsKey(day.apiDestinationId!)) {
+        map[day.apiDestinationId!] = (
+          point: GeoPoint(lat: day.lat, lng: day.lng, label: day.cityTitle),
+          name: day.cityTitle,
+        );
+      }
+    }
+    for (final exp in _allTrips) {
+      if (exp.apiDestinationId != null && !map.containsKey(exp.apiDestinationId!)) {
+        map[exp.apiDestinationId!] = (
+          point: GeoPoint(lat: exp.lat, lng: exp.lng, label: exp.title),
+          name: exp.title,
+        );
+      }
+    }
+    return map;
+  }
+
+  RoadRouteResult? _syntheticUnroutedLeg(
+    int fromId,
+    int toId, {
+    required Map<int, ({GeoPoint point, String name})> coordById,
+    required String reason,
+  }) {
+    final from = coordById[fromId];
+    final to = coordById[toId];
+    if (from == null || to == null) return null;
+    final km = MapboxService.haversineKm(
+      from.point.lat,
+      from.point.lng,
+      to.point.lat,
+      to.point.lng,
+    );
+    final mins = (km / 35.0 * 60.0).round().clamp(1, 600);
+    final warning =
+        'Road directions unavailable between ${from.name} and ${to.name}; straight-line estimate shown.';
+    final seg = RoadRouteSegment(
+      estimated: true,
+      mode: 'unrouted',
+      warning: warning,
+      reason: reason,
+      points: [from.point, to.point],
+      fromName: from.name,
+      toName: to.name,
+    );
+    return RoadRouteResult(
+      routeProvider: 'haversine',
+      isEstimated: true,
+      totalDistanceKm: km,
+      totalDurationMinutes: mins,
+      geometryPoints: const [],
+      warnings: [warning],
+      orderedDestinationIds: [fromId, toId],
+      segments: [seg.toGeometry()!],
+      detailSegments: [seg],
+      traffic: const RouteTrafficInfo(status: 'disabled'),
+    );
+  }
+
+  RoadRouteResult _mergeRoadRouteResults(List<RoadRouteResult> chunks) {
+    if (chunks.length == 1) return chunks.first;
+
+    var totalDistance = 0.0;
+    var totalMinutes = 0;
+    final mergedGeometry = <GeoPoint>[];
+    final mergedSegments = <RouteSegmentGeometry>[];
+    final mergedDetailSegments = <RoadRouteSegment>[];
+    final mergedSeaCrossings = <SeaCrossingInfo>[];
+    final seenCrossings = <String>{};
+    final mergedIds = <int>[];
+    final mergedWarnings = <String>[];
+    final mergedCongestion = <String>[];
+    final skippedIds = <int>{};
+    var delaySum = 0;
+    var hasDelay = false;
+
+    for (final chunk in chunks) {
+      totalDistance += chunk.totalDistanceKm;
+      totalMinutes += chunk.totalDurationMinutes;
+      for (final pt in chunk.geometryPoints) {
+        if (mergedGeometry.isEmpty ||
+            (mergedGeometry.last.lat - pt.lat).abs() > 1e-6 ||
+            (mergedGeometry.last.lng - pt.lng).abs() > 1e-6) {
+          mergedGeometry.add(pt);
+        }
+      }
+      if (chunk.detailSegments.isNotEmpty) {
+        mergedDetailSegments.addAll(chunk.detailSegments);
+      } else if (chunk.geometryPoints.length >= 2) {
+        final fallbackSeg = RoadRouteSegment(
+          estimated: chunk.isEstimated,
+          mode: chunk.isEstimated ? 'unrouted' : 'road',
+          points: chunk.geometryPoints,
+        );
+        mergedDetailSegments.add(fallbackSeg);
+      }
+      if (chunk.segments.isNotEmpty) {
+        mergedSegments.addAll(chunk.segments);
+      } else if (chunk.geometryPoints.length >= 2) {
+        mergedSegments.add(
+          RouteSegmentGeometry(
+            mode: TransportMode.car,
+            points: chunk.geometryPoints,
+            fromName: '',
+            toName: '',
+            isEstimated: chunk.isEstimated,
+          ),
+        );
+      }
+      for (final crossing in chunk.seaCrossings) {
+        final key = '${crossing.boardPort}->${crossing.landPort}';
+        if (seenCrossings.add(key)) {
+          mergedSeaCrossings.add(crossing);
+        }
+      }
+      mergedIds.addAll(chunk.orderedDestinationIds);
+      for (final w in chunk.warnings) {
+        if (!mergedWarnings.contains(w)) mergedWarnings.add(w);
+      }
+      mergedCongestion.addAll(chunk.traffic.congestionSegments);
+      if (chunk.traffic.delaySeconds != null) {
+        delaySum += chunk.traffic.delaySeconds!;
+        hasDelay = true;
+      }
+      skippedIds.addAll(chunk.skippedDestinationIds);
+    }
+
+    final statuses = chunks.map((c) => c.traffic.status).toSet();
+    final String trafficStatus;
+    if (statuses.every((s) => s == 'live')) {
+      trafficStatus = 'live';
+    } else if (statuses.contains('live')) {
+      trafficStatus = 'limited_coverage';
+    } else if (statuses.every((s) => s == 'disabled')) {
+      trafficStatus = 'disabled';
+    } else if (statuses.contains('limited_coverage')) {
+      trafficStatus = 'limited_coverage';
+    } else {
+      trafficStatus = 'unavailable_no_provider';
+    }
+
+    final provider = chunks
+        .map((c) => c.routeProvider)
+        .firstWhere((p) => p != 'haversine' && p != 'none', orElse: () => chunks.first.routeProvider);
+    final anyEstimated = chunks.any((c) => c.isEstimated);
+
+    return RoadRouteResult(
+      routeProvider: provider,
+      isEstimated: anyEstimated,
+      totalDistanceKm: totalDistance,
+      totalDurationMinutes: totalMinutes,
+      geometryPoints: anyEstimated ? const [] : mergedGeometry,
+      warnings: mergedWarnings,
+      orderedDestinationIds: LakbayApiCatalogService.dedupConsecutiveIds(mergedIds),
+      segments: mergedSegments,
+      detailSegments: mergedDetailSegments,
+      seaCrossings: mergedSeaCrossings,
+      skippedDestinationIds: skippedIds.toList(),
+      traffic: RouteTrafficInfo(
+        status: trafficStatus,
+        provider: chunks
+            .map((c) => c.traffic.provider)
+            .whereType<String>()
+            .firstOrNull,
+        delaySeconds: hasDelay ? delaySum : null,
+        congestionSegments: mergedCongestion,
+      ),
+    );
   }
 
   /// Where the traveler is starting from (GPS or the place they chose), or null.
@@ -2835,9 +3436,61 @@ class TravelRepository extends ChangeNotifier {
         estimatedTotalCostPhp:
             updated.backendEstimatedCostPhp ??
             (updated.totalEstimatedCostUsd * phpRate),
+        status: updated.backendStatus,
         notes: updated.overviewText,
       );
     }
+  }
+
+  /// Updates trip lifecycle status (`planned` | `ongoing` | `completed`).
+  /// Keeps saved state unchanged if the backend request fails.
+  Future<({bool ok, ItineraryTrip trip, String? error})> setTripStatus(
+    ItineraryTrip trip,
+    String nextStatus,
+  ) async {
+    if (trip.isArchived) {
+      return (
+        ok: false,
+        trip: trip,
+        error: 'Archived trips cannot change status.',
+      );
+    }
+    if (isSignedIn && trip.backendTripId != null && apiCatalog.isConfigured) {
+      final ok = await apiCatalog.updateTrip(
+        _authSession!.accessToken,
+        trip.backendTripId!,
+        status: nextStatus,
+      );
+      if (!ok) {
+        return (
+          ok: false,
+          trip: trip,
+          error: apiCatalog.lastTripErrorMessage ??
+              'Could not update trip status. Please try again.',
+        );
+      }
+    }
+    final nextCompletedAt =
+        nextStatus == 'completed' ? DateTime.now().toUtc() : null;
+    final updatedTrip = trip.copyWith(
+      backendStatus: nextStatus,
+      completedAt: nextCompletedAt,
+      clearCompletedAt: nextStatus != 'completed',
+    );
+    final idx = _savedTrips.indexWhere(
+      (t) =>
+          t.id == trip.id ||
+          (trip.backendTripId != null &&
+              t.backendTripId == trip.backendTripId),
+    );
+    if (idx >= 0) {
+      _savedTrips[idx] = updatedTrip;
+    } else {
+      _savedTrips.insert(0, updatedTrip);
+    }
+    _scheduleSaveState();
+    notifyListeners();
+    return (ok: true, trip: updatedTrip, error: null);
   }
 
   /// How long a removed trip can be brought back.
@@ -2973,6 +3626,8 @@ class TravelRepository extends ChangeNotifier {
         returnToOrigin: trip.roundtrip && originPt != null,
         preserveFirstDestination: lockedApiId != null && originPt == null,
         lockedFirstDestinationId: lockedApiId,
+        useLiveTraffic:
+            _showLiveTraffic && canToggleLiveTraffic && effectiveMode == 'driving',
       );
       if (backendPlan != null) {
         rebuilt = _applyBackendRoutePlanToTrip(
@@ -3135,6 +3790,9 @@ class TravelRepository extends ChangeNotifier {
         mustVisitDestinationIds:
             mustVisitIds.length == destIds.length ? null : mustVisitIds,
         pruneOptionalToFit: pruneOptionalToFit,
+        useLiveTraffic: _showLiveTraffic &&
+            canToggleLiveTraffic &&
+            preferredTravelMode == 'driving',
       );
       if (backendPlan != null) {
         builtTrip = _applyBackendRoutePlanToTrip(
@@ -3654,8 +4312,8 @@ class TravelRepository extends ChangeNotifier {
                 'time': d.stops[i].time,
                 'title': d.stops[i].title,
                 'description': d.stops[i].description,
-                if (d.apiDestinationId != null)
-                  'destination_id': d.apiDestinationId,
+                if ((d.stops[i].destinationId ?? d.apiDestinationId) != null)
+                  'destination_id': d.stops[i].destinationId ?? d.apiDestinationId,
                 'estimated_cost':
                     (d.stops[i].costEstimateUsd * phpRate).toStringAsFixed(2),
               },
@@ -3683,10 +4341,13 @@ class TravelRepository extends ChangeNotifier {
         dayDestId ??= dId;
         ExploreTrip? match;
         if (dId != null) {
-          for (final exp in _allTrips) {
-            if (exp.apiDestinationId == dId) {
-              match = exp;
-              break;
+          match = _tripsById['api_$dId'];
+          if (match == null) {
+            for (final exp in _allTrips) {
+              if (exp.apiDestinationId == dId) {
+                match = exp;
+                break;
+              }
             }
           }
         }
@@ -3703,6 +4364,9 @@ class TravelRepository extends ChangeNotifier {
             costEstimateUsd: costPhp / phpRate,
             lat: match?.lat ?? MapboxService.davaoCenterLat,
             lng: match?.lng ?? MapboxService.davaoCenterLng,
+            destinationId: dId,
+            islandGroup: match?.islandGroup,
+            stayDurationType: match?.stayDurationType,
           ),
         );
       }
@@ -4920,9 +5584,11 @@ class TravelRepository extends ChangeNotifier {
         final preview = planning['preview'];
         if (preview is Map<String, dynamic> &&
             preview['state'] is Map<String, dynamic>) {
-          _planningState = Map<String, dynamic>.from(
-            preview['state'] as Map<String, dynamic>,
-          );
+          final incoming = preview['state'] as Map<String, dynamic>;
+          _planningState = {
+            ...?_planningState,
+            ...incoming,
+          };
         }
       }
 
@@ -4977,7 +5643,9 @@ class TravelRepository extends ChangeNotifier {
           budgetPhp != null &&
           budgetPhp > 0;
 
-      if (wantsItinerary && canGenerateValidatedItinerary) {
+      if (wantsItinerary &&
+          canGenerateValidatedItinerary &&
+          _firstMissingDetail(planning) == null) {
         // The same builder as "Plan a trip with my picks": one timeline made in code
         // from the picks, so asking in chat and tapping the button give the same
         // itinerary. Only when the server cannot build it does the AI generator
@@ -4994,6 +5662,20 @@ class TravelRepository extends ChangeNotifier {
             destinationIds: targetDestIds,
             travelerCount: travelerCount,
             lead: serverAi.replyText.trim().isEmpty ? null : serverAi.replyText,
+          );
+          return;
+        }
+        const blockingTimelineCodes = {
+          'planning_over_budget',
+          'planning_selection_invalid',
+          'planning_input_mismatch',
+        };
+        if (blockingTimelineCodes.contains(apiCatalog.lastTimelineErrorCode)) {
+          _addChatError(
+            trimmed,
+            apiCatalog.lastTimelineErrorMessage ??
+                'Your budget or stop selection needs a quick tweak before generating the plan.',
+            errorCode: apiCatalog.lastTimelineErrorCode,
           );
           return;
         }
@@ -5678,9 +6360,13 @@ class TravelRepository extends ChangeNotifier {
 
     if (destId == null &&
         !explore.hasRemoteThumbnail &&
+        !explore.hasPlayableClip &&
         explore.description == null) {
       return base.copyWith(
         days: _anchorDaysOnExplorePlace(base.days, explore, destId),
+        mediaUrl: explore.mediaUrl,
+        mediaType: explore.mediaType,
+        mediaDurationSeconds: explore.mediaDurationSeconds,
       );
     }
 
@@ -5712,6 +6398,9 @@ class TravelRepository extends ChangeNotifier {
       centerLng: base.centerLng,
       heroAsset: base.heroAsset,
       remoteImageUrl: explore.hasRemoteThumbnail ? explore.thumbnailUrl : null,
+      mediaUrl: explore.mediaUrl,
+      mediaType: explore.mediaType,
+      mediaDurationSeconds: explore.mediaDurationSeconds,
       vibeTag: base.vibeTag,
       overviewText:
           notesParts.isNotEmpty ? notesParts.join('\n\n') : base.overviewText,

@@ -95,6 +95,184 @@ class AiItineraryFailure extends AiItineraryResult {
       };
 }
 
+class RouteTrafficInfo {
+  final String status; // 'live' | 'limited_coverage' | 'unavailable_no_provider' | 'disabled'
+  final String? provider;
+  final int? delaySeconds;
+  final List<String> congestionSegments;
+  final String? advisory;
+
+  const RouteTrafficInfo({
+    required this.status,
+    this.provider,
+    this.delaySeconds,
+    this.congestionSegments = const [],
+    this.advisory,
+  });
+
+  bool get isLive => status == 'live';
+  bool get hasCongestionData =>
+      congestionSegments.any((c) => c != 'unknown' && c.isNotEmpty);
+}
+
+class RoadRouteSegment {
+  final bool estimated;
+  final String mode; // 'road' | 'ferry' | 'sea_link' | 'unrouted'
+  final String? warning;
+  final String? reason;
+  final List<GeoPoint> points;
+  final String fromName;
+  final String toName;
+  final List<String> congestionSegments;
+
+  const RoadRouteSegment({
+    required this.estimated,
+    required this.mode,
+    this.warning,
+    this.reason,
+    required this.points,
+    this.fromName = '',
+    this.toName = '',
+    this.congestionSegments = const [],
+  });
+
+  bool get isSea => mode == 'ferry' || mode == 'sea_link';
+
+  RouteSegmentGeometry? toGeometry() {
+    if (points.length < 2) return null;
+    return RouteSegmentGeometry(
+      mode: isSea ? TransportMode.ferry : TransportMode.car,
+      points: points,
+      fromName: fromName,
+      toName: toName,
+      isEstimated: estimated,
+    );
+  }
+}
+
+class RoadRouteResult extends BackendRouteResult {
+  final RouteTrafficInfo traffic;
+  final List<RoadRouteSegment> detailSegments;
+  final String? diagnosticReason;
+  final List<int> skippedDestinationIds;
+
+  const RoadRouteResult({
+    required super.routeProvider,
+    required super.isEstimated,
+    required super.totalDistanceKm,
+    required super.totalDurationMinutes,
+    required super.geometryPoints,
+    super.warnings = const [],
+    super.orderedDestinationIds = const [],
+    super.segments = const [],
+    super.seaCrossings = const [],
+    required this.traffic,
+    this.detailSegments = const [],
+    this.diagnosticReason,
+    this.skippedDestinationIds = const [],
+  });
+
+  factory RoadRouteResult.fromBackendRoute(
+    BackendRouteResult route, {
+    RouteTrafficInfo? traffic,
+    List<RoadRouteSegment>? detailSegments,
+    String? diagnosticReason,
+    List<int> skippedDestinationIds = const [],
+  }) {
+    if (route is RoadRouteResult &&
+        traffic == null &&
+        detailSegments == null &&
+        diagnosticReason == null &&
+        skippedDestinationIds.isEmpty) {
+      return route;
+    }
+    return RoadRouteResult(
+      routeProvider: route.routeProvider,
+      isEstimated: route.isEstimated,
+      totalDistanceKm: route.totalDistanceKm,
+      totalDurationMinutes: route.totalDurationMinutes,
+      geometryPoints: route.geometryPoints,
+      warnings: route.warnings,
+      orderedDestinationIds: route.orderedDestinationIds,
+      segments: route.segments,
+      seaCrossings: route.seaCrossings,
+      traffic: traffic ??
+          (route is RoadRouteResult
+              ? route.traffic
+              : const RouteTrafficInfo(status: 'disabled')),
+      detailSegments: detailSegments ??
+          (route is RoadRouteResult
+              ? route.detailSegments
+              : [
+                  for (final s in route.segments)
+                    RoadRouteSegment(
+                      estimated: s.isEstimated,
+                      mode: s.isSea ? 'sea_link' : (s.isEstimated ? 'unrouted' : 'road'),
+                      points: s.points,
+                      fromName: s.fromName,
+                      toName: s.toName,
+                    ),
+                ]),
+      diagnosticReason: diagnosticReason ??
+          (route is RoadRouteResult ? route.diagnosticReason : null),
+      skippedDestinationIds: skippedDestinationIds.isNotEmpty
+          ? skippedDestinationIds
+          : (route is RoadRouteResult ? route.skippedDestinationIds : const []),
+    );
+  }
+
+  RoadRouteResult copyWith({
+    String? routeProvider,
+    bool? isEstimated,
+    double? totalDistanceKm,
+    int? totalDurationMinutes,
+    List<GeoPoint>? geometryPoints,
+    List<String>? warnings,
+    List<int>? orderedDestinationIds,
+    List<RouteSegmentGeometry>? segments,
+    List<SeaCrossingInfo>? seaCrossings,
+    RouteTrafficInfo? traffic,
+    List<RoadRouteSegment>? detailSegments,
+    String? diagnosticReason,
+    List<int>? skippedDestinationIds,
+  }) {
+    return RoadRouteResult(
+      routeProvider: routeProvider ?? this.routeProvider,
+      isEstimated: isEstimated ?? this.isEstimated,
+      totalDistanceKm: totalDistanceKm ?? this.totalDistanceKm,
+      totalDurationMinutes: totalDurationMinutes ?? this.totalDurationMinutes,
+      geometryPoints: geometryPoints ?? this.geometryPoints,
+      warnings: warnings ?? this.warnings,
+      orderedDestinationIds: orderedDestinationIds ?? this.orderedDestinationIds,
+      segments: segments ?? this.segments,
+      seaCrossings: seaCrossings ?? this.seaCrossings,
+      traffic: traffic ?? this.traffic,
+      detailSegments: detailSegments ?? this.detailSegments,
+      diagnosticReason: diagnosticReason ?? this.diagnosticReason,
+      skippedDestinationIds:
+          skippedDestinationIds ?? this.skippedDestinationIds,
+    );
+  }
+}
+
+class RouteFetchAttempt {
+  final RoadRouteResult? route;
+  final String? errorCode;
+  final int? statusCode;
+  final String? errorMessage;
+  final List<int> missingDestinationIds;
+
+  const RouteFetchAttempt({
+    this.route,
+    this.errorCode,
+    this.statusCode,
+    this.errorMessage,
+    this.missingDestinationIds = const [],
+  });
+
+  bool get isSuccess => route != null;
+}
+
 /// Bridge connecting `apps/traveler_app` to the Lakbay+ FastAPI backend
 /// (`destinations`, `accommodations`, `transportations`, `auth`, `trips`, `routes`,
 /// `ai`, and `weather`) plus public live FX rates. Fails over cleanly offline.
@@ -345,6 +523,9 @@ class LakbayApiCatalogService {
         (raw['stay_duration_type'] ?? '').toString().trim().toLowerCase();
     final islandGroupRaw =
         (raw['island_group'] ?? '').toString().trim().toLowerCase();
+    final mediaUrlRaw = (raw['media_url'] ?? '').toString().trim();
+    final mediaTypeRaw = (raw['media_type'] ?? '').toString().trim().toLowerCase();
+    final mediaDurationSeconds = _toDouble(raw['media_duration_seconds']);
     final stayDuration = normalizeStayDurationType(
       stayDurationRaw,
       category: category,
@@ -363,6 +544,9 @@ class LakbayApiCatalogService {
       apiDestinationId: destId,
       islandGroup: islandGroupRaw.isNotEmpty ? islandGroupRaw : null,
       stayDurationType: stayDuration,
+      mediaUrl: mediaUrlRaw.isNotEmpty ? mediaUrlRaw : null,
+      mediaType: mediaTypeRaw.isNotEmpty ? mediaTypeRaw : null,
+      mediaDurationSeconds: mediaDurationSeconds,
       description: description.isNotEmpty ? description : null,
       district: district.isNotEmpty ? district : null,
       activities: activities.isNotEmpty ? activities : null,
@@ -687,6 +871,8 @@ class LakbayApiCatalogService {
     }
   }
 
+  String? lastTripErrorMessage;
+
   Future<bool> updateTrip(
     String accessToken,
     int tripId, {
@@ -698,6 +884,7 @@ class LakbayApiCatalogService {
     String? status,
     String? notes,
   }) async {
+    lastTripErrorMessage = null;
     final base = _base;
     if (base.isEmpty || accessToken.isEmpty) return false;
     final payload = <String, dynamic>{
@@ -724,8 +911,14 @@ class LakbayApiCatalogService {
             )
             .timeout(const Duration(seconds: 10)),
       );
-      return res.statusCode >= 200 && res.statusCode < 300;
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        return true;
+      }
+      lastTripErrorMessage =
+          _extractErrorMessage(_tryDecodeJson(res.body), res.statusCode);
+      return false;
     } catch (_) {
+      lastTripErrorMessage = 'Could not reach the server to update this trip.';
       return false;
     }
   }
@@ -784,37 +977,90 @@ class LakbayApiCatalogService {
     }
   }
 
+  static List<int> dedupConsecutiveIds(List<int> ids) {
+    final out = <int>[];
+    for (final id in ids) {
+      if (id <= 0) continue;
+      if (out.isEmpty || out.last != id) {
+        out.add(id);
+      }
+    }
+    return out;
+  }
+
   /// [origin] is where the traveler starts (usually their GPS position); the
   /// route then begins there instead of at the first stop.
-  Future<BackendRouteResult?> previewRoute(
+  Future<RoadRouteResult?> previewRoute(
     String accessToken, {
     required List<int> destinationIds,
     String travelMode = 'driving',
     GeoPoint? origin,
+    bool useLiveTraffic = false,
+  }) async {
+    final attempt = await previewRouteWithDiagnostics(
+      accessToken,
+      destinationIds: destinationIds,
+      travelMode: travelMode,
+      origin: origin,
+      useLiveTraffic: useLiveTraffic,
+    );
+    return attempt.route;
+  }
+
+  Future<RouteFetchAttempt> previewRouteWithDiagnostics(
+    String accessToken, {
+    required List<int> destinationIds,
+    String travelMode = 'driving',
+    GeoPoint? origin,
+    bool useLiveTraffic = false,
   }) {
-    return _fetchRoute(
+    final deduped = dedupConsecutiveIds(destinationIds);
+    return _fetchRouteWithDiagnostics(
       path: '/routes/preview',
       accessToken: accessToken,
+      requestedLiveTraffic: useLiveTraffic,
       body: {
-        'destination_ids': destinationIds.toSet().toList(),
+        'destination_ids': deduped,
         'travel_mode': travelMode,
+        'use_live_traffic': useLiveTraffic,
         if (origin != null) 'origin': _routeOrigin(origin),
       },
     );
   }
 
-  Future<BackendRouteResult?> optimizeRoute(
+  Future<RoadRouteResult?> optimizeRoute(
     String accessToken, {
     required List<int> destinationIds,
     String travelMode = 'driving',
     GeoPoint? origin,
+    bool useLiveTraffic = false,
+  }) async {
+    final attempt = await optimizeRouteWithDiagnostics(
+      accessToken,
+      destinationIds: destinationIds,
+      travelMode: travelMode,
+      origin: origin,
+      useLiveTraffic: useLiveTraffic,
+    );
+    return attempt.route;
+  }
+
+  Future<RouteFetchAttempt> optimizeRouteWithDiagnostics(
+    String accessToken, {
+    required List<int> destinationIds,
+    String travelMode = 'driving',
+    GeoPoint? origin,
+    bool useLiveTraffic = false,
   }) {
-    return _fetchRoute(
+    final deduped = dedupConsecutiveIds(destinationIds);
+    return _fetchRouteWithDiagnostics(
       path: '/routes/optimize',
       accessToken: accessToken,
+      requestedLiveTraffic: useLiveTraffic,
       body: {
-        'destination_ids': destinationIds.toSet().toList(),
+        'destination_ids': deduped,
         'travel_mode': travelMode,
+        'use_live_traffic': useLiveTraffic,
         // With an origin, the origin is the fixed start and every stop may move.
         if (origin != null)
           'origin': _routeOrigin(origin)
@@ -845,14 +1091,53 @@ class LakbayApiCatalogService {
     int? lockedFirstDestinationId,
     List<int>? mustVisitDestinationIds,
     bool pruneOptionalToFit = false,
+    bool useLiveTraffic = false,
+  }) async {
+    final res = await planRouteWithDiagnostics(
+      accessToken,
+      destinationIds: destinationIds,
+      days: days,
+      pace: pace,
+      travelMode: travelMode,
+      origin: origin,
+      returnToOrigin: returnToOrigin,
+      preserveFirstDestination: preserveFirstDestination,
+      lockedFirstDestinationId: lockedFirstDestinationId,
+      mustVisitDestinationIds: mustVisitDestinationIds,
+      pruneOptionalToFit: pruneOptionalToFit,
+      useLiveTraffic: useLiveTraffic,
+    );
+    return res.plan;
+  }
+
+  Future<({BackendRoutePlanResult? plan, RouteFetchAttempt attempt})>
+      planRouteWithDiagnostics(
+    String? accessToken, {
+    required List<int> destinationIds,
+    required int days,
+    String pace = 'balanced',
+    String travelMode = 'driving',
+    GeoPoint? origin,
+    bool returnToOrigin = false,
+    bool preserveFirstDestination = false,
+    int? lockedFirstDestinationId,
+    List<int>? mustVisitDestinationIds,
+    bool pruneOptionalToFit = false,
+    bool useLiveTraffic = false,
   }) async {
     final base = _base;
-    final uniqueIds = destinationIds.toSet().toList();
-    if (base.isEmpty || uniqueIds.isEmpty) return null;
+    final uniqueIds = dedupConsecutiveIds(destinationIds);
+    if (base.isEmpty || uniqueIds.isEmpty) {
+      return (
+        plan: null,
+        attempt: const RouteFetchAttempt(errorCode: 'not_configured'),
+      );
+    }
     try {
       final encodedPayload = jsonEncode({
         'destination_ids': uniqueIds,
         'travel_mode': travelMode,
+        'use_live_traffic': useLiveTraffic,
         'days': days.clamp(1, 14),
         'pace': pace,
         if (origin != null) 'origin': _routeOrigin(origin),
@@ -870,12 +1155,35 @@ class LakbayApiCatalogService {
         encodedBody: encodedPayload,
         timeout: _routeRequestTimeout,
       );
-      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return (plan: null, attempt: _failedAttemptFromResponse(res));
+      }
       final decoded = jsonDecode(res.body);
-      if (decoded is! Map<String, dynamic>) return null;
+      if (decoded is! Map<String, dynamic>) {
+        return (
+          plan: null,
+          attempt: RouteFetchAttempt(
+            errorCode: 'server_error',
+            statusCode: res.statusCode,
+            errorMessage: 'Unexpected route response format.',
+          ),
+        );
+      }
       final routeMap = decoded['route'];
-      if (routeMap is! Map<String, dynamic>) return null;
-      final parsedRoute = _parseRouteResult(routeMap);
+      if (routeMap is! Map<String, dynamic>) {
+        return (
+          plan: null,
+          attempt: RouteFetchAttempt(
+            errorCode: 'server_error',
+            statusCode: res.statusCode,
+            errorMessage: 'Route geometry missing in response.',
+          ),
+        );
+      }
+      final parsedRoute = _parseRouteResult(
+        routeMap,
+        requestedLiveTraffic: useLiveTraffic,
+      );
       final rawSavings =
           decoded['savings_vs_input'] as Map<String, dynamic>? ?? const {};
       final suggestedDays =
@@ -924,7 +1232,7 @@ class LakbayApiCatalogService {
         );
       }
 
-      return BackendRoutePlanResult(
+      final plan = BackendRoutePlanResult(
         summary: RoutePlanOptimizationSummary(
           orderMethod: orderMethod,
           costSource: costSource,
@@ -957,21 +1265,25 @@ class LakbayApiCatalogService {
         days: parsedDays,
         route: parsedRoute,
       );
-    } catch (_) {
-      return null;
+      return (plan: plan, attempt: RouteFetchAttempt(route: parsedRoute));
+    } catch (e) {
+      return (plan: null, attempt: _failedAttemptFromException(e));
     }
   }
 
   static const Duration _routeRequestTimeout = Duration(seconds: 30);
 
-  Future<BackendRouteResult?> _fetchRoute({
+  Future<RouteFetchAttempt> _fetchRouteWithDiagnostics({
     required String path,
     required String accessToken,
     required Map<String, dynamic> body,
+    required bool requestedLiveTraffic,
   }) async {
     final base = _base;
     final destIds = body['destination_ids'] as List<dynamic>? ?? const [];
-    if (base.isEmpty || accessToken.isEmpty || destIds.isEmpty) return null;
+    if (base.isEmpty || accessToken.isEmpty || destIds.isEmpty) {
+      return const RouteFetchAttempt(errorCode: 'not_configured');
+    }
     try {
       final encodedBody = jsonEncode(body);
       final res = await _sendAuthorized(
@@ -985,29 +1297,213 @@ class LakbayApiCatalogService {
             // Long mountain routes and a Render cold start can exceed 12 s.
             .timeout(_routeRequestTimeout),
       );
-      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return _failedAttemptFromResponse(res);
+      }
       final decoded = jsonDecode(res.body);
-      if (decoded is! Map<String, dynamic>) return null;
-      return _parseRouteResult(decoded);
-    } catch (_) {
-      return null;
+      if (decoded is! Map<String, dynamic>) {
+        return RouteFetchAttempt(
+          errorCode: 'server_error',
+          statusCode: res.statusCode,
+          errorMessage: 'Unexpected route response format.',
+        );
+      }
+      return RouteFetchAttempt(
+        route: _parseRouteResult(
+          decoded,
+          requestedLiveTraffic: requestedLiveTraffic,
+        ),
+      );
+    } catch (e) {
+      return _failedAttemptFromException(e);
     }
   }
 
-  static BackendRouteResult _parseRouteResult(Map<String, dynamic> decoded) {
+  static RouteFetchAttempt _failedAttemptFromResponse(http.Response res) {
+    final decoded = _tryDecodeJson(res.body);
+    var code = _extractErrorCode(decoded);
+    if (code == null || code.isEmpty) {
+      if (res.statusCode == 422) {
+        code = 'validation_error';
+      } else if (res.statusCode == 404) {
+        code = 'destination_not_found';
+      } else if (res.statusCode >= 500) {
+        code = 'server_error';
+      } else {
+        code = 'request_failed';
+      }
+    }
+    final missingIds = <int>[];
+    if (decoded is Map) {
+      final err = decoded['error'];
+      final details = err is Map ? err['details'] : decoded['details'];
+      if (details is Map && details['destination_ids'] is List) {
+        for (final item in details['destination_ids'] as List) {
+          if (item is num) missingIds.add(item.toInt());
+        }
+      }
+    }
+    return RouteFetchAttempt(
+      errorCode: code,
+      statusCode: res.statusCode,
+      errorMessage: _extractErrorMessage(decoded, res.statusCode),
+      missingDestinationIds: missingIds,
+    );
+  }
+
+  static RouteFetchAttempt _failedAttemptFromException(Object error) {
+    if (error is TimeoutException) {
+      return const RouteFetchAttempt(
+        errorCode: 'timeout',
+        errorMessage: 'Route lookup timed out.',
+      );
+    }
+    final msg = error.toString();
+    final lower = msg.toLowerCase();
+    if (error is http.ClientException ||
+        lower.contains('socketexception') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('network is unreachable') ||
+        lower.contains('connection refused')) {
+      return const RouteFetchAttempt(
+        errorCode: 'offline',
+        errorMessage: 'You appear to be offline.',
+      );
+    }
+    return RouteFetchAttempt(
+      errorCode: 'request_failed',
+      errorMessage: msg,
+    );
+  }
+
+  static String _normalizeCongestionLevel(String? raw) {
+    final clean = (raw ?? '').trim().toLowerCase();
+    return switch (clean) {
+      'light' || 'low' || 'none' => 'low',
+      'moderate' => 'moderate',
+      'heavy' => 'heavy',
+      'severe' => 'severe',
+      _ => 'unknown',
+    };
+  }
+
+  static RouteTrafficInfo _parseTrafficInfo(
+    Map<String, dynamic> decoded, {
+    required bool requestedLiveTraffic,
+  }) {
+    final trafficInfoMap = decoded['traffic_info'] is Map<String, dynamic>
+        ? decoded['traffic_info'] as Map<String, dynamic>
+        : null;
+    final trafficMap = decoded['traffic'] is Map<String, dynamic>
+        ? decoded['traffic'] as Map<String, dynamic>
+        : null;
+
+    const validStatuses = {
+      'live',
+      'limited_coverage',
+      'unavailable_no_provider',
+      'disabled',
+    };
+
+    final rawStatus =
+        (trafficInfoMap?['status'] ?? trafficMap?['status'])?.toString();
+    final routeProvider = (decoded['route_provider'] ?? '').toString();
+    final String status;
+    if (rawStatus != null && validStatuses.contains(rawStatus)) {
+      status = rawStatus;
+    } else if (!requestedLiveTraffic) {
+      status = 'disabled';
+    } else if (trafficMap != null || routeProvider == 'google_routes') {
+      status = 'live';
+    } else if (routeProvider.startsWith('mapbox')) {
+      status = 'limited_coverage';
+    } else {
+      status = 'unavailable_no_provider';
+    }
+
+    final provider = (trafficInfoMap?['provider'] ??
+            trafficMap?['provider'] ??
+            (status == 'live' || status == 'limited_coverage'
+                ? (routeProvider.isEmpty ? null : routeProvider)
+                : null))
+        ?.toString();
+
+    final rawDelaySec =
+        trafficInfoMap?['delay_seconds'] ?? trafficMap?['delay_seconds'];
+    final rawDelayMin = trafficMap?['delay_minutes'];
+    final int? delaySeconds = rawDelaySec is num
+        ? rawDelaySec.toInt()
+        : (rawDelayMin is num ? rawDelayMin.toInt() * 60 : null);
+
+    final rawCongestion = (trafficInfoMap?['congestion_segments'] ??
+        trafficMap?['congestion_segments']) as List<dynamic>?;
+    final congestion = <String>[];
+    if (rawCongestion != null) {
+      for (final item in rawCongestion) {
+        if (item is Map) {
+          congestion.add(_normalizeCongestionLevel(item['level']?.toString()));
+        } else if (item != null) {
+          congestion.add(_normalizeCongestionLevel(item.toString()));
+        }
+      }
+    }
+    if (congestion.isEmpty && decoded['legs'] is List) {
+      for (final leg in (decoded['legs'] as List).whereType<Map>()) {
+        final lvl = leg['traffic_level']?.toString();
+        if (lvl != null && lvl.isNotEmpty) {
+          congestion.add(_normalizeCongestionLevel(lvl));
+        }
+      }
+    }
+
+    final advisory =
+        (trafficInfoMap?['advisory'] ?? trafficMap?['advisory'])?.toString();
+
+    return RouteTrafficInfo(
+      status: status,
+      provider: provider,
+      delaySeconds: delaySeconds,
+      congestionSegments: congestion,
+      advisory: advisory,
+    );
+  }
+
+  static RoadRouteResult _parseRouteResult(
+    Map<String, dynamic> decoded, {
+    bool requestedLiveTraffic = false,
+  }) {
     final encodedPolyline = decoded['polyline']?.toString() ?? '';
     final stops = (decoded['stops'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .toList();
+    final detailSegments = _parseDetailSegments(decoded['segments']);
+    final segments = [
+      for (final seg in detailSegments)
+        if (seg.toGeometry() != null) seg.toGeometry()!,
+    ];
+
     // Only provider road geometry counts as a route. Estimated responses
     // (Haversine) have no polyline; joining their stops would draw a line
     // straight across the sea, so leave the geometry empty instead.
-    final decodedPts =
+    var decodedPts =
         encodedPolyline.isNotEmpty && decoded['is_estimated'] != true
             ? decodePolyline5(encodedPolyline)
             : const <GeoPoint>[];
+    if (decodedPts.isEmpty &&
+        decoded['is_estimated'] != true &&
+        segments.isNotEmpty) {
+      decodedPts = [
+        for (final seg in segments)
+          if (!seg.isEstimated) ...seg.points,
+      ];
+    }
 
-    return BackendRouteResult(
+    final trafficInfo = _parseTrafficInfo(
+      decoded,
+      requestedLiveTraffic: requestedLiveTraffic,
+    );
+
+    return RoadRouteResult(
       routeProvider: (decoded['route_provider'] ?? 'osrm').toString(),
       isEstimated: decoded['is_estimated'] == true,
       totalDistanceKm: _toDouble(decoded['total_distance_km']) ?? 0,
@@ -1021,28 +1517,63 @@ class LakbayApiCatalogService {
           .map((s) => (s['destination_id'] as num?)?.toInt())
           .whereType<int>()
           .toList(),
-      segments: _parseRouteSegments(decoded['segments']),
+      segments: segments,
       seaCrossings: _parseSeaCrossings(decoded['sea_crossings']),
+      traffic: trafficInfo,
+      detailSegments: detailSegments,
+      skippedDestinationIds:
+          (decoded['skipped_destination_ids'] as List<dynamic>? ?? const [])
+              .whereType<num>()
+              .map((n) => n.toInt())
+              .toList(),
     );
   }
 
-  static List<RouteSegmentGeometry> _parseRouteSegments(Object? raw) {
+  static List<RoadRouteSegment> _parseDetailSegments(Object? raw) {
     if (raw is! List) return const [];
-    final segments = <RouteSegmentGeometry>[];
+    final out = <RoadRouteSegment>[];
     for (final item in raw.whereType<Map<String, dynamic>>()) {
       final encoded = item['polyline']?.toString() ?? '';
-      if (encoded.isEmpty) continue;
-      final points = decodePolyline5(encoded);
+      var points = encoded.isNotEmpty ? decodePolyline5(encoded) : const <GeoPoint>[];
+      if (points.length < 2) {
+        final fromLat = _toDouble(item['from_lat']);
+        final fromLng = _toDouble(item['from_lng']);
+        final toLat = _toDouble(item['to_lat']);
+        final toLng = _toDouble(item['to_lng']);
+        if (fromLat != null && fromLng != null && toLat != null && toLng != null) {
+          points = [
+            GeoPoint(lat: fromLat, lng: fromLng),
+            GeoPoint(lat: toLat, lng: toLng),
+          ];
+        }
+      }
       if (points.length < 2) continue;
-      segments.add(RouteSegmentGeometry(
-        mode: item['mode'] == 'sea' ? TransportMode.ferry : TransportMode.car,
-        points: points,
-        fromName: item['from_name']?.toString() ?? '',
-        toName: item['to_name']?.toString() ?? '',
-        isEstimated: item['is_estimated'] == true,
-      ));
+      final rawMode = (item['mode'] ?? 'road').toString().trim().toLowerCase();
+      final mode = rawMode == 'sea' ? 'sea_link' : rawMode;
+      final estimated = item['estimated'] == true || item['is_estimated'] == true;
+      final rawCong = (item['congestion_segments'] ?? item['congestion']) as List?;
+      final segCongestion = rawCong == null
+          ? const <String>[]
+          : [
+              for (final c in rawCong)
+                _normalizeCongestionLevel(
+                  c is Map ? c['level']?.toString() : c?.toString(),
+                ),
+            ];
+      out.add(
+        RoadRouteSegment(
+          estimated: estimated,
+          mode: mode,
+          warning: item['warning']?.toString(),
+          reason: item['reason']?.toString(),
+          points: points,
+          fromName: item['from_name']?.toString() ?? '',
+          toName: item['to_name']?.toString() ?? '',
+          congestionSegments: segCongestion,
+        ),
+      );
     }
-    return segments;
+    return out;
   }
 
   static List<SeaCrossingInfo> _parseSeaCrossings(Object? raw) {
@@ -1476,6 +2007,9 @@ class LakbayApiCatalogService {
   /// Calls `POST /planning/timeline`: a day-by-day timeline built in code from the
   /// traveler's picks (guests and signed-in). Returns null when it cannot be reached or
   /// the server refuses, so the caller can fall back; nothing is invented to cover it.
+  String? lastTimelineErrorCode;
+  String? lastTimelineErrorMessage;
+
   Future<TimelineResult?> fetchTimeline(
     String? accessToken, {
     required Map<String, dynamic> planningState,
@@ -1483,6 +2017,8 @@ class LakbayApiCatalogService {
     Map<String, dynamic>? previous,
     List<Map<String, dynamic>> pins = const [],
   }) async {
+    lastTimelineErrorCode = null;
+    lastTimelineErrorMessage = null;
     final base = _base;
     if (base.isEmpty) return null;
     try {
@@ -1509,7 +2045,13 @@ class LakbayApiCatalogService {
       if (token.isNotEmpty && res.statusCode == 401) {
         res = await sendReq(null);
       }
-      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        final errDecoded = _tryDecodeJson(res.body);
+        lastTimelineErrorCode = _extractErrorCode(errDecoded);
+        lastTimelineErrorMessage =
+            _extractErrorMessage(errDecoded, res.statusCode);
+        return null;
+      }
       final decoded = _tryDecodeJson(res.body);
       if (decoded is! Map<String, dynamic> ||
           decoded['timeline'] is! Map<String, dynamic>) {
@@ -1743,8 +2285,12 @@ class LakbayApiCatalogService {
       if (err is Map && err['message'] != null) {
         return err['message'].toString();
       }
-      if (decoded['detail'] != null) {
-        return decoded['detail'].toString();
+      final detail = decoded['detail'];
+      if (detail is Map && detail['message'] != null) {
+        return detail['message'].toString();
+      }
+      if (detail != null) {
+        return detail.toString();
       }
       if (decoded['message'] != null) {
         return decoded['message'].toString();
@@ -1758,6 +2304,10 @@ class LakbayApiCatalogService {
       final err = decoded['error'];
       if (err is Map && err['code'] != null) {
         return err['code'].toString();
+      }
+      final detail = decoded['detail'];
+      if (detail is Map && detail['code'] != null) {
+        return detail['code'].toString();
       }
       if (decoded['code'] != null) {
         return decoded['code'].toString();

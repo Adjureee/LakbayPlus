@@ -29,6 +29,8 @@ class MapboxService {
   bool get hasValidToken =>
       accessToken.trim().isNotEmpty && accessToken.trim().startsWith('pk.');
 
+  bool get supportsTrafficTiles => hasValidToken;
+
   void setCustomToken(String token) {
     _customToken = token.trim();
   }

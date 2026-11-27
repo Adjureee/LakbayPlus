@@ -135,6 +135,9 @@ class ExploreTrip {
   final String? whatToBring;
   final String? islandGroup;
   final String? stayDurationType;
+  final String? mediaUrl;
+  final String? mediaType;
+  final double? mediaDurationSeconds;
 
   /// The on-foot access trail drawn by an admin (an encoded polyline), or null
   /// when the place has none.
@@ -162,6 +165,9 @@ class ExploreTrip {
     this.whatToBring,
     this.islandGroup,
     this.stayDurationType,
+    this.mediaUrl,
+    this.mediaType,
+    this.mediaDurationSeconds,
     this.accessTrailPolyline,
   });
 
@@ -170,24 +176,35 @@ class ExploreTrip {
   bool get hasRemoteThumbnail =>
       thumbnailUrl.startsWith('http://') || thumbnailUrl.startsWith('https://');
 
+  bool get hasPlayableClip =>
+      (mediaUrl ?? '').startsWith('http') &&
+      (mediaType == 'gif' || mediaType == 'video');
+
+  bool get hasOvernightOption => (overnightFee ?? '').trim().isNotEmpty;
+
   String get localAssetPath => ownPhotoAssetFor(title);
 
-  /// Normalizes backend or CSV stay duration types into canonical keys.
-  String get normalizedStayDurationType => normalizeStayDurationType(
+  /// Normalizes backend or CSV stay duration types into canonical keys, or null
+  /// when the data does not explicitly specify one.
+  String? get normalizedStayDurationType => normalizeStayDurationType(
         stayDurationType,
         category: tag ?? '',
         overnightFee: overnightFee ?? '',
       );
 
   /// Human-friendly typical visit length label displayed on single-place cards.
-  String get stayDurationLabel => switch (normalizedStayDurationType) {
+  String? get stayDurationLabel => switch (normalizedStayDurationType) {
         'short' => '1–2 hrs',
         'half_day' => 'Half day',
         'full_day' => 'Full day',
-        'overnight' => 'Overnight',
+        'overnight' => 'Overnight stay',
         'multi_day' => 'Multi-day',
-        _ => 'Half day',
+        _ => null,
       };
+
+  /// Explicit clock metadata copy (never bare "Half day" or fabricated).
+  String? get typicalVisitLabel =>
+      stayDurationLabel == null ? null : 'Typical visit: $stayDurationLabel';
 
   /// Clean municipality/district subtitle for Explore place cards.
   String get municipalityLabel {
@@ -270,6 +287,9 @@ class ExploreTrip {
     String? thumbnailUrl,
     String? islandGroup,
     String? stayDurationType,
+    String? mediaUrl,
+    String? mediaType,
+    double? mediaDurationSeconds,
   }) {
     return ExploreTrip(
       locale: locale,
@@ -293,6 +313,10 @@ class ExploreTrip {
       whatToBring: whatToBring,
       islandGroup: islandGroup ?? this.islandGroup,
       stayDurationType: stayDurationType ?? this.stayDurationType,
+      mediaUrl: mediaUrl ?? this.mediaUrl,
+      mediaType: mediaType ?? this.mediaType,
+      mediaDurationSeconds: mediaDurationSeconds ?? this.mediaDurationSeconds,
+      accessTrailPolyline: accessTrailPolyline,
     );
   }
 
@@ -318,7 +342,12 @@ class ExploreTrip {
         if (whatToBring != null) 'whatToBring': whatToBring,
         if (islandGroup != null) 'islandGroup': islandGroup,
         if (stayDurationType != null) 'stayDurationType': stayDurationType,
-        if (accessTrailPolyline != null) 'accessTrailPolyline': accessTrailPolyline,
+        if (mediaUrl != null) 'mediaUrl': mediaUrl,
+        if (mediaType != null) 'mediaType': mediaType,
+        if (mediaDurationSeconds != null)
+          'mediaDurationSeconds': mediaDurationSeconds,
+        if (accessTrailPolyline != null)
+          'accessTrailPolyline': accessTrailPolyline,
       };
 
   factory ExploreTrip.fromJson(Map<String, dynamic> json) {
@@ -345,17 +374,23 @@ class ExploreTrip {
       whatToBring: json['whatToBring'] as String?,
       islandGroup: json['islandGroup'] as String?,
       stayDurationType: json['stayDurationType'] as String?,
+      mediaUrl: json['mediaUrl'] as String?,
+      mediaType: json['mediaType'] as String?,
+      mediaDurationSeconds: (json['mediaDurationSeconds'] as num?)?.toDouble(),
     );
   }
 }
 
-/// Normalizes stay duration strings across DB, CSV, and API payloads.
-String normalizeStayDurationType(
+/// Normalizes explicit stay duration strings across DB, CSV, and API payloads.
+/// Returns null when empty or unknown instead of fabricating a duration.
+String? normalizeStayDurationType(
   String? raw, {
   String category = '',
   String overnightFee = '',
 }) {
-  final text = (raw ?? '').trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+  final cleanedRaw = (raw ?? '').trim().toLowerCase();
+  if (cleanedRaw.isEmpty) return null;
+  final text = cleanedRaw.replaceAll('-', '_').replaceAll(RegExp(r'\s+'), '_');
   if (text == 'short' ||
       text == 'half_day' ||
       text == 'full_day' ||
@@ -363,33 +398,21 @@ String normalizeStayDurationType(
       text == 'multi_day') {
     return text;
   }
-  if (text.contains('short') || (raw ?? '').toLowerCase().contains('1-2 hour')) {
+  if (text.contains('short') ||
+      cleanedRaw.contains('1-2 hour') ||
+      cleanedRaw.contains('1–2 hour') ||
+      text.contains('1_2_hour')) {
     return 'short';
   }
-  if (text.contains('half')) return 'half_day';
-  if (text.contains('full')) return 'full_day';
-  if (text.contains('multi')) return 'multi_day';
-  if (text.contains('overnight') || overnightFee.trim().isNotEmpty) {
-    return 'overnight';
+  if (text == 'half' || text.contains('half_day') || text.contains('half')) {
+    return 'half_day';
   }
-  final cat = category.toLowerCase();
-  if (cat.contains('museum') ||
-      cat.contains('church') ||
-      cat.contains('park') ||
-      cat.contains('plaza') ||
-      cat.contains('landmark') ||
-      cat.contains('viewpoint') ||
-      cat.contains('hot spring')) {
-    return 'short';
-  }
-  if (cat.contains('beach resort') ||
-      cat.contains('mountain resort') ||
-      cat.contains('waterfall') ||
-      cat.contains('cape')) {
+  if (text == 'full' || text.contains('full_day') || text.contains('full')) {
     return 'full_day';
   }
-  if (cat.contains('island')) return 'multi_day';
-  return 'half_day';
+  if (text.contains('multi')) return 'multi_day';
+  if (text.contains('overnight')) return 'overnight';
+  return null;
 }
 
 /// Curated multi-place starter route in Explore that pre-fills the Trip Tray.
@@ -884,6 +907,7 @@ class ItineraryDay {
     bool? isContinuationDay,
     String? continuationOfTitle,
     String? overloadWarning,
+    int? apiDestinationId,
   }) {
     return ItineraryDay(
       dayNumber: dayNumber ?? this.dayNumber,
@@ -899,7 +923,7 @@ class ItineraryDay {
       transportDuration: transportDuration ?? this.transportDuration,
       stops: stops ?? this.stops,
       recommendedHotel: recommendedHotel,
-      apiDestinationId: apiDestinationId,
+      apiDestinationId: apiDestinationId ?? this.apiDestinationId,
       visitHours: visitHours ?? this.visitHours,
       transitHours: transitHours ?? this.transitHours,
       totalHours: totalHours ?? this.totalHours,
@@ -1116,6 +1140,9 @@ class ItineraryTrip {
   final double centerLng;
   final String heroAsset;
   final String? remoteImageUrl;
+  final String? mediaUrl;
+  final String? mediaType;
+  final double? mediaDurationSeconds;
   final String vibeTag;
   final String overviewText;
   final String bestMonths;
@@ -1153,10 +1180,21 @@ class ItineraryTrip {
   final bool isCatalogFallback;
   final String backendStatus; // planned | ongoing | completed | archived
   final DateTime? endDate;
+  final DateTime? completedAt;
 
   bool get isArchived => backendStatus == 'archived';
+  bool get isCompleted => backendStatus == 'completed';
+  bool get isEndDatePassed {
+    final end = endDate;
+    if (end == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final endDay = DateTime(end.year, end.month, end.day);
+    return endDay.isBefore(today);
+  }
+
   bool get hasEnded =>
-      backendStatus == 'completed' ||
+      isCompleted ||
       (endDate != null && endDate!.isBefore(DateTime.now()));
 
   const ItineraryTrip({
@@ -1170,6 +1208,9 @@ class ItineraryTrip {
     required this.centerLng,
     required this.heroAsset,
     this.remoteImageUrl,
+    this.mediaUrl,
+    this.mediaType,
+    this.mediaDurationSeconds,
     required this.vibeTag,
     required this.overviewText,
     required this.bestMonths,
@@ -1204,6 +1245,7 @@ class ItineraryTrip {
     this.isCatalogFallback = false,
     this.backendStatus = 'planned',
     this.endDate,
+    this.completedAt,
   });
 
   int get totalEstimatedCostUsd {
@@ -1321,6 +1363,11 @@ class ItineraryTrip {
     bool? isCatalogFallback,
     String? backendStatus,
     DateTime? endDate,
+    DateTime? completedAt,
+    bool clearCompletedAt = false,
+    String? mediaUrl,
+    String? mediaType,
+    double? mediaDurationSeconds,
   }) {
     return ItineraryTrip(
       id: id,
@@ -1333,6 +1380,9 @@ class ItineraryTrip {
       centerLng: centerLng,
       heroAsset: heroAsset,
       remoteImageUrl: remoteImageUrl,
+      mediaUrl: mediaUrl ?? this.mediaUrl,
+      mediaType: mediaType ?? this.mediaType,
+      mediaDurationSeconds: mediaDurationSeconds ?? this.mediaDurationSeconds,
       vibeTag: vibeTag,
       overviewText: overviewText,
       bestMonths: bestMonths,
@@ -1370,6 +1420,7 @@ class ItineraryTrip {
       isCatalogFallback: isCatalogFallback ?? this.isCatalogFallback,
       backendStatus: backendStatus ?? this.backendStatus,
       endDate: endDate ?? this.endDate,
+      completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
     );
   }
 
@@ -1384,6 +1435,10 @@ class ItineraryTrip {
         'centerLng': centerLng,
         'heroAsset': heroAsset,
         if (remoteImageUrl != null) 'remoteImageUrl': remoteImageUrl,
+        if (mediaUrl != null) 'mediaUrl': mediaUrl,
+        if (mediaType != null) 'mediaType': mediaType,
+        if (mediaDurationSeconds != null)
+          'mediaDurationSeconds': mediaDurationSeconds,
         'vibeTag': vibeTag,
         'overviewText': overviewText,
         'bestMonths': bestMonths,
@@ -1425,6 +1480,7 @@ class ItineraryTrip {
         if (isCatalogFallback) 'isCatalogFallback': true,
         if (backendStatus != 'planned') 'backendStatus': backendStatus,
         if (endDate != null) 'endDate': endDate!.toIso8601String(),
+        if (completedAt != null) 'completedAt': completedAt!.toIso8601String(),
       };
 
   factory ItineraryTrip.fromJson(Map<String, dynamic> json) => ItineraryTrip(
@@ -1439,6 +1495,10 @@ class ItineraryTrip {
         heroAsset: json['heroAsset'] as String? ??
             'assets/home_backdrops/01-samal-island.jpg',
         remoteImageUrl: json['remoteImageUrl'] as String?,
+        mediaUrl: json['mediaUrl'] as String?,
+        mediaType: json['mediaType'] as String?,
+        mediaDurationSeconds:
+            (json['mediaDurationSeconds'] as num?)?.toDouble(),
         vibeTag: json['vibeTag'] as String? ?? 'Davao Region',
         overviewText: json['overviewText'] as String? ?? '',
         bestMonths: _unlessInvented(json['bestMonths'] as String?, 'Dec – May (Dry)'),
@@ -1506,6 +1566,9 @@ class ItineraryTrip {
         isCatalogFallback: json['isCatalogFallback'] == true,
         backendStatus: (json['backendStatus'] as String?) ?? 'planned',
         endDate: DateTime.tryParse((json['endDate'] ?? '').toString()),
+        completedAt: DateTime.tryParse(
+          (json['completedAt'] ?? json['completed_at'] ?? '').toString(),
+        ),
       );
 }
 

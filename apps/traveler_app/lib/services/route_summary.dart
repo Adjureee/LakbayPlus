@@ -1,4 +1,5 @@
 import '../models/travel_models.dart';
+import 'lakbay_api_catalog_service.dart';
 import 'mapbox_service.dart';
 
 /// One honest line about a route, shared by the trip screen and the map.
@@ -27,6 +28,12 @@ class RouteSummaryText {
 
   static String _qualifier(BackendRouteResult route, String? mode) {
     if (route.isEstimated) return 'estimate';
+    if (route is RoadRouteResult) {
+      if (mode == 'driving' && route.traffic.isLive) {
+        return 'with current traffic';
+      }
+      return 'road route';
+    }
     if (mode == 'driving' && route.routeProvider == 'mapbox') {
       return 'with current traffic';
     }

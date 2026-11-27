@@ -25,52 +25,54 @@ class AppTheme {
   static const Color onPrimary = Colors.white;
 
   static TextTheme textTheme(Color primary, Color secondary) {
-    return GoogleFonts.outfitTextTheme(
-      TextTheme(
-        displayLarge: TextStyle(
-          fontSize: 32,
-          height: 1.15,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.6,
-          color: primary,
-        ),
-        displayMedium: TextStyle(
-          fontSize: 28,
-          height: 1.18,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.5,
-          color: primary,
-        ),
-        headlineMedium: TextStyle(
-          fontSize: 22,
-          height: 1.25,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.2,
-          color: primary,
-        ),
-        titleLarge: TextStyle(
-          fontSize: 18,
-          height: 1.3,
-          fontWeight: FontWeight.w600,
-          color: primary,
-        ),
-        titleMedium: TextStyle(
-          fontSize: 16,
-          height: 1.35,
-          fontWeight: FontWeight.w600,
-          color: primary,
-        ),
-        bodyLarge: TextStyle(
-          fontSize: 15,
-          height: 1.45,
-          color: primary,
-        ),
-        bodyMedium: TextStyle(
-          fontSize: 14,
-          height: 1.45,
-          color: secondary,
-        ),
+    final base = TextTheme(
+      displayLarge: TextStyle(
+        fontSize: 32,
+        height: 1.15,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.6,
+        color: primary,
+      ),
+      displayMedium: TextStyle(
+        fontSize: 28,
+        height: 1.18,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.5,
+        color: primary,
+      ),
+      headlineMedium: TextStyle(
+        fontSize: 22,
+        height: 1.25,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.2,
+        color: primary,
+      ),
+      titleLarge: TextStyle(
+        fontSize: 18,
+        height: 1.3,
+        fontWeight: FontWeight.w600,
+        color: primary,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        height: 1.35,
+        fontWeight: FontWeight.w600,
+        color: primary,
+      ),
+      bodyLarge: TextStyle(
+        fontSize: 15,
+        height: 1.45,
+        color: primary,
+      ),
+      bodyMedium: TextStyle(
+        fontSize: 14,
+        height: 1.45,
+        color: secondary,
       ),
     );
+    if (!GoogleFonts.config.allowRuntimeFetching) {
+      return base.apply(fontFamily: 'FigGrotesk');
+    }
+    return GoogleFonts.outfitTextTheme(base);
   }
 }

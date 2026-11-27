@@ -919,12 +919,17 @@ class _TripBudgetAndPdfSheetState extends State<_TripBudgetAndPdfSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Spent: ₱${spentPhp.toStringAsFixed(2)}'),
-                      Text('Budget: ₱${budgetPhp.toStringAsFixed(2)}'),
-                    ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.spaceBetween,
+                      children: [
+                        Text('Spent: ₱${spentPhp.toStringAsFixed(2)}'),
+                        Text('Budget: ₱${budgetPhp.toStringAsFixed(2)}'),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 8),
                   LinearProgressIndicator(

@@ -36,41 +36,46 @@ class TripRouteMapScreen extends StatefulWidget {
 }
 
 class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
-  late final PageController _pageController;
   final GlobalKey<LakbayMapboxMapState> _mapKey =
       GlobalKey<LakbayMapboxMapState>();
+  final DraggableScrollableController _sheetController =
+      DraggableScrollableController();
 
   int _selectedDayIndex = 0;
   int? _filteredDayNumber;
   String? _selectedMarkerId;
   bool _showHotelsOnMap = false;
   ItineraryTrip? _liveTrip;
-  BackendRouteResult? _backendRoute;
+  RoadRouteResult? _backendRoute;
   late String _travelMode = widget.repo.preferredTravelMode;
   bool _loadingRoadRoute = false;
   String? _routeError;
   bool _fittedRouteOnce = false;
   bool _showNearby = true;
+  bool _trafficNoticeDismissed = false;
+  double _mobileSheetExtent = 0.19;
   late MapboxStylePreset _lastMapStyle = widget.repo.activeMapStyle;
   late bool _lastShowLiveTraffic = widget.repo.showLiveTraffic;
 
   ItineraryTrip get _activeTrip => _liveTrip ?? widget.trip;
 
-  BackendRouteResult? _routeResultFromTrip(ItineraryTrip trip) {
+  RoadRouteResult? _routeResultFromTrip(ItineraryTrip trip) {
     final segs = trip.routeSegments;
     if (segs.isEmpty) return null;
     final summary = trip.optimizationSummary;
-    return BackendRouteResult(
-      routeProvider: summary?.costSource ?? 'cached',
-      isEstimated: segs.every((s) => s.isEstimated),
-      totalDistanceKm: summary?.optimizedDistanceKm ??
-          MapboxService.calculateRouteDistanceKm(trip.routeWaypoints),
-      totalDurationMinutes: summary?.optimizedTransitMinutes.round() ?? 0,
-      geometryPoints: [for (final s in segs) ...s.points],
-      warnings: trip.routeWarnings,
-      orderedDestinationIds: trip.effectiveBackendDestinationIds,
-      segments: segs,
-      seaCrossings: trip.seaCrossings,
+    return RoadRouteResult.fromBackendRoute(
+      BackendRouteResult(
+        routeProvider: summary?.costSource ?? 'cached',
+        isEstimated: segs.every((s) => s.isEstimated),
+        totalDistanceKm: summary?.optimizedDistanceKm ??
+            MapboxService.calculateRouteDistanceKm(trip.routeWaypoints),
+        totalDurationMinutes: summary?.optimizedTransitMinutes.round() ?? 0,
+        geometryPoints: [for (final s in segs) ...s.points],
+        warnings: trip.routeWarnings,
+        orderedDestinationIds: trip.effectiveBackendDestinationIds,
+        segments: segs,
+        seaCrossings: trip.seaCrossings,
+      ),
     );
   }
 
@@ -124,16 +129,15 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     _selectedDayIndex = widget.initialDayIndex != null && days.isNotEmpty
         ? widget.initialDayIndex!.clamp(0, days.length - 1)
         : 0;
-    _pageController = PageController(
-      viewportFraction: 0.88,
-      initialPage: _selectedDayIndex,
-    );
     if (widget.initialDayIndex != null && days.isNotEmpty) {
       _filteredDayNumber = _markerDayNumberForIndex(_selectedDayIndex);
     }
     _selectedMarkerId = widget.initialStopId ?? _primaryMarkerIdForSelectedDay();
     _backendRoute = _routeResultFromTrip(_activeTrip);
-    _loadRoadRoute(optimize: false);
+    if (_activeTrip.days.isNotEmpty ||
+        _activeTrip.backendDestinationIds.length >= 2) {
+      _loadRoadRoute(optimize: false);
+    }
     widget.repo.addListener(_onRepoChanged);
     widget.repo.startLiveTracking().then((started) {
       if (!started) return;
@@ -192,9 +196,17 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     if (!mounted) return;
     if (_lastMapStyle != widget.repo.activeMapStyle ||
         _lastShowLiveTraffic != widget.repo.showLiveTraffic) {
+      final trafficToggled =
+          _lastShowLiveTraffic != widget.repo.showLiveTraffic;
       _lastMapStyle = widget.repo.activeMapStyle;
       _lastShowLiveTraffic = widget.repo.showLiveTraffic;
+      if (trafficToggled) {
+        _trafficNoticeDismissed = false;
+      }
       setState(() {});
+      if (trafficToggled && _travelMode == 'driving') {
+        _loadRoadRoute(optimize: false);
+      }
     }
     final fix = widget.repo.livePosition;
     if (fix == null || identical(fix, _lastHandledFix)) return;
@@ -211,13 +223,6 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
       _reachedDays = arrived + 1;
       _offRoute.reset();
       final next = (arrived + 1).clamp(0, days.length - 1);
-      if (next != _selectedDayIndex && _pageController.hasClients) {
-        _pageController.animateToPage(
-          next,
-          duration: const Duration(milliseconds: 320),
-          curve: Curves.easeOutCubic,
-        );
-      }
       _selectedDayIndex = next;
       _selectedMarkerId = _primaryMarkerIdForSelectedDay();
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -274,8 +279,15 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
   Future<void> _loadRoadRoute({
     required bool optimize,
     List<int>? destinationIds,
+    bool forceRefreshIds = false,
+    bool dayOnlyFallback = false,
   }) async {
     if (_loadingRoadRoute) return;
+    if (_activeTrip.days.isEmpty &&
+        _activeTrip.backendDestinationIds.isEmpty &&
+        (destinationIds == null || destinationIds.isEmpty)) {
+      return;
+    }
     setState(() {
       _loadingRoadRoute = true;
       _routeError = null;
@@ -286,6 +298,13 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
         optimize: optimize,
         travelMode: _travelMode,
         destinationIds: destinationIds,
+        useLiveTraffic:
+            _travelMode == 'driving' &&
+            widget.repo.showLiveTraffic &&
+            widget.repo.canToggleLiveTraffic,
+        forceRefreshIds: forceRefreshIds,
+        dayOnlyFallback: dayOnlyFallback,
+        selectedDayNumber: _filteredDayNumber,
       );
       if (!mounted) return;
       final hadSegments = _backendRoute?.segments.isNotEmpty ?? false;
@@ -294,7 +313,8 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
           _backendRoute = result;
           _routeError = null;
         } else if (_activeTrip.effectiveBackendDestinationIds.length >= 2) {
-          _routeError = 'Road directions unavailable';
+          _routeError =
+              widget.repo.lastRouteErrorReason ?? 'Road directions unavailable';
         }
         _loadingRoadRoute = false;
       });
@@ -313,7 +333,8 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
       if (mounted) {
         setState(() {
           _loadingRoadRoute = false;
-          _routeError = 'Road route lookup failed';
+          _routeError =
+              widget.repo.lastRouteErrorReason ?? 'Road route lookup failed';
         });
       }
     }
@@ -321,6 +342,10 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
 
   Future<void> _handleOptimizeOrder() async {
     if (_loadingRoadRoute) return;
+    if (_activeTrip.days.isEmpty &&
+        _activeTrip.backendDestinationIds.isEmpty) {
+      return;
+    }
     setState(() {
       _loadingRoadRoute = true;
       _routeError = null;
@@ -370,7 +395,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     widget.repo.removeListener(_onRepoChanged);
     if (_liveTracking) widget.repo.stopLiveTracking();
     _tourTimer?.cancel();
-    _pageController.dispose();
+    _sheetController.dispose();
     super.dispose();
   }
 
@@ -557,17 +582,6 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
       _mapKey.currentState?.fitBounds();
       return;
     }
-    final idx = days.indexWhere((d) => d.dayNumber == dayNumber);
-    if (idx >= 0) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_pageController.hasClients) return;
-        _pageController.animateToPage(
-          idx,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-        );
-      });
-    }
     _mapKey.currentState?.seekTrailToDay(dayNumber);
     _fitDayBounds(dayNumber);
   }
@@ -594,13 +608,6 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     });
     if (dayNumber != null) {
       _mapKey.currentState?.seekTrailToDay(dayNumber);
-    }
-    if (idx >= 0 && _pageController.hasClients) {
-      _pageController.animateToPage(
-        idx,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-      );
     }
     if (flyToPin && lat != null && lng != null) {
       _mapKey.currentState?.flyTo(lat, lng, zoom: 11.8);
@@ -657,13 +664,6 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
       _selectedDayIndex = nextIdx;
       _selectedMarkerId = _markerIdForDay(nextDayNum);
     });
-    if (_pageController.hasClients) {
-      _pageController.animateToPage(
-        nextIdx,
-        duration: const Duration(milliseconds: 450),
-        curve: Curves.easeOutCubic,
-      );
-    }
     final day = days[nextIdx];
     _mapKey.currentState?.seekTrailToDay(nextDayNum);
     _mapKey.currentState?.flyTo(day.lat, day.lng, zoom: 10.2);
@@ -1106,13 +1106,6 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
           _filteredDayNumber = dayNum;
         }
         _mapKey.currentState?.seekTrailToDay(days[idx].dayNumber);
-        if (_pageController.hasClients) {
-          _pageController.animateToPage(
-            idx,
-            duration: const Duration(milliseconds: 320),
-            curve: Curves.easeOutCubic,
-          );
-        }
       }
     });
   }
@@ -1151,7 +1144,13 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
       boundsPadding: boundsPadding,
       isLoadingRoute: _loadingRoadRoute,
       routeError: _routeError,
-      onRetryRoute: () => _loadRoadRoute(optimize: false),
+      onRetryRoute: () => _loadRoadRoute(
+        optimize: false,
+        forceRefreshIds: true,
+        dayOnlyFallback: _activeTrip.days.length >= 2,
+      ),
+      routeTraffic: _backendRoute?.traffic,
+      detailSegments: _backendRoute?.detailSegments ?? const [],
       borderRadius: 0,
       controlsBottomOffset: controlsBottomOffset,
       onMarkerTap: _handleMarkerTap,
@@ -1205,6 +1204,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                     : 'Show live traffic',
             onSelected: widget.repo.canToggleLiveTraffic
                 ? (value) {
+                    _trafficNoticeDismissed = false;
                     widget.repo.setLiveTrafficEnabled(value);
                     setState(() {});
                   }
@@ -1347,42 +1347,128 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     );
   }
 
-  Widget? _buildTrafficNoticeBanner() {
+  Widget? _buildTrafficStatusPill() {
     if (!widget.repo.canToggleLiveTraffic) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        key: const ValueKey('traffic-status-pill'),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.70),
+          color: LakbayColors.canvasBg,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: LakbayColors.cardBorder),
         ),
-        child: const Text(
-          'Traffic is unavailable on Satellite view.',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-          ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.layers_clear_rounded,
+              size: 14,
+              color: LakbayColors.textSecondary,
+            ),
+            SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                'Traffic is unavailable on Satellite view.',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: LakbayColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
-    if (widget.repo.showLiveTraffic) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.70),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Text(
-          'Live traffic data is limited in this region',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      );
+    if (!widget.repo.showLiveTraffic || _trafficNoticeDismissed) {
+      return null;
     }
-    return null;
+
+    late final Color bgColor;
+    late final Color borderColor;
+    late final Color fgColor;
+    late final IconData icon;
+    late final String label;
+
+    if (_travelMode != 'driving') {
+      bgColor = LakbayColors.tealDeep.withValues(alpha: 0.08);
+      borderColor = LakbayColors.tealDeep.withValues(alpha: 0.22);
+      fgColor = LakbayColors.tealDeep;
+      icon = Icons.info_outline_rounded;
+      label = 'Standard ETA · traffic applies to driving';
+    } else if (_loadingRoadRoute) {
+      bgColor = LakbayColors.tealDeep.withValues(alpha: 0.08);
+      borderColor = LakbayColors.tealDeep.withValues(alpha: 0.22);
+      fgColor = LakbayColors.tealDeep;
+      icon = Icons.traffic_rounded;
+      label = 'Checking live traffic conditions…';
+    } else {
+      final traffic = _backendRoute?.traffic;
+      if (traffic != null && traffic.status == 'live') {
+        final delaySecs = traffic.delaySeconds;
+        final delayNote = delaySecs != null && delaySecs >= 60
+            ? ' · +${(delaySecs / 60).round()}m delay'
+            : '';
+        bgColor = const Color(0xFF1B5E20).withValues(alpha: 0.10);
+        borderColor = const Color(0xFF2E7D32).withValues(alpha: 0.28);
+        fgColor = const Color(0xFF1B5E20);
+        icon = Icons.traffic_rounded;
+        label = 'Live traffic active$delayNote';
+      } else if (traffic != null && traffic.status == 'limited_coverage') {
+        bgColor = const Color(0xFFB45309).withValues(alpha: 0.10);
+        borderColor = const Color(0xFFD97706).withValues(alpha: 0.30);
+        fgColor = const Color(0xFF92400E);
+        icon = Icons.info_outline_rounded;
+        label = 'Traffic sparse here · standard road ETA';
+      } else {
+        bgColor = LakbayColors.tealDeep.withValues(alpha: 0.08);
+        borderColor = LakbayColors.tealDeep.withValues(alpha: 0.22);
+        fgColor = LakbayColors.tealDeep;
+        icon = Icons.info_outline_rounded;
+        label = 'Standard road ETA · live traffic offline';
+      }
+    }
+
+    return Container(
+      key: const ValueKey('traffic-status-pill'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: fgColor),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: fgColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          InkWell(
+            key: const ValueKey('dismiss-traffic-status-pill'),
+            onTap: () => setState(() => _trafficNoticeDismissed = true),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(Icons.close_rounded, size: 13, color: fgColor),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDayFilterStrip(ItineraryTrip trip) {
@@ -1660,7 +1746,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     );
   }
 
-  Widget _buildDesktopSidebar(ItineraryTrip trip) {
+  Widget _buildDesktopSidebar(ItineraryTrip trip, Widget? trafficStatusPill) {
     final crossings = _activeCrossings;
     return Container(
       width: 360,
@@ -1689,6 +1775,10 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                 ),
                 const SizedBox(height: 8),
                 _buildDayFilterStrip(trip),
+                if (trafficStatusPill != null) ...[
+                  const SizedBox(height: 8),
+                  trafficStatusPill,
+                ],
               ],
             ),
           ),
@@ -1952,10 +2042,11 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
     final activeCallout = _selectedMarkerId == null
         ? null
         : _activeStopContext(allMarkers, trip);
-    final trafficBanner = _buildTrafficNoticeBanner();
+    final trafficStatusPill = _buildTrafficStatusPill();
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 48,
         backgroundColor: LakbayColors.tealDeep,
         foregroundColor: Colors.white,
         title: Column(
@@ -1966,7 +2057,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
               style: const TextStyle(
                 fontFamily: 'FigGrotesk',
                 fontWeight: FontWeight.w700,
-                fontSize: 16,
+                fontSize: 15.5,
               ),
             ),
             Text(
@@ -1982,15 +2073,15 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                         ? 'Finding the route\u2026'
                         : 'Set your starting point to see the distance'),
               ].join(' \u2022 '),
-              style: const TextStyle(fontSize: 11.5, color: Colors.white70),
+              style: const TextStyle(fontSize: 11, color: Colors.white70),
             ),
           ],
         ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(46),
+          preferredSize: const Size.fromHeight(40),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
             child: Row(
               children: [
                 for (final (mode, label, icon) in const [
@@ -2002,7 +2093,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
-                      avatar: Icon(icon, size: 16),
+                      avatar: Icon(icon, size: 15),
                       label: Text(label),
                       selected: _travelMode == mode,
                       onSelected: (_) => _changeTravelMode(mode),
@@ -2048,7 +2139,7 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
           if (isDesktop) {
             return Row(
               children: [
-                _buildDesktopSidebar(trip),
+                _buildDesktopSidebar(trip, trafficStatusPill),
                 Expanded(
                   child: Stack(
                     fit: StackFit.expand,
@@ -2060,25 +2151,15 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                         initLat: initLat,
                         initLng: initLng,
                         initZoom: initZoom,
-                        boundsPadding: const EdgeInsets.fromLTRB(48, 108, 60, 48),
+                        boundsPadding: const EdgeInsets.fromLTRB(48, 96, 64, 48),
                         controlsBottomOffset: 24,
                         showLegend: showLegend,
                       ),
                       Positioned(
-                        top: 50,
+                        top: 48,
                         left: 12,
                         right: 12,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildQuickActionStrip(trip, nearby),
-                            if (trafficBanner != null) ...[
-                              const SizedBox(height: 4),
-                              trafficBanner,
-                            ],
-                          ],
-                        ),
+                        child: _buildQuickActionStrip(trip, nearby),
                       ),
                       if (activeCallout != null)
                         Positioned(
@@ -2097,22 +2178,23 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
           }
 
           final hasCallout = activeCallout != null;
-          if (!isDesktop &&
-              trip.days.isNotEmpty &&
-              !_pageController.hasClients) {
-            final targetPage = _selectedDayIndex.clamp(0, trip.days.length - 1);
-            if (targetPage != _pageController.initialPage) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted &&
-                    _pageController.hasClients &&
-                    (_pageController.page?.round() ?? 0) != _selectedDayIndex) {
-                  _pageController.jumpToPage(
-                    _selectedDayIndex.clamp(0, _activeTrip.days.length - 1),
-                  );
-                }
-              });
-            }
-          }
+          final sheetPeek = constraints.maxHeight < 600 ? 0.22 : 0.19;
+          final effectiveExtent = trip.days.isEmpty
+              ? 0.0
+              : _mobileSheetExtent.clamp(0.16, 0.52);
+          final sheetHeight = constraints.maxHeight * effectiveExtent;
+          final controlsBottomOffset = trip.days.isEmpty
+              ? 116.0
+              : (sheetHeight + 12.0).clamp(112.0, constraints.maxHeight * 0.56);
+          final boundsPadding = EdgeInsets.fromLTRB(
+            36,
+            122,
+            68,
+            trip.days.isEmpty
+                ? 124
+                : sheetHeight + (hasCallout ? 76 : 18),
+          );
+
           return Stack(
             fit: StackFit.expand,
             children: [
@@ -2123,18 +2205,12 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                 initLat: initLat,
                 initLng: initLng,
                 initZoom: initZoom,
-                boundsPadding: EdgeInsets.fromLTRB(
-                  36,
-                  136,
-                  56,
-                  trip.days.isEmpty ? 120 : (hasCallout ? 232 : 176),
-                ),
-                controlsBottomOffset:
-                    trip.days.isEmpty ? 116 : (hasCallout ? 228 : 170),
+                boundsPadding: boundsPadding,
+                controlsBottomOffset: controlsBottomOffset,
                 showLegend: showLegend,
               ),
               Positioned(
-                top: 50,
+                top: 46,
                 left: 12,
                 right: 12,
                 child: Column(
@@ -2143,12 +2219,8 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                   children: [
                     _buildQuickActionStrip(trip, nearby),
                     if (trip.days.isNotEmpty) ...[
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 5),
                       _buildDayFilterStrip(trip),
-                    ],
-                    if (trafficBanner != null) ...[
-                      const SizedBox(height: 4),
-                      trafficBanner,
                     ],
                   ],
                 ),
@@ -2156,8 +2228,8 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
               if (activeCallout != null)
                 Positioned(
                   left: 12,
-                  right: 64,
-                  bottom: trip.days.isEmpty ? 108 : 164,
+                  right: 68,
+                  bottom: trip.days.isEmpty ? 108 : sheetHeight + 10,
                   child: _buildActiveStopCallout(activeCallout),
                 ),
               if (trip.days.isEmpty)
@@ -2165,240 +2237,460 @@ class _TripRouteMapScreenState extends State<TripRouteMapScreen> {
                   left: 12,
                   right: 12,
                   bottom: 14,
-                  child: _buildEmptyMapCard(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (trafficStatusPill != null) ...[
+                        trafficStatusPill,
+                        const SizedBox(height: 6),
+                      ],
+                      _buildEmptyMapCard(),
+                    ],
+                  ),
                 )
               else
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 14,
-                  height: 144,
-                  child: PageView.builder(
-                    controller: _pageController,
-                    itemCount: trip.days.length,
-                    onPageChanged: (idx) {
-                      if (idx < 0 || idx >= trip.days.length) return;
-                      final dayNum = _markerDayNumberForIndex(idx);
-                      setState(() {
-                        _selectedDayIndex = idx;
-                        _selectedMarkerId = _markerIdForDay(dayNum);
-                        if (_filteredDayNumber != null) {
-                          _filteredDayNumber = dayNum;
-                        }
-                      });
-                      _mapKey.currentState?.seekTrailToDay(dayNum);
-                      if (_filteredDayNumber != null) {
-                        _fitDayBounds(dayNum);
-                      }
-                    },
-                    itemBuilder: (context, index) {
-                      final day = trip.days[index];
-                      final isSelected = index == _selectedDayIndex;
-                      final dayColor = RouteTrail.colorForDay(
-                        day.dayNumber,
-                        RouteTrailMode.road,
-                      );
-                      final nonStayStops =
-                          day.stops.where((s) => s.category != 'stay').toList();
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        margin: EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: isSelected ? 0 : 6,
-                        ),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.96),
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: isSelected
-                                ? dayColor
-                                : LakbayColors.cardBorder,
-                            width: isSelected ? 2 : 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.18),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                InkWell(
-                                  onTap: () => _selectDayFilter(
-                                    _filteredDayNumber == day.dayNumber
-                                        ? null
-                                        : day.dayNumber,
-                                  ),
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: dayColor,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      'DAY ${day.dayNumber}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    day.cityTitle.replaceFirst(
-                                      RegExp(r'^Day \d+ • '),
-                                      '',
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontFamily: 'FigGrotesk',
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15.5,
-                                    ),
-                                  ),
-                                ),
-                                if (day.wmoWeatherCode != null &&
-                                    day.tempCelsius != null) ...[
-                                  Image.asset(
-                                    'assets/png/weather/${day.wmoWeatherCode}.png',
-                                    width: 22,
-                                    height: 22,
-                                    errorBuilder: (_, _, _) => const Icon(
-                                      Icons.wb_sunny_rounded,
-                                      size: 18,
-                                      color: LakbayColors.cocoaOrange,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '${day.tempCelsius}°C',
-                                    style: const TextStyle(
-                                      fontFamily: 'FigGrotesk',
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                      color: LakbayColors.tealDeep,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              day.summary,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: LakbayColors.textSecondary,
-                              ),
-                            ),
-                            const Spacer(),
-                            if (accessNoticeForDay(day) case final notice?)
-                              AccessNoticePill(notice: notice)
-                            else if (nonStayStops.isNotEmpty)
-                              SizedBox(
-                                height: 26,
-                                child: ListView.separated(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: nonStayStops.length,
-                                  separatorBuilder: (_, _) =>
-                                      const SizedBox(width: 6),
-                                  itemBuilder: (_, sIdx) {
-                                    final stop = nonStayStops[sIdx];
-                                    final markerId =
-                                        'stop_${day.dayNumber}_$sIdx';
-                                    final focused =
-                                        _selectedMarkerId == markerId;
-                                    return InkWell(
-                                      borderRadius: BorderRadius.circular(12),
-                                      onTap: () => _focusStop(
-                                        markerId: markerId,
-                                        dayNumber: day.dayNumber,
-                                        lat: stop.lat,
-                                        lng: stop.lng,
-                                      ),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 3,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: focused
-                                              ? dayColor
-                                              : dayColor.withValues(
-                                                  alpha: 0.12,
-                                                ),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: focused
-                                                ? dayColor
-                                                : dayColor.withValues(
-                                                    alpha: 0.35,
-                                                  ),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          '${sIdx + 1}. ${stop.title}',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: focused
-                                                ? Colors.white
-                                                : LakbayColors.tealDeep,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              )
-                            else
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.place_rounded,
-                                    size: 15,
-                                    color: LakbayColors.tealAccent,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      day.cityTitle,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: LakbayColors.tealDeep,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
-                        ),
-                      );
-                    },
+                NotificationListener<DraggableScrollableNotification>(
+                  onNotification: (notification) {
+                    if ((notification.extent - _mobileSheetExtent).abs() >
+                        0.01) {
+                      setState(() => _mobileSheetExtent = notification.extent);
+                    }
+                    return false;
+                  },
+                  child: DraggableScrollableSheet(
+                    controller: _sheetController,
+                    initialChildSize: sheetPeek,
+                    minChildSize: 0.16,
+                    maxChildSize: 0.78,
+                    snap: true,
+                    snapSizes: [sheetPeek, 0.44, 0.78],
+                    builder: (context, scrollController) =>
+                        _buildMobileItinerarySheet(
+                      trip: trip,
+                      scrollController: scrollController,
+                      trafficStatusPill: trafficStatusPill,
+                      sheetPeek: sheetPeek,
+                    ),
                   ),
                 ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildMobileItinerarySheet({
+    required ItineraryTrip trip,
+    required ScrollController scrollController,
+    required Widget? trafficStatusPill,
+    required double sheetPeek,
+  }) {
+    final safeIdx = _selectedDayIndex.clamp(0, trip.days.length - 1);
+    final selectedDay = trip.days[safeIdx];
+    final dayColor = RouteTrail.colorForDay(
+      selectedDay.dayNumber,
+      RouteTrailMode.road,
+    );
+    final nonStayStops =
+        selectedDay.stops.where((s) => s.category != 'stay').toList();
+    final crossings = _activeCrossings;
+    final isExpanded = _mobileSheetExtent >= 0.35;
+
+    return Container(
+      key: const ValueKey('route-itinerary-sheet'),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.98),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        border: Border.all(color: LakbayColors.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.16),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: ListView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: LakbayColors.cardBorder,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              InkWell(
+                onTap: () => _selectDayFilter(
+                  _filteredDayNumber == selectedDay.dayNumber
+                      ? null
+                      : selectedDay.dayNumber,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: dayColor,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'DAY ${selectedDay.dayNumber}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  selectedDay.cityTitle.replaceFirst(
+                    RegExp(r'^Day \d+ • '),
+                    '',
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'FigGrotesk',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: LakbayColors.tealDeep,
+                  ),
+                ),
+              ),
+              if (selectedDay.wmoWeatherCode != null &&
+                  selectedDay.tempCelsius != null) ...[
+                Image.asset(
+                  'assets/png/weather/${selectedDay.wmoWeatherCode}.png',
+                  width: 20,
+                  height: 20,
+                  errorBuilder: (_, _, _) => const Icon(
+                    Icons.wb_sunny_rounded,
+                    size: 16,
+                    color: LakbayColors.cocoaOrange,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${selectedDay.tempCelsius}°C',
+                  style: const TextStyle(
+                    fontFamily: 'FigGrotesk',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
+                    color: LakbayColors.tealDeep,
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
+              if (trip.days.length > 1)
+                IconButton(
+                  tooltip: 'Next day',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 28, minHeight: 28),
+                  icon: const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: LakbayColors.tealDeep,
+                  ),
+                  onPressed: () {
+                    final next = (safeIdx + 1) % trip.days.length;
+                    _selectDayFilter(trip.days[next].dayNumber);
+                  },
+                ),
+              IconButton(
+                tooltip: isExpanded ? 'Collapse route sheet' : 'Expand route sheet',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: Icon(
+                  isExpanded
+                      ? Icons.keyboard_arrow_down_rounded
+                      : Icons.keyboard_arrow_up_rounded,
+                  size: 19,
+                  color: LakbayColors.tealDeep,
+                ),
+                onPressed: () {
+                  if (_sheetController.isAttached) {
+                    _sheetController.animateTo(
+                      isExpanded ? sheetPeek : 0.56,
+                      duration: const Duration(milliseconds: 240),
+                      curve: Curves.easeOutCubic,
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+          if (trafficStatusPill != null) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: trafficStatusPill,
+            ),
+          ],
+          const SizedBox(height: 6),
+          if (accessNoticeForDay(selectedDay) case final notice?)
+            AccessNoticePill(notice: notice)
+          else if (nonStayStops.isNotEmpty)
+            SizedBox(
+              height: 28,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: nonStayStops.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 6),
+                itemBuilder: (_, sIdx) {
+                  final stop = nonStayStops[sIdx];
+                  final markerId = 'stop_${selectedDay.dayNumber}_$sIdx';
+                  final focused = _selectedMarkerId == markerId;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => _focusStop(
+                      markerId: markerId,
+                      dayNumber: selectedDay.dayNumber,
+                      lat: stop.lat,
+                      lng: stop.lng,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: focused
+                            ? dayColor
+                            : dayColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: focused
+                              ? dayColor
+                              : dayColor.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Text(
+                        '${sIdx + 1}. ${stop.title}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: focused ? Colors.white : LakbayColors.tealDeep,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 8),
+          Text(
+            selectedDay.summary,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              color: LakbayColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 10),
+          Text(
+            'Full ${trip.days.length}-Day Route Timeline',
+            style: const TextStyle(
+              fontFamily: 'FigGrotesk',
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+              color: LakbayColors.tealDeep,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (var dIdx = 0; dIdx < trip.days.length; dIdx++) ...[
+            Builder(
+              builder: (context) {
+                final day = trip.days[dIdx];
+                final color = RouteTrail.colorForDay(
+                  day.dayNumber,
+                  RouteTrailMode.road,
+                );
+                final stops =
+                    day.stops.where((s) => s.category != 'stay').toList();
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: dIdx == safeIdx
+                        ? color.withValues(alpha: 0.06)
+                        : LakbayColors.canvasBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: dIdx == safeIdx
+                          ? color
+                          : LakbayColors.cardBorder,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      InkWell(
+                        onTap: () => _selectDayFilter(day.dayNumber),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'DAY ${day.dayNumber}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                day.cityTitle.replaceFirst(
+                                  RegExp(r'^Day \d+ • '),
+                                  '',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'FigGrotesk',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5,
+                                  color: LakbayColors.tealDeep,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (stops.isEmpty)
+                        Text(
+                          day.summary,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: LakbayColors.textSecondary,
+                          ),
+                        )
+                      else
+                        for (var sIdx = 0; sIdx < stops.length; sIdx++)
+                          Builder(
+                            builder: (context) {
+                              final stop = stops[sIdx];
+                              final markerId = 'stop_${day.dayNumber}_$sIdx';
+                              return InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => _focusStop(
+                                  markerId: markerId,
+                                  dayNumber: day.dayNumber,
+                                  lat: stop.lat,
+                                  lng: stop.lng,
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 10,
+                                        backgroundColor: color,
+                                        child: Text(
+                                          '${sIdx + 1}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              stop.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                            Text(
+                                              [
+                                                if (stop.time.isNotEmpty)
+                                                  stop.time,
+                                                if (stop.isSeaCrossingFromPrev)
+                                                  'Ferry leg',
+                                                if (stop.travelFromPrevMinutes !=
+                                                        null &&
+                                                    stop.travelFromPrevMinutes! >
+                                                        0)
+                                                  '${stop.travelFromPrevMinutes}m travel',
+                                              ].join(' · '),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: LakbayColors.textSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (stop.isSeaCrossingFromPrev &&
+                                          crossings.isNotEmpty)
+                                        IconButton(
+                                          tooltip: 'Ferry crossing details',
+                                          visualDensity: VisualDensity.compact,
+                                          icon: const Icon(
+                                            Icons.directions_boat_rounded,
+                                            size: 16,
+                                            color: Color(0xFF1E88E5),
+                                          ),
+                                          onPressed: () =>
+                                              _showSeaCrossingsSheet(crossings),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ],
       ),
     );
   }

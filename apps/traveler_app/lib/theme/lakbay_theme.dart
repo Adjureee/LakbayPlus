@@ -59,9 +59,12 @@ class LakbayTheme {
       LakbayColors.textPrimary,
       LakbayColors.textSecondary,
     );
+    final allowOnlineFonts = GoogleFonts.config.allowRuntimeFetching;
     return ThemeData(
       useMaterial3: true,
-      fontFamily: GoogleFonts.outfit().fontFamily,
+      fontFamily: allowOnlineFonts
+          ? GoogleFonts.outfit().fontFamily
+          : 'FigGrotesk',
       scaffoldBackgroundColor: LakbayColors.canvasBg,
       // One page transition everywhere, so screens do not each move their own
       // way: a short horizontal shared-axis slide on Android, so going deeper
@@ -90,10 +93,16 @@ class LakbayTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
           ),
-          textStyle: GoogleFonts.outfit(
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-          ),
+          textStyle: allowOnlineFonts
+              ? GoogleFonts.outfit(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                )
+              : const TextStyle(
+                  fontFamily: 'FigGrotesk',
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
         ),
       ),
     );
@@ -163,12 +172,20 @@ class LakbayBrandWordmark extends StatelessWidget {
           children: [
             Text.rich(
               TextSpan(
-                style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.w800,
-                  fontSize: fontSize,
-                  letterSpacing: -0.5,
-                  color: textColor,
-                ),
+                style: GoogleFonts.config.allowRuntimeFetching
+                    ? GoogleFonts.outfit(
+                        fontWeight: FontWeight.w800,
+                        fontSize: fontSize,
+                        letterSpacing: -0.5,
+                        color: textColor,
+                      )
+                    : TextStyle(
+                        fontFamily: 'FigGrotesk',
+                        fontWeight: FontWeight.w800,
+                        fontSize: fontSize,
+                        letterSpacing: -0.5,
+                        color: textColor,
+                      ),
                 children: [
                   const TextSpan(text: 'Lakbay'),
                   TextSpan(
@@ -181,12 +198,20 @@ class LakbayBrandWordmark extends StatelessWidget {
             if (showTagline)
               Text(
                 'Davao Region AI Travel Planner',
-                style: GoogleFonts.outfit(
-                  fontSize: fontSize * 0.46,
-                  color: lightText
-                      ? Colors.white.withValues(alpha: 0.85)
-                      : LakbayColors.textSecondary,
-                ),
+                style: GoogleFonts.config.allowRuntimeFetching
+                    ? GoogleFonts.outfit(
+                        fontSize: fontSize * 0.46,
+                        color: lightText
+                            ? Colors.white.withValues(alpha: 0.85)
+                            : LakbayColors.textSecondary,
+                      )
+                    : TextStyle(
+                        fontFamily: 'FigGrotesk',
+                        fontSize: fontSize * 0.46,
+                        color: lightText
+                            ? Colors.white.withValues(alpha: 0.85)
+                            : LakbayColors.textSecondary,
+                      ),
               ),
           ],
         ),
