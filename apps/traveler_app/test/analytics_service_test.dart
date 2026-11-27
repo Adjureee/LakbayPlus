@@ -67,21 +67,21 @@ void main() {
       expect(service.enabled, isFalse);
     });
 
-    test('start applies the saved choice to the collection and defaults to on',
+    test('start applies the saved choice to the collection and defaults to off',
         () async {
       final (service, recorder, _) = await started();
-      expect(service.enabled, isTrue);
-      expect(recorder.collection, [true]);
+      expect(service.enabled, isFalse);
+      expect(recorder.collection, [false]);
 
-      final (off, offRecorder, _) =
-          await started(saved: {AnalyticsService.enabledKey: false});
-      expect(off.enabled, isFalse);
-      expect(offRecorder.collection, [false]);
+      final (on, onRecorder, _) =
+          await started(saved: {AnalyticsService.enabledKey: true});
+      expect(on.enabled, isTrue);
+      expect(onRecorder.collection, [true]);
     });
 
-    test('opting out sends nothing and survives a restart', () async {
+    test('off by default sends nothing and opt-in/opt-out survive a restart',
+        () async {
       final (service, recorder, _) = await started();
-      await service.setEnabled(false);
       service
         ..onboardingDone()
         ..placeAdded()
@@ -90,16 +90,31 @@ void main() {
       expect(recorder.events, isEmpty);
       expect(recorder.collection.last, isFalse);
 
-      final restarted = AnalyticsService(
+      await service.setEnabled(true);
+      expect(service.enabled, isTrue);
+      expect(recorder.collection.last, isTrue);
+
+      final optedInRestart = AnalyticsService(
         prefs: await SharedPreferences.getInstance(),
       );
-      await restarted.start();
-      expect(restarted.enabled, isFalse);
+      await optedInRestart.start();
+      expect(optedInRestart.enabled, isTrue);
+
+      await optedInRestart.setEnabled(false);
+      optedInRestart.placeAdded();
+      expect(recorder.events, isEmpty);
+
+      final optedOutRestart = AnalyticsService(
+        prefs: await SharedPreferences.getInstance(),
+      );
+      await optedOutRestart.start();
+      expect(optedOutRestart.enabled, isFalse);
     });
 
     test('only the allowed event names with number parameters are sent',
         () async {
-      final (service, recorder, _) = await started();
+      final (service, recorder, _) =
+          await started(saved: {AnalyticsService.enabledKey: true});
       service
         ..onboardingDone()
         ..placeAdded()
@@ -116,7 +131,8 @@ void main() {
 
     test('the first result is recorded once, with seconds since first launch',
         () async {
-      final (service, recorder, tick) = await started();
+      final (service, recorder, tick) =
+          await started(saved: {AnalyticsService.enabledKey: true});
       service.chatReply(cards: 0); // an answer with no cards is not a result
       expect(recorder.names, ['chat_reply']);
 
@@ -132,7 +148,9 @@ void main() {
     });
 
     test('a sender that fails never reaches the traveler', () async {
-      SharedPreferences.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues(
+        {AnalyticsService.enabledKey: true},
+      );
       final service = AnalyticsService(
         sender: (_, _) async => throw StateError('no network'),
         prefs: await SharedPreferences.getInstance(),
@@ -144,7 +162,12 @@ void main() {
   });
 
   group('TravelRepository events', () {
-    TravelRepository repoWith(_Recorder recorder, {http.Client? client}) {
+    Future<TravelRepository> repoWith(
+      _Recorder recorder, {
+      http.Client? client,
+    }) async {
+      final analytics = AnalyticsService(sender: recorder.send);
+      await analytics.setEnabled(true);
       return TravelRepository(
         apiCatalog: client == null
             ? null
@@ -152,14 +175,14 @@ void main() {
                 client: client,
                 baseUrlOverride: 'https://api.test/api/v1',
               ),
-        analytics: AnalyticsService(sender: recorder.send),
+        analytics: analytics,
       );
     }
 
     test('adding a place counts once; removing it counts nothing', () async {
       SharedPreferences.setMockInitialValues({});
       final recorder = _Recorder();
-      final repo = repoWith(recorder);
+      final repo = await repoWith(recorder);
       repo.toggleTripBuilderStop(_mountApo);
       repo.toggleTripBuilderStop(_mountApo);
       expect(recorder.names, ['place_added']);
@@ -168,7 +191,7 @@ void main() {
     test('a new trip counts; saving the same trip again does not', () async {
       SharedPreferences.setMockInitialValues({});
       final recorder = _Recorder();
-      final repo = repoWith(recorder);
+      final repo = await repoWith(recorder);
       final trip = repo.generateCustomTrip(
         destination: 'Dahican Surf Sanctuary',
         daysCount: 3,
@@ -184,7 +207,7 @@ void main() {
     test('finishing onboarding counts once', () async {
       SharedPreferences.setMockInitialValues({});
       final recorder = _Recorder();
-      final repo = repoWith(recorder);
+      final repo = await repoWith(recorder);
       repo.completeOnboarding();
       repo.completeOnboarding();
       expect(recorder.names, ['onboarding_done']);
@@ -207,7 +230,7 @@ void main() {
         }
         return http.Response('[]', 200);
       });
-      final repo = repoWith(recorder, client: client);
+      final repo = await repoWith(recorder, client: client);
       await repo.initialize();
       await repo.sendChatMessage('Is Samal far?');
       await repo.sendChatMessage('   '); // blank: no message, no event
