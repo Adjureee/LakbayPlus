@@ -18,12 +18,13 @@ For an agent or person continuing the work. **Every statement below is either (a
 | Fact | Command | Result seen |
 |---|---|---|
 | Date | `date` | 2026-11-27 |
-| Branch tips | `git rev-parse --short main origin/main` and `feat/cycling-traffic` | `main` = `origin/main` = `7f96ddb`; `feat/cycling-traffic` at `7b9c172` (+ D6 handoff update) |
-| Working tree | `git status --short` | only `?? apps/traveler_app/android/app/google-services.json` (untracked on purpose) |
+| Branch tips | `git rev-parse --short main origin/main feat/flagship-audit-upgrade` | `main` = `origin/main` = `7f96ddb`; work on local branch `feat/flagship-audit-upgrade` (not pushed; `PR #2` still `feat/cycling-traffic`) |
+| Working tree | `git status --short` | `?? apps/traveler_app/android/app/google-services.json` kept untracked on purpose |
 | Recent main | `git log main --oneline -9` | F3 `7ef60aa`/`7f96ddb`, F2 `31a2ce9`/`ded5d88`, F1 `ddc2a89`/`599cb7c`, analytics `7424ffe`/`7560692` |
-| Flutter analyze | `flutter analyze --no-pub` in `apps/traveler_app` (on D7 `21a1cbd`) | 1 issue: pre-existing warning at `test/profile_history_abc_test.dart:17:25` (ran in 17.5s) |
-| Flutter tests | `flutter test --no-pub -j 2` in `apps/traveler_app` (on D3 `d8d4931` and D7 `21a1cbd`) | `+374: All tests passed!` |
-| **Full backend suite (A1)** | `cd services/api; ./.venv/Scripts/python.exe -m pytest -q` (on `f429140`) | `1313 passed, 1 skipped, 87 warnings in 943.53s (0:15:43)` (0 failed). Skipped: `tests/test_app_assessments_postgres.py:184` (`LAKBAY_ASSESSMENT_TEST_DATABASE_URL` not set — live Postgres test **UNVERIFIED**) |
+| Traveler Flutter analyze & suite (R1–R8) | `cd apps/traveler_app; flutter analyze --no-pub ; flutter test --no-pub -j 2` | `No issues found!` (`8.9s`); `03:30 +482: All tests passed!` |
+| Admin Flutter analyze & suite (R6–R7) | `cd apps/admin_app; flutter analyze --no-pub --no-fatal-infos ; flutter test --no-pub -j 2` | `0` errors/warnings (`59` pre-existing Flutter 3.47 `deprecated_member_use` infos); `02:58 +114: All tests passed!` |
+| **Full backend suite (R1–R8)** | `cd services/api; ./.venv/Scripts/python.exe -m pytest -q` | `1411 passed, 1 skipped, 93 warnings in 1049.00s (0:17:29)` (`0` failed). Skipped: `tests/test_app_assessments_postgres.py:184` (`LAKBAY_ASSESSMENT_TEST_DATABASE_URL` not set — live Postgres test **UNVERIFIED**) |
+| Backend migration, script, trips & E2E verification | `cd services/api; ./.venv/Scripts/python.exe -m pytest tests/test_destination_media_migration.py tests/test_phase14_migrations.py scripts/test_enrich_davao_catalog.py tests/test_phase7_trips.py tests/e2e -q --tb=short` | `88 passed, 10 warnings in 134.39s` (`0` failed, `0` skipped) |
 | PRs | `gh pr list --head feat/cycling-traffic --state open` | PR #2 open (`https://github.com/Adjureee/LakbayPlus/pull/2`, `feat/cycling-traffic` -> `main`, not merged) |
 | Local git cleanup (A2) | `git worktree list`, `git stash list`, `git branch -v` | Only repo root worktree registered; `stash@{0}` dropped; `feat/analytics`, `feat/ux-f1..f3` deleted; branch `claude/keen-tereshkova-4312aa` kept; leftover folder `.claude/worktrees/keen-tereshkova-4312aa` unregistered from git but locked on disk by another Windows process |
 | Backup branches | `git branch --list "backup/*"`, `git for-each-ref refs/original` | Kept intact: `backup/pre-rewrite-main` (`1a2b14d`), `backup/pre-strip-main` (`cd0fc41`), `refs/original/refs/heads/main` (`1a2b14d`) |
@@ -42,6 +43,15 @@ For an agent or person continuing the work. **Every statement below is either (a
 - **A1 (full backend suite):** `1313 passed, 1 skipped` on `f429140`.
 - **A2 (local git cleanup):** deleted `feat/analytics`, `feat/ux-f1..f3`, `stash@{0}`, and unregistered all 5 worktrees (backups preserved).
 - **D3, D4, D5, D6, D7, D9:** plain route labels (`d8d4931`), `"Top 5 for you"` rename (`9b74e87`), 8-kind category taxonomy proposal (`96aa821`), live deactivation of duplicate `"Sky Deck Garden Cafe and Restaurant"` id `47` (`is_active=false`, 63 -> 62 active places, id `46` kept), opt-in analytics + consent prompt design doc (`21a1cbd`), removed outdated summary PDF & commute drafts JSON (`a29a843`).
+- **R1–R8 Flagship Upgrade (`feat/flagship-audit-upgrade`):**
+  - **R1–R2 (Routing & Live Traffic):** Contextual non-intrusive traffic status pill (`traffic-status-pill` + Satellite guard), chunked multi-day (`5–14` day / `>12` stop) road routing, partial multimodal sea/road geometry + `Retry` recovery (`apps/traveler_app` + `services/api/app/features/routes/*`).
+  - **R3 (Mobile Route Map UX):** Compact AppBar, `DraggableScrollableSheet` (`route-itinerary-sheet`) with dynamic `boundsPadding` / `controlsBottomOffset`, `>=60%` map canvas visibility, `>=44dp` map controls.
+  - **R4 (AI Plan Reliability):** Structured `answerChatDetail` chip submission + non-overwriting `planning_state` merge (`travel_repository.dart`) + surfaced blocking planning errors instead of masking with catalog drafts + short-answer recovery (`services/api/app/features/ai/*`).
+  - **R5 (Flagship PDF Redesign):** Shared PDF design tokens (`pdf_design_tokens.dart`) aligned with `lakbay_theme.dart` across `TripPdfBuilder` and `TimelinePdfBuilder`.
+  - **R6 (Trip Completion Lifecycle):** `trips.completed_at` column + Alembic migration `2026_11_27_0430_trip_completed_at.py` (`down_revision = "2026_11_27_0415"`), immutable archive reopen block (`409 trip_archived_immutable`), Traveler (`TripDetailScreen`, `MyTripsScreen`, `ProfileScreen`) & Admin (`TripsScreen`) lifecycle UI + `Past` filter.
+  - **R7 (Catalog Enrichment & Media Clips):** Admin GIF/MP4 (<=15s) upload + Alembic migration `2026_11_27_0415_destination_media_clips.py`, live Davao enrichment ledger `docs/DAVAO_CATALOG_ENRICHMENT_LOG.md` (via `services/api/scripts/enrich_davao_catalog.py --apply`), Traveler `video_player` + `LakbayDestinationMedia` widget (poster/GIF without Cloudinary `f_auto`, muted looping clip <=15s, reduced-motion & unknown/overlength fallback).
+  - **R8 (Discover Card Clarity):** Nullable `normalizeStayDurationType` (`null` when empty/unknown, no coercion from `overnightFee`), category pill overlays, explicit `Typical visit:` clock metadata in `ExploreScreen` and `TripDetailScreen`.
+  - **Pending Owner Action on Backend Deploy:** Migrations `2026_11_27_0415` and `2026_11_27_0430` are verified offline via `alembic upgrade head --sql` only; do **not** run against live Postgres (`UNVERIFIED` live DDL) until reviewed/approved for deploy.
 - **Project skills** under `.claude/skills/` (Claude Code format; their command lists are still a valid reference): `lakbay-verify`, `lakbay-ai-accuracy`, `lakbay-routing-geo`.
 
 ## 3. Tasks only the owner or a device can do (do not simulate)
