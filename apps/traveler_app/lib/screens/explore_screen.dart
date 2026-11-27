@@ -329,7 +329,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                         visualDensity: VisualDensity.compact,
                         label: const Text(
-                          'Top-5 Match',
+                          'Top 5 for you',
                           style: TextStyle(
                             fontFamily: 'FigGrotesk',
                             fontWeight: FontWeight.w700,
