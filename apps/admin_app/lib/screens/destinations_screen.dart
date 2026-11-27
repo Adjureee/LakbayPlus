@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/image_urls.dart';
 import '../services/api_service.dart';
 import '../widgets/admin_widgets.dart';
@@ -127,9 +128,9 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
       _creating = false;
       _needsReload = !_mergeSaved(record);
     });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Destination saved.')));
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(const SnackBar(content: Text('Destination saved.')));
   }
 
   @override
@@ -632,30 +633,57 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
             const SizedBox(height: 16),
           ],
           _section('Overview', [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: ReplacePhotoButton(
-                api: _api,
-                destination: record,
-                onUploaded: (saved) => setState(() {
-                  _selected = saved;
-                  _needsReload = !_mergeSaved(saved);
-                }),
-              ),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                ReplacePhotoButton(
+                  api: _api,
+                  destination: record,
+                  onUploaded: (saved) => setState(() {
+                    _selected = saved;
+                    _needsReload = !_mergeSaved(saved);
+                  }),
+                ),
+                UploadMediaButton(
+                  api: _api,
+                  destination: record,
+                  onUploaded: (saved) => setState(() {
+                    _selected = saved;
+                    _needsReload = !_mergeSaved(saved);
+                  }),
+                ),
+              ],
             ),
+            if (_mediaBadgeLabel(record) case final badge?)
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  AdminBadge(label: badge),
+                  if (_imageUrl(record['media_url']))
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        final uri = Uri.tryParse(record['media_url'].toString());
+                        if (uri != null) {
+                          launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: const Text('Open clip'),
+                    ),
+                ],
+              ),
             _datum('Category', _value(record, 'category')),
             _datum('Description', _value(record, 'description')),
             _datum('Operating hours', _value(record, 'operating_hours')),
             _datum('Best time to visit', _value(record, 'best_time_to_visit')),
-            if (_imageUrl(record['image_url']))
+            if (_previewMediaUrl(record) case final previewUrl?)
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  cloudinarySized(
-                    record['image_url'].toString(),
-                    width: 800,
-                    height: 200,
-                  ),
+                  previewUrl,
                   height: 200,
                   width: double.infinity,
                   fit: BoxFit.cover,
@@ -666,6 +694,14 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                   ),
                 ),
               ),
+            if (_hasAttribution(record)) ...[
+              _datum('Photo / media credit', _value(record, 'image_credit')),
+              _datum('License', _value(record, 'image_license')),
+              _datum(
+                'Attribution source',
+                _value(record, 'image_source_url'),
+              ),
+            ],
           ]),
           _section('Location & travel', [
             _datum('Location', _value(record, 'location')),
@@ -848,6 +884,39 @@ bool _imageUrl(dynamic value) {
   final uri = Uri.tryParse(value?.toString() ?? '');
   return uri != null &&
       uri.hasAuthority &&
-      uri.host.isNotEmpty &&
+      uri.host.isEmpty == false &&
       (uri.scheme == 'https' || uri.scheme == 'http');
 }
+
+String? _mediaBadgeLabel(Map<String, dynamic> record) {
+  final mediaUrl = record['media_url']?.toString().trim() ?? '';
+  if (mediaUrl.isEmpty) return null;
+  final mediaType = record['media_type']?.toString().trim().toLowerCase() ?? '';
+  if (mediaType == 'gif') return 'GIF';
+  if (mediaType == 'video') {
+    final dur = record['media_duration_seconds'];
+    final seconds = dur is num ? dur.toDouble() : double.tryParse('$dur');
+    return seconds != null ? 'Video (${seconds.toStringAsFixed(1)}s)' : 'Video';
+  }
+  return 'Media';
+}
+
+String? _previewMediaUrl(Map<String, dynamic> record) {
+  final mediaType = record['media_type']?.toString().trim().toLowerCase() ?? '';
+  final mediaUrl = record['media_url']?.toString().trim() ?? '';
+  if (mediaType == 'gif' && _imageUrl(mediaUrl)) {
+    return cloudinarySized(
+      mediaUrl,
+      width: 800,
+      height: 200,
+      preserveAnimation: true,
+    );
+  }
+  return destinationPosterUrl(record, width: 800, height: 200);
+}
+
+bool _hasAttribution(Map<String, dynamic> record) => [
+  'image_credit',
+  'image_license',
+  'image_source_url',
+].any((k) => (record[k]?.toString().trim() ?? '').isNotEmpty);

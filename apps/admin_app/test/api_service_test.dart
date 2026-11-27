@@ -510,4 +510,72 @@ void main() {
     ]);
     expect(jsonDecode(requests[1].body), {'is_active': false});
   });
+
+  test('uploadDestinationMedia posts multipart to /media, emits progress, and retries 401', () async {
+    final session = SessionManager.instance;
+    await session.saveSession(
+      token: 'expired-access',
+      refreshToken: 'refresh-tok',
+      name: 'Admin',
+      email: 'admin@lakbay.test',
+      role: 'admin',
+      userId: '1',
+    );
+    final paths = <String>[];
+    final api = ApiService(
+      client: MockClient((request) async {
+        paths.add(request.url.path);
+        if (request.url.path.endsWith('/auth/refresh')) {
+          return http.Response(
+            jsonEncode({
+              'user': {
+                'user_id': 1,
+                'full_name': 'Admin',
+                'email': 'admin@lakbay.test',
+                'role': 'admin',
+              },
+              'tokens': {
+                'access_token': 'fresh-access',
+                'refresh_token': 'refresh-tok-2',
+              },
+            }),
+            200,
+          );
+        }
+        if (request.headers['Authorization'] == 'Bearer expired-access') {
+          return http.Response('{"detail":"Expired"}', 401);
+        }
+        return http.Response(
+          jsonEncode({
+            'destination_id': 9,
+            'media_url': 'https://res.cloudinary.com/demo/video/upload/v1/clip.mp4',
+            'media_type': 'video',
+            'media_duration_seconds': 6.0,
+          }),
+          200,
+        );
+      }),
+    );
+    addTearDown(api.close);
+
+    final progressEvents = <double>[];
+    final res = await api.uploadDestinationMedia(
+      '9',
+      const UploadFile(
+        bytes: [0, 0, 0, 12, 0x66, 0x74, 0x79, 0x70, 0x6D, 0x70, 0x34, 0x32],
+        filename: 'clip.mp4',
+        contentType: 'video/mp4',
+      ),
+      onProgress: progressEvents.add,
+    );
+
+    expect(res['media_type'], 'video');
+    expect(paths, [
+      '/api/v1/destinations/9/media',
+      '/api/v1/auth/refresh',
+      '/api/v1/destinations/9/media',
+    ]);
+    expect(progressEvents, isNotEmpty);
+    expect(progressEvents.last, 1.0);
+  });
 }

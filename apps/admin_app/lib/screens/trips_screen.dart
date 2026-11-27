@@ -34,7 +34,9 @@ class _TripsScreenState extends State<TripsScreen> {
     offset: _offset,
   );
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() => setState(() {
+        _future = _load();
+      });
 
   void _onSearchChanged(String value) {
     _debounce?.cancel();
@@ -194,8 +196,9 @@ class _TripsScreenState extends State<TripsScreen> {
                                           style: theme.textTheme.titleMedium,
                                         ),
                                         AdminBadge(
-                                          label: (raw['status'] ?? 'planned')
-                                              .toString(),
+                                          label: _formatTripStatus(
+                                            raw['status']?.toString(),
+                                          ),
                                         ),
                                         AdminBadge(
                                           label:
@@ -211,7 +214,8 @@ class _TripsScreenState extends State<TripsScreen> {
                                     const SizedBox(height: 4),
                                     Text(
                                       'Budget: PHP ${raw['total_budget']} • Est. Cost: PHP ${raw['estimated_total_cost']}'
-                                      '${raw['start_date'] != null ? ' • ${raw['start_date']} to ${raw['end_date'] ?? raw['start_date']}' : ''}',
+                                      '${raw['start_date'] != null ? ' • ${raw['start_date']} to ${raw['end_date'] ?? raw['start_date']}' : ''}'
+                                      '${raw['completed_at'] != null && raw['completed_at'].toString().trim().isNotEmpty ? ' • Completed: ${raw['completed_at']}' : ''}',
                                       style: theme.textTheme.bodySmall,
                                     ),
                                     if (raw['destination_names'] is List &&
@@ -266,5 +270,18 @@ class _TripsScreenState extends State<TripsScreen> {
         ],
       ),
     );
+  }
+
+  static String _formatTripStatus(String? raw) {
+    switch ((raw ?? 'planned').trim().toLowerCase()) {
+      case 'completed':
+        return 'Completed';
+      case 'ongoing':
+        return 'Ongoing';
+      case 'archived':
+        return 'Archived';
+      default:
+        return 'Planned';
+    }
   }
 }

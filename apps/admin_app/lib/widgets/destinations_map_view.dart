@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/davao_region_boundaries.dart';
 import '../core/image_urls.dart';
@@ -538,7 +539,12 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
               child: GestureDetector(
                 onTap: () => _select(record),
                 child: _PhotoPin(
-                  imageUrl: _imageUrl(record),
+                  imageUrl: destinationPosterUrl(
+                    record,
+                    width: 56,
+                    height: 56,
+                    staticGif: true,
+                  ),
                   selected: _id(record) == _selectedId,
                   ringColor: _id(record) == _selectedId
                       ? scheme.tertiary
@@ -685,7 +691,16 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
     final islandGroup = _text(record, 'island_group');
     final accessTrail = _text(record, 'access_trail_polyline');
     final accessPts = accessTrail.isEmpty ? const <LatLng>[] : decodePolyline5(accessTrail);
-    final imageUrl = _imageUrl(record);
+    final imageUrl = destinationPosterUrl(record, width: 360, height: 150);
+    final mediaUrl = _text(record, 'media_url');
+    final mediaType = _text(record, 'media_type').toLowerCase();
+    final mediaBadge = mediaUrl.isEmpty
+        ? null
+        : mediaType == 'gif'
+        ? 'GIF'
+        : mediaType == 'video'
+        ? 'Video clip'
+        : 'Media';
     return AdminPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -694,8 +709,7 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Image.network(
-                // Panel-sized rendition, not the multi-megabyte original.
-                cloudinarySized(imageUrl, width: 360, height: 150),
+                imageUrl,
                 height: 150,
                 width: double.infinity,
                 fit: BoxFit.cover,
@@ -703,6 +717,28 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
               ),
             ),
           if (imageUrl != null) const SizedBox(height: 12),
+          if (mediaBadge != null) ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                AdminBadge(label: mediaBadge),
+                if (Uri.tryParse(mediaUrl)?.hasAuthority == true)
+                  TextButton.icon(
+                    onPressed: () {
+                      final uri = Uri.tryParse(mediaUrl);
+                      if (uri != null) {
+                        launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    icon: const Icon(Icons.open_in_new, size: 15),
+                    label: const Text('Open clip'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(_text(record, 'name'), style: theme.textTheme.titleLarge),
           const SizedBox(height: 4),
           Text(
@@ -842,6 +878,11 @@ class _DestinationsMapViewState extends State<DestinationsMapView> {
                   label: const Text('Access trail'),
                 ),
                 ReplacePhotoButton(
+                  api: widget.api,
+                  destination: record,
+                  onUploaded: widget.onPhotoReplaced,
+                ),
+                UploadMediaButton(
                   api: widget.api,
                   destination: record,
                   onUploaded: widget.onPhotoReplaced,
@@ -1091,12 +1132,6 @@ LatLng? _point(Map<String, dynamic> record) {
 LatLng? _endpoint(Map<String, dynamic> record) {
   final lat = _num(record['arrival_lat']), lng = _num(record['arrival_lng']);
   return lat == null || lng == null ? null : LatLng(lat, lng);
-}
-
-String? _imageUrl(Map<String, dynamic> record) {
-  final uri = Uri.tryParse(_text(record, 'image_url'));
-  if (uri == null || uri.host.isEmpty) return null;
-  return uri.scheme == 'https' || uri.scheme == 'http' ? uri.toString() : null;
 }
 
 String _distance(double meters) => meters >= 1000

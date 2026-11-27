@@ -81,7 +81,9 @@ class _DestinationCandidatesScreenState
     query: _query,
   );
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() => setState(() {
+        _future = _load();
+      });
 
   /// Waits for a pause in typing, then searches from the first page.
   void _onSearchChanged(String text) {
@@ -211,9 +213,11 @@ class _DestinationCandidatesScreenState
       if (!mounted) return;
       _select(updated);
       _reload();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Candidate review saved.')));
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(content: Text('Candidate review saved.')),
+        );
     } catch (error) {
       if (mounted) setState(() => _error = _message(error));
     } finally {
@@ -234,9 +238,9 @@ class _DestinationCandidatesScreenState
       adminHasUnsavedChanges.value = false;
       setState(() => _selected = null);
       _reload();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Destination published.')));
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(content: Text('Destination published.')));
     } catch (error) {
       if (mounted) setState(() => _error = _message(error));
     } finally {

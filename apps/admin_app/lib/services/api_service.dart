@@ -49,6 +49,7 @@ class ApiService {
     String path, {
     Map<String, dynamic>? data,
     UploadFile? file,
+    void Function(double progress)? onProgress,
     bool authenticated = true,
     bool retryOnUnauthorized = true,
   }) async {
@@ -64,7 +65,7 @@ class ApiService {
     try {
       final body = data == null ? null : jsonEncode(data);
       final request = file != null
-          ? _sendMultipart(method, uri, headers, file)
+          ? _sendMultipart(method, uri, headers, file, onProgress: onProgress)
           : switch (method) {
         'GET' => _client.get(uri, headers: headers),
         'POST' => _client.post(uri, headers: headers, body: body),
@@ -73,9 +74,9 @@ class ApiService {
         'DELETE' => _client.delete(uri, headers: headers),
         _ => throw ArgumentError('Unsupported request method'),
       };
-      // Photo uploads go on to Cloudinary from the API, so allow longer.
+      // Media uploads go on to Cloudinary from the API, so allow longer.
       final response = await request.timeout(
-        Duration(seconds: file != null ? 60 : 20),
+        Duration(seconds: file != null ? 120 : 20),
       );
       if (response.statusCode == 401 && authenticated && retryOnUnauthorized) {
         final refreshed = await _refreshAccess();
@@ -85,6 +86,7 @@ class ApiService {
             path,
             data: data,
             file: file,
+            onProgress: onProgress,
             authenticated: true,
             retryOnUnauthorized: false,
           );
@@ -145,9 +147,14 @@ class ApiService {
     String method,
     Uri uri,
     Map<String, String> headers,
-    UploadFile file,
-  ) async {
-    final request = http.MultipartRequest(method, uri)
+    UploadFile file, {
+    void Function(double progress)? onProgress,
+  }) async {
+    final request = _ProgressMultipartRequest(
+        method,
+        uri,
+        onProgress: onProgress,
+      )
       ..headers.addAll(headers)
       ..files.add(
         http.MultipartFile.fromBytes(
@@ -391,6 +398,21 @@ class ApiService {
       'POST',
       '/destinations/${Uri.encodeComponent(id)}/image',
       file: photo,
+    ),
+  );
+
+  /// Uploads a destination photo, animated GIF, or short (<=15s) video clip
+  /// to `/destinations/{id}/media`, reporting byte send progress when available.
+  Future<Map<String, dynamic>> uploadDestinationMedia(
+    String id,
+    UploadFile media, {
+    void Function(double progress)? onProgress,
+  }) async => _object(
+    await _request(
+      'POST',
+      '/destinations/${Uri.encodeComponent(id)}/media',
+      file: media,
+      onProgress: onProgress,
     ),
   );
   /// Structured opening hours (weekly windows, date exceptions, source and
@@ -696,4 +718,39 @@ class ApiService {
   );
 
   void close() => _client.close();
+}
+
+class _ProgressMultipartRequest extends http.MultipartRequest {
+  _ProgressMultipartRequest(
+    super.method,
+    super.url, {
+    this.onProgress,
+  });
+
+  final void Function(double progress)? onProgress;
+
+  @override
+  http.ByteStream finalize() {
+    final stream = super.finalize();
+    final callback = onProgress;
+    if (callback == null) return stream;
+    final total = contentLength;
+    if (total <= 0) {
+      callback(1.0);
+      return stream;
+    }
+    var sent = 0;
+    callback(0.0);
+    return http.ByteStream(
+      stream.transform(
+        StreamTransformer<List<int>, List<int>>.fromHandlers(
+          handleData: (chunk, sink) {
+            sent += chunk.length;
+            callback((sent / total).clamp(0.0, 1.0));
+            sink.add(chunk);
+          },
+        ),
+      ),
+    );
+  }
 }

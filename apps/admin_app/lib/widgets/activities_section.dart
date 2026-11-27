@@ -296,6 +296,7 @@ class _ActivitiesSectionState extends State<ActivitiesSection> {
       key: ValueKey('activity-card-$index'),
       margin: const EdgeInsets.only(bottom: 8),
       child: ExpansionTile(
+        key: PageStorageKey('activity-tile-$index'),
         initiallyExpanded: row.controllers['name']!.text.isEmpty,
         title: Text(title.isEmpty ? 'New activity' : title),
         subtitle: row.summary == null

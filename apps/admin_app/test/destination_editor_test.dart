@@ -541,6 +541,82 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('attribution fields diff-patch and invalid source URL is blocked', (
+    tester,
+  ) async {
+    final requests = <http.Request>[];
+    final api = _api((request) async {
+      requests.add(request);
+      return http.Response(jsonEncode(_destination), 200);
+    });
+    addTearDown(api.close);
+    await _pumpEditor(tester, api);
+
+    await _enter(tester, 'Attribution source URL', 'ftp://invalid.test/x.jpg');
+    await _tapVisible(
+      tester,
+      find.widgetWithText(FilledButton, 'Save destination'),
+    );
+    await tester.pumpAndSettle();
+    expect(requests, isEmpty);
+    expect(find.text('Enter a complete http:// or https:// image URL.'), findsOneWidget);
+
+    await _enter(tester, 'Photo / media credit', 'City Tourism Office');
+    await _enter(tester, 'License', 'CC-BY-4.0');
+    await _enter(tester, 'Attribution source URL', 'https://davaocity.gov.ph/photo.jpg');
+    await _tapVisible(
+      tester,
+      find.widgetWithText(FilledButton, 'Save destination'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(requests, hasLength(1));
+    expect(jsonDecode(requests.single.body), {
+      'image_credit': 'City Tourism Office',
+      'image_license': 'CC-BY-4.0',
+      'image_source_url': 'https://davaocity.gov.ph/photo.jpg',
+    });
+  });
+
+  testWidgets('Remove clip patches media fields to null', (tester) async {
+    final requests = <http.Request>[];
+    final api = _api((request) async {
+      requests.add(request);
+      return http.Response(jsonEncode(_destination), 200);
+    });
+    addTearDown(api.close);
+    await _pumpEditor(
+      tester,
+      api,
+      destination: {
+        ..._destination,
+        'media_url': 'https://res.cloudinary.com/demo/video/upload/v1/clip.mp4',
+        'media_type': 'video',
+        'media_public_id': 'lakbay/destinations/12/clip',
+        'media_duration_seconds': 8.0,
+      },
+    );
+
+    expect(find.text('Video (8.0s)'), findsOneWidget);
+    await _tapVisible(tester, find.widgetWithText(TextButton, 'Remove clip'));
+    await tester.pumpAndSettle();
+    expect(adminHasUnsavedChanges.value, isTrue);
+
+    await _tapVisible(
+      tester,
+      find.widgetWithText(FilledButton, 'Save destination'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(requests, hasLength(1));
+    expect(jsonDecode(requests.single.body), {
+      'media_url': null,
+      'media_type': null,
+      'media_public_id': null,
+      'media_duration_seconds': null,
+    });
+  });
 }
 
 ApiService _api(Future<http.Response> Function(http.Request) handler) =>

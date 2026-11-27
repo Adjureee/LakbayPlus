@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../core/image_urls.dart';
 import '../core/polyline5.dart';
 import '../services/api_service.dart';
 import '../widgets/admin_map_pin_picker.dart';
@@ -53,6 +55,10 @@ class _DestinationEditorState extends State<DestinationEditor> {
   bool _routeReady = false;
   late String _islandGroup;
   String? _accessTrailPolyline;
+  String _mediaUrl = '';
+  String _mediaType = '';
+  String _mediaPublicId = '';
+  double? _mediaDurationSeconds;
   late Map<String, dynamic> _initial;
   bool _dirty = false;
   bool _saving = false;
@@ -89,6 +95,9 @@ class _DestinationEditorState extends State<DestinationEditor> {
     'stay_duration_type',
     'transport_accessibility',
     'image_url',
+    'image_credit',
+    'image_license',
+    'image_source_url',
   ];
 
   /// Where road routes end (gate, parking, trailhead). Sent separately from
@@ -128,6 +137,13 @@ class _DestinationEditorState extends State<DestinationEditor> {
     _islandGroup = record['island_group']?.toString().trim() ?? '';
     final rawTrail = record['access_trail_polyline']?.toString().trim() ?? '';
     _accessTrailPolyline = rawTrail.isEmpty ? null : rawTrail;
+    _mediaUrl = record['media_url']?.toString().trim() ?? '';
+    _mediaType = record['media_type']?.toString().trim() ?? '';
+    _mediaPublicId = record['media_public_id']?.toString().trim() ?? '';
+    final rawDur = record['media_duration_seconds'];
+    _mediaDurationSeconds = rawDur is num
+        ? rawDur.toDouble()
+        : double.tryParse(rawDur?.toString() ?? '');
     _initial = _snapshot();
     for (final controller in _controllers.values) {
       controller.addListener(_changed);
@@ -154,6 +170,10 @@ class _DestinationEditorState extends State<DestinationEditor> {
     'route_ready': _routeReady,
     'island_group': _islandGroup,
     'access_trail_polyline': _accessTrailPolyline ?? '',
+    'media_url': _mediaUrl,
+    'media_type': _mediaType,
+    'media_public_id': _mediaPublicId,
+    'media_duration_seconds': _mediaDurationSeconds,
   };
 
   void _changed() {
@@ -326,6 +346,42 @@ class _DestinationEditorState extends State<DestinationEditor> {
     _changed();
   }
 
+  /// The upload already saved the media clip on the server, so sync without
+  /// flagging unsaved changes.
+  void _mediaUploaded(Map<String, dynamic> saved) {
+    final url = saved['image_url']?.toString() ?? '';
+    final mediaUrl = saved['media_url']?.toString().trim() ?? '';
+    final mediaType = saved['media_type']?.toString().trim() ?? '';
+    final mediaPublicId = saved['media_public_id']?.toString().trim() ?? '';
+    final rawDur = saved['media_duration_seconds'];
+    final mediaDuration = rawDur is num
+        ? rawDur.toDouble()
+        : double.tryParse(rawDur?.toString() ?? '');
+    setState(() {
+      _controllers['image_url']!.text = url;
+      _initial['image_url'] = url;
+      _mediaUrl = mediaUrl;
+      _mediaType = mediaType;
+      _mediaPublicId = mediaPublicId;
+      _mediaDurationSeconds = mediaDuration;
+      _initial['media_url'] = mediaUrl;
+      _initial['media_type'] = mediaType;
+      _initial['media_public_id'] = mediaPublicId;
+      _initial['media_duration_seconds'] = mediaDuration;
+    });
+    _changed();
+  }
+
+  void _clearMediaClip() {
+    setState(() {
+      _mediaUrl = '';
+      _mediaType = '';
+      _mediaPublicId = '';
+      _mediaDurationSeconds = null;
+    });
+    _changed();
+  }
+
   Future<void> _cancel() async {
     if (_saving || _leaving) return;
     _leaving = true;
@@ -384,6 +440,19 @@ class _DestinationEditorState extends State<DestinationEditor> {
             current['access_trail_polyline'] !=
                 _initial['access_trail_polyline'])) {
       payload['access_trail_polyline'] = _accessTrailPolyline;
+    }
+    if (widget.destination != null &&
+        (current['media_url'] != _initial['media_url'] ||
+            current['media_type'] != _initial['media_type'] ||
+            current['media_public_id'] != _initial['media_public_id'] ||
+            current['media_duration_seconds'] !=
+                _initial['media_duration_seconds'])) {
+      payload['media_url'] = _mediaUrl.isEmpty ? null : _mediaUrl;
+      payload['media_type'] = _mediaType.isEmpty ? null : _mediaType;
+      payload['media_public_id'] = _mediaPublicId.isEmpty
+          ? null
+          : _mediaPublicId;
+      payload['media_duration_seconds'] = _mediaDurationSeconds;
     }
     payload.addAll(_arrivalPayload(current));
     try {
@@ -736,27 +805,60 @@ class _DestinationEditorState extends State<DestinationEditor> {
                           ],
                         ),
                         _section(
-                          'Image',
-                          'Upload a photo (JPEG, PNG or WebP, up to 5 MB), or paste a public image URL. '
-                              'Uploads save immediately; new destinations can add a photo after their first save.',
+                          'Photos & media',
+                          'Upload a static poster photo (JPEG, PNG or WebP, up to 5 MB), or add an animated GIF (<= 10 MB) or short video clip (MP4/WebM, <= 15 MB, <= 15s). '
+                              'Uploads save immediately; new destinations can add media after their first save.',
                           [
                             _field(
                               'image_url',
-                              'Image URL',
+                              'Poster / primary image URL',
                               maxLength: 2048,
                               validator: _url,
                               helper:
-                                  'An http:// or https:// image URL, or leave blank.',
+                                  'An http:// or https:// poster image URL, or leave blank.',
                             ),
-                            if (!creating)
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: ReplacePhotoButton(
-                                  api: widget.api,
-                                  destination: widget.destination!,
-                                  onUploaded: _photoUploaded,
-                                ),
+                            _pair(
+                              _field(
+                                'image_credit',
+                                'Photo / media credit',
+                                maxLength: 500,
                               ),
+                              _field(
+                                'image_license',
+                                'License',
+                                maxLength: 100,
+                                helper: 'For example: CC-BY-4.0 or LGU Permission.',
+                              ),
+                            ),
+                            _field(
+                              'image_source_url',
+                              'Attribution source URL',
+                              maxLength: 2048,
+                              validator: _url,
+                              helper:
+                                  'An http:// or https:// source link for the image or clip.',
+                            ),
+                            if (!creating) ...[
+                              if (_mediaUrl.isNotEmpty)
+                                _mediaClipStatusCard(context),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  ReplacePhotoButton(
+                                    api: widget.api,
+                                    destination: widget.destination!,
+                                    onUploaded: _photoUploaded,
+                                  ),
+                                  UploadMediaButton(
+                                    api: widget.api,
+                                    destination: widget.destination!,
+                                    onUploaded: _mediaUploaded,
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                         if (!creating)
@@ -865,6 +967,99 @@ class _DestinationEditorState extends State<DestinationEditor> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _mediaClipStatusCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final isVideo = _mediaType == 'video';
+    final isGif = _mediaType == 'gif';
+    final badgeLabel = isVideo
+        ? (_mediaDurationSeconds != null
+              ? 'Video (${_mediaDurationSeconds!.toStringAsFixed(1)}s)'
+              : 'Video')
+        : (isGif ? 'GIF' : 'Image');
+    final previewUrl = isGif
+        ? cloudinarySized(
+            _mediaUrl,
+            width: 320,
+            height: 160,
+            preserveAnimation: true,
+          )
+        : destinationPosterUrl(
+            {
+              'image_url': _controllers['image_url']!.text.trim(),
+              'media_url': _mediaUrl,
+              'media_type': _mediaType,
+            },
+            width: 320,
+            height: 160,
+          );
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              AdminBadge(label: badgeLabel),
+              Text(
+                'Attached media clip',
+                style: theme.textTheme.titleSmall,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (previewUrl != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                previewUrl,
+                height: 140,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          SelectableText(
+            _mediaUrl,
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              TextButton.icon(
+                onPressed: () {
+                  final uri = Uri.tryParse(_mediaUrl);
+                  if (uri != null) {
+                    launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('Open clip'),
+              ),
+              TextButton.icon(
+                onPressed: _saving ? null : _clearMediaClip,
+                icon: const Icon(Icons.delete_outline, size: 16),
+                label: const Text('Remove clip'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
