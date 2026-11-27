@@ -1038,18 +1038,19 @@ class RoutePlanOptimizationSummary {
     this.roundtrip = false,
   });
 
-  String get methodLabel => switch (orderMethod) {
-        'exact_held_karp' => 'Exact Held-Karp',
-        'two_opt' => 'Adaptive NN + 2-opt',
-        'nearest_neighbor' => 'Nearest-Neighbor',
-        _ => 'Input order',
+  static String labelForMethod(String orderMethod) => switch (orderMethod) {
+        'exact_held_karp' || 'exact' => 'Shortest order',
+        'two_opt' || 'nearest_neighbor_2opt' || 'island_aware' =>
+          'Optimized order',
+        'nearest_neighbor' => 'Nearest stop first',
+        _ => 'Your stop order',
       };
 
+  String get methodLabel => labelForMethod(orderMethod);
+
   String get sourceLabel => switch (costSource) {
-        'osrm' => 'OSRM roads',
-        'mapbox' => 'Road routes',
-        'google_routes' => 'Google roads',
-        _ => 'On-device Haversine',
+        'osrm' || 'mapbox' || 'google_routes' => 'Road distances',
+        _ => 'Straight-line estimate',
       };
 
   String get savingsHeadline {
