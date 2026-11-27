@@ -7,6 +7,7 @@ import '../services/travel_repository.dart';
 import '../theme/lakbay_theme.dart';
 import '../widgets/lakbay_image.dart';
 import '../widgets/lakbay_mapbox_widget.dart';
+import '../widgets/route_trail.dart';
 import '../widgets/trip_management_sheets.dart';
 import 'trip_route_map_screen.dart';
 import '../services/access_notices.dart';
@@ -40,6 +41,10 @@ class _TripDetailScreenState extends State<TripDetailScreen>
   BackendRouteResult? _route;
   List<String> _routeWarnings = const [];
   final Set<String> _packedItems = {};
+  final GlobalKey<LakbayMapboxMapState> _desktopMapKey =
+      GlobalKey<LakbayMapboxMapState>();
+  int? _focusedDayNumber;
+  String? _focusedMarkerId;
 
   ItineraryTrip get _activeTrip => _liveTrip ?? widget.trip;
 
@@ -345,12 +350,445 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     }
   }
 
-  void _openFullRouteMap() {
+  void _openFullRouteMap({int? dayIndex, String? stopId}) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            TripRouteMapScreen(trip: _activeTrip, repo: widget.repo),
+        builder: (_) => TripRouteMapScreen(
+          trip: _activeTrip,
+          repo: widget.repo,
+          initialDayIndex: dayIndex,
+          initialStopId: stopId,
+        ),
       ),
+    );
+  }
+
+  List<SeaCrossingInfo> _effectiveCrossings(ItineraryTrip trip) {
+    final routeCrossings = _route?.seaCrossings ?? const <SeaCrossingInfo>[];
+    return routeCrossings.isNotEmpty ? routeCrossings : trip.seaCrossings;
+  }
+
+  List<LakbayMapMarker> _pierMarkersForTrip(ItineraryTrip trip) {
+    final markers = <LakbayMapMarker>[];
+    final seen = <String>{};
+    for (final crossing in _effectiveCrossings(trip)) {
+      for (final (name, lat, lng) in [
+        (crossing.boardPort, crossing.boardLat, crossing.boardLng),
+        (crossing.landPort, crossing.landLat, crossing.landLng),
+      ]) {
+        if (!seen.add(name)) continue;
+        markers.add(
+          LakbayMapMarker(
+            id: 'pier_${markers.length}',
+            lat: lat,
+            lng: lng,
+            badgeText: '⚓',
+            title: name,
+            subtitle: crossing.vesselLabel,
+            isCompact: true,
+            isFerryPier: true,
+          ),
+        );
+      }
+    }
+    return markers;
+  }
+
+  List<LakbayMapMarker> _buildTripMapMarkers(
+    ItineraryTrip trip, {
+    int? activeDayNumber,
+  }) {
+    final stopMarkers = <LakbayMapMarker>[];
+    for (final day in trip.days) {
+      if (day.isContinuationDay) continue;
+      final media = widget.repo.resolveDayMarkerMedia(trip, day);
+      final dayStops = day.stops.where((s) => s.category != 'stay').toList();
+      if (dayStops.isNotEmpty) {
+        for (var sIdx = 0; sIdx < dayStops.length; sIdx++) {
+          final stop = dayStops[sIdx];
+          final badge = dayStops.length == 1
+              ? 'D${day.dayNumber}'
+              : 'D${day.dayNumber}.${sIdx + 1}';
+          stopMarkers.add(
+            LakbayMapMarker(
+              id: 'stop_${day.dayNumber}_$sIdx',
+              lat: stop.lat,
+              lng: stop.lng,
+              badgeText: badge,
+              title: stop.title,
+              subtitle: stop.description.isNotEmpty
+                  ? stop.description
+                  : day.cityTitle,
+              imageUrl: media.imageUrl,
+              imageAsset: media.imageAsset,
+              dayNumber: day.dayNumber,
+            ),
+          );
+        }
+      } else {
+        stopMarkers.add(
+          LakbayMapMarker(
+            id: 'day_${day.dayNumber}',
+            lat: day.lat,
+            lng: day.lng,
+            badgeText: 'D${day.dayNumber}',
+            title: day.cityTitle,
+            subtitle: day.summary,
+            imageUrl: media.imageUrl,
+            imageAsset: media.imageAsset,
+            dayNumber: day.dayNumber,
+          ),
+        );
+      }
+    }
+    final defaultActiveDay = activeDayNumber ??
+        (trip.days.isNotEmpty ? trip.days.first.dayNumber : null);
+    return [
+      for (var i = 0; i < stopMarkers.length; i++)
+        LakbayMapMarker(
+          id: stopMarkers[i].id,
+          lat: stopMarkers[i].lat,
+          lng: stopMarkers[i].lng,
+          badgeText: stopMarkers[i].badgeText,
+          title: stopMarkers[i].title,
+          subtitle: stopMarkers[i].subtitle,
+          imageUrl: stopMarkers[i].imageUrl,
+          imageAsset: stopMarkers[i].imageAsset,
+          dayNumber: stopMarkers[i].dayNumber,
+          isPrimary: defaultActiveDay != null
+              ? stopMarkers[i].dayNumber == defaultActiveDay
+              : i == 0,
+          isOrigin: i == 0,
+          isDestination: i == stopMarkers.length - 1,
+        ),
+      ..._pierMarkersForTrip(trip),
+      if (widget.repo.originLat != null && widget.repo.originLng != null)
+        LakbayMapMarker(
+          id: 'user_gps',
+          lat: widget.repo.originLat!,
+          lng: widget.repo.originLng!,
+          title: 'You (${widget.repo.effectiveOriginLabel})',
+          isUserLocation: true,
+        ),
+    ];
+  }
+
+  (double lat, double lng, double zoom) _overviewCameraFrame(
+    ItineraryTrip trip,
+  ) {
+    final segments = _route != null && _route!.segments.isNotEmpty
+        ? _route!.segments
+        : trip.routeSegments;
+    final originLat = widget.repo.originLat;
+    final originLng = widget.repo.originLng;
+    final waypoints = trip.routeWaypoints;
+    final hasNearbyOrigin = originLat != null &&
+        originLng != null &&
+        (waypoints.isEmpty ||
+            waypoints.any(
+              (p) =>
+                  MapboxService.haversineKm(
+                    p.lat,
+                    p.lng,
+                    originLat,
+                    originLng,
+                  ) <=
+                  120.0,
+            ));
+    final previewBoundsPts = <GeoPoint>[
+      ...waypoints,
+      for (final seg in segments) ...seg.points,
+      if (hasNearbyOrigin) GeoPoint(lat: originLat, lng: originLng),
+    ];
+    if (previewBoundsPts.isEmpty) {
+      return (trip.centerLat, trip.centerLng, 8.4);
+    }
+    return MapboxService.computeBoundsCenterAndZoom(previewBoundsPts);
+  }
+
+  void _filterDesktopDay(ItineraryTrip trip, int? dayNumber) {
+    setState(() {
+      _focusedDayNumber = dayNumber;
+      if (dayNumber != null) {
+        final day =
+            trip.days.where((d) => d.dayNumber == dayNumber).firstOrNull;
+        final nonStay =
+            day?.stops.where((s) => s.category != 'stay').toList() ?? const [];
+        _focusedMarkerId = nonStay.isNotEmpty
+            ? 'stop_${dayNumber}_0'
+            : 'day_$dayNumber';
+      }
+    });
+    if (dayNumber == null) {
+      _desktopMapKey.currentState?.fitBounds();
+      return;
+    }
+    final pts = <GeoPoint>[
+      for (final d in trip.days)
+        if (d.dayNumber == dayNumber)
+          ...(d.stops.where((s) => s.category != 'stay').isNotEmpty
+              ? [
+                  for (final s in d.stops.where((s) => s.category != 'stay'))
+                    GeoPoint(lat: s.lat, lng: s.lng),
+                ]
+              : [GeoPoint(lat: d.lat, lng: d.lng)]),
+    ];
+    _desktopMapKey.currentState?.seekTrailToDay(dayNumber);
+    if (pts.isNotEmpty) {
+      _desktopMapKey.currentState?.fitBounds(points: pts);
+    }
+  }
+
+  void _focusOnMapStop({
+    required int dayIndex,
+    required int dayNumber,
+    required String? markerId,
+    required double lat,
+    required double lng,
+  }) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= 960;
+    if (!isDesktop) {
+      _openFullRouteMap(dayIndex: dayIndex, stopId: markerId);
+      return;
+    }
+    setState(() {
+      _focusedDayNumber = dayNumber;
+      _focusedMarkerId = markerId;
+    });
+    _desktopMapKey.currentState?.seekTrailToDay(dayNumber);
+    _desktopMapKey.currentState?.flyTo(lat, lng, zoom: 11.8);
+  }
+
+  Widget _buildDesktopRightMapPane(ItineraryTrip trip) {
+    final waypoints = trip.routeWaypoints;
+    final segments = _route != null && _route!.segments.isNotEmpty
+        ? _route!.segments
+        : trip.routeSegments;
+    final markers = _buildTripMapMarkers(
+      trip,
+      activeDayNumber: _focusedDayNumber,
+    );
+    final (lat, lng, zoom) = _overviewCameraFrame(trip);
+    final dayNumbers = <int>[
+      for (final d in trip.days)
+        if (!d.isContinuationDay) d.dayNumber,
+    ];
+    final activeMarker = _focusedMarkerId == null
+        ? null
+        : markers.where((m) => m.id == _focusedMarkerId).firstOrNull;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        LakbayMapboxMap(
+          key: _desktopMapKey,
+          repo: widget.repo,
+          initialLat: lat,
+          initialLng: lng,
+          initialZoom: zoom,
+          routePoints: waypoints,
+          roadGeometry: _route?.geometryPoints ?? const [],
+          routeSegments: segments,
+          markers: markers,
+          selectedMarkerId: _focusedMarkerId,
+          focusedDayNumber: _focusedDayNumber,
+          showLegend: true,
+          isLoadingRoute: _loadingLive,
+          boundsPadding: const EdgeInsets.fromLTRB(44, 102, 44, 56),
+          controlsBottomOffset: 24,
+          borderRadius: 0,
+          onMarkerTap: (marker) {
+            int? tappedDay;
+            if (marker.id.startsWith('stop_')) {
+              final parts = marker.id.split('_');
+              if (parts.length >= 2) tappedDay = int.tryParse(parts[1]);
+            } else if (marker.id.startsWith('day_')) {
+              tappedDay = int.tryParse(marker.id.replaceFirst('day_', ''));
+            } else {
+              tappedDay = marker.dayNumber;
+            }
+            setState(() {
+              _focusedMarkerId = marker.id;
+              if (tappedDay != null) {
+                _focusedDayNumber = tappedDay;
+              }
+            });
+            if (tappedDay != null) {
+              _desktopMapKey.currentState?.seekTrailToDay(tappedDay);
+              if (_tabController.index != 1) {
+                _tabController.animateTo(1);
+              }
+            }
+          },
+        ),
+        Positioned(
+          top: 50,
+          left: 12,
+          right: 12,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                ChoiceChip(
+                  label: const Text(
+                    'All Days',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                  ),
+                  selected: _focusedDayNumber == null,
+                  showCheckmark: false,
+                  backgroundColor: Colors.white.withValues(alpha: 0.94),
+                  selectedColor: LakbayColors.tealDeep,
+                  labelStyle: TextStyle(
+                    color: _focusedDayNumber == null
+                        ? Colors.white
+                        : LakbayColors.tealDeep,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  onSelected: (_) => _filterDesktopDay(trip, null),
+                ),
+                for (final dNum in dayNumbers) ...[
+                  const SizedBox(width: 6),
+                  ChoiceChip(
+                    avatar: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _focusedDayNumber == dNum
+                            ? Colors.white
+                            : RouteTrail.colorForDay(
+                                dNum,
+                                RouteTrailMode.road,
+                              ),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    label: Text(
+                      'Day $dNum',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: _focusedDayNumber == dNum
+                            ? Colors.white
+                            : LakbayColors.tealDeep,
+                      ),
+                    ),
+                    selected: _focusedDayNumber == dNum,
+                    showCheckmark: false,
+                    backgroundColor: Colors.white.withValues(alpha: 0.94),
+                    selectedColor: RouteTrail.colorForDay(
+                      dNum,
+                      RouteTrailMode.road,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (_) => _filterDesktopDay(
+                      trip,
+                      _focusedDayNumber == dNum ? null : dNum,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          top: 10,
+          left: 108,
+          child: FilledButton.icon(
+            onPressed: _openFullRouteMap,
+            style: FilledButton.styleFrom(
+              backgroundColor: LakbayColors.tealDeep,
+              visualDensity: VisualDensity.compact,
+            ),
+            icon: const Icon(Icons.open_in_full_rounded, size: 15),
+            label: const Text('Full Map'),
+          ),
+        ),
+        if (activeMarker != null)
+          Positioned(
+            left: 12,
+            bottom: 118,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 340),
+              child: Material(
+                color: Colors.white.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(14),
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      if (activeMarker.badgeText.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: LakbayColors.tealDeep,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Text(
+                            activeMarker.badgeText,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              activeMarker.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontFamily: 'FigGrotesk',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: LakbayColors.tealDeep,
+                              ),
+                            ),
+                            if (activeMarker.subtitle?.isNotEmpty == true)
+                              Text(
+                                activeMarker.subtitle!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: LakbayColors.textSecondary,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Dismiss',
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 28,
+                          minHeight: 28,
+                        ),
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        onPressed: () =>
+                            setState(() => _focusedMarkerId = null),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -382,9 +820,12 @@ class _TripDetailScreenState extends State<TripDetailScreen>
 
     return Scaffold(
       backgroundColor: LakbayColors.canvasBg,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth >= 960;
+          final nestedScrollView = NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverAppBar(
             expandedHeight: 280,
             pinned: true,
             backgroundColor: LakbayColors.tealDeep,
@@ -527,14 +968,32 @@ class _TripDetailScreenState extends State<TripDetailScreen>
             ),
           ),
         ],
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            _buildOverviewTab(_activeTrip),
-            _buildDayByDayTab(_activeTrip),
-            _buildStaysAndFlightsTab(_activeTrip),
-          ],
-        ),
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOverviewTab(_activeTrip, hideEmbeddedMap: isDesktop),
+                _buildDayByDayTab(_activeTrip),
+                _buildStaysAndFlightsTab(_activeTrip),
+              ],
+            ),
+          );
+          if (isDesktop) {
+            return Row(
+              children: [
+                Expanded(flex: 5, child: nestedScrollView),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  flex: 6,
+                  child: SafeArea(
+                    left: false,
+                    child: _buildDesktopRightMapPane(_activeTrip),
+                  ),
+                ),
+              ],
+            );
+          }
+          return nestedScrollView;
+        },
       ),
       bottomNavigationBar: SafeArea(
         child: Container(
@@ -620,68 +1079,15 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     );
   }
 
-  Widget _buildOverviewTab(ItineraryTrip trip) {
+  Widget _buildOverviewTab(
+    ItineraryTrip trip, {
+    bool hideEmbeddedMap = false,
+  }) {
     final waypoints = trip.routeWaypoints;
-    final stopMarkers = <LakbayMapMarker>[];
-    for (final day in trip.days) {
-      if (day.isContinuationDay) continue;
-      final media = widget.repo.resolveDayMarkerMedia(trip, day);
-      final dayStops = day.stops.where((s) => s.category != 'stay').toList();
-      if (dayStops.isNotEmpty) {
-        for (var sIdx = 0; sIdx < dayStops.length; sIdx++) {
-          final stop = dayStops[sIdx];
-          final badge = dayStops.length == 1
-              ? 'D${day.dayNumber}'
-              : 'D${day.dayNumber}.${sIdx + 1}';
-          stopMarkers.add(
-            LakbayMapMarker(
-              id: 'stop_${day.dayNumber}_$sIdx',
-              lat: stop.lat,
-              lng: stop.lng,
-              badgeText: badge,
-              title: stop.title,
-              imageUrl: media.imageUrl,
-              imageAsset: media.imageAsset,
-            ),
-          );
-        }
-      } else {
-        stopMarkers.add(
-          LakbayMapMarker(
-            id: 'day_${day.dayNumber}',
-            lat: day.lat,
-            lng: day.lng,
-            badgeText: 'D${day.dayNumber}',
-            title: day.cityTitle,
-            imageUrl: media.imageUrl,
-            imageAsset: media.imageAsset,
-          ),
-        );
-      }
-    }
-    final markers = <LakbayMapMarker>[
-      for (var i = 0; i < stopMarkers.length; i++)
-        LakbayMapMarker(
-          id: stopMarkers[i].id,
-          lat: stopMarkers[i].lat,
-          lng: stopMarkers[i].lng,
-          badgeText: stopMarkers[i].badgeText,
-          title: stopMarkers[i].title,
-          imageUrl: stopMarkers[i].imageUrl,
-          imageAsset: stopMarkers[i].imageAsset,
-          isPrimary: i == 0,
-          isOrigin: i == 0,
-          isDestination: i == stopMarkers.length - 1,
-        ),
-      if (widget.repo.originLat != null && widget.repo.originLng != null)
-        LakbayMapMarker(
-          id: 'user_gps',
-          lat: widget.repo.originLat!,
-          lng: widget.repo.originLng!,
-          title: 'You (${widget.repo.effectiveOriginLabel})',
-          isUserLocation: true,
-        ),
-    ];
+    final markers = _buildTripMapMarkers(
+      trip,
+      activeDayNumber: _focusedDayNumber,
+    );
     final combinedWarnings = <String>{
       ...trip.routeWarnings,
       ..._routeWarnings,
@@ -727,6 +1133,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                 route: _route,
                 stops: trip.routeWaypoints,
                 origin: widget.repo.routeOrigin,
+                mode: _selectedTravelMode,
               );
               return _buildInfoChip(
                 iconWidget: const Icon(Icons.route_rounded,
@@ -807,6 +1214,12 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               label: const Text('Walking'),
               selected: _selectedTravelMode == 'walking',
               onSelected: (_) => _changeTravelMode('walking'),
+            ),
+            ChoiceChip(
+              avatar: const Icon(Icons.directions_bike_outlined, size: 16),
+              label: const Text('Cycling'),
+              selected: _selectedTravelMode == 'cycling',
+              onSelected: (_) => _changeTravelMode('cycling'),
             ),
           ],
         ),
@@ -921,32 +1334,14 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           ],
         ),
         const SizedBox(height: 8),
-        Builder(
+        if (!hideEmbeddedMap)
+          Builder(
           builder: (context) {
-            final originLat = widget.repo.originLat;
-            final originLng = widget.repo.originLng;
-            final hasNearbyOrigin = originLat != null &&
-                originLng != null &&
-                (waypoints.isEmpty ||
-                    waypoints.any(
-                      (p) =>
-                          MapboxService.haversineKm(
-                            p.lat,
-                            p.lng,
-                            originLat,
-                            originLng,
-                          ) <=
-                          120.0,
-                    ));
-            final previewBoundsPts = <GeoPoint>[
-              ...waypoints,
-              for (final seg in trip.routeSegments) ...seg.points,
-              if (hasNearbyOrigin) GeoPoint(lat: originLat, lng: originLng),
-            ];
+            final segments = _route != null && _route!.segments.isNotEmpty
+                ? _route!.segments
+                : trip.routeSegments;
             final (previewLat, previewLng, previewZoom) =
-                previewBoundsPts.isEmpty
-                    ? (trip.centerLat, trip.centerLng, 8.4)
-                    : MapboxService.computeBoundsCenterAndZoom(previewBoundsPts);
+                _overviewCameraFrame(trip);
             return Container(
               height: 240,
               decoration: BoxDecoration(
@@ -962,14 +1357,18 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                     initialLng: previewLng,
                     initialZoom: previewZoom,
                     routePoints: waypoints,
-                    routeSegments: trip.routeSegments,
+                    roadGeometry: _route?.geometryPoints ?? const [],
+                    routeSegments: segments,
                     markers: markers,
                     showControls: false,
+                    showLegend: true,
+                    isLoadingRoute: _loadingLive,
+                    focusedDayNumber: _focusedDayNumber,
                     onMarkerTap: (_) => _openFullRouteMap(),
                     onMapTap: (_, _) => _openFullRouteMap(),
                   ),
                   Positioned(
-                    top: 10,
+                    bottom: 10,
                     right: 10,
                     child: Material(
                       color: LakbayColors.tealDeep.withValues(alpha: 0.88),
@@ -1210,16 +1609,6 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           ),
         ),
         const SizedBox(height: 18),
-        const SizedBox(height: 8),
-        Text(
-          trip.overviewText,
-          style: const TextStyle(
-            fontSize: 15,
-            height: 1.5,
-            color: LakbayColors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 20),
 
         // Travel notes from the catalog; hidden when there are none.
         if (trip.expertTip.trim().isNotEmpty) Container(
@@ -1337,7 +1726,8 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                   ),
                 IconButton(
                   tooltip: 'View on map',
-                  onPressed: _openFullRouteMap,
+                  onPressed: () =>
+                      _openFullRouteMap(dayIndex: trip.days.indexOf(day)),
                   icon: const Icon(Icons.location_on_outlined,
                       color: LakbayColors.primary, size: 20),
                 ),
@@ -1753,7 +2143,7 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       ],
                       IconButton(
                         tooltip: 'See this day on the map',
-                        onPressed: _openFullRouteMap,
+                        onPressed: () => _openFullRouteMap(dayIndex: index),
                         icon: const Icon(Icons.map_outlined,
                             color: LakbayColors.tealAccent, size: 20),
                       ),
@@ -1858,89 +2248,141 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                           ],
                         ),
                       ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: 68,
-                            child: Text(
-                              day.stops[sIdx].time,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                                color: LakbayColors.tealAccent,
-                              ),
-                            ),
+                    Builder(
+                      builder: (context) {
+                        final stop = day.stops[sIdx];
+                        final nonStayIdx = stop.category == 'stay'
+                            ? -1
+                            : day.stops
+                                .sublist(0, sIdx)
+                                .where((s) => s.category != 'stay')
+                                .length;
+                        final markerId = nonStayIdx >= 0
+                            ? 'stop_${day.dayNumber}_$nonStayIdx'
+                            : 'day_${day.dayNumber}';
+                        final isFocused = _focusedMarkerId == markerId;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: isFocused ? LakbayColors.primarySoft : null,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Wrap(
-                                  spacing: 6,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    Text(
-                                      day.stops[sIdx].title,
-                                      style: const TextStyle(
-                                        fontFamily: 'FigGrotesk',
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14.5,
-                                      ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () => _focusOnMapStop(
+                                    dayIndex: index,
+                                    dayNumber: day.dayNumber,
+                                    markerId: markerId,
+                                    lat: stop.lat,
+                                    lng: stop.lng,
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 4,
                                     ),
-                                    if (_stayLengthLabel(
-                                            day.stops[sIdx].stayDurationType) !=
-                                        null)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: LakbayColors.canvasBg,
-                                          borderRadius:
-                                              BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          _stayLengthLabel(
-                                              day.stops[sIdx].stayDurationType)!,
-                                          style: const TextStyle(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w600,
-                                            color: LakbayColors.textSecondary,
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        SizedBox(
+                                          width: 64,
+                                          child: Text(
+                                            stop.time,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12,
+                                              color: LakbayColors.tealAccent,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  day.stops[sIdx].description,
-                                  style: const TextStyle(
-                                    fontSize: 12.5,
-                                    color: LakbayColors.textSecondary,
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Wrap(
+                                                spacing: 6,
+                                                crossAxisAlignment:
+                                                    WrapCrossAlignment.center,
+                                                children: [
+                                                  Text(
+                                                    stop.title,
+                                                    style: const TextStyle(
+                                                      fontFamily: 'FigGrotesk',
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 14.5,
+                                                    ),
+                                                  ),
+                                                  if (_stayLengthLabel(
+                                                          stop.stayDurationType) !=
+                                                      null)
+                                                    Container(
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 2,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: LakbayColors
+                                                            .canvasBg,
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(6),
+                                                      ),
+                                                      child: Text(
+                                                        _stayLengthLabel(stop
+                                                            .stayDurationType)!,
+                                                        style: const TextStyle(
+                                                          fontSize: 10.5,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color: LakbayColors
+                                                              .textSecondary,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                stop.description,
+                                                style: const TextStyle(
+                                                  fontSize: 12.5,
+                                                  color: LakbayColors
+                                                      .textSecondary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                          if (day.stops.length > 1)
-                            IconButton(
-                              tooltip: 'Remove stop',
-                              visualDensity: VisualDensity.compact,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () => _removeStop(index, sIdx),
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                size: 17,
-                                color: LakbayColors.textMuted,
                               ),
-                            ),
-                        ],
-                      ),
+                              if (day.stops.length > 1)
+                                IconButton(
+                                  tooltip: 'Remove stop',
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () => _removeStop(index, sIdx),
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    size: 17,
+                                    color: LakbayColors.textMuted,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ],
                   Align(

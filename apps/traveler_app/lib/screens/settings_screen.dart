@@ -114,9 +114,10 @@ class SettingsScreen extends StatelessWidget {
                         icon: Icons.insights_outlined,
                         title: 'Share anonymous usage and crash reports',
                         subtitle:
-                            'Helps us fix crashes and see which steps people '
-                            'get stuck on. We never send your messages, name, '
-                            'email or GPS position.',
+                            'Off by default. Turn this on to help us fix '
+                            'crashes and see which steps people get stuck on. '
+                            'We never send your messages, name, email or GPS '
+                            'position.',
                         value: repo.analyticsEnabled,
                         onChanged: repo.setAnalyticsEnabled,
                       ),

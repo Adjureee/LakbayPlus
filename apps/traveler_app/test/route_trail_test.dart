@@ -541,7 +541,10 @@ void main() {
 
         expect(find.byKey(const ValueKey('trail_vehicle_sprite')), findsOneWidget);
         expect(find.byKey(const ValueKey('trail_replay_button')), findsOneWidget);
-        expect(find.text('© Mapbox'), findsOneWidget);
+        expect(
+          find.text(repo.mapbox.tileAttribution(repo.activeMapStyle)),
+          findsOneWidget,
+        );
         expect(find.textContaining('°N'), findsNothing);
       },
     );

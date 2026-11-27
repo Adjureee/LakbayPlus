@@ -73,6 +73,7 @@ def build_itinerary_messages(
     planning_preview: PlanningPreviewResponse | None = None,
     geo_analytics_context: dict[str, Any] | None = None,
     route_destination_order: tuple[int, ...] | None = None,
+    geographic_guidance: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     system_prompt = (
         "You are Lakbay's itinerary planner for Davao Region travel. "
@@ -159,6 +160,15 @@ def build_itinerary_messages(
             "Keep activities at a destination together before moving to the next stop. Consecutive activities at the same place count as one visit, including across days. A null destination_id does not count as a visit. Do not revisit an earlier stop after visiting a different destination.",
             "The start and any return leg are already in the route summary. Do not add them to the destination visit order or invent a destination ID for the origin.",
         ])
+
+    if geographic_guidance:
+        user_prompt["geographic_guidance"] = geographic_guidance
+        user_prompt["rules"].append(
+            "Respect geographic_guidance.suggested_day_clusters and consecutive_legs: "
+            "keep same-island and nearby-district stops grouped by day, avoid cross-province "
+            "backtracking, and leave realistic ferry crossing and pier wait buffers when "
+            "requires_ferry is true."
+        )
 
     return [
         {"role": "system", "content": system_prompt},
@@ -459,7 +469,8 @@ def build_chat_messages(
             "shows the place cards itself. Stage \"picking\": the traveler has "
             "chosen the places in `picked_places`; acknowledge them by name, say "
             "how many there are, and offer two next steps, add more or plan the "
-            "trip, without writing an itinerary. Do not write "
+            "trip, without writing an itinerary. When the traveler says to go "
+            "ahead and plan, use intent \"plan_trip\". Do not write "
             "activity_level, travel_start_date, prefers_quiet or priority_order "
             "in state_updates; the app records those from the traveler's taps."
             " CARD RULES. The app draws the cards and the server decides how "
@@ -685,7 +696,9 @@ def build_trip_draft_messages(
         "estimated_cost_php unless you are confident of the value; never invent "
         "coordinates, prices, schedules or phone numbers. Islands such as Samal and "
         "Talikud are reached by boat from a pier; mention the boat and name a pier "
-        "only if you know it. Respect the "
+        "only if you know it. Group each day within the same province or island "
+        "(keep Samal and Talikud stops together, and never combine distant areas like "
+        "Mati and Mt. Apo or Kapatagan in one day). Respect the "
         "starting point, vibes, and strict_budget. Reply in the traveler's language "
         "(English, Filipino, or Bisaya). If the traveler is only asking a question or "
         "still brainstorming, set should_create_itinerary to false and days to []; "

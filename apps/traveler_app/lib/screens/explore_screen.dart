@@ -329,7 +329,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                         visualDensity: VisualDensity.compact,
                         label: const Text(
-                          'Top-5 Match',
+                          'Top 5 for you',
                           style: TextStyle(
                             fontFamily: 'FigGrotesk',
                             fontWeight: FontWeight.w700,
@@ -2493,8 +2493,8 @@ class _MultiStopPlanSheetState extends State<_MultiStopPlanSheet> {
                     const SizedBox(height: 3),
                     Text(
                       savedKm >= 0.5 && savedPct >= 1.0
-                          ? 'Visit order optimized: ${_preview.savingsVsInput.baselineDistanceKm.toStringAsFixed(0)} km → ${_preview.savingsVsInput.optimizedDistanceKm.toStringAsFixed(0)} km (−${savedPct.toStringAsFixed(0)}%) · ${_preview.orderMethod == 'exact_held_karp' ? 'Exact Held-Karp' : 'NN + 2-opt'}'
-                          : 'Order method: ${_preview.orderMethod == 'exact_held_karp' ? 'Exact Held-Karp' : 'Adaptive NN + 2-opt'}',
+                          ? 'Visit order optimized: ${_preview.savingsVsInput.baselineDistanceKm.toStringAsFixed(0)} km → ${_preview.savingsVsInput.optimizedDistanceKm.toStringAsFixed(0)} km (−${savedPct.toStringAsFixed(0)}%) · ${RoutePlanOptimizationSummary.labelForMethod(_preview.orderMethod)}'
+                          : 'Order method: ${RoutePlanOptimizationSummary.labelForMethod(_preview.orderMethod)}',
                       style: const TextStyle(
                         fontSize: 11.5,
                         color: LakbayColors.textSecondary,

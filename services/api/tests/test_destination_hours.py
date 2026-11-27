@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from app.features.ai.rag import _destination_document
 from app.features.destinations.data_quality import data_quality
-from app.features.destinations.hours import hours_on, hours_summary
+from app.features.destinations.hours import hours_on, hours_summary, listed_opening
 from app.features.destinations.schemas import DestinationHoursUpdate
 from tests.test_ai_rag import destination as fake_place
 from tests.test_phase5_ai_itineraries import admin_headers, create_destination, user_headers
@@ -182,3 +182,28 @@ def test_the_ai_record_carries_structured_hours_with_their_trust_level():
 def WEEK_ROWS():
     return [N(destination_id=1, **{k: getattr(r, k) for k in ("weekday", "is_closed",
              "opens_at", "closes_at")}) for r in WEEK]
+
+
+# --- listed_opening: the opening time in free text, only when it is clear ---------------
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("10:00 AM - 5:00 PM", time(10, 0)),
+    ("8:00 AM to 8:00 PM.", time(8, 0)),
+    ("Daily, 7:00 AM–5:00 PM", time(7, 0)),
+    ("Mo-Su 08:00-17:30", time(8, 0)),
+    ("Day tour 10:00-18:00", time(10, 0)),
+    ("05:00 AM - 10:00 PM daily", time(5, 0)),
+    ("10:30 AM - 11:30 PM", time(10, 30)),
+])
+def test_a_clear_daily_window_gives_its_opening_time(text, expected) -> None:
+    assert listed_opening(text) == expected
+
+
+@pytest.mark.parametrize("text", [
+    None, "", "24/7", "Daytime visits", "Open daily",
+    "Mo-Sa 10:00-16:00, Su off", "Confirm current hours 9:00 AM - 5:00 PM",
+    "2:00 PM - 12:00 PM.", "Open Dec 5-10", "8-5", "10:00 AM - 5:00",
+    "Sat 8:00 AM - 12:00 PM; Mon to Fri 10:00 AM - 5:00 PM",
+])
+def test_unclear_text_gives_nothing(text) -> None:
+    assert listed_opening(text) is None

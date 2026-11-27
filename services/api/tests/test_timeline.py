@@ -203,6 +203,65 @@ def test_text_only_hours_and_missing_hours_are_noted_and_cannot_be_verified():
     assert timeline.conflicts == []
 
 
+def test_a_clear_listed_opening_time_keeps_the_visit_from_starting_before_it_opens():
+    """Live case: a place listed "10:00 AM - 5:00 PM" was scheduled from 8:58."""
+    place = stop(hours=HoursInfo(text="10:00 AM - 5:00 PM"), activity_minutes=120)
+    timeline = build([place], [(None, 1, 58, "supported")])
+    visit = items(timeline, "visit")[0]
+    assert hhmm(visit.starts_at) == "10:00"
+    assert any("listed opening time, 10:00 AM" in n for n in visit.notes)
+    # Still only text: it is not verified, and nothing is checked against the closing time.
+    assert check(timeline, "opening_hours").status == "cannot_verify"
+    assert timeline.conflicts == []
+
+
+def test_a_listed_opening_time_before_arrival_changes_nothing():
+    place = stop(hours=HoursInfo(text="Mo-Su 06:00-21:00"), activity_minutes=120)
+    visit = items(build([place], [(None, 1, 58, "supported")]), "visit")[0]
+    assert hhmm(visit.starts_at) == "08:58"
+    assert not any("listed opening time" in n for n in visit.notes)
+
+
+def test_unclear_hours_text_is_never_read_as_a_schedule():
+    for text in ("Daytime visits", "Mo-Sa 10:00-16:00, Su off", "Confirm hours 10:00 AM - 5:00 PM",
+                 "Sat 8:00 AM - 12:00 PM; Mon to Fri 10:00 AM - 5:00 PM", "Open Dec 5-10"):
+        place = stop(hours=HoursInfo(text=text), activity_minutes=60)
+        visit = items(build([place], [(None, 1, 10, "supported")]), "visit")[0]
+        assert hhmm(visit.starts_at) == "08:10", text
+
+
+def test_structured_hours_still_win_over_the_text():
+    place = stop(hours=HoursInfo(weekly=weekly((3, time(9), time(17), False, None)),
+                                 text="11:00 AM - 5:00 PM"), activity_minutes=60)
+    visit = items(build([place], [(None, 1, 10, "supported")], start_date=THU), "visit")[0]
+    assert hhmm(visit.starts_at) == "09:00"
+
+
+def test_a_trip_that_never_said_one_way_is_shown_ending_back_at_the_start_and_says_so():
+    """Live case: the plan ended at the last visit and the way back was never shown."""
+    place = stop(activity_minutes=60)
+    timeline = build([place], [(None, 1, 30, "estimated"), (1, None, 30, "estimated")],
+                     return_to_origin=True, return_assumed=True, origin_label="Davao City")
+    last = timeline.days[0].items[-1]
+    assert last.kind == "return" and last.label == "Back at Davao City"
+    assert any("ending back at Davao City" in a and "one way" in a for a in timeline.assumptions)
+
+
+def test_a_traveler_who_said_one_way_gets_no_return_and_no_assumption():
+    timeline = build([stop(activity_minutes=60)], [(None, 1, 30, "estimated")],
+                     return_to_origin=False)
+    assert all(i.kind != "return" for i in timeline.days[0].items)
+    assert not any("one way" in a for a in timeline.assumptions)
+
+
+def test_a_return_the_traveler_asked_for_is_not_called_an_assumption():
+    timeline = build([stop(activity_minutes=60)],
+                     [(None, 1, 30, "estimated"), (1, None, 30, "estimated")],
+                     return_to_origin=True, return_assumed=False)
+    assert timeline.days[0].items[-1].kind == "return"
+    assert not any("one way" in a for a in timeline.assumptions)
+
+
 def test_recorded_hours_with_no_travel_date_cannot_be_checked():
     place = stop(hours=hours_rows(time(9), time(17)))
     timeline = build([place], [(None, 1, 10, "supported")])  # no start_date
@@ -424,6 +483,26 @@ def test_an_estimate_with_no_recorded_basis_never_decides_the_budget_verdict():
     assert budget.remaining is None
     assert len(budget.unbased) == 1 and "about ₱6,000" in budget.unbased[0]
     assert any("not used to decide" in n for n in budget.notes)
+
+
+def test_an_estimate_of_unknown_basis_is_over_budget_when_even_the_cheaper_reading_is():
+    """Live case: a 1,500 estimate for a 1-person, 600 budget trip said "undetermined"."""
+    place = stop(costs=[CostInfo("Catalog estimate", Decimal("1500"), "estimated",
+                                 scope="per_person", basis_recorded=False)])
+    timeline = build([place], [(None, 1, 10, "supported")], traveler_count=1,
+                     total_budget=Decimal("600"), include_meals=False)
+    budget = timeline.budget
+    assert budget.fit == "over_budget" and budget.remaining is None
+    assert any("whole trip rather than per person" in n and "₱1,500" in n and "₱600" in n
+               for n in budget.notes)
+
+
+def test_an_estimate_of_unknown_basis_stays_undetermined_when_one_reading_fits():
+    place = stop(costs=[CostInfo("Catalog estimate", Decimal("400"), "estimated",
+                                 scope="per_person", basis_recorded=False)])
+    timeline = build([place], [(None, 1, 10, "supported")], traveler_count=3,
+                     total_budget=Decimal("600"), include_meals=False)
+    assert timeline.budget.fit == "undetermined"  # 400 per trip fits; 1,200 per person does not
 
 
 def test_known_costs_still_decide_over_budget_and_a_recorded_basis_estimate_counts():

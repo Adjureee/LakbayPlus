@@ -12,10 +12,10 @@ import 'analytics_service.dart';
 /// the web, or on a platform Firebase is not set up for, [create] returns a
 /// service that does nothing and the app behaves as before.
 ///
-/// Both collections start switched off in the Android manifest and are turned
-/// on here only after the saved choice is read, and never in a debug build, so
-/// a traveler who opted out is never counted and development does not pollute
-/// the numbers.
+/// Both collections start switched off in the Android manifest and stay off
+/// until the traveler explicitly opts in (never in a debug build), so a
+/// traveler who has not opted in is never counted and development does not
+/// pollute the numbers.
 class FirebaseAnalyticsSetup {
   FirebaseAnalyticsSetup._();
 

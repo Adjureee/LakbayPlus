@@ -306,7 +306,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('Top-5 Match'));
+    await tester.tap(find.text('Top 5 for you'));
     await tester.pumpAndSettle();
 
     expect(find.text('Personalized Top 5'), findsOneWidget);

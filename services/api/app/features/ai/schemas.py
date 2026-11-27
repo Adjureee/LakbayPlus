@@ -67,6 +67,10 @@ class AIItineraryActivity(BaseModel):
     estimated_cost: Money = Decimal("0.00")
     cost_source: Literal["ai_draft_estimate"] = "ai_draft_estimate"
     notes: str | None = Field(default=None, max_length=1000)
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+    island_group: str | None = Field(default=None, max_length=50)
+    destination_name: str | None = Field(default=None, max_length=255)
 
 
 class AIItineraryDay(BaseModel):
@@ -156,6 +160,27 @@ class AIPlanningStateUpdates(BaseModel):
     budget_includes: list[
         Literal["transport", "food", "accommodation", "activities", "fees"]
     ] | None = Field(default=None, max_length=5)
+
+    @field_validator("pace", mode="before")
+    @classmethod
+    def normalize_pace(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip().lower()
+        mapping = {
+            "moderate": "balanced",
+            "medium": "balanced",
+            "normal": "balanced",
+            "easy": "relaxed",
+            "slow": "relaxed",
+            "chill": "relaxed",
+            "leisure": "relaxed",
+            "fast": "packed",
+            "busy": "packed",
+            "full": "packed",
+            "intense": "packed",
+        }
+        return mapping.get(normalized, normalized)
 
     @model_validator(mode="after")
     def reject_null_non_clearable_fields(self) -> "AIPlanningStateUpdates":

@@ -174,3 +174,70 @@ def test_get_osrm_client_prefers_mapbox_when_token_set(monkeypatch) -> None:
         osrm_module, "get_settings", lambda: mapbox_settings(mapbox_directions_token=None),
     )
     assert type(osrm_module.get_osrm_client()) is OSRMClient
+
+
+def test_mapbox_cycling_uses_cycling_profile_across_endpoints(monkeypatch) -> None:
+    paths = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        if request.url.path.startswith("/directions-matrix/"):
+            return httpx.Response(200, json={
+                "code": "Ok",
+                "durations": [[0, 600], [600, 0]],
+                "distances": [[0, 2500], [2500, 0]],
+            })
+        if request.url.path.startswith("/optimization/"):
+            return httpx.Response(200, json={
+                "code": "Ok",
+                "trips": [{"distance": 2500, "duration": 600, "legs": [{"distance": 2500, "duration": 600}]}],
+                "waypoints": [{"waypoint_index": 0, "trips_index": 0},
+                              {"waypoint_index": 1, "trips_index": 0}],
+            })
+        return httpx.Response(200, json=ROUTE_BODY)
+
+    mock_http(monkeypatch, handler)
+    client = MapboxDirectionsClient(mapbox_settings())
+    preview = asyncio.run(client.preview_route(travel_mode="cycling", coordinates=COORDS))
+    asyncio.run(client.matrix(travel_mode="cycling", coordinates=COORDS))
+    asyncio.run(client.optimize_route(
+        travel_mode="cycling", coordinates=COORDS, roundtrip=False, preserve_first=True,
+    ))
+
+    assert preview.provider == "mapbox"
+    assert paths[0].startswith("/directions/v5/mapbox/cycling/")
+    assert paths[1].startswith("/directions-matrix/v1/mapbox/cycling/")
+    assert paths[2].startswith("/optimization/v1/mapbox/cycling/")
+
+
+def test_osrm_rejects_cycling_so_fallback_is_estimated() -> None:
+    osrm = OSRMClient(mapbox_settings())
+    with pytest.raises(OSRMConfigurationError, match="cycling"):
+        asyncio.run(osrm.preview_route(travel_mode="cycling", coordinates=COORDS))
+
+
+def test_route_service_cycling_osrm_fallback_returns_estimated_never_road_time() -> None:
+    from app.features.routes.schemas import RoutePreviewRequest
+    from app.features.routes.service import RoutePlanStop, RouteService
+
+    class _NoSeaLinks:
+        async def list_active_links(self):
+            return []
+
+    service = RouteService.__new__(RouteService)
+    service.osrm_client = OSRMClient(mapbox_settings())
+    service.google_routes_client = None
+    service.sea_links = _NoSeaLinks()
+
+    stops = [
+        RoutePlanStop(destination_id=1, name="Davao City", lat=7.0731, lng=125.6128),
+        RoutePlanStop(destination_id=2, name="Calinan", lat=7.1854, lng=125.4169),
+    ]
+    req = RoutePreviewRequest(destination_ids=[1, 2], travel_mode="cycling")
+    result = asyncio.run(service._preview_stops(req, stops))
+
+    assert result.travel_mode == "cycling"
+    assert result.is_estimated is True
+    assert result.route_provider == "haversine"
+    assert all(leg.is_estimated for leg in result.legs)
+    assert result.traffic is None

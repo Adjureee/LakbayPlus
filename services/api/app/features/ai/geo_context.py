@@ -1,5 +1,7 @@
 """Read-only Phase 15B and Phase 3 inputs for selected itinerary destinations."""
 
+from dataclasses import dataclass
+
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,8 +15,132 @@ from app.features.planning.schemas import PlanningPreviewResponse
 from app.features.recommendations.repository import RecommendationRepository
 from app.features.recommendations.schemas import RecommendationItem, RecommendationRequest
 from app.features.recommendations.service import RecommendationService
+from app.features.routes.day_planner import (
+    StopPlanInput,
+    normalize_island_group,
+    plan_multi_day_route,
+)
+from app.features.routes.sea_planner import (
+    PlannerPoint,
+    SeaNetwork,
+    haversine_km,
+    road_minutes,
+)
 from app.features.routes.service import RouteService
 from app.features.users.models import User
+
+
+@dataclass(frozen=True)
+class GeographicItineraryPlan:
+    """Deterministic island-aware route order & day clustering for AI generation."""
+
+    ordered_destination_ids: tuple[int, ...]
+    suggested_day_clusters: list[dict]
+    consecutive_legs: list[dict]
+    destination_coords: dict[int, tuple[float, float]]
+    destination_island_groups: dict[int, str]
+
+
+def compute_geographic_itinerary_plan(
+    *,
+    destinations: list[Destination],
+    day_count: int,
+    origin: PlannerPoint | None = None,
+    network: SeaNetwork | None = None,
+    travel_mode: str = "driving",
+) -> GeographicItineraryPlan:
+    """Cluster destinations by geography/island group and compute realistic transit legs."""
+    destination_coords: dict[int, tuple[float, float]] = {}
+    destination_island_groups: dict[int, str] = {}
+    stops: list[StopPlanInput] = []
+
+    for dest in destinations:
+        destination_coords[dest.destination_id] = (float(dest.lat), float(dest.lng))
+        island = normalize_island_group(getattr(dest, "island_group", None))
+        destination_island_groups[dest.destination_id] = island
+        stops.append(
+            StopPlanInput(
+                destination_id=dest.destination_id,
+                name=dest.name,
+                lat=float(dest.lat),
+                lng=float(dest.lng),
+                island_group=getattr(dest, "island_group", None),
+                stay_duration_type=getattr(dest, "stay_duration_type", None) or "half_day",
+                must_visit=True,
+            )
+        )
+
+    if not stops:
+        return GeographicItineraryPlan(
+            ordered_destination_ids=(),
+            suggested_day_clusters=[],
+            consecutive_legs=[],
+            destination_coords=destination_coords,
+            destination_island_groups=destination_island_groups,
+        )
+
+    plan = plan_multi_day_route(
+        stops=stops,
+        days=max(1, min(14, day_count)),
+        pace="balanced",
+        origin=origin,
+        driving=(travel_mode == "driving"),
+        network=network,
+    )
+    ordered_ids = tuple(
+        s.destination_id for s in plan.ordered_stops if s.destination_id is not None
+    )
+
+    suggested_day_clusters: list[dict] = []
+    for day in plan.days:
+        day_ids = [s.destination_id for s in day.stops if s.destination_id is not None]
+        day_islands = {
+            destination_island_groups[did]
+            for did in day_ids
+            if did in destination_island_groups
+        }
+        suggested_day_clusters.append(
+            {
+                "day": day.day_number,
+                "destination_ids": day_ids,
+                "destination_names": [s.name for s in day.stops],
+                "estimated_transit_hours": round(day.transit_hours, 2),
+                "requires_ferry": len(day_islands) > 1 or any(
+                    island != "mainland" for island in day_islands
+                ),
+                **({"continuation_of": day.continuation_of_name} if day.is_continuation_day else {}),
+            }
+        )
+
+    consecutive_legs: list[dict] = []
+    sea_net = network if network is not None else SeaNetwork([], [])
+    for a, b in zip(plan.ordered_stops, plan.ordered_stops[1:]):
+        group_a = normalize_island_group(a.island_group)
+        group_b = normalize_island_group(b.island_group)
+        requires_ferry = group_a != group_b
+        dist_km = round(haversine_km(a.point, b.point), 1)
+        est_minutes = round(road_minutes(a.point, b.point))
+        if requires_ferry and not sea_net.is_empty:
+            sea_path = sea_net.find_path(a.point, b.point, driving=(travel_mode == "driving"))
+            if sea_path is not None:
+                est_minutes = round(sea_path.cost_minutes)
+        consecutive_legs.append(
+            {
+                "from_destination_id": a.destination_id,
+                "to_destination_id": b.destination_id,
+                "distance_km": dist_km,
+                "estimated_minutes": est_minutes,
+                "requires_ferry": requires_ferry,
+            }
+        )
+
+    return GeographicItineraryPlan(
+        ordered_destination_ids=ordered_ids,
+        suggested_day_clusters=suggested_day_clusters,
+        consecutive_legs=consecutive_legs,
+        destination_coords=destination_coords,
+        destination_island_groups=destination_island_groups,
+    )
 
 
 async def selected_geo_inputs(

@@ -227,7 +227,7 @@ class OSRMClient:
         if travel_mode == "walking":
             return self.settings.osrm_profile_walking
 
-        raise OSRMConfigurationError("OSRM does not support public_transport mode.")
+        raise OSRMConfigurationError(f"OSRM does not support {travel_mode} mode.")
 
     def _base_url_for_mode(self, travel_mode: TravelMode) -> str:
         if travel_mode == "driving":
@@ -237,7 +237,7 @@ class OSRMClient:
             base_url = self.settings.osrm_walking_base_url
             setting_name = "OSRM_WALKING_BASE_URL"
         else:
-            raise OSRMConfigurationError("OSRM does not support public_transport mode.")
+            raise OSRMConfigurationError(f"OSRM does not support {travel_mode} mode.")
         if not base_url:
             raise OSRMConfigurationError(f"{setting_name} is not configured.")
         if (

@@ -17,9 +17,14 @@ const _davao = GeoPoint(lat: 7.0731, lng: 125.6128, label: 'Davao City');
 const _samal = GeoPoint(lat: 7.0744, lng: 125.7087, label: 'Samal');
 const _mati = GeoPoint(lat: 6.9551, lng: 126.2185, label: 'Mati');
 
-BackendRouteResult _route({double km = 82.7, int minutes = 94, bool estimated = false}) =>
+BackendRouteResult _route({
+  double km = 82.7,
+  int minutes = 94,
+  bool estimated = false,
+  String? provider,
+}) =>
     BackendRouteResult(
-      routeProvider: estimated ? 'haversine' : 'mapbox',
+      routeProvider: provider ?? (estimated ? 'haversine' : 'mapbox'),
       isEstimated: estimated,
       totalDistanceKm: km,
       totalDurationMinutes: minutes,
@@ -33,12 +38,19 @@ void main() {
 
   group('the route summary says what kind of number it is', () {
     test('a road route shows its distance, time, mode and that it is a road route', () {
-      final line = RouteSummaryText.line(
+      final mapboxDriving = RouteSummaryText.line(
         route: _route(),
         stops: const [_samal],
         mode: 'driving',
       );
-      expect(line, '83 km • 1 h 34 min • Private car • road route');
+      expect(mapboxDriving, '83 km • 1 h 34 min • Private car • with current traffic');
+
+      final osrmDriving = RouteSummaryText.line(
+        route: _route(provider: 'osrm'),
+        stops: const [_samal],
+        mode: 'driving',
+      );
+      expect(osrmDriving, '83 km • 1 h 34 min • Private car • road route');
     });
 
     test('an estimated route is labelled an estimate', () {

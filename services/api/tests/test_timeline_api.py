@@ -451,3 +451,15 @@ def test_saving_a_trip_revision_does_not_compute_alternatives() -> None:
     from app.features.trips import timeline_service as trips
 
     assert "with_alternatives=False" in inspect.getsource(trips.TripTimelineService.save)
+
+
+# --- the way back: shown unless the traveler said it is one way ---------------------------
+
+def test_the_way_back_is_assumed_unless_the_traveler_said_one_way():
+    from app.features.planning.timeline_service import _returns_to_origin
+
+    origin = {"label": "Davao City", "lat": 7.07, "lng": 125.6}
+    assert _returns_to_origin(state(origin=origin)) is True  # never said
+    assert _returns_to_origin(state(origin=origin, return_to_origin=True)) is True
+    assert _returns_to_origin(state(origin=origin, return_to_origin=False)) is False
+    assert _returns_to_origin(state()) is False  # no start place: nothing to return to

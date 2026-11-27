@@ -83,9 +83,66 @@ class TravelRepository extends ChangeNotifier {
   MapboxStylePreset _activeMapStyle = MapboxStylePreset.outdoors;
   MapboxStylePreset get activeMapStyle => _activeMapStyle;
 
+  bool _showLiveTraffic = false;
+  bool get showLiveTraffic => _showLiveTraffic;
+  MapboxStylePreset? _styleBeforeTraffic;
+
+  bool get canToggleLiveTraffic =>
+      _activeMapStyle != MapboxStylePreset.satelliteStreets;
+
   void setMapboxStyle(MapboxStylePreset style) {
-    if (_activeMapStyle == style) return;
-    _activeMapStyle = style;
+    final prevStyle = _activeMapStyle;
+    final prevTraffic = _showLiveTraffic;
+    final prevBefore = _styleBeforeTraffic;
+
+    if (style == MapboxStylePreset.satelliteStreets) {
+      _activeMapStyle = style;
+      _showLiveTraffic = false;
+      _styleBeforeTraffic = null;
+    } else if (style == MapboxStylePreset.navigationDay) {
+      if (!_showLiveTraffic) {
+        _styleBeforeTraffic = _activeMapStyle;
+      }
+      _activeMapStyle = style;
+      _showLiveTraffic = true;
+    } else if (style == MapboxStylePreset.navigationNight) {
+      _activeMapStyle = style;
+      if (_showLiveTraffic) {
+        _styleBeforeTraffic = MapboxStylePreset.navigationNight;
+      }
+    } else {
+      _activeMapStyle = style;
+      _showLiveTraffic = false;
+      _styleBeforeTraffic = null;
+    }
+
+    if (_activeMapStyle == prevStyle &&
+        _showLiveTraffic == prevTraffic &&
+        _styleBeforeTraffic == prevBefore) {
+      return;
+    }
+    _scheduleSaveState();
+    notifyListeners();
+  }
+
+  void setLiveTrafficEnabled(bool enabled) {
+    if (enabled == _showLiveTraffic) return;
+    if (enabled) {
+      if (!canToggleLiveTraffic) return;
+      _styleBeforeTraffic = _activeMapStyle;
+      _showLiveTraffic = true;
+      _activeMapStyle = _activeMapStyle == MapboxStylePreset.navigationNight
+          ? MapboxStylePreset.navigationNight
+          : MapboxStylePreset.navigationDay;
+    } else {
+      _showLiveTraffic = false;
+      _activeMapStyle = _styleBeforeTraffic ??
+          (_activeMapStyle == MapboxStylePreset.navigationDay
+              ? MapboxStylePreset.outdoors
+              : _activeMapStyle);
+      _styleBeforeTraffic = null;
+    }
+    _scheduleSaveState();
     notifyListeners();
   }
 
@@ -637,7 +694,7 @@ class TravelRepository extends ChangeNotifier {
 
   // AI Strict Budget & Route Mode Preferences
   bool strictBudgetFilter = false;
-  String preferredTravelMode = 'driving'; // driving | public_transport | walking
+  String preferredTravelMode = 'driving'; // driving | public_transport | walking | cycling
 
   void setStrictBudgetFilter(bool value) {
     if (strictBudgetFilter == value) return;
@@ -879,6 +936,10 @@ class TravelRepository extends ChangeNotifier {
         'memories': _memories.take(60).map((m) => m.toJson()).toList(),
         'strictBudgetFilter': strictBudgetFilter,
         'preferredTravelMode': preferredTravelMode,
+        'activeMapStyle': _activeMapStyle.id,
+        'showLiveTraffic': _showLiveTraffic,
+        if (_styleBeforeTraffic != null)
+          'styleBeforeTraffic': _styleBeforeTraffic!.id,
         'chatSessions': _chatSessions.take(12).map((s) => s.toJson()).toList(),
         'activeChatId': _activeChatId,
         if (_authSession != null) 'authSession': _authSession!.toJson(),
@@ -999,8 +1060,30 @@ class TravelRepository extends ChangeNotifier {
       final savedMode = map['preferredTravelMode'] as String?;
       if (savedMode == 'driving' ||
           savedMode == 'public_transport' ||
-          savedMode == 'walking') {
+          savedMode == 'walking' ||
+          savedMode == 'cycling') {
         preferredTravelMode = savedMode!;
+      }
+      final savedMapStyleId = map['activeMapStyle'] as String?;
+      if (savedMapStyleId != null) {
+        final matched = MapboxStylePreset.values
+            .where((s) => s.id == savedMapStyleId)
+            .firstOrNull;
+        if (matched != null) _activeMapStyle = matched;
+      }
+      final savedBeforeId = map['styleBeforeTraffic'] as String?;
+      if (savedBeforeId != null) {
+        _styleBeforeTraffic = MapboxStylePreset.values
+            .where((s) => s.id == savedBeforeId)
+            .firstOrNull;
+      }
+      _showLiveTraffic = map['showLiveTraffic'] as bool? ?? false;
+      if (_activeMapStyle == MapboxStylePreset.satelliteStreets) {
+        _showLiveTraffic = false;
+        _styleBeforeTraffic = null;
+      } else if (_showLiveTraffic &&
+          _activeMapStyle != MapboxStylePreset.navigationNight) {
+        _activeMapStyle = MapboxStylePreset.navigationDay;
       }
       final sessionsList = map['chatSessions'] as List<dynamic>?;
       if (sessionsList != null && sessionsList.isNotEmpty) {
@@ -4895,6 +4978,25 @@ class TravelRepository extends ChangeNotifier {
           budgetPhp > 0;
 
       if (wantsItinerary && canGenerateValidatedItinerary) {
+        // The same builder as "Plan a trip with my picks": one timeline made in code
+        // from the picks, so asking in chat and tapping the button give the same
+        // itinerary. Only when the server cannot build it does the AI generator
+        // below run.
+        final timelineResult = await apiCatalog.fetchTimeline(
+          _authSession?.accessToken,
+          planningState: Map<String, dynamic>.from(_planningState!),
+          inputRevision: _planningRevision,
+        );
+        if (timelineResult != null) {
+          _timelineBackendTripId = null;
+          _addTimelineMessage(
+            timelineResult,
+            destinationIds: targetDestIds,
+            travelerCount: travelerCount,
+            lead: serverAi.replyText.trim().isEmpty ? null : serverAi.replyText,
+          );
+          return;
+        }
         final generated = await apiCatalog.generateAiItineraries(
           _authSession?.accessToken,
           totalBudgetPhp: budgetPhp,
@@ -5178,6 +5280,13 @@ class TravelRepository extends ChangeNotifier {
     final discoveredDestIds = <int>{...fallbackDestinationIds};
     ExploreTrip? firstMatchedCatalog;
 
+    String normIsland(String? raw) {
+      final cleaned = (raw ?? '').trim().toLowerCase();
+      return (cleaned.isEmpty || cleaned == 'davao_mainland') ? 'mainland' : cleaned;
+    }
+
+    String? prevStopIsland;
+
     for (final dRaw in rawDays) {
       if (dRaw is! Map) continue;
       final dayNum = (dRaw['day'] as num?)?.toInt() ?? (parsedDays.length + 1);
@@ -5187,24 +5296,56 @@ class TravelRepository extends ChangeNotifier {
 
       final stops = <ItineraryStop>[];
       int? dayDestId;
-      double? dayLat;
-      double? dayLng;
+      double? prevStopLat;
+      double? prevStopLng;
 
       for (final aRaw in rawActs) {
         if (aRaw is! Map) continue;
         final dId = (aRaw['destination_id'] as num?)?.toInt();
+        ExploreTrip? matchedCatalog;
         if (dId != null) {
           discoveredDestIds.add(dId);
           dayDestId ??= dId;
           for (final exp in _allTrips) {
             if (exp.apiDestinationId == dId) {
+              matchedCatalog = exp;
               firstMatchedCatalog ??= exp;
-              dayLat ??= exp.lat;
-              dayLng ??= exp.lng;
               break;
             }
           }
         }
+        final rawLat = (aRaw['lat'] as num?)?.toDouble();
+        final rawLng = (aRaw['lng'] as num?)?.toDouble();
+        final hasValidRaw = rawLat != null &&
+            rawLng != null &&
+            rawLat.isFinite &&
+            rawLng.isFinite &&
+            rawLat >= -90 &&
+            rawLat <= 90 &&
+            rawLng >= -180 &&
+            rawLng <= 180;
+        final actLat = hasValidRaw
+            ? rawLat
+            : (matchedCatalog?.lat ??
+                prevStopLat ??
+                fallbackTrip?.centerLat ??
+                MapboxService.davaoCenterLat);
+        final actLng = hasValidRaw
+            ? rawLng
+            : (matchedCatalog?.lng ??
+                prevStopLng ??
+                fallbackTrip?.centerLng ??
+                MapboxService.davaoCenterLng);
+        final actIslandGroup =
+            aRaw['island_group']?.toString() ?? matchedCatalog?.islandGroup;
+        final curIsland = normIsland(actIslandGroup);
+        final crossedSea =
+            prevStopIsland != null && prevStopIsland != curIsland;
+
+        prevStopLat = actLat;
+        prevStopLng = actLng;
+        prevStopIsland = curIsland;
+
         final actCostPhp =
             double.tryParse((aRaw['estimated_cost'] ?? '0').toString()) ?? 0.0;
         stops.add(
@@ -5212,21 +5353,32 @@ class TravelRepository extends ChangeNotifier {
             time: (aRaw['time'] ?? '09:00').toString(),
             title: (aRaw['title'] ?? 'Activity').toString(),
             description: (aRaw['description'] ?? '').toString(),
-            category: firstMatchedCatalog?.tag ?? 'Scenic',
+            category: matchedCatalog?.tag ?? firstMatchedCatalog?.tag ?? 'Scenic',
             costEstimateUsd: actCostPhp / phpRate,
-            lat: dayLat ?? fallbackTrip?.centerLat ?? MapboxService.davaoCenterLat,
-            lng: dayLng ?? fallbackTrip?.centerLng ?? MapboxService.davaoCenterLng,
+            lat: actLat,
+            lng: actLng,
+            destinationId: dId,
+            islandGroup: actIslandGroup,
+            travelFromPrevMode: crossedSea ? TransportMode.ferry : null,
+            isSeaCrossingFromPrev: crossedSea,
           ),
         );
       }
+
+      final dayLat = stops.isNotEmpty
+          ? stops.first.lat
+          : (fallbackTrip?.centerLat ?? MapboxService.davaoCenterLat);
+      final dayLng = stops.isNotEmpty
+          ? stops.first.lng
+          : (fallbackTrip?.centerLng ?? MapboxService.davaoCenterLng);
 
       parsedDays.add(
         ItineraryDay(
           dayNumber: dayNum,
           cityTitle: dayTitle,
           summary: daySummary,
-          lat: dayLat ?? fallbackTrip?.centerLat ?? MapboxService.davaoCenterLat,
-          lng: dayLng ?? fallbackTrip?.centerLng ?? MapboxService.davaoCenterLng,
+          lat: dayLat,
+          lng: dayLng,
           transportFromPrevious: dayNum > 1 ? TransportMode.car : null,
           transportDuration: dayNum > 1 ? '45m - 1h 30m scenic route' : null,
           apiDestinationId: dayDestId,
@@ -5234,6 +5386,23 @@ class TravelRepository extends ChangeNotifier {
         ),
       );
     }
+
+    final resolvedCenterPts = [
+      for (final d in parsedDays)
+        for (final s in d.stops) (s.lat, s.lng),
+    ];
+    final avgCenterLat = resolvedCenterPts.isNotEmpty
+        ? resolvedCenterPts.fold<double>(0.0, (s, p) => s + p.$1) /
+            resolvedCenterPts.length
+        : (firstMatchedCatalog?.lat ??
+            fallbackTrip?.centerLat ??
+            MapboxService.davaoCenterLat);
+    final avgCenterLng = resolvedCenterPts.isNotEmpty
+        ? resolvedCenterPts.fold<double>(0.0, (s, p) => s + p.$2) /
+            resolvedCenterPts.length
+        : (firstMatchedCatalog?.lng ??
+            fallbackTrip?.centerLng ??
+            MapboxService.davaoCenterLng);
 
     final heroRemote = preferredRemoteImageUrl ??
         fallbackTrip?.remoteImageUrl ??
@@ -5258,14 +5427,8 @@ class TravelRepository extends ChangeNotifier {
           : (fallbackTrip?.daysCount ?? 3),
       adults: fallbackTrip?.adults,
       children: fallbackTrip?.children ?? 0,
-      centerLat:
-          firstMatchedCatalog?.lat ??
-          fallbackTrip?.centerLat ??
-          MapboxService.davaoCenterLat,
-      centerLng:
-          firstMatchedCatalog?.lng ??
-          fallbackTrip?.centerLng ??
-          MapboxService.davaoCenterLng,
+      centerLat: avgCenterLat,
+      centerLng: avgCenterLng,
       heroAsset: heroLocal,
       remoteImageUrl: heroRemote,
       vibeTag: optionNumber == 1
@@ -5316,19 +5479,100 @@ class TravelRepository extends ChangeNotifier {
     );
   }
 
+  ExploreTrip? _matchCatalogPlaceByTitle(String title) {
+    final norm = title
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (norm.isEmpty) return null;
+    for (final exp in _allTrips) {
+      final expNorm = exp.title
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      if (expNorm == norm) return exp;
+    }
+    const stopWords = {
+      'davao', 'city', 'park', 'beach', 'resort', 'falls', 'island', 'the',
+      'and', 'visit', 'explore', 'morning', 'afternoon', 'tour', 'samal',
+    };
+    final titleTokens = norm
+        .split(' ')
+        .where((t) => t.length >= 3 && !stopWords.contains(t))
+        .toSet();
+    for (final exp in _allTrips) {
+      final expNorm = exp.title
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      if (expNorm.length >= 5 && (norm.contains(expNorm) || expNorm.contains(norm))) {
+        return exp;
+      }
+      if (titleTokens.length >= 2) {
+        final expTokens = expNorm
+            .split(' ')
+            .where((t) => t.length >= 3 && !stopWords.contains(t))
+            .toSet();
+        if (expTokens.length >= 2 &&
+            titleTokens.intersection(expTokens).length >= 2) {
+          return exp;
+        }
+      }
+    }
+    return null;
+  }
+
   ItineraryTrip _buildItineraryFromAi(AiPlanResult ai) {
     final fallbackCenter = MapboxService.clampToDavaoRegion(
       ai.centerLat ?? MapboxService.davaoCenterLat,
       ai.centerLng ?? MapboxService.davaoCenterLng,
     );
     final usdRate = _currencyRates['PHP'] ?? 57.0;
+    final discoveredDestIds = <int>{};
+    ExploreTrip? firstCatalog;
+    String? prevIsland;
+    double? lastLat;
+    double? lastLng;
+
+    String normIsland(String? raw) {
+      final c = (raw ?? '').trim().toLowerCase();
+      return (c.isEmpty || c == 'davao_mainland') ? 'mainland' : c;
+    }
 
     final days = ai.days.map((d) {
+      int? dayDestId;
       final stops = d.activities.map((a) {
+        ExploreTrip? matched;
+        if (a.destinationId != null) {
+          matched = _allTrips
+              .where((e) => e.apiDestinationId == a.destinationId)
+              .firstOrNull;
+        }
+        matched ??= _matchCatalogPlaceByTitle(a.title);
+        final resolvedDestId = a.destinationId ?? matched?.apiDestinationId;
+        if (resolvedDestId != null) {
+          discoveredDestIds.add(resolvedDestId);
+          dayDestId ??= resolvedDestId;
+        }
+        if (matched != null) {
+          firstCatalog ??= matched;
+        }
+
         final pos = MapboxService.clampToDavaoRegion(
-          a.lat ?? fallbackCenter.$1,
-          a.lng ?? fallbackCenter.$2,
+          a.lat ?? matched?.lat ?? lastLat ?? fallbackCenter.$1,
+          a.lng ?? matched?.lng ?? lastLng ?? fallbackCenter.$2,
         );
+        lastLat = pos.$1;
+        lastLng = pos.$2;
+
+        final island = a.islandGroup ?? matched?.islandGroup;
+        final curIsland = normIsland(island);
+        final crossedSea = prevIsland != null && prevIsland != curIsland;
+        prevIsland = curIsland;
+
         return ItineraryStop(
           time: a.time,
           title: a.title,
@@ -5337,6 +5581,10 @@ class TravelRepository extends ChangeNotifier {
           costEstimateUsd: a.estimatedCostPhp / usdRate,
           lat: pos.$1,
           lng: pos.$2,
+          destinationId: resolvedDestId,
+          islandGroup: island,
+          travelFromPrevMode: crossedSea ? TransportMode.ferry : null,
+          isSeaCrossingFromPrev: crossedSea,
         );
       }).toList();
 
@@ -5352,13 +5600,25 @@ class TravelRepository extends ChangeNotifier {
         transportFromPrevious:
             d.day > 1 ? TransportMode.car : null,
         transportDuration: d.day > 1 ? '45m - 1h 30m' : null,
+        apiDestinationId: dayDestId,
         stops: stops,
       );
     }).toList();
 
+    final resolvedPts = [
+      for (final day in days)
+        for (final stop in day.stops) (stop.lat, stop.lng),
+    ];
+    final centerLat = resolvedPts.isNotEmpty
+        ? resolvedPts.fold<double>(0.0, (s, p) => s + p.$1) / resolvedPts.length
+        : fallbackCenter.$1;
+    final centerLng = resolvedPts.isNotEmpty
+        ? resolvedPts.fold<double>(0.0, (s, p) => s + p.$2) / resolvedPts.length
+        : fallbackCenter.$2;
+
     final dest = ai.destination?.isNotEmpty == true
         ? ai.destination!
-        : 'Davao Region, Philippines';
+        : (firstCatalog?.regionName ?? 'Davao Region, Philippines');
     final title = ai.title?.isNotEmpty == true
         ? ai.title!
         : '${days.length}-Day $dest';
@@ -5368,18 +5628,24 @@ class TravelRepository extends ChangeNotifier {
       title: title,
       destination: dest,
       daysCount: ai.daysCount ?? days.length,
-      centerLat: fallbackCenter.$1,
-      centerLng: fallbackCenter.$2,
-      heroAsset: '',
+      centerLat: centerLat,
+      centerLng: centerLng,
+      heroAsset: firstCatalog?.localAssetPath ?? '',
+      remoteImageUrl: firstCatalog?.hasRemoteThumbnail == true
+          ? firstCatalog!.thumbnailUrl
+          : null,
       vibeTag: ai.vibe?.isNotEmpty == true ? ai.vibe! : 'Davao AI Route',
       overviewText: ai.replyText,
-      bestMonths: '',
+      bestMonths: firstCatalog?.bestTimeToVisit ?? '',
       avgTemp: '',
       expertName: 'Lakbay+ AI',
-      expertTip: '',
+      expertTip: firstCatalog?.travelNotes ?? '',
       days: days,
       flights: const [],
       hotels: const <HotelOffer>[],
+      backendDestinationId:
+          discoveredDestIds.isNotEmpty ? discoveredDestIds.first : null,
+      backendDestinationIds: discoveredDestIds.toList(),
       isLocalOnly: true,
     );
   }

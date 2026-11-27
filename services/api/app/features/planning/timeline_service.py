@@ -118,6 +118,11 @@ def stop_costs(destination, prices: list, state: PlanningState) -> list[CostInfo
 # ---- legs -------------------------------------------------------------------------------
 
 
+def _returns_to_origin(state: PlanningState) -> bool:
+    """Unless the traveler said it is one way, the trip is shown ending back at the start."""
+    return state.return_to_origin is not False and state.origin is not None
+
+
 def _legs(preview, destinations, state, lodging: Lodging | None = None) -> dict:
     """Route legs when a route was calculated, else straight-line estimates where safe."""
     legs: dict[tuple[int | None, int | None], LegInfo] = {}
@@ -131,7 +136,7 @@ def _legs(preview, destinations, state, lodging: Lodging | None = None) -> dict:
     points += [(d.destination_id, d.lat, d.lng) for d in destinations]
     islands = {d.destination_id for d in destinations if d.island_group}
     pairs = list(zip(points, points[1:]))
-    if state.return_to_origin and destinations:
+    if _returns_to_origin(state) and destinations:
         pairs.append((points[-1], points[0]))
     for (a_id, a_lat, a_lng), (b_id, b_lat, b_lng) in pairs:
         key = (a_id, b_id)
@@ -333,7 +338,8 @@ async def build_timeline_response(
         stops=stops, legs=_legs(preview, ordered, state, lodging),
         start_date=state.travel_start_date, day_count=state.day_count or 1,
         departure_time=state.departure_time, return_deadline=state.return_deadline,
-        pace=state.pace, return_to_origin=state.return_to_origin is True,
+        pace=state.pace, return_to_origin=_returns_to_origin(state),
+        return_assumed=state.return_to_origin is None,
         origin_label=state.origin.label if state.origin else "your starting point",
         return_label=state.return_label, traveler_count=state.traveler_count,
         child_ages=list(state.child_ages), total_budget=preview.whole_trip_budget,

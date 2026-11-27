@@ -188,8 +188,20 @@ class RouteTrail {
               bestIdx = wi;
             }
           }
-          if (bestDist <= 4000.0) {
+          if (bestDist <= 15000.0) {
             wpCursor = bestIdx;
+          } else {
+            final toLower = seg.toName.trim().toLowerCase();
+            if (toLower.isNotEmpty) {
+              for (var wi = wpCursor; wi < waypoints.length; wi++) {
+                final lbl = (waypoints[wi].label ?? '').trim().toLowerCase();
+                if (lbl.isNotEmpty &&
+                    (lbl == toLower || lbl.contains(toLower) || toLower.contains(lbl))) {
+                  wpCursor = wi;
+                  break;
+                }
+              }
+            }
           }
           dayNum = waypoints[wpCursor].dayNumber ??
               _parseDayFromLabel(waypoints[wpCursor].label) ??
@@ -335,9 +347,11 @@ class RouteTrail {
             );
             pts.add(projectGeo(sub[i], totalAnimatedMeters));
           }
-          final lastDay = animatedLegs.isNotEmpty
-              ? animatedLegs.last.dayNumber + 1
-              : 1;
+          final lastDay = waypoints.isNotEmpty
+              ? (waypoints.last.dayNumber ??
+                  _parseDayFromLabel(waypoints.last.label) ??
+                  (animatedLegs.isNotEmpty ? animatedLegs.last.dayNumber : 1))
+              : (animatedLegs.isNotEmpty ? animatedLegs.last.dayNumber : 1);
           animatedLegs.add(
             RouteTrailLeg(
               dayNumber: lastDay,
@@ -763,6 +777,7 @@ class RouteTrailPainter extends CustomPainter {
   final double currentDistanceMeters;
   final bool isSettled;
   final bool isDark;
+  final int? highlightedDayNumber;
 
   const RouteTrailPainter({
     required this.trail,
@@ -771,24 +786,28 @@ class RouteTrailPainter extends CustomPainter {
     required this.currentDistanceMeters,
     required this.isSettled,
     required this.isDark,
+    this.highlightedDayNumber,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     // 1. Estimated (unrouted) legs are ALWAYS drawn statically dashed grey.
-    final estColor = RouteTrail.colorForDay(
+    final baseEstColor = RouteTrail.colorForDay(
       1,
       RouteTrailMode.estimated,
       isDark: isDark,
     );
-    final estPaint = Paint()
-      ..color = estColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..strokeCap = StrokeCap.round;
-    for (final (_, pts) in estimatedProjectedLegs) {
-      if (pts.length < 2) continue;
-      _drawDashedScreenPolyline(canvas, pts, estPaint, dash: 8.0, gap: 7.0);
+    for (final (leg, pts) in estimatedProjectedLegs) {
+      final safePts = _sanitizeScreenPoints(pts);
+      if (safePts.length < 2) continue;
+      final dimmed = highlightedDayNumber != null &&
+          leg.dayNumber != highlightedDayNumber;
+      final estPaint = Paint()
+        ..color = dimmed ? baseEstColor.withValues(alpha: 0.24) : baseEstColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = dimmed ? 1.8 : 2.4
+        ..strokeCap = StrokeCap.round;
+      _drawDashedScreenPolyline(canvas, safePts, estPaint, dash: 8.0, gap: 7.0);
     }
 
     if (animatedProjectedLegs.isEmpty) return;
@@ -802,18 +821,29 @@ class RouteTrailPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round;
       for (final (_, rawPts) in animatedProjectedLegs) {
-        final pts = RouteTrail.simplifyScreenPolyline(rawPts, tolerancePx: 1.0);
+        final safeRaw = _sanitizeScreenPoints(rawPts);
+        final pts = RouteTrail.simplifyScreenPolyline(safeRaw, tolerancePx: 1.0);
         if (pts.length < 2) continue;
         canvas.drawPath(_buildPath(pts), ghostPaint);
       }
     }
 
-    // 3. Draw each animated road or sea leg up to currentDistanceMeters.
+    // 3. Draw each animated road or sea leg up to currentDistanceMeters,
+    // drawing non-highlighted days underneath when a day filter is active.
     final effectiveMeters =
         isSettled ? trail.totalAnimatedMeters : currentDistanceMeters;
+    final orderedLegs = highlightedDayNumber == null
+        ? animatedProjectedLegs
+        : [
+            for (final entry in animatedProjectedLegs)
+              if (entry.$1.dayNumber != highlightedDayNumber) entry,
+            for (final entry in animatedProjectedLegs)
+              if (entry.$1.dayNumber == highlightedDayNumber) entry,
+          ];
 
-    for (final (leg, rawPts) in animatedProjectedLegs) {
-      final pts = RouteTrail.simplifyScreenPolyline(rawPts, tolerancePx: 1.0);
+    for (final (leg, rawPts) in orderedLegs) {
+      final safeRaw = _sanitizeScreenPoints(rawPts);
+      final pts = RouteTrail.simplifyScreenPolyline(safeRaw, tolerancePx: 1.0);
       if (pts.length < 2) continue;
       final legLen = leg.lengthMeters;
       if (legLen <= 0.0 || effectiveMeters < leg.startMeters) continue;
@@ -827,19 +857,23 @@ class RouteTrailPainter extends CustomPainter {
       final revealedPath = legProgress >= 0.9999
           ? fullPath
           : RouteTrail.trimmedPath(fullPath, legProgress);
-      final legColor =
+      final isDimmed = highlightedDayNumber != null &&
+          leg.dayNumber != highlightedDayNumber;
+      final rawColor =
           RouteTrail.colorForDay(leg.dayNumber, leg.mode, isDark: isDark);
+      final legColor =
+          isDimmed ? rawColor.withValues(alpha: 0.24) : rawColor;
 
       if (leg.mode == RouteTrailMode.sea) {
         final casingPaint = Paint()
-          ..color = Colors.white.withValues(alpha: 0.88)
+          ..color = Colors.white.withValues(alpha: isDimmed ? 0.30 : 0.88)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 6.2
+          ..strokeWidth = isDimmed ? 4.2 : 6.2
           ..strokeCap = StrokeCap.round;
         final seaPaint = Paint()
           ..color = legColor
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 3.8
+          ..strokeWidth = isDimmed ? 2.6 : 3.8
           ..strokeCap = StrokeCap.round;
         _drawDashedPath(canvas, revealedPath, casingPaint, dash: 10.0, gap: 6.0);
         _drawDashedPath(canvas, revealedPath, seaPaint, dash: 10.0, gap: 6.0);
@@ -850,20 +884,20 @@ class RouteTrailPainter extends CustomPainter {
       canvas.drawPath(
         revealedPath,
         Paint()
-          ..color = Colors.white.withValues(alpha: 0.90)
+          ..color = Colors.white.withValues(alpha: isDimmed ? 0.35 : 0.90)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 6.8
+          ..strokeWidth = isDimmed ? 4.4 : 6.8
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round,
       );
 
-      if (isSettled || legProgress >= 0.9999) {
+      if (isSettled || legProgress >= 0.9999 || isDimmed) {
         canvas.drawPath(
           revealedPath,
           Paint()
             ..color = legColor
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 4.2
+            ..strokeWidth = isDimmed ? 2.6 : 4.2
             ..strokeCap = StrokeCap.round
             ..strokeJoin = StrokeJoin.round,
         );
@@ -980,6 +1014,17 @@ class RouteTrailPainter extends CustomPainter {
     }
   }
 
+  static List<Offset> _sanitizeScreenPoints(List<Offset> pts) {
+    return [
+      for (final p in pts)
+        if (p.dx.isFinite &&
+            p.dy.isFinite &&
+            p.dx.abs() < 1e6 &&
+            p.dy.abs() < 1e6)
+          p,
+    ];
+  }
+
   static void _drawDashedPath(
     Canvas canvas,
     Path path,
@@ -988,9 +1033,15 @@ class RouteTrailPainter extends CustomPainter {
     double gap = 6.0,
   }) {
     for (final metric in path.computeMetrics()) {
-      for (var d = 0.0; d < metric.length; d += dash + gap) {
-        final end = math.min(d + dash, metric.length);
-        canvas.drawPath(metric.extractPath(d, end), paint);
+      final len = metric.length;
+      if (!len.isFinite || len <= 0.0) continue;
+      final step = math.max(dash + gap, len / 400.0);
+      final effectiveDash = math.min(dash, step * 0.65);
+      for (var d = 0.0; d < len; d += step) {
+        final end = math.min(d + effectiveDash, len);
+        if (end > d) {
+          canvas.drawPath(metric.extractPath(d, end), paint);
+        }
       }
     }
   }
@@ -1000,6 +1051,7 @@ class RouteTrailPainter extends CustomPainter {
       oldDelegate.currentDistanceMeters != currentDistanceMeters ||
       oldDelegate.isSettled != isSettled ||
       oldDelegate.isDark != isDark ||
+      oldDelegate.highlightedDayNumber != highlightedDayNumber ||
       oldDelegate.trail != trail ||
       oldDelegate.animatedProjectedLegs != animatedProjectedLegs ||
       oldDelegate.estimatedProjectedLegs != estimatedProjectedLegs;

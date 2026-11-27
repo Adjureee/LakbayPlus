@@ -43,17 +43,17 @@ class AnalyticsService {
   final SharedPreferences? prefs;
   final DateTime Function() _clock;
 
-  bool _enabled = true;
+  bool _enabled = false;
 
-  /// On by default and switchable in Settings. Kept apart from the saved trips,
-  /// so signing out or resetting the app does not turn it back on.
+  /// Off by default (opt-in) and switchable in Settings. Kept apart from the
+  /// saved trips, so signing out or resetting the app does not change it.
   bool get enabled => _enabled;
 
   /// Reads the saved choice, remembers the first launch, and applies the choice
   /// to the underlying collection before anything is sent.
   Future<void> start() async {
     final store = prefs;
-    _enabled = store?.getBool(enabledKey) ?? true;
+    _enabled = store?.getBool(enabledKey) ?? false;
     if (store != null && store.getInt(firstLaunchKey) == null) {
       await store.setInt(firstLaunchKey, _clock().millisecondsSinceEpoch);
     }

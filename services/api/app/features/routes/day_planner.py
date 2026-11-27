@@ -349,7 +349,15 @@ def _linear_partition(
         return load
 
     def block_violations(start: int, end: int) -> int:
-        return sum(1 for i in range(start, end) if ordered_stops[i].forces_day_end)
+        overnight_viols = sum(
+            1 for i in range(start, end) if ordered_stops[i].forces_day_end
+        )
+        island_switches = sum(
+            1
+            for i in range(start, end)
+            if ordered_stops[i].normalized_island != ordered_stops[i + 1].normalized_island
+        )
+        return overnight_viols * 10 + island_switches
 
     total_load = prefix_visit[s] + prefix_leg[s] + origin_transit_hours + return_transit_hours
     mean_load = total_load / days

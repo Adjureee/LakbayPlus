@@ -4,6 +4,7 @@ Times are local (Asia/Manila) wall-clock times. A place with no rows has unknown
 callers show "not listed", never "closed".
 """
 
+import re
 from collections.abc import Iterable
 from datetime import date, time
 from typing import Protocol
@@ -87,3 +88,46 @@ def hours_on(
     if all(row.is_closed for row in rows):
         return "closed", []
     return "open", sorted((r.opens_at, r.closes_at) for r in rows if not r.is_closed)
+
+
+_TIME_RANGE = re.compile(
+    r"(?<![\d:])(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:-|–|—|to)\s*"
+    r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?(?![\d:])",
+    re.IGNORECASE,
+)
+_NOT_ONE_WINDOW = re.compile(r"\b(?:off|closed|except|varies|vary|confirm|check|unknown|holiday)", re.IGNORECASE)
+
+
+def _listed_clock(hour: str, minute: str | None, meridiem: str | None) -> time | None:
+    h, m = int(hour), int(minute or 0)
+    if m > 59:
+        return None
+    if meridiem:
+        if not 1 <= h <= 12:
+            return None
+        return time(h % 12 + (12 if meridiem.lower() == "pm" else 0), m)
+    return time(h, m) if h <= 23 else None
+
+
+def listed_opening(text: str | None) -> time | None:
+    """The opening time of hours written as free text, only when the text clearly gives
+    one daily window ("10:00 AM - 5:00 PM", "Mo-Su 08:00-17:30").
+
+    Anything else (several windows, "Su off", "varies", "confirm", a closing time before
+    the opening time) gives None, so an unclear text is never read as a schedule. The
+    result is a planning hint: text hours are not verified hours.
+    """
+    if not text or _NOT_ONE_WINDOW.search(text):
+        return None
+    found = list(_TIME_RANGE.finditer(text))
+    if len(found) != 1:
+        return None
+    h1, m1, ap1, h2, m2, ap2 = found[0].groups()
+    if bool(ap1) != bool(ap2):
+        return None
+    if not ap1 and not (m1 and m2):  # "5-10" could be a date range, not a time range
+        return None
+    opens, closes = _listed_clock(h1, m1, ap1), _listed_clock(h2, m2, ap2)
+    if opens is None or closes is None or closes <= opens:
+        return None
+    return opens

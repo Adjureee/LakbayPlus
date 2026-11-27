@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'dart:ui';
+import 'package:flutter/painting.dart';
 import '../models/travel_models.dart';
 import 'env_config.dart';
 
@@ -47,6 +47,12 @@ class MapboxService {
     );
   }
 
+  String tileAttribution(MapboxStylePreset style) {
+    if (hasValidToken) return '© Mapbox';
+    if (style == MapboxStylePreset.satelliteStreets) return '© Esri';
+    return '© OpenStreetMap';
+  }
+
   /// Builds a 256px slippy tile URL for the given Mapbox style preset and (z, x, y).
   /// Uses official Mapbox Style Tiles API when a valid `pk.` token is configured,
   /// and falls back to Carto/OSM standard Web-Mercator tiles when no token is set yet.
@@ -62,6 +68,7 @@ class MapboxService {
     switch (style) {
       case MapboxStylePreset.satelliteStreets:
         return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$z/$y/$x';
+      case MapboxStylePreset.navigationDay:
       case MapboxStylePreset.navigationNight:
       case MapboxStylePreset.coastalLight:
       case MapboxStylePreset.outdoors:
@@ -174,11 +181,22 @@ class MapboxService {
     return r * c;
   }
 
-  /// Computes an ideal camera center (lat, lng) and zoom level to fit [points].
+  /// Computes an ideal camera center (lat, lng) and zoom level to fit [points],
+  /// accounting for optional [viewportSize] and UI [padding].
   static (double centerLat, double centerLng, double zoom)
-      computeBoundsCenterAndZoom(List<GeoPoint> points) {
+      computeBoundsCenterAndZoom(
+    List<GeoPoint> points, {
+    Size? viewportSize,
+    EdgeInsets padding = EdgeInsets.zero,
+  }) {
     if (points.isEmpty) return (davaoCenterLat, davaoCenterLng, 8.5);
-    if (points.length == 1) return (points.first.lat, points.first.lng, 10.2);
+    if (points.length == 1) {
+      return (
+        points.first.lat,
+        points.first.lng,
+        viewportSize != null ? 12.5 : 10.2,
+      );
+    }
 
     double minLat = points.first.lat;
     double maxLat = points.first.lat;
@@ -192,21 +210,53 @@ class MapboxService {
       if (p.lng > maxLng) maxLng = p.lng;
     }
 
+    if (viewportSize != null &&
+        viewportSize.width > 40 &&
+        viewportSize.height > 40) {
+      final availW =
+          math.max(48.0, viewportSize.width - padding.horizontal) * 0.85;
+      final availH =
+          math.max(48.0, viewportSize.height - padding.vertical) * 0.85;
+      final (minX, minY) = latLngToTileXY(maxLat, minLng, 0.0);
+      final (maxX, maxY) = latLngToTileXY(minLat, maxLng, 0.0);
+      final dx = (maxX - minX).abs() * 256.0;
+      final dy = (maxY - minY).abs() * 256.0;
+
+      final zoomX = dx > 1e-6 ? math.log(availW / dx) / math.ln2 : 14.5;
+      final zoomY = dy > 1e-6 ? math.log(availH / dy) / math.ln2 : 14.5;
+      final zoom = math.min(zoomX, zoomY).clamp(6.5, 15.0);
+
+      final (midTileX, midTileY) = (
+        (minX + maxX) / 2.0 * math.pow(2.0, zoom),
+        (minY + maxY) / 2.0 * math.pow(2.0, zoom),
+      );
+      final camTileX =
+          midTileX + (padding.right - padding.left) / (2.0 * 256.0);
+      final camTileY =
+          midTileY + (padding.bottom - padding.top) / (2.0 * 256.0);
+      final (cLat, cLng) = tileXYToLatLng(camTileX, camTileY, zoom);
+      return (cLat, cLng, zoom);
+    }
+
     final centerLat = (minLat + maxLat) / 2.0;
     final centerLng = (minLng + maxLng) / 2.0;
     final span = math.max((maxLat - minLat).abs(), (maxLng - minLng).abs());
 
     double zoom = 9.0;
     if (span > 2.2) {
-      zoom = 7.6;
+      zoom = 7.5;
     } else if (span > 1.2) {
-      zoom = 8.4;
+      zoom = 8.2;
     } else if (span > 0.6) {
-      zoom = 9.3;
+      zoom = 9.2;
     } else if (span > 0.25) {
       zoom = 10.2;
-    } else {
+    } else if (span > 0.12) {
       zoom = 11.2;
+    } else if (span > 0.05) {
+      zoom = 11.8;
+    } else {
+      zoom = 12.6;
     }
 
     return (centerLat, centerLng, zoom);

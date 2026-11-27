@@ -158,7 +158,7 @@ class RecommendationService:
             (data.requires_pet_friendly, "is_pet_friendly"),
             (data.requires_elderly_friendly, "is_elderly_friendly"),
         )
-        road_mode = data.travel_mode in {"driving", "walking"}
+        road_mode = data.travel_mode in {"driving", "walking", "cycling"}
         skipped = TopPlacesSkipped()
         interest_match_count = 0
         candidates: list[_TopPlaceCandidate] = []
@@ -371,7 +371,7 @@ class RecommendationService:
         query_request = TopPlacesRequest(
             interests=norm_cats[:15],
             origin=origin,
-            travel_mode=travel_mode if travel_mode in {"driving", "public_transport", "walking"} else "driving",
+            travel_mode=travel_mode if travel_mode in {"driving", "public_transport", "walking", "cycling"} else "driving",
             total_budget=total_budget,
             budget_scope="per_person" if budget_scope == "per_person" else "whole_trip",
             traveler_count=traveler_count,
@@ -1350,7 +1350,12 @@ def _whole_minutes(seconds: float) -> int:
     return max(1, round(seconds / 60)) if seconds > 0 else 0
 
 
-_MODE_WORDS = {"driving": "by car", "walking": "on foot", "public_transport": "by commute"}
+_MODE_WORDS = {
+    "driving": "by car",
+    "walking": "on foot",
+    "cycling": "by bike",
+    "public_transport": "by commute",
+}
 
 
 def _top_place_reasons(

@@ -18,7 +18,7 @@ from datetime import date, time, timedelta
 from decimal import Decimal
 from typing import Literal
 
-from app.features.destinations.hours import clock_text, hours_on
+from app.features.destinations.hours import clock_text, hours_on, listed_opening
 from app.features.planning.draft import _STAY_DURATION_MINUTES
 from app.features.planning.timeline_checks import build_checks
 from app.features.planning.timeline_schemas import (
@@ -128,6 +128,9 @@ class TimelineInput:
     return_deadline: time | None = None
     pace: str | None = None
     return_to_origin: bool = False
+    # The traveler never said whether the trip returns, so the way back is shown as an
+    # assumption (they can say "one way").
+    return_assumed: bool = False
     origin_label: str = "your starting point"
     return_label: str | None = None
     traveler_count: int | None = None
@@ -378,8 +381,15 @@ class _Builder:
             return arrival, None, "verified", "Open 24 hours."
         on = self._date()
         if not hours.structured:
-            note = ("Hours are listed only as text, so they are not checked: "
-                    f"{hours.text}." if hours.text else "Opening hours are not recorded.")
+            if not hours.text:
+                return arrival, None, "unverified", "Opening hours are not recorded."
+            note = f"Hours are listed only as text, so they are not checked: {hours.text}."
+            # A clear listed opening time still keeps the visit from starting before the
+            # place opens; the hours stay unverified and nothing else is checked.
+            opens = listed_opening(hours.text)
+            if opens is not None and to_minutes(opens) > arrival:
+                return to_minutes(opens), None, "unverified", (
+                    f"{note} The visit starts at the listed opening time, {clock_text(opens)}.")
             return arrival, None, "unverified", note
         if on is None:
             return arrival, None, "unverified", (
@@ -545,7 +555,7 @@ class _Builder:
 
 
 def summarize_budget(inp: TimelineInput, days: list[TimelineDay]) -> BudgetSummary:
-    known = estimated = unbased_total = Decimal("0")
+    known = estimated = unbased_total = unbased_floor = Decimal("0")
     unknown: list[str] = []
     unbased: list[str] = []
     notes: list[str] = []
@@ -572,6 +582,7 @@ def summarize_budget(inp: TimelineInput, days: list[TimelineDay]) -> BudgetSumma
                     estimated += amount
                     if not cost.basis_recorded:
                         unbased_total += amount
+                        unbased_floor += cost.amount  # read as one price for the whole trip
                         unbased.append(f"{cost.label} ({item.label}): about \u20b1{amount:,.0f}")
     subtotal = known + estimated
     budget = inp.total_budget
@@ -584,6 +595,14 @@ def summarize_budget(inp: TimelineInput, days: list[TimelineDay]) -> BudgetSumma
         fit = "undetermined"
     elif decided > budget:
         fit = "over_budget"
+    elif decided + unbased_floor > budget:
+        # An estimate with no recorded basis may be per person or per trip, but the cheaper
+        # reading (per trip) is already over the budget, so the trip is over either way.
+        fit = "over_budget"
+        notes.append(
+            f"Even if the catalog estimates are for the whole trip rather than per person, "
+            f"the costs come to about ₱{decided + unbased_floor:,.0f}, above your "
+            f"₱{budget:,.0f} budget.")
     else:
         fit = "fits_known_costs" if complete and not unbased else "undetermined"
     if not complete:
@@ -620,6 +639,10 @@ def build_timeline(inp: TimelineInput) -> Timeline:
     assumptions = []
     if inp.departure_time is None:
         assumptions.append("The day starts at 8:00 (a planning default): no departure time was given.")
+    if inp.return_assumed and inp.return_to_origin and inp.stops:
+        assumptions.append(
+            f"The trip is shown ending back at {inp.return_label or inp.origin_label}: "
+            "you have not said whether it is one way. Say \"one way\" to leave the return out.")
     if inp.include_meals:
         assumptions.append("Lunch at 12:00 for 60 minutes and 15-minute buffers between stops "
                            "are planning defaults.")

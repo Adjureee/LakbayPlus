@@ -10,6 +10,8 @@ class AiGeneratedActivity {
   final double? lng;
   final double estimatedCostPhp;
   final String category;
+  final int? destinationId;
+  final String? islandGroup;
 
   const AiGeneratedActivity({
     required this.time,
@@ -19,6 +21,8 @@ class AiGeneratedActivity {
     this.lng,
     this.estimatedCostPhp = 0,
     this.category = 'activity',
+    this.destinationId,
+    this.islandGroup,
   });
 }
 
@@ -171,6 +175,8 @@ class LakbayAiService {
                   estimatedCostPhp:
                       (a['estimated_cost_php'] as num?)?.toDouble() ?? 0,
                   category: (a['category'] ?? 'activity').toString(),
+                  destinationId: (a['destination_id'] as num?)?.toInt(),
+                  islandGroup: a['island_group']?.toString(),
                 ))
             .toList();
 
