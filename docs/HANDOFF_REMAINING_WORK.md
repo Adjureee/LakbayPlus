@@ -18,13 +18,13 @@ For an agent or person continuing the work. **Every statement below is either (a
 | Fact | Command | Result seen |
 |---|---|---|
 | Date | `date` | 2026-11-27 |
-| Branch tips | `git rev-parse --short main origin/main` and `feat/cycling-traffic` | `main` = `origin/main` = `7f96ddb`; `feat/cycling-traffic` through `a29a843` (+ this handoff update) |
+| Branch tips | `git rev-parse --short main origin/main` and `feat/cycling-traffic` | `main` = `origin/main` = `7f96ddb`; `feat/cycling-traffic` at `7b9c172` (+ D6 handoff update) |
 | Working tree | `git status --short` | only `?? apps/traveler_app/android/app/google-services.json` (untracked on purpose) |
 | Recent main | `git log main --oneline -9` | F3 `7ef60aa`/`7f96ddb`, F2 `31a2ce9`/`ded5d88`, F1 `ddc2a89`/`599cb7c`, analytics `7424ffe`/`7560692` |
 | Flutter analyze | `flutter analyze --no-pub` in `apps/traveler_app` (on D7 `21a1cbd`) | 1 issue: pre-existing warning at `test/profile_history_abc_test.dart:17:25` (ran in 17.5s) |
 | Flutter tests | `flutter test --no-pub -j 2` in `apps/traveler_app` (on D3 `d8d4931` and D7 `21a1cbd`) | `+374: All tests passed!` |
 | **Full backend suite (A1)** | `cd services/api; ./.venv/Scripts/python.exe -m pytest -q` (on `f429140`) | `1313 passed, 1 skipped, 87 warnings in 943.53s (0:15:43)` (0 failed). Skipped: `tests/test_app_assessments_postgres.py:184` (`LAKBAY_ASSESSMENT_TEST_DATABASE_URL` not set — live Postgres test **UNVERIFIED**) |
-| PRs | `gh pr create --base main --head feat/cycling-traffic` | PR opened for `feat/cycling-traffic` -> `main` (not merged) |
+| PRs | `gh pr list --head feat/cycling-traffic --state open` | PR #2 open (`https://github.com/Adjureee/LakbayPlus/pull/2`, `feat/cycling-traffic` -> `main`, not merged) |
 | Local git cleanup (A2) | `git worktree list`, `git stash list`, `git branch -v` | Only repo root worktree registered; `stash@{0}` dropped; `feat/analytics`, `feat/ux-f1..f3` deleted; branch `claude/keen-tereshkova-4312aa` kept; leftover folder `.claude/worktrees/keen-tereshkova-4312aa` unregistered from git but locked on disk by another Windows process |
 | Backup branches | `git branch --list "backup/*"`, `git for-each-ref refs/original` | Kept intact: `backup/pre-rewrite-main` (`1a2b14d`), `backup/pre-strip-main` (`cd0fc41`), `refs/original/refs/heads/main` (`1a2b14d`) |
 | History rewrite | `git reflog show main -3 --date=iso` | `main@{2026-11-27 01:55:00 +0800}: filter-branch: rewrite` (129 trailers removed per owner's request; **every hash on main changed**) |
@@ -41,7 +41,7 @@ For an agent or person continuing the work. **Every statement below is either (a
 - **Standing contract:** `docs/AGENT_AUTONOMY.md` (`aba54a4`).
 - **A1 (full backend suite):** `1313 passed, 1 skipped` on `f429140`.
 - **A2 (local git cleanup):** deleted `feat/analytics`, `feat/ux-f1..f3`, `stash@{0}`, and unregistered all 5 worktrees (backups preserved).
-- **D3, D4, D5, D7, D9:** plain route labels (`d8d4931`), `"Top 5 for you"` rename (`9b74e87`), 8-kind category taxonomy proposal (`96aa821`), opt-in analytics + consent prompt design doc (`21a1cbd`), removed outdated summary PDF & commute drafts JSON (`a29a843`).
+- **D3, D4, D5, D6, D7, D9:** plain route labels (`d8d4931`), `"Top 5 for you"` rename (`9b74e87`), 8-kind category taxonomy proposal (`96aa821`), live deactivation of duplicate `"Sky Deck Garden Cafe and Restaurant"` id `47` (`is_active=false`, 63 -> 62 active places, id `46` kept), opt-in analytics + consent prompt design doc (`21a1cbd`), removed outdated summary PDF & commute drafts JSON (`a29a843`).
 - **Project skills** under `.claude/skills/` (Claude Code format; their command lists are still a valid reference): `lakbay-verify`, `lakbay-ai-accuracy`, `lakbay-routing-geo`.
 
 ## 3. Tasks only the owner or a device can do (do not simulate)
@@ -74,7 +74,7 @@ For an agent or person continuing the work. **Every statement below is either (a
 | D3 | **Done (`d8d4931`):** plain-word route labels in `travel_models.dart` and `explore_screen.dart:2496-2497` | `Shortest order` / `Optimized order` / `Nearest stop first` / `Your stop order`; `Road distances` / `Straight-line estimate`; `+374` Flutter tests green | closed |
 | D4 | **Done (`9b74e87`):** renamed `"Top-5 Match"` to `"Top 5 for you"` | `explore_screen.dart:332` and `high_grade_planner_test.dart:309`; tests green | closed |
 | D5 | **Done — proposal only (`96aa821`):** 8-kind category taxonomy | `docs/CATEGORY_TAXONOMY_PROPOSAL.md` (45 snapshot categories -> 8 kinds; live DB **UNVERIFIED**) | owner review before any data/backend change |
-| D6 | **Pending (skipped):** deactivate duplicate `"Sky Deck Garden Cafe and Restaurant"` (id `47`) | approved for id `47` only; skipped because `LAKBAY_ADMIN_EMAIL` and `LAKBAY_ADMIN_PASSWORD` were unset in the environment. Live DB records **UNVERIFIED** (snapshot `catalog.json` shows ids `46` and `47` differ only on `destination_id`, `created_at`, `updated_at`) | set env vars and re-run D6 procedure |
+| D6 | **Done (2026-11-27):** deactivated duplicate `"Sky Deck Garden Cafe and Restaurant"` id `47` on `https://lakbay-api-rioi.onrender.com/api/v1` | Live check compared 49 fields on ids `46` and `47` (only `destination_id`, `created_at`, `updated_at` differed); backed up both records outside git in scratchpad; `DELETE /destinations/47` -> HTTP 200 (`is_active=false`, `updated_at=2026-11-27T03:00:38.623127Z`); public `GET /destinations` now returns 62 active records with Sky Deck once (`id=46`). Reversible via `PATCH /destinations/47` `{"is_active": true}` | closed |
 | D7 | **Done (`21a1cbd`):** analytics switched to opt-in (off by default) + consent prompt design doc | `analytics_service.dart`, `firebase_analytics_setup.dart`, `settings_screen.dart`, `analytics_service_test.dart` (`+374` green); design proposal at `docs/ANALYTICS_CONSENT_PROMPT_DESIGN.md` (not implemented) | publish privacy notice & approve prompt implementation later |
 | D8 | **Closed (no change):** `place_added` event scope | owner decided no change | closed |
 | D9 | **Done (`a29a843`):** removed `docs/Lakbay_Project_Summary.pdf` and `docs/commute_drafts_review.json` | `git rm` + `git ls-files` empty | closed |
