@@ -74,7 +74,7 @@ For an agent or person continuing the work. **Every statement below is either (a
 | D6 | Duplicate record "Sky Deck Garden Cafe and Restaurant" | appears twice in the snapshot (the earlier audit also noted ids 46 and 47) | which record to keep (data change) |
 | D7 | Analytics is on by default with a Settings opt-out | `analytics_service.dart` (`enabled` defaults to true); `settings_screen.dart` toggle | whether that meets the owner's privacy-notice obligations; alternative is opt-in |
 | D8 | `place_added` counts only adds through `toggleTripBuilderStop`, not AI-driven adds | `travel_repository.dart` (grep `analytics.placeAdded`) | whether AI adds should count |
-| D9 | `docs/Lakbay_Project_Summary.pdf` and `docs/commute_drafts_review.json` were committed as they were found, unreviewed | commit `2a41c08` | keep in the repo or remove |
+| D9 | **Done:** removed `docs/Lakbay_Project_Summary.pdf` and `docs/commute_drafts_review.json` (out of date, unreferenced, no secrets/PII) | `git rm` + `git ls-files` empty | closed |
 | D10 | Next plan phases not started: **F4** Home "continue your trip" card and popular row; **F5** "Show on map" on chat results; **F6** research spikes (offline, share link, ratings, guest-first) | `docs/FLAGSHIP_UX_PLAN.md` headings `### F4`, `### F5`, `### F6` | gates: G2 needs user-test round 2; G3 needs two weeks of analytics (plan section 1a). F6 items each need their own approval |
 
 ## 6. Known limits (do not treat as bugs found today)
