@@ -69,3 +69,12 @@ def test_priority_order_rejects_unknown_and_repeated_priorities():
         PlanningState(priority_order=["not_a_priority"])
     with pytest.raises(ValidationError):
         PlanningState(priority_order=["quiet", "quiet"])
+
+
+def test_travel_start_date_question_asks_for_a_specific_day():
+    from app.features.ai.conversation_stage import QUESTIONS
+
+    prompt = QUESTIONS["travel_start_date"]
+    assert "just the month" not in prompt.lower()
+    assert "day" in prompt.lower()
+

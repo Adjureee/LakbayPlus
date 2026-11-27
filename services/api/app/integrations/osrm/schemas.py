@@ -20,6 +20,10 @@ class OSRMLeg:
     distance_meters: float
     duration_seconds: float
     steps: list[OSRMStep] = field(default_factory=list)
+    duration_typical_seconds: float | None = None
+    congestion_levels: list[str] = field(default_factory=list)
+    annotation_distances: list[float] = field(default_factory=list)
+    annotation_durations: list[float] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -46,6 +50,8 @@ class OSRMRouteResult:
     # Per requested coordinate: where it joined the road (lat, lng) and how
     # far it was moved in meters; None when the router did not say.
     waypoint_snaps: list[tuple[float, float, float] | None] = field(default_factory=list)
+    duration_typical_seconds: float | None = None
+    live_traffic_requested: bool = False
 
 
 @dataclass(frozen=True)

@@ -1,8 +1,16 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, PositiveInt, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    PositiveInt,
+    field_validator,
+    model_validator,
+)
 
 from app.features.routes.schemas import TravelMode
 
@@ -301,11 +309,19 @@ class TripListItemResponse(BaseModel):
     total_budget: Decimal
     estimated_total_cost: Decimal
     status: str
+    completed_at: datetime | None = None
     notes: str | None
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("completed_at", "created_at", "updated_at", mode="before")
+    @classmethod
+    def _ensure_utc_datetime(cls, value: object) -> object:
+        if isinstance(value, datetime) and value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
 
 
 class TripResponse(TripListItemResponse):

@@ -309,16 +309,28 @@ class TripService:
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
-        if values.get("status") == "archived" and trip.owner_user_id != user.user_id:
+        new_status = values.get("status")
+        if new_status == "archived" and trip.owner_user_id != user.user_id:
             raise LakbayAPIError(
                 "Only the trip owner can perform this action.",
                 code="trip_owner_required",
                 status_code=status.HTTP_403_FORBIDDEN,
             )
+        if trip.status == "archived" and new_status is not None and new_status != "archived":
+            raise LakbayAPIError(
+                "Archived trips cannot change status.",
+                code="trip_archived_immutable",
+                status_code=status.HTTP_409_CONFLICT,
+            )
 
         start_date = values.get("start_date", trip.start_date)
         end_date = values.get("end_date", trip.end_date)
         _validate_date_range(start_date, end_date)
+
+        if new_status == "completed" and trip.status != "completed":
+            trip.completed_at = datetime.now(UTC)
+        elif new_status is not None and new_status != "completed":
+            trip.completed_at = None
 
         for field, value in values.items():
             setattr(trip, field, value)
@@ -1026,6 +1038,7 @@ def _trip_response(
         total_budget=trip.total_budget,
         estimated_total_cost=trip.estimated_total_cost,
         status=trip.status,
+        completed_at=trip.completed_at,
         notes=trip.notes,
         created_at=trip.created_at,
         updated_at=trip.updated_at,

@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Numeric,
@@ -70,6 +71,15 @@ class Destination(Base):
             "(typical_visit_min_minutes IS NULL OR typical_visit_max_minutes IS NULL OR "
             "typical_visit_min_minutes <= typical_visit_max_minutes)",
             name="ck_destinations_typical_visit",
+        ),
+        CheckConstraint(
+            "media_type IS NULL OR media_type IN ('image', 'gif', 'video')",
+            name="ck_destinations_media_type",
+        ),
+        CheckConstraint(
+            "media_duration_seconds IS NULL OR "
+            "(media_duration_seconds >= 0 AND media_duration_seconds <= 15.0)",
+            name="ck_destinations_media_duration",
         ),
         Index("ix_destinations_geom", "geom", postgresql_using="gist"),
     )
@@ -138,6 +148,11 @@ class Destination(Base):
     image_credit: Mapped[str | None] = mapped_column(String(500))
     image_license: Mapped[str | None] = mapped_column(String(100))
     image_source_url: Mapped[str | None] = mapped_column(Text)
+    # Optional destination GIF / short video clip (migration 2026_11_27_0415).
+    media_url: Mapped[str | None] = mapped_column(Text)
+    media_type: Mapped[str | None] = mapped_column(String(20))
+    media_public_id: Mapped[str | None] = mapped_column(String(255))
+    media_duration_seconds: Mapped[float | None] = mapped_column(Float)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

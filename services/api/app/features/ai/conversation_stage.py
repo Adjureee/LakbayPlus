@@ -25,7 +25,7 @@ QUESTIONS = {
     "day_count": "How many days do you have?",
     "total_budget": "What budget do you have in mind?",
     "activity_level": "How active do you want to be: easy, moderate, or challenging?",
-    "travel_start_date": "When are you travelling? A date or just the month is fine.",
+    "travel_start_date": "When are you travelling? Pick a day (for example, Dec 5 or tomorrow).",
     "prefers_quiet": "Do you prefer quiet places or popular ones?",
 }
 

@@ -91,7 +91,8 @@ class Settings(BaseSettings):
     # driving-traffic uses live traffic for previews; ordering always uses driving.
     mapbox_directions_profile_driving: str = "driving-traffic"
     mapbox_directions_timeout_seconds: int = Field(default=15, ge=1, le=60)
-    route_max_destinations: int = Field(default=10, ge=1, le=25)
+    route_max_destinations: int = Field(default=50, ge=1, le=100)
+    route_chunk_max_coordinates: int = Field(default=25, ge=2, le=25)
     route_requests_per_minute: int = Field(default=10, ge=1, le=120)
     geo_group_requests_per_minute: int = Field(default=10, ge=1, le=120)
     planning_route_requests_per_minute: int = Field(default=10, ge=1, le=120)

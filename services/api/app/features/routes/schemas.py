@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, PositiveInt, model_validator
 TravelMode = Literal["driving", "walking", "public_transport", "cycling"]
 DistanceKm = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
 TrafficLevel = Literal["unknown", "light", "moderate", "heavy", "severe"]
+TrafficStatus = Literal["live", "limited_coverage", "unavailable_no_provider", "disabled"]
 # How the stop order was chosen: kept as requested, exact search over every
 # order with OSRM travel times, OSRM Trip's heuristic, or nearest neighbor
 # improved by 2-opt when OSRM is unavailable or the mode is estimated.
@@ -14,7 +15,7 @@ TrafficLevel = Literal["unknown", "light", "moderate", "heavy", "severe"]
 OrderMethod = Literal[
     "requested", "exact", "osrm_trip", "nearest_neighbor_2opt", "island_aware",
 ]
-SegmentMode = Literal["road", "sea"]
+SegmentMode = Literal["road", "sea", "ferry", "sea_link", "unrouted"]
 
 
 class RouteCoordinate(BaseModel):
@@ -26,7 +27,7 @@ class RouteCoordinate(BaseModel):
 
 
 class RouteBaseRequest(BaseModel):
-    destination_ids: list[PositiveInt] = Field(min_length=1, max_length=25)
+    destination_ids: list[PositiveInt] = Field(min_length=1, max_length=60)
     travel_mode: TravelMode = "driving"
     origin: RouteCoordinate | None = None
     return_to_origin: bool = False
@@ -34,8 +35,16 @@ class RouteBaseRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_unique_destination_ids(self) -> "RouteBaseRequest":
-        if len(self.destination_ids) != len(set(self.destination_ids)):
-            raise ValueError("destination_ids must not contain duplicate IDs")
+        orig_len = len(self.destination_ids)
+        deduped: list[int] = []
+        for dest_id in self.destination_ids:
+            if not deduped or deduped[-1] != dest_id:
+                deduped.append(dest_id)
+
+        if orig_len > 1 and len(deduped) == 1 and self.origin is None:
+            raise ValueError("destination_ids must not contain consecutive duplicate IDs")
+
+        self.destination_ids = deduped
 
         if self.return_to_origin and self.origin is None:
             raise ValueError("return_to_origin requires origin")
@@ -110,6 +119,8 @@ class RouteSegment(BaseModel):
     # is a straight stop-to-stop connector that must be drawn dashed, not as road.
     polyline: str | None = None
     is_estimated: bool = False
+    warning: str | None = None
+    reason: str | None = None
 
 
 class RouteLeg(BaseModel):
@@ -121,6 +132,9 @@ class RouteLeg(BaseModel):
     distance_km: DistanceKm
     duration_minutes: int = Field(ge=0)
     is_estimated: bool
+    mode: SegmentMode = "road"
+    warning: str | None = None
+    reason: str | None = None
     normal_duration_minutes: int | None = Field(default=None, ge=0)
     traffic_delay_minutes: int | None = Field(default=None, ge=0)
     traffic_level: TrafficLevel | None = None
@@ -141,6 +155,22 @@ class RouteFerryCrossing(BaseModel):
     to_lng: float | None = None
 
 
+class RouteTrafficCongestionSegment(BaseModel):
+    leg_order: int = Field(ge=1)
+    level: TrafficLevel = "unknown"
+    polyline: str | None = None
+    distance_meters: int | None = Field(default=None, ge=0)
+    duration_seconds: int | None = Field(default=None, ge=0)
+
+
+class RouteTrafficInfo(BaseModel):
+    status: TrafficStatus
+    provider: str | None = None
+    delay_seconds: int | None = Field(default=None, ge=0)
+    congestion_segments: list[RouteTrafficCongestionSegment] = Field(default_factory=list)
+    advisory: str | None = None
+
+
 class RouteTrafficSummary(BaseModel):
     provider: str
     live_duration_minutes: int = Field(ge=0)
@@ -149,6 +179,9 @@ class RouteTrafficSummary(BaseModel):
     traffic_level: TrafficLevel
     cache_hit: bool = False
     advisory: str
+    status: TrafficStatus = "live"
+    delay_seconds: int | None = Field(default=None, ge=0)
+    congestion_segments: list[RouteTrafficCongestionSegment] = Field(default_factory=list)
 
 
 class RouteSummaryResponse(BaseModel):
@@ -165,6 +198,7 @@ class RouteSummaryResponse(BaseModel):
     arrival_points_verified: bool = False
     warnings: list[str] = Field(default_factory=list)
     traffic: RouteTrafficSummary | None = None
+    traffic_info: RouteTrafficInfo | None = None
     # Boat parts of the route. The total time includes the crossing but not
     # waiting at the pier.
     ferry_crossings: list[RouteFerryCrossing] = Field(default_factory=list)
@@ -176,6 +210,7 @@ class RouteSummaryResponse(BaseModel):
     segments: list[RouteSegment] = Field(default_factory=list)
     # Island groups a stop is on that no active sea link reaches.
     unconnected_island_groups: list[str] = Field(default_factory=list)
+    skipped_destination_ids: list[int] = Field(default_factory=list)
 
 
 TripPaceLiteral = Literal["relaxed", "balanced", "packed"]

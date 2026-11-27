@@ -57,6 +57,7 @@ class Trip(Base):
         server_default=text("'planned'"),
         index=True,
     )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
     planning_snapshot: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(

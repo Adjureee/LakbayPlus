@@ -1,5 +1,6 @@
 import pytest
 
+from app.core.config import get_settings
 from app.features.routes.schemas import RouteOptimizeRequest
 from app.integrations.google_routes.client import get_google_routes_client
 from app.integrations.google_routes.errors import GoogleRoutesClientError
@@ -809,19 +810,24 @@ def test_single_destination_route_returns_empty_legs(client) -> None:
     assert fake_osrm.preview_calls == []
 
 
-def test_route_request_enforces_configured_destination_limit(client) -> None:
+def test_route_request_enforces_configured_destination_limit(client, monkeypatch) -> None:
     fake_osrm = FakeOSRMClient()
     client.app.dependency_overrides[get_osrm_client] = lambda: fake_osrm
+    monkeypatch.setenv("ROUTE_MAX_DESTINATIONS", "10")
+    get_settings.cache_clear()
+    try:
+        response = client.post(
+            "/api/v1/routes/preview",
+            headers=user_headers(client),
+            json={"destination_ids": list(range(1, 12)), "travel_mode": "driving"},
+        )
 
-    response = client.post(
-        "/api/v1/routes/preview",
-        headers=user_headers(client),
-        json={"destination_ids": list(range(1, 12)), "travel_mode": "driving"},
-    )
-
-    assert response.status_code == 400
-    assert response.json()["error"]["code"] == "route_destination_limit_exceeded"
-    assert response.json()["error"]["details"]["max_destinations"] == 10
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "route_destination_limit_exceeded"
+        assert response.json()["error"]["details"]["max_destinations"] == 10
+    finally:
+        monkeypatch.undo()
+        get_settings.cache_clear()
 
 
 # Travel seconds between stops A, B and C (row = from, column = to). Visiting

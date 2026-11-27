@@ -257,3 +257,96 @@ def test_browsing_a_town_records_it_as_the_destination_area(client, monkeypatch)
     })
 
     assert body["planning"]["preview"]["state"]["destination_area"] == "Panabo"
+
+
+def test_multi_clause_longer_answers_are_parsed_across_fields():
+    msg = (
+        "We are 2 adults and 1 child age 6 with a budget of 5000 pesos "
+        "for 3 days, 2 nights"
+    )
+    found = interpret_short_answer(msg, _state(), TODAY)
+    assert found == {
+        "adult_count": 2,
+        "child_ages": [6],
+        "traveler_count": 3,
+        "day_count": 3,
+        "night_count": 2,
+        "total_budget": Decimal("5000"),
+    }
+
+
+def test_adult_and_child_ages_verify_child_count_consistency():
+    assert interpret_short_answer("2 adults, 2 kids ages 5 and 8", _state(), TODAY) == {
+        "adult_count": 2,
+        "child_ages": [5, 8],
+        "traveler_count": 4,
+    }
+    assert interpret_short_answer("1 adult and 1 6-year-old", _state(), TODAY) == {
+        "adult_count": 1,
+        "child_ages": [6],
+        "traveler_count": 2,
+    }
+    # Mismatched stated child count vs age count must not fabricate ages.
+    mismatched = interpret_short_answer("2 adults and 2 kids age 6", _state(), TODAY)
+    assert "child_ages" not in mismatched
+    assert "adult_count" not in mismatched
+
+
+def test_out_of_order_qualified_answers_work_regardless_of_asked_question():
+    # Empty state asks traveler_count first, yet qualified details still parse.
+    state = _state()
+    assert interpret_short_answer("3 days, 2 nights", state, TODAY) == {
+        "day_count": 3, "night_count": 2,
+    }
+    assert interpret_short_answer("2 nights, 3 days", state, TODAY) == {
+        "day_count": 3, "night_count": 2,
+    }
+    assert interpret_short_answer("budget 5000", state, TODAY) == {
+        "total_budget": Decimal("5000"),
+    }
+    assert interpret_short_answer("₱5,000", state, TODAY) == {
+        "total_budget": Decimal("5000"),
+    }
+    assert interpret_short_answer("budget for 3 days is 5000", state, TODAY)["total_budget"] == Decimal("5000")
+    assert interpret_short_answer("easy hikes only", state, TODAY) == {
+        "activity_level": "easy",
+    }
+    assert interpret_short_answer("moderate trails", state, TODAY) == {
+        "activity_level": "moderate",
+    }
+    assert interpret_short_answer("quiet places please", state, TODAY) == {
+        "prefers_quiet": True,
+    }
+    assert interpret_short_answer("popular places are fine", state, TODAY) == {
+        "prefers_quiet": False,
+    }
+    assert interpret_short_answer("leaving on Dec 5, 2026", state, TODAY) == {
+        "travel_start_date": date(2026, 12, 5),
+    }
+    assert parse_travel_date("Dec 5, 2027", TODAY) == date(2027, 12, 5)
+
+
+def test_flexible_departure_and_return_times_and_safe_disambiguation():
+    assert interpret_short_answer("depart 8am", _state(), TODAY) == {
+        "departure_time": time(8, 0),
+    }
+    assert interpret_short_answer("8am departure", _state(), TODAY) == {
+        "departure_time": time(8, 0),
+    }
+    assert interpret_short_answer("return around 6pm", _state(), TODAY) == {
+        "return_deadline": time(18, 0),
+    }
+    assert interpret_short_answer("leaving at 08:00, back by 18:00", _state(), TODAY) == {
+        "departure_time": time(8, 0),
+        "return_deadline": time(18, 0),
+    }
+    # "Make it 8am" stays empty when ambiguous...
+    assert interpret_short_answer("Make it 8am", _state(), TODAY) == {}
+    # ...but resolves unambiguously when departure_time is already set or assistant asked.
+    assert interpret_short_answer(
+        "Make it 8am", _state(departure_time=time(7, 0)), TODAY,
+    ) == {"departure_time": time(8, 0)}
+    assert interpret_short_answer(
+        "Make it 8am", _state(), TODAY, last_assistant="What time do you want to depart?",
+    ) == {"departure_time": time(8, 0)}
+

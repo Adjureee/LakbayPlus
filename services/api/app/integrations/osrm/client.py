@@ -30,6 +30,9 @@ MAX_PORT_WAYPOINT_SNAP_METERS = 800.0
 _WAYPOINT_MAX_SNAP_METERS: ContextVar[list[float] | None] = ContextVar(
     "_WAYPOINT_MAX_SNAP_METERS", default=None,
 )
+_LIVE_TRAFFIC_ENABLED: ContextVar[bool | None] = ContextVar(
+    "_LIVE_TRAFFIC_ENABLED", default=None,
+)
 # Shared community OSRM servers, such as the FOSSGIS foot service, ask clients
 # to identify the application instead of sending a library default.
 USER_AGENT = "Lakbay-API (Davao Region trip planner; https://lakbay-api-sg.onrender.com)"
@@ -58,6 +61,10 @@ class OSRMClient:
     def _request_timeout(self) -> float:
         return self.settings.osrm_request_timeout_seconds
 
+    def _preview_params(self, profile: str) -> dict[str, str]:
+        _ = profile
+        return {"overview": "full", "steps": "true", "geometries": "polyline"}
+
     def _tag(self, result: OSRMRouteResult) -> OSRMRouteResult:
         return replace(result, provider=self.provider_name)
 
@@ -73,7 +80,7 @@ class OSRMClient:
             self._route_path(profile, coordinates),
             # Full geometry follows the road at street zoom; simplified lines
             # cut corners by up to about 100 m on longer routes.
-            params={"overview": "full", "steps": "true", "geometries": "polyline"},
+            params=self._preview_params(profile),
             base_url=base_url,
         )
 
@@ -149,14 +156,41 @@ class OSRMClient:
         max_snap_meters: list[float],
     ) -> OSRMRouteResult:
         """Preview a route allowing per-waypoint OSRM snap limits (e.g. waterfront piers)."""
-        token = _WAYPOINT_MAX_SNAP_METERS.set(max_snap_meters)
+        return await self.preview_route_with_options(
+            travel_mode=travel_mode,
+            coordinates=coordinates,
+            max_snap_meters=max_snap_meters,
+        )
+
+    async def preview_route_with_options(
+        self,
+        *,
+        travel_mode: TravelMode,
+        coordinates: list[RouteCoordinate],
+        max_snap_meters: list[float] | None = None,
+        use_live_traffic: bool | None = None,
+    ) -> OSRMRouteResult:
+        """Preview a route with optional per-waypoint snap limits and live-traffic preference."""
+        snap_token = (
+            _WAYPOINT_MAX_SNAP_METERS.set(max_snap_meters)
+            if max_snap_meters is not None
+            else None
+        )
+        traffic_token = (
+            _LIVE_TRAFFIC_ENABLED.set(use_live_traffic)
+            if use_live_traffic is not None
+            else None
+        )
         try:
             return await self.preview_route(
                 travel_mode=travel_mode,
                 coordinates=coordinates,
             )
         finally:
-            _WAYPOINT_MAX_SNAP_METERS.reset(token)
+            if traffic_token is not None:
+                _LIVE_TRAFFIC_ENABLED.reset(traffic_token)
+            if snap_token is not None:
+                _WAYPOINT_MAX_SNAP_METERS.reset(snap_token)
 
     async def matrix(
         self,
@@ -396,6 +430,7 @@ def _parse_route_response(body: dict) -> OSRMRouteResult:
         legs=legs,
         polyline=route.get("geometry"),
         ferry_crossings=_ferry_crossings(legs),
+        duration_typical_seconds=_optional_number(route.get("duration_typical")),
     )
 
 
@@ -449,26 +484,60 @@ def _parse_trip_response(body: dict, expected_count: int) -> OSRMRouteResult:
 
 
 def _parse_legs(route: dict) -> list[OSRMLeg]:
-    return [
-        OSRMLeg(
-            distance_meters=float(leg.get("distance") or 0),
-            duration_seconds=float(leg.get("duration") or 0),
-            steps=[
-                OSRMStep(
-                    distance_meters=float(step.get("distance") or 0),
-                    duration_seconds=float(step.get("duration") or 0),
-                    maneuver_type=(step.get("maneuver") or {}).get("type") or "continue",
-                    modifier=(step.get("maneuver") or {}).get("modifier"),
-                    road_name=step.get("name") or None,
-                    exit_number=(step.get("maneuver") or {}).get("exit"),
-                    mode=step.get("mode") or "driving",
-                    location=_maneuver_location(step),
-                )
-                for step in leg.get("steps") or []
-            ],
+    parsed: list[OSRMLeg] = []
+    for leg in route.get("legs") or []:
+        annotation = leg.get("annotation")
+        annotation_dict = annotation if isinstance(annotation, dict) else {}
+        raw_congestion = annotation_dict.get("congestion")
+        congestion_levels = (
+            [str(item).strip().lower() for item in raw_congestion if item is not None]
+            if isinstance(raw_congestion, list)
+            else []
         )
-        for leg in route.get("legs") or []
-    ]
+        raw_distances = annotation_dict.get("distance")
+        annotation_distances = (
+            [
+                value
+                for value in (_optional_number(item) for item in raw_distances)
+                if value is not None
+            ]
+            if isinstance(raw_distances, list)
+            else []
+        )
+        raw_durations = annotation_dict.get("duration")
+        annotation_durations = (
+            [
+                value
+                for value in (_optional_number(item) for item in raw_durations)
+                if value is not None
+            ]
+            if isinstance(raw_durations, list)
+            else []
+        )
+        parsed.append(
+            OSRMLeg(
+                distance_meters=float(leg.get("distance") or 0),
+                duration_seconds=float(leg.get("duration") or 0),
+                duration_typical_seconds=_optional_number(leg.get("duration_typical")),
+                congestion_levels=congestion_levels,
+                annotation_distances=annotation_distances,
+                annotation_durations=annotation_durations,
+                steps=[
+                    OSRMStep(
+                        distance_meters=float(step.get("distance") or 0),
+                        duration_seconds=float(step.get("duration") or 0),
+                        maneuver_type=(step.get("maneuver") or {}).get("type") or "continue",
+                        modifier=(step.get("maneuver") or {}).get("modifier"),
+                        road_name=step.get("name") or None,
+                        exit_number=(step.get("maneuver") or {}).get("exit"),
+                        mode=step.get("mode") or "driving",
+                        location=_maneuver_location(step),
+                    )
+                    for step in leg.get("steps") or []
+                ],
+            )
+        )
+    return parsed
 
 
 def _maneuver_location(step: dict) -> tuple[float, float] | None:

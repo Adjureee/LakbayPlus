@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.features.routes.polyline import validate_polyline5
+from app.integrations.storage.uploads import MEDIA_MAX_DURATION_SECONDS
 
 
 class DestinationBase(BaseModel):
@@ -60,11 +61,32 @@ class DestinationBase(BaseModel):
     stay_duration_type: str | None = Field(default=None, max_length=50)
     transport_accessibility: str | None = Field(default=None, max_length=100)
     image_url: str | None = Field(default=None, max_length=2048)
+    image_credit: str | None = Field(default=None, max_length=500)
+    image_license: str | None = Field(default=None, max_length=100)
+    image_source_url: str | None = Field(default=None, max_length=2048)
+    media_url: str | None = Field(default=None, max_length=2048)
+    media_type: Literal["image", "gif", "video"] | None = None
+    media_public_id: str | None = Field(default=None, max_length=255)
+    media_duration_seconds: float | None = Field(
+        default=None,
+        ge=0,
+        le=MEDIA_MAX_DURATION_SECONDS,
+    )
 
     @field_validator("arrival_source_url")
     @classmethod
     def validate_arrival_source_url(cls, value: str | None) -> str | None:
         return _validate_arrival_source_url(value)
+
+    @field_validator("media_url")
+    @classmethod
+    def validate_media_url(cls, value: str | None) -> str | None:
+        return _validate_http_url(value, "media_url")
+
+    @field_validator("image_source_url")
+    @classmethod
+    def validate_image_source_url(cls, value: str | None) -> str | None:
+        return _validate_http_url(value, "image_source_url")
 
     @model_validator(mode="after")
     def check_typical_visit(self):
@@ -154,12 +176,33 @@ class DestinationUpdate(BaseModel):
     stay_duration_type: str | None = Field(default=None, max_length=50)
     transport_accessibility: str | None = Field(default=None, max_length=100)
     image_url: str | None = Field(default=None, max_length=2048)
+    image_credit: str | None = Field(default=None, max_length=500)
+    image_license: str | None = Field(default=None, max_length=100)
+    image_source_url: str | None = Field(default=None, max_length=2048)
+    media_url: str | None = Field(default=None, max_length=2048)
+    media_type: Literal["image", "gif", "video"] | None = None
+    media_public_id: str | None = Field(default=None, max_length=255)
+    media_duration_seconds: float | None = Field(
+        default=None,
+        ge=0,
+        le=MEDIA_MAX_DURATION_SECONDS,
+    )
     is_active: bool | None = None
 
     @field_validator("arrival_source_url")
     @classmethod
     def validate_arrival_source_url(cls, value: str | None) -> str | None:
         return _validate_arrival_source_url(value)
+
+    @field_validator("media_url")
+    @classmethod
+    def validate_media_url(cls, value: str | None) -> str | None:
+        return _validate_http_url(value, "media_url")
+
+    @field_validator("image_source_url")
+    @classmethod
+    def validate_image_source_url(cls, value: str | None) -> str | None:
+        return _validate_http_url(value, "image_source_url")
 
     @model_validator(mode="after")
     def check_typical_visit(self):
@@ -189,11 +232,15 @@ class DestinationResponse(DestinationBase):
 
 
 def _validate_arrival_source_url(value: str | None) -> str | None:
+    return _validate_http_url(value, "arrival_source_url")
+
+
+def _validate_http_url(value: str | None, field_name: str) -> str | None:
     if value is None:
         return None
     parsed = urlsplit(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("arrival_source_url must be an HTTP or HTTPS URL")
+        raise ValueError(f"{field_name} must be an HTTP or HTTPS URL")
     return value
 
 

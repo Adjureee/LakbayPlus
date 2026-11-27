@@ -61,6 +61,7 @@ from app.features.ai.validators import (
     AIItineraryCatalog,
     AIOutputInvalidJsonError,
     AIOutputValidationError,
+    _repair_truncated_json,
     parse_and_validate_itinerary_output,
 )
 from app.features.destinations.catalog_selection import (
@@ -528,13 +529,21 @@ class AIItineraryService:
             started_at = perf_counter()
 
             try:
+                response_format = (
+                    {"type": "json_object"} if data.planning_state is not None else None
+                )
                 completion = await self.groq_client.create_chat_completion(
                     model=selection.model_id,
                     messages=messages,
+                    response_format=response_format,
                     provider=selection.provider,
                     temperature=settings.groq_chat_temperature,
                 )
                 response_time_ms = _elapsed_ms(started_at)
+                prompt_tokens = completion.prompt_tokens
+                completion_tokens = completion.completion_tokens
+                total_tokens = completion.total_tokens
+                json_retry_used = False
                 _log_timing(
                     "model", started_at,
                     model=selection.model_id, provider=selection.provider,
@@ -550,6 +559,56 @@ class AIItineraryService:
                     )
                     chat_response, _ = ground_figures(chat_response, support_text)
                 else:
+                    last_assistant = (
+                        data.history[-1].content
+                        if data.history and data.history[-1].role == "assistant"
+                        else None
+                    )
+                    answered_preview = {
+                        field: value
+                        for field, value in interpret_short_answer(
+                            data.message,
+                            data.planning_state,
+                            _local_today(),
+                            last_assistant=last_assistant,
+                        ).items()
+                        if getattr(data.planning_state, field) != value
+                    }
+                    parsed_output, _, caller_selection_rejected, _ = (
+                        _parse_planning_chat_output_detailed(completion.content)
+                    )
+                    salvaged_preview = (
+                        _salvage_reply(completion.content)
+                        if parsed_output is None
+                        else None
+                    )
+                    if (
+                        parsed_output is None
+                        and salvaged_preview is None
+                        and not caller_selection_rejected
+                        and not answered_preview
+                    ):
+                        json_retry_used = True
+                        nudge_messages = build_chat_json_retry_nudge_messages(messages)
+                        completion = await self.groq_client.create_chat_completion(
+                            model=selection.model_id,
+                            messages=nudge_messages,
+                            response_format={"type": "json_object"},
+                            provider=selection.provider,
+                            temperature=settings.groq_chat_temperature,
+                        )
+                        response_time_ms = _elapsed_ms(started_at)
+                        prompt_tokens = _sum_tokens(prompt_tokens, completion.prompt_tokens)
+                        completion_tokens = _sum_tokens(
+                            completion_tokens, completion.completion_tokens
+                        )
+                        total_tokens = _sum_tokens(total_tokens, completion.total_tokens)
+                        _log_timing(
+                            "model_retry", started_at,
+                            model=selection.model_id, provider=selection.provider,
+                            prompt_tokens=completion.prompt_tokens,
+                            completion_tokens=completion.completion_tokens,
+                        )
                     planning_started = perf_counter()
                     # Recognize a place the traveler named even if the model does not.
                     # Also needed after stops are picked, so a place the traveler names
@@ -591,9 +650,9 @@ class AIItineraryService:
                     status="succeeded",
                     validation_status=validation_status,
                     response_time_ms=response_time_ms,
-                    prompt_tokens=completion.prompt_tokens,
-                    completion_tokens=completion.completion_tokens,
-                    total_tokens=completion.total_tokens,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
                     output_summary={
                         "response_length": len(chat_response),
                         "retrieved_context_count": len(retrieved_context),
@@ -603,6 +662,7 @@ class AIItineraryService:
                         "planning_input_revision": (
                             planning_result.input_revision if planning_result else None
                         ),
+                        **({"json_retry_used": True} if json_retry_used else {}),
                     },
                 )
                 await self.session.commit()
@@ -1378,11 +1438,13 @@ async def _build_planning_chat_result(
 ) -> tuple[str, AIPlanningChatResult, str]:
     assert data.planning_state is not None
     current_state = data.planning_state
-    fallback_response = (
-        "I couldn't safely update your plan from that response. Your current "
-        "preview is shown below; try restating the change or use the preview controls."
+    output, rejected_fields, caller_selection_rejected, stripped_benign = (
+        _parse_planning_chat_output_detailed(content)
     )
-    output, rejected_fields = _parse_planning_chat_output(content)
+    fallback_response = _build_recovery_reply(
+        current_state,
+        caller_selection_rejected=caller_selection_rejected,
+    )
     # Details the model guessed (never said by the traveler) are dropped, not blamed.
     unconfirmed_fields: list[str] = []
     if output is not None:
@@ -1466,9 +1528,13 @@ async def _build_planning_chat_result(
                         accommodation_pricing=[],
                         age_pricing_rules=[],
                     )
-                next_state = PlanningState.model_validate(
-                    {**state_values, **changes},
+                base_for_merge = PlanningState.model_validate(state_values)
+                next_state, reconciled_updates = _merge_and_reconcile_planning_state(
+                    base_for_merge, changes,
                 )
+                for field_name, value in reconciled_updates.items():
+                    if field_name not in changes:
+                        changes_json[field_name] = json.loads(json.dumps(value, default=str))
                 if update_status != "needs_clarification":
                     update_status = "applied"
             elif update_status != "needs_clarification":
@@ -1483,17 +1549,24 @@ async def _build_planning_chat_result(
     # Short answers ("Just me", "600", "Easy", "Tomorrow") are read here, beside the
     # question they answer, so a model failure never loses them. What the words clearly
     # say wins over what the model proposed.
+    last_assistant = (
+        data.history[-1].content
+        if data.history and data.history[-1].role == "assistant"
+        else None
+    )
     answered = {
         field: value
         for field, value in interpret_short_answer(
-            data.message, current_state, _local_today(),
+            data.message, current_state, _local_today(), last_assistant=last_assistant,
         ).items()
         if getattr(next_state, field) != value
     }
     if answered:
         try:
-            next_state = PlanningState.model_validate({**next_state.model_dump(), **answered})
-            changes_json.update(json.loads(json.dumps(answered, default=str)))
+            next_state, reconciled_answered = _merge_and_reconcile_planning_state(
+                next_state, answered,
+            )
+            changes_json.update(json.loads(json.dumps(reconciled_answered, default=str)))
             update_status = "applied"
             if chat_response == fallback_response:
                 # The model gave nothing usable, so say what was saved and ask the next
@@ -1583,6 +1656,23 @@ async def _build_planning_chat_result(
             named_card_ids = [
                 match.destination_id for match in named_matches[:MORE_WITH_PICKS]
             ]
+
+    if (
+        output is not None
+        and stripped_benign
+        and not changes_json
+        and auto_added is None
+        and not named_add_done
+        and not rejected_fields
+        and not unconfirmed_fields
+        and _CLAIMS_A_CHANGE.search(chat_response)
+    ):
+        next_q = compute_stage(next_state).next_question
+        note = (
+            "I couldn't save that detail directly from chat, so your current "
+            "plan is unchanged. Use the options below or state it directly."
+        )
+        chat_response = f"{note} {next_q}" if next_q else note
 
     # "Is there a place to go in Panabo?" asks for places. Whatever the model labelled
     # it, the traveler gets that town's places as cards (never when something was just
@@ -2254,6 +2344,138 @@ _CLAIMS_A_CHANGE = re.compile(
 )
 
 
+CALLER_OWNED_SELECTION_FIELDS = frozenset({
+    "selected_transport_option_ids",
+    "selected_activity_option_ids",
+    "selected_accommodation_ids",
+    "cost_allowances",
+    "transport_pricing",
+    "accommodation_pricing",
+    "age_pricing_rules",
+    "route_preferences",
+    "fuel_assumptions",
+})
+
+
+def _is_caller_owned_selection_field(field_name: str) -> bool:
+    return field_name in CALLER_OWNED_SELECTION_FIELDS or field_name.startswith("selected_")
+
+
+CHAT_JSON_RETRY_NUDGE = (
+    "Your previous reply was not valid planning JSON or could not be used. "
+    "Return ONLY one valid JSON object with keys `chat_response`, `state_updates`, "
+    "`intent`, and `suggested_replies` (no markdown fences, no extra prose). "
+    "Only include explicitly stated changes in `state_updates`, and never include "
+    "selected_* or route_preferences fields."
+)
+
+
+def build_chat_json_retry_nudge_messages(
+    messages: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    return [
+        *messages,
+        {"role": "user", "content": CHAT_JSON_RETRY_NUDGE},
+    ]
+
+
+def _build_recovery_reply(
+    state: PlanningState,
+    *,
+    caller_selection_rejected: bool = False,
+) -> str:
+    next_q = compute_stage(state).next_question
+    if caller_selection_rejected:
+        base = (
+            "I can't change your selected transport, accommodation, or route options "
+            "from chat — your current preview is unchanged. Use the preview controls "
+            "below to adjust those, or tell me what else to update."
+        )
+    else:
+        base = (
+            "I couldn't safely update your plan from that response, so your saved "
+            "details are unchanged. Try stating one detail directly (for example: "
+            "'3 travelers', '2 days, 1 night', or 'budget 5000') or use the "
+            "preview controls."
+        )
+    return f"{base} {next_q}" if next_q else base
+
+
+def _merge_and_reconcile_planning_state(
+    base_state: PlanningState,
+    updates: dict[str, Any],
+) -> tuple[PlanningState, dict[str, Any]]:
+    """Apply updates and reconcile cross-field PlanningState invariants before validation."""
+    merged = base_state.model_dump()
+    merged.update(updates)
+    reconciled_updates = dict(updates)
+
+    # Days vs nights: keep night_count <= day_count.
+    if (
+        "day_count" in updates
+        and "night_count" not in updates
+        and merged.get("day_count") is not None
+        and merged.get("night_count") is not None
+        and merged["night_count"] > merged["day_count"]
+    ):
+        reconciled_nights = max(0, merged["day_count"] - 1)
+        merged["night_count"] = reconciled_nights
+        reconciled_updates["night_count"] = reconciled_nights
+    elif (
+        "night_count" in updates
+        and "day_count" not in updates
+        and merged.get("night_count") is not None
+        and merged.get("day_count") is not None
+        and merged["night_count"] > merged["day_count"]
+    ):
+        reconciled_days = min(30, merged["night_count"] + 1)
+        merged["day_count"] = reconciled_days
+        reconciled_updates["day_count"] = reconciled_days
+
+    # Travelers vs adults / child_ages / age_pricing_rules.
+    if (
+        "traveler_count" in updates
+        and "adult_count" not in updates
+        and "child_ages" not in updates
+    ):
+        new_total = merged.get("traveler_count")
+        child_ages = list(merged.get("child_ages") or [])
+        child_count = len(child_ages)
+        if merged.get("adult_count") is not None or child_count > 0:
+            if new_total is not None and child_count > 0 and new_total > child_count:
+                new_adults = new_total - child_count
+                merged["adult_count"] = new_adults
+                reconciled_updates["adult_count"] = new_adults
+            else:
+                if merged.get("adult_count") is not None:
+                    merged["adult_count"] = None
+                    reconciled_updates["adult_count"] = None
+                if child_ages:
+                    merged["child_ages"] = []
+                    reconciled_updates["child_ages"] = []
+                if merged.get("age_pricing_rules"):
+                    merged["age_pricing_rules"] = []
+                    reconciled_updates["age_pricing_rules"] = []
+    elif "adult_count" in updates or "child_ages" in updates:
+        child_ages = list(merged.get("child_ages") or [])
+        if "child_ages" in updates and child_ages and merged.get("adult_count") is None:
+            total = merged.get("traveler_count")
+            if total is not None and total >= len(child_ages):
+                merged["adult_count"] = total - len(child_ages)
+                reconciled_updates["adult_count"] = merged["adult_count"]
+        if merged.get("adult_count") is not None and "traveler_count" not in updates:
+            new_total = merged["adult_count"] + len(child_ages)
+            if new_total >= 1 and merged.get("traveler_count") != new_total:
+                merged["traveler_count"] = new_total
+                reconciled_updates["traveler_count"] = new_total
+        if not child_ages and merged.get("age_pricing_rules"):
+            merged["age_pricing_rules"] = []
+            reconciled_updates["age_pricing_rules"] = []
+
+    validated = PlanningState.model_validate(merged)
+    return validated, reconciled_updates
+
+
 def _salvage_reply(content: str) -> str | None:
     """The traveler-facing text from a model reply that is not valid planning JSON.
 
@@ -2271,13 +2493,18 @@ def _salvage_reply(content: str) -> str | None:
         loaded = None
     if isinstance(loaded, dict):
         if "chat_response" in loaded:
-            # Valid JSON that was still refused (for example a field the model may
-            # not set): its text may claim changes that were never made.
-            return None
-        # A misspelt key such as "chat__response": the text is still the answer.
-        key = next((k for k in loaded if re.fullmatch(r"chat_*response", str(k))), None)
-        value = loaded.get(key) if key else None
-        candidate = value.strip() if isinstance(value, str) else None
+            updates = loaded.get("state_updates")
+            if isinstance(updates, dict) and any(
+                _is_caller_owned_selection_field(str(k)) for k in updates
+            ):
+                return None
+            value = loaded.get("chat_response")
+            candidate = value.strip() if isinstance(value, str) else None
+        else:
+            # A misspelt key such as "chat__response": the text is still the answer.
+            key = next((k for k in loaded if re.fullmatch(r"chat_*response", str(k))), None)
+            value = loaded.get(key) if key else None
+            candidate = value.strip() if isinstance(value, str) else None
     elif loaded is not None:
         return None
     else:
@@ -2289,7 +2516,7 @@ def _salvage_reply(content: str) -> str | None:
                 return None
         elif text[0] not in "{[`" and '"state_updates"' not in text and len(text) <= 1500:
             candidate = text
-    if not candidate:
+    if not candidate or len(candidate) > 2000:
         return None
     # Nothing was saved, so never show text that says something was.
     if _CLAIMS_A_CHANGE.search(candidate):
@@ -2320,44 +2547,60 @@ def _strip_json_fence(content: str) -> str:
     return value
 
 
-def _parse_planning_chat_output(
+def _parse_planning_chat_output_detailed(
     content: str,
-) -> tuple[AIPlanningChatOutput | None, list[str]]:
-    """Retain valid allowlisted fields when a sibling field has bad shape."""
+) -> tuple[AIPlanningChatOutput | None, list[str], bool, dict[str, Any]]:
+    """Parse planning chat JSON, separating caller-owned selection rejections from benign fields."""
     cleaned = _strip_json_fence(content)
     try:
-        return AIPlanningChatOutput.model_validate_json(cleaned), []
+        return AIPlanningChatOutput.model_validate_json(cleaned), [], False, {}
     except ValidationError:
         pass
 
+    repaired_from_truncation = False
     try:
         raw = json.loads(cleaned)
     except (TypeError, ValueError):
-        return None, []
+        raw = None
+        if "{" in cleaned:
+            raw = _repair_truncated_json(cleaned[cleaned.find("{"):])
+            repaired_from_truncation = raw is not None
+        if raw is None:
+            return None, [], False, {}
+
     required = {"chat_response"}
     optional = {"state_updates", "intent", "suggested_replies", "place_query"}
     if not isinstance(raw, dict) or not required <= set(raw):
-        return None, []
+        return None, [], False, {}
     if set(raw) - (required | optional):
         # A stray top-level key (for example "tag") changes nothing, so it is ignored.
         raw = {key: value for key, value in raw.items() if key in required | optional}
-        try:
-            return AIPlanningChatOutput.model_validate(raw), []
-        except ValidationError:
-            pass
+        if not repaired_from_truncation:
+            try:
+                return AIPlanningChatOutput.model_validate(raw), [], False, {}
+            except ValidationError:
+                pass
     updates = raw.get("state_updates", {})
     if updates is None:
         updates = {}
     if not isinstance(updates, dict):
-        return None, []
+        return None, [], False, {}
+
+    if any(_is_caller_owned_selection_field(str(field)) for field in updates):
+        # Caller-owned selections are never silently accepted or ignored.
+        return None, [], True, {}
+
     allowed_fields = set(AIPlanningStateUpdates.model_fields)
-    if set(updates) - allowed_fields:
-        # Unsupported selections are never silently accepted or ignored.
-        return None, []
+    stripped_benign = {
+        field: value for field, value in updates.items() if field not in allowed_fields
+    }
+    filtered_updates = {
+        field: value for field, value in updates.items() if field in allowed_fields
+    }
 
     valid_updates: dict = {}
     rejected_fields: list[str] = []
-    for field_name, value in updates.items():
+    for field_name, value in filtered_updates.items():
         try:
             validated = AIPlanningStateUpdates.model_validate({field_name: value})
         except ValidationError:
@@ -2366,8 +2609,12 @@ def _parse_planning_chat_output(
         valid_updates[field_name] = validated.model_dump(
             exclude_unset=True, mode="python",
         )[field_name]
-    if not rejected_fields:
-        return None, []
+
+    if repaired_from_truncation and not valid_updates:
+        chat_text = raw.get("chat_response")
+        if isinstance(chat_text, str) and _CLAIMS_A_CHANGE.search(chat_text):
+            return None, [], False, {}
+
     try:
         output = AIPlanningChatOutput.model_validate({
             "chat_response": raw["chat_response"],
@@ -2377,7 +2624,15 @@ def _parse_planning_chat_output(
             "suggested_replies": raw.get("suggested_replies", []),
         })
     except ValidationError:
-        return None, []
+        return None, [], False, {}
+    return output, rejected_fields, False, stripped_benign
+
+
+def _parse_planning_chat_output(
+    content: str,
+) -> tuple[AIPlanningChatOutput | None, list[str]]:
+    """Retain valid allowlisted fields when a sibling field has bad shape."""
+    output, rejected_fields, _, _ = _parse_planning_chat_output_detailed(content)
     return output, rejected_fields
 
 

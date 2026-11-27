@@ -18,6 +18,7 @@ class AdminTripItem(BaseModel):
     trip_id: int
     title: str
     status: str
+    completed_at: datetime | None = None
     owner_user_id: int
     owner_name: str
     owner_email: EmailStr
@@ -90,6 +91,7 @@ async def list_admin_trips(
             trip_id=trip.trip_id,
             title=trip.title,
             status=trip.status,
+            completed_at=trip.completed_at,
             owner_user_id=owner.user_id,
             owner_name=owner.full_name,
             owner_email=owner.email,

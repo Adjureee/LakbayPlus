@@ -6,11 +6,16 @@ public OSRM demo server, and its responses use the same shape (``code``,
 OSRM parsers are reused unchanged.
 """
 
+from dataclasses import replace
 import logging
 
 from app.core.config import Settings, get_settings
 from app.features.routes.schemas import RouteCoordinate, TravelMode
-from app.integrations.osrm.client import OSRMClient, _coordinates_path
+from app.integrations.osrm.client import (
+    _LIVE_TRAFFIC_ENABLED,
+    OSRMClient,
+    _coordinates_path,
+)
 from app.integrations.osrm.errors import OSRMClientError, OSRMConfigurationError
 from app.integrations.osrm.schemas import (
     OSRMMatrixResult,
@@ -38,8 +43,13 @@ class MapboxDirectionsClient(OSRMClient):
         self, *, travel_mode: TravelMode, coordinates: list[RouteCoordinate],
     ) -> OSRMRouteResult:
         _require_max(coordinates, MAPBOX_DIRECTIONS_MAX_COORDINATES, "Directions")
-        return await super().preview_route(
+        profile = self._profile_for_mode(travel_mode)
+        result = await super().preview_route(
             travel_mode=travel_mode, coordinates=coordinates,
+        )
+        return replace(
+            result,
+            live_traffic_requested=(profile == "driving-traffic"),
         )
 
     async def optimize_route(
@@ -99,8 +109,17 @@ class MapboxDirectionsClient(OSRMClient):
     def _request_timeout(self) -> float:
         return self.settings.mapbox_directions_timeout_seconds
 
+    def _preview_params(self, profile: str) -> dict[str, str]:
+        params = super()._preview_params(profile)
+        if profile == "driving-traffic":
+            params["annotations"] = "congestion,duration,distance,speed"
+        return params
+
     def _profile_for_mode(self, travel_mode: TravelMode) -> str:
         if travel_mode == "driving":
+            live_pref = _LIVE_TRAFFIC_ENABLED.get()
+            if live_pref is False:
+                return "driving"
             return self.settings.mapbox_directions_profile_driving
         if travel_mode == "walking":
             return "walking"
@@ -131,11 +150,34 @@ class ChainedRoutingClient(OSRMClient):
     def provider_name(self) -> str:  # type: ignore[override]
         return self.clients[0].provider_name
 
+    @property
+    def has_mapbox_client(self) -> bool:
+        return any(
+            isinstance(client, MapboxDirectionsClient)
+            or getattr(client, "provider_name", None) == "mapbox"
+            for client in self.clients
+        )
+
     async def preview_route(self, **kwargs) -> OSRMRouteResult:
         return await self._first("preview_route", kwargs)
 
     async def preview_route_with_snap_limits(self, **kwargs) -> OSRMRouteResult:
         return await self._first("preview_route_with_snap_limits", kwargs)
+
+    async def preview_route_with_options(
+        self,
+        *,
+        travel_mode: TravelMode,
+        coordinates: list[RouteCoordinate],
+        max_snap_meters: list[float] | None = None,
+        use_live_traffic: bool | None = None,
+    ) -> OSRMRouteResult:
+        return await super().preview_route_with_options(
+            travel_mode=travel_mode,
+            coordinates=coordinates,
+            max_snap_meters=max_snap_meters,
+            use_live_traffic=use_live_traffic,
+        )
 
     async def optimize_route(self, **kwargs) -> OSRMRouteResult:
         return await self._first("optimize_route", kwargs)

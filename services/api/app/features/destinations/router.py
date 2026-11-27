@@ -302,6 +302,30 @@ async def upload_destination_photo(
     ).upload_photo(destination_id, file=file, admin_user_id=admin.user_id)
 
 
+@router.post(
+    "/{destination_id}/media",
+    response_model=DestinationResponse,
+    summary="Upload destination photo, GIF or short video clip",
+    description=(
+        "Admin-only multipart endpoint. Uploads a JPEG/PNG/WebP/GIF (<= 10 MB) "
+        "or short MP4/WebM clip (<= 15 MB, <= 15s) to Cloudinary under "
+        "destinations/{destination_id}. Preserves existing image_url poster on "
+        "GIF/video uploads or derives a frame-0 Cloudinary poster when empty."
+    ),
+)
+async def upload_destination_media(
+    destination_id: int,
+    file: Annotated[UploadFile, File(...)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    admin: Annotated[User, Depends(require_admin)],
+    storage_client: Annotated[CloudinaryStorageClient, Depends(get_storage_client)],
+) -> DestinationResponse:
+    return await DestinationService(
+        session,
+        storage_client=storage_client,
+    ).upload_media(destination_id, file=file, admin_user_id=admin.user_id)
+
+
 @router.delete(
     "/{destination_id}",
     response_model=DestinationResponse,

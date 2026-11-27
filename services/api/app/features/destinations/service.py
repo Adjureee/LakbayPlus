@@ -1,4 +1,7 @@
+import logging
+from posixpath import splitext
 from time import monotonic
+from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.integrations.storage.client import CloudinaryStorageClient
 from app.integrations.storage.uploads import (
+    MEDIA_MAX_DURATION_SECONDS,
     read_validated_image,
+    read_validated_media,
     reserve_cloudinary_upload,
 )
 
@@ -38,6 +43,35 @@ from app.features.destinations.schemas import (
 
 FACETS_CACHE_TTL_SECONDS = 60.0
 _facets_cache: tuple[float, DestinationFacetsResponse] | None = None
+logger = logging.getLogger(__name__)
+
+
+def _cloudinary_video_poster_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    parsed = urlsplit(url)
+    if parsed.netloc != "res.cloudinary.com" or "/video/upload/" not in parsed.path:
+        return None
+    prefix, rest = parsed.path.split("/video/upload/", 1)
+    if not rest:
+        return None
+    stem, _ = splitext(rest)
+    poster_path = f"{prefix}/video/upload/so_0,f_jpg,q_auto/{stem}.jpg"
+    return urlunsplit((parsed.scheme, parsed.netloc, poster_path, "", ""))
+
+
+def _cloudinary_gif_poster_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    parsed = urlsplit(url)
+    if parsed.netloc != "res.cloudinary.com" or "/image/upload/" not in parsed.path:
+        return url
+    prefix, rest = parsed.path.split("/image/upload/", 1)
+    if not rest:
+        return url
+    stem, _ = splitext(rest)
+    poster_path = f"{prefix}/image/upload/pg_1,f_jpg,q_auto/{stem}.jpg"
+    return urlunsplit((parsed.scheme, parsed.netloc, poster_path, "", ""))
 
 
 def clear_facets_cache() -> None:
@@ -92,8 +126,105 @@ class DestinationService:
         )
         updated = await self.destinations.update(
             destination,
-            {"image_url": result.image_url},
+            {
+                "image_url": result.image_url,
+                "image_public_id": result.cloudinary_public_id,
+            },
         )
+        await self.session.commit()
+        await self.session.refresh(updated)
+        clear_facets_cache()
+        return DestinationResponse.model_validate(updated)
+
+    async def upload_media(
+        self,
+        destination_id: int,
+        *,
+        file: UploadFile,
+        admin_user_id: int,
+    ) -> DestinationResponse:
+        """Upload a photo, animated GIF, or <=15s MP4/WebM clip for a destination."""
+        destination = await self.destinations.get_by_id(
+            destination_id,
+            include_inactive=True,
+        )
+        if destination is None:
+            raise LakbayAPIError(
+                "Destination was not found.",
+                code="destination_not_found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        validated = await read_validated_media(file)
+        reserve_cloudinary_upload(user_id=admin_user_id, settings=self.settings)
+        storage = self.storage_client or CloudinaryStorageClient(self.settings)
+        result = await storage.upload_media(
+            file_bytes=validated.file_bytes,
+            filename=file.filename,
+            content_type=validated.content_type,
+            resource_type=validated.resource_type,
+            folder_suffix=f"destinations/{destination_id}",
+        )
+
+        duration = (
+            result.duration
+            if result.duration is not None
+            else validated.duration_seconds
+        )
+        if (
+            validated.media_type == "video"
+            and duration is not None
+            and duration > MEDIA_MAX_DURATION_SECONDS
+        ):
+            if result.cloudinary_public_id:
+                try:
+                    await storage.delete_media(
+                        result.cloudinary_public_id,
+                        resource_type="video",
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to clean up over-duration Cloudinary video %s: %s",
+                        result.cloudinary_public_id,
+                        exc,
+                    )
+            raise LakbayAPIError(
+                "Video clips must be 15 seconds or shorter.",
+                code="media_duration_exceeded",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                details={
+                    "max_duration_seconds": MEDIA_MAX_DURATION_SECONDS,
+                    "actual_duration_seconds": round(duration, 2),
+                },
+            )
+
+        updates: dict[str, object] = {
+            "media_url": result.image_url,
+            "media_type": validated.media_type,
+            "media_public_id": result.cloudinary_public_id,
+            "media_duration_seconds": (
+                round(duration, 2)
+                if (validated.media_type == "video" and duration is not None)
+                else None
+            ),
+        }
+
+        existing_poster = (destination.image_url or "").strip()
+        if validated.media_type == "image":
+            updates["image_url"] = result.image_url
+            updates["image_public_id"] = result.cloudinary_public_id
+        elif validated.media_type == "gif":
+            if not existing_poster:
+                poster = _cloudinary_gif_poster_url(result.image_url)
+                if poster:
+                    updates["image_url"] = poster
+        elif validated.media_type == "video":
+            if not existing_poster:
+                poster = _cloudinary_video_poster_url(result.image_url)
+                if poster:
+                    updates["image_url"] = poster
+
+        updated = await self.destinations.update(destination, updates)
         await self.session.commit()
         await self.session.refresh(updated)
         clear_facets_cache()

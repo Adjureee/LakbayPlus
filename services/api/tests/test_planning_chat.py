@@ -1808,21 +1808,40 @@ def test_quick_replies_stay_when_the_next_question_is_a_free_one(
     ]
 
 
-def _chat_with_model_reply(client, model_reply, message, state=None):
-    admin = admin_headers(client)
-    destination = create_destination(client, headers=admin, name="Bemwa Farm", **verified_arrival(0))
-    client.app.dependency_overrides[get_groq_client] = lambda: FakeGroqClient([model_reply])
+def _chat_with_model_replies(
+    client,
+    model_replies,
+    message,
+    state=None,
+    *,
+    use_rag=True,
+    admin=None,
+    user=None,
+    destination=None,
+):
+    admin = admin or admin_headers(client)
+    user = user or user_headers(client)
+    destination = destination or create_destination(
+        client, headers=admin, name="Bemwa Farm", **verified_arrival(0)
+    )
+    fake_client = FakeGroqClient(list(model_replies))
+    client.app.dependency_overrides[get_groq_client] = lambda: fake_client
     response = client.post(
         "/api/v1/ai/chat",
-        headers=user_headers(client),
+        headers=user,
         json={
             "message": message,
-            "use_rag": True,
-            "planning_state": state or {"origin": {"label": "Davao City"}},
+            "use_rag": use_rag,
+            "planning_state": state if state is not None else {"origin": {"label": "Davao City"}},
         },
     )
     assert response.status_code == 200, response.text
-    return destination, response.json()
+    return destination, response.json(), fake_client
+
+
+def _chat_with_model_reply(client, model_reply, message, state=None):
+    destination, body, _ = _chat_with_model_replies(client, [model_reply], message, state=state)
+    return destination, body
 
 
 def test_cut_off_json_still_gives_the_traveler_its_answer(client, monkeypatch) -> None:
@@ -1849,7 +1868,10 @@ def test_an_unusable_model_reply_keeps_the_generic_fallback(
     client, monkeypatch, model_reply,
 ) -> None:
     configure_ai(monkeypatch)
-    _, body = _chat_with_model_reply(client, model_reply, "Tell me about Samal")
+    _, body, fake_client = _chat_with_model_replies(
+        client, [model_reply, model_reply], "Tell me about Samal",
+    )
+    assert len(fake_client.calls) == 2
     assert "couldn't safely update your plan" in body["chat_response"]
     assert body["planning"]["update_status"] == "invalid_output"
 
@@ -1890,3 +1912,312 @@ def test_a_misspelt_reply_key_still_gives_the_answer(client, monkeypatch) -> Non
     # Nothing from the unusable reply is applied.
     assert body["planning"]["state_updates"] == {}
     assert body["planning"]["update_status"] == "no_changes"
+
+
+def test_planning_chat_caller_selection_rejection_skips_retry_and_uses_targeted_reply(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    reply = json.dumps({
+        "chat_response": "I changed your route and accommodation.",
+        "state_updates": {
+            "selected_accommodation_ids": [99],
+            "route_preferences": {"optimize_order": True},
+            "total_budget": 7000,
+        },
+    })
+    _, body, fake_client = _chat_with_model_replies(
+        client,
+        [reply],
+        "Adjust my selections.",
+        state={
+            "origin": {"label": "Davao City"},
+            "selected_transport_option_ids": ["mode:personal_vehicle"],
+            "total_budget": "5000",
+        },
+        use_rag=False,
+    )
+    assert len(fake_client.calls) == 1
+    assert body["planning"]["update_status"] == "invalid_output"
+    assert body["planning"]["state_updates"] == {}
+    assert body["planning"]["preview"]["state"]["total_budget"] == "5000"
+    assert "selected transport, accommodation, or route options" in body["chat_response"]
+
+
+def test_planning_chat_strips_benign_non_allowlisted_fields_without_discarding_reply(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    reply = json.dumps({
+        "chat_response": "Updated your budget to 7000! How many days do you have?",
+        "state_updates": {
+            "activity_level": "easy",
+            "travel_start_date": "2026-12-01",
+            "travel_style": "chill",
+            "total_budget": 7000,
+        },
+        "intent": "modify_trip",
+    })
+    _, body, fake_client = _chat_with_model_replies(
+        client,
+        [reply],
+        "Set my budget to 7000.",
+        state={"origin": {"label": "Davao City"}, "total_budget": "5000"},
+        use_rag=False,
+    )
+    assert len(fake_client.calls) == 1
+    assert body["planning"]["update_status"] == "applied"
+    assert body["planning"]["state_updates"] == {"total_budget": "7000"}
+    assert body["planning"]["preview"]["state"]["total_budget"] == "7000"
+    assert body["planning"]["preview"]["state"]["activity_level"] is None
+    assert "Updated your budget to 7000!" in body["chat_response"]
+    assert "couldn't safely update" not in body["chat_response"]
+
+
+def test_planning_chat_blocks_false_claim_when_only_benign_fields_stripped(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    reply = json.dumps({
+        "chat_response": "I set your activity level to easy.",
+        "state_updates": {"activity_level": "easy"},
+        "intent": "modify_trip",
+    })
+    _, body, _ = _chat_with_model_replies(
+        client,
+        [reply],
+        "Tell me about Samal.",
+        state={"origin": {"label": "Davao City"}},
+        use_rag=False,
+    )
+    assert body["planning"]["update_status"] == "no_changes"
+    assert body["planning"]["state_updates"] == {}
+    assert "I set your activity level" not in body["chat_response"]
+    assert "couldn't save that detail directly" in body["chat_response"]
+
+
+def test_planning_chat_salvages_json_with_bad_state_updates_unless_selection_or_claim(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    admin = admin_headers(client)
+    user = user_headers(client)
+    safe_reply = json.dumps({
+        "chat_response": "Samal has calm beaches and reefs.",
+        "state_updates": "none",
+    })
+    destination, body, fake_client = _chat_with_model_replies(
+        client, [safe_reply], "Tell me about Samal.", use_rag=False, admin=admin, user=user,
+    )
+    assert len(fake_client.calls) == 1
+    assert body["planning"]["update_status"] == "no_changes"
+    assert body["chat_response"] == "Samal has calm beaches and reefs."
+
+    claim_reply = json.dumps({
+        "chat_response": "I set your budget to 700.",
+        "state_updates": "none",
+    })
+    _, claim_body, claim_fake = _chat_with_model_replies(
+        client, [claim_reply, claim_reply], "Tell me about Samal.", use_rag=False, admin=admin, user=user, destination=destination,
+    )
+    assert len(claim_fake.calls) == 2
+    assert claim_body["planning"]["update_status"] == "invalid_output"
+    assert "couldn't safely update your plan" in claim_body["chat_response"]
+
+
+def test_planning_chat_reconciles_night_count_when_day_count_shrinks(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    reply = json.dumps({
+        "chat_response": "Okay, shortened to a 1-day trip.",
+        "state_updates": {"day_count": 1},
+        "intent": "modify_trip",
+    })
+    _, body, _ = _chat_with_model_replies(
+        client,
+        [reply],
+        "Make it 1 day.",
+        state={"origin": {"label": "Davao City"}, "day_count": 3, "night_count": 2},
+        use_rag=False,
+    )
+    assert body["planning"]["update_status"] == "applied"
+    assert body["planning"]["state_updates"] == {"day_count": 1, "night_count": 0}
+    assert body["planning"]["preview"]["state"]["day_count"] == 1
+    assert body["planning"]["preview"]["state"]["night_count"] == 0
+
+
+def test_planning_chat_reconciles_adult_count_when_traveler_count_increases(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    reply = json.dumps({
+        "chat_response": "Updated to 4 travelers.",
+        "state_updates": {"traveler_count": 4},
+        "intent": "modify_trip",
+    })
+    _, body, _ = _chat_with_model_replies(
+        client,
+        [reply],
+        "Make it 4 travelers.",
+        state={
+            "origin": {"label": "Davao City"},
+            "traveler_count": 3,
+            "adult_count": 2,
+            "child_ages": [6],
+        },
+        use_rag=False,
+    )
+    assert body["planning"]["update_status"] == "applied"
+    saved = body["planning"]["preview"]["state"]
+    assert saved["traveler_count"] == 4
+    assert saved["adult_count"] == 3
+    assert saved["child_ages"] == [6]
+
+
+def test_planning_chat_clears_adult_child_breakdown_when_traveler_count_shrinks_below_children(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    destination = create_destination(client, headers=admin_headers(client), name="Clear Test Spot")
+    reply = json.dumps({
+        "chat_response": "Updated to 1 traveler.",
+        "state_updates": {"traveler_count": 1},
+        "intent": "modify_trip",
+    })
+    fake_client = FakeGroqClient([reply])
+    client.app.dependency_overrides[get_groq_client] = lambda: fake_client
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=user_headers(client),
+        json={
+            "message": "Just me.",
+            "use_rag": False,
+            "planning_state": {
+                "origin": {"label": "Davao City"},
+                "destination_ids": [destination["destination_id"]],
+                "traveler_count": 3,
+                "adult_count": 2,
+                "child_ages": [6],
+                "age_pricing_rules": [
+                    {
+                        "category": "destination",
+                        "reference_id": f"destination:{destination['destination_id']}",
+                        "adult_unit_amount": "100.00",
+                        "child_bands": [{"min_age": 0, "max_age": 12, "rate": "half"}],
+                    },
+                ],
+            },
+        },
+    )
+    assert response.status_code == 200, response.text
+    planning = response.json()["planning"]
+    assert planning["update_status"] == "applied"
+    saved = planning["preview"]["state"]
+    assert saved["traveler_count"] == 1
+    assert saved["adult_count"] is None
+    assert saved["child_ages"] == []
+    assert saved["age_pricing_rules"] == []
+
+
+def test_planning_chat_saves_adults_and_child_ages_from_natural_answer(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    _, body, fake_client = _chat_with_model_replies(
+        client,
+        ["not json {{"],
+        "2 adults and 1 child age 6",
+        state={"origin": {"label": "Davao City"}},
+        use_rag=False,
+    )
+    assert len(fake_client.calls) == 1
+    assert body["planning"]["update_status"] == "applied"
+    saved = body["planning"]["preview"]["state"]
+    assert saved["adult_count"] == 2
+    assert saved["child_ages"] == [6]
+    assert saved["traveler_count"] == 3
+
+
+def test_planning_chat_passes_json_response_format_only_for_planning_state(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    fake_planning = FakeGroqClient([
+        json.dumps({"chat_response": "Happy to help!", "state_updates": {}}),
+    ])
+    headers = user_headers(client)
+    client.app.dependency_overrides[get_groq_client] = lambda: fake_planning
+    res_planning = client.post(
+        "/api/v1/ai/chat",
+        headers=headers,
+        json={"message": "Hi", "use_rag": False, "planning_state": {"origin": {"label": "Davao City"}}},
+    )
+    assert res_planning.status_code == 200
+    assert fake_planning.calls[0]["response_format"] == {"type": "json_object"}
+
+    fake_plain = FakeGroqClient(["Hello there! Ask away."])
+    client.app.dependency_overrides[get_groq_client] = lambda: fake_plain
+    res_plain = client.post(
+        "/api/v1/ai/chat",
+        headers=headers,
+        json={"message": "Hi", "use_rag": False},
+    )
+    assert res_plain.status_code == 200
+    assert fake_plain.calls[0]["response_format"] is None
+
+
+def test_planning_chat_retries_once_on_invalid_json_and_sums_tokens(
+    client, monkeypatch,
+) -> None:
+    from app.features.ai.repository import AIItineraryRepository
+
+    configure_ai(monkeypatch)
+    captured_summaries: list[dict | None] = []
+    orig_update = AIItineraryRepository.update_generation_run
+
+    async def spy_update(self, run, **kwargs):
+        captured_summaries.append(kwargs.get("output_summary"))
+        return await orig_update(self, run, **kwargs)
+
+    monkeypatch.setattr(AIItineraryRepository, "update_generation_run", spy_update)
+
+    valid_retry = json.dumps({
+        "chat_response": "Updated your budget to 8000.",
+        "state_updates": {"total_budget": 8000},
+        "intent": "modify_trip",
+    })
+    _, body, fake_client = _chat_with_model_replies(
+        client,
+        ['{"unexpected": 1}', valid_retry],
+        "Raise my budget.",
+        state={"origin": {"label": "Davao City"}, "total_budget": "5000"},
+        use_rag=False,
+    )
+    assert len(fake_client.calls) == 2
+    assert fake_client.calls[1]["response_format"] == {"type": "json_object"}
+    assert "Return ONLY one valid JSON object" in fake_client.calls[1]["messages"][-1]["content"]
+    assert body["planning"]["update_status"] == "applied"
+    assert body["planning"]["preview"]["state"]["total_budget"] == "8000"
+    assert body["prompt_tokens"] == 20
+    assert body["completion_tokens"] == 40
+    assert body["total_tokens"] == 60
+    assert captured_summaries[-1]["json_retry_used"] is True
+
+
+def test_planning_chat_recovery_prompt_includes_next_question_after_failed_retry(
+    client, monkeypatch,
+) -> None:
+    configure_ai(monkeypatch)
+    _, body, fake_client = _chat_with_model_replies(
+        client,
+        ['{"unexpected": 1}', '{"unexpected": 1}'],
+        "Tell me something.",
+        state={"origin": {"label": "Davao City"}, "interests": ["beaches"], "traveler_count": 2},
+        use_rag=False,
+    )
+    assert len(fake_client.calls) == 2
+    assert body["planning"]["update_status"] == "invalid_output"
+    assert "couldn't safely update your plan" in body["chat_response"]
+    assert "How many days do you have?" in body["chat_response"]
+

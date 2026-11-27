@@ -544,3 +544,41 @@ def test_post_archive_endpoint_archives_trip(client) -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "archived"
+
+
+def test_trip_completion_lifecycle_sets_and_clears_completed_at_and_blocks_archived_reopen(
+    client,
+) -> None:
+    destination_a, _ = create_destinations(client)
+    headers = user_headers(client)
+    trip = create_trip(client, headers, [destination_a["destination_id"]])
+    trip_id = trip["trip_id"]
+    assert trip["completed_at"] is None
+
+    completed = client.patch(
+        f"/api/v1/trips/{trip_id}",
+        headers=headers,
+        json={"status": "completed"},
+    )
+    assert completed.status_code == 200
+    assert completed.json()["status"] == "completed"
+    assert completed.json()["completed_at"] is not None
+
+    reopened = client.patch(
+        f"/api/v1/trips/{trip_id}",
+        headers=headers,
+        json={"status": "planned"},
+    )
+    assert reopened.status_code == 200
+    assert reopened.json()["status"] == "planned"
+    assert reopened.json()["completed_at"] is None
+
+    archived = client.post(f"/api/v1/trips/{trip_id}/archive", headers=headers)
+    assert archived.status_code == 200
+    blocked = client.patch(
+        f"/api/v1/trips/{trip_id}",
+        headers=headers,
+        json={"status": "planned"},
+    )
+    assert blocked.status_code == 409
+
